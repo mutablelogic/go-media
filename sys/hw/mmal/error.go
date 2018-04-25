@@ -5,39 +5,34 @@
 	For Licensing and Usage information, please see LICENSE.md
 */
 
-package rpi
-
-////////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-type mmalStatus int
+package mmal
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (
-	MMAL_SUCCESS   mmalStatus = iota
-	MMAL_ENOMEM               // Out of memory
-	MMAL_ENOSPC               // Out of resources (other than memory)
-	MMAL_EINVAL               // Argument is invalid
-	MMAL_ENOSYS               // Function not implemented
-	MMAL_ENOENT               // No such file or directory
-	MMAL_ENXIO                // No such device or address
-	MMAL_EIO                  // I/O error
-	MMAL_ESPIPE               // Illegal seek
-	MMAL_ECORRUPT             // Data is corrupt
-	MMAL_ENOTREADY            // Component is not ready
-	MMAL_ECONFIG              // Component is not configured
-	MMAL_EISCONN              // Port is already connected
-	MMAL_ENOTCONN             // Port is disconnected
-	MMAL_EAGAIN               // Resource temporarily unavailable. Try again later
-	MMAL_EFAULT               // Bad address
+	MMAL_SUCCESS   status = iota
+	MMAL_ENOMEM           // Out of memory
+	MMAL_ENOSPC           // Out of resources (other than memory)
+	MMAL_EINVAL           // Argument is invalid
+	MMAL_ENOSYS           // Function not implemented
+	MMAL_ENOENT           // No such file or directory
+	MMAL_ENXIO            // No such device or address
+	MMAL_EIO              // I/O error
+	MMAL_ESPIPE           // Illegal seek
+	MMAL_ECORRUPT         // Data is corrupt
+	MMAL_ENOTREADY        // Component is not ready
+	MMAL_ECONFIG          // Component is not configured
+	MMAL_EISCONN          // Port is already connected
+	MMAL_ENOTCONN         // Port is disconnected
+	MMAL_EAGAIN           // Resource temporarily unavailable. Try again later
+	MMAL_EFAULT           // Bad address
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (s mmalStatus) Error() string {
+func (s status) Error() string {
 	switch s {
 	case MMAL_SUCCESS:
 		return "MMAL_SUCCESS"
@@ -72,6 +67,6 @@ func (s mmalStatus) Error() string {
 	case MMAL_EFAULT:
 		return "MMAL_EFAULT"
 	default:
-		return "[?? Invalid mmalStatus value]"
+		return "[?? Invalid status value]"
 	}
 }

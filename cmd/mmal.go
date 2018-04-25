@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	// Frameworks
@@ -12,16 +13,19 @@ import (
 	_ "github.com/djthorpe/gopi/sys/logger"
 
 	// MMAL
-	"github.com/djthorpe/mmal/sys/hw/rpi"
+	rpi_mmal "github.com/djthorpe/mmal/sys/hw/mmal"
 )
 
 /////////////////////////////////////////////////////////////////////
 // MAIN
 
 func Main(app *gopi.AppInstance, done chan<- struct{}) error {
-	if component_, err := gopi.Open(rpi.MMALComponent{
+
+	name, _ := app.AppFlags.GetString("component")
+
+	if component_, err := gopi.Open(rpi_mmal.Component{
 		Hardware: app.Hardware,
-		Name:     mmal.MMAL_COMPONENT_DEFAULT_CAMERA_INFO,
+		Name:     name,
 	}, app.Logger); err != nil {
 		return err
 	} else {
@@ -33,7 +37,28 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 			return err
 		}
 
-		app.Logger.Info("component=%v", component)
+		fmt.Println("component", component)
+
+		fmt.Println("control", component.Control())
+		component.Control().SupportedEncodings()
+		fmt.Println("")
+
+		for _, port := range component.Input() {
+			fmt.Println("input", port)
+			if encodings, err := port.SupportedEncodings(); err != nil {
+				return err
+			} else {
+				fmt.Println(" encodings=", encodings)
+			}
+		}
+		for _, port := range component.Output() {
+			fmt.Println("output", port)
+			if encodings, err := port.SupportedEncodings(); err != nil {
+				return err
+			} else {
+				fmt.Println(" encodings=", encodings)
+			}
+		}
 	}
 
 	// return success
@@ -43,5 +68,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
 func main() {
 	config := gopi.NewAppConfig("hw")
+	config.AppFlags.FlagString("component", mmal.MMAL_COMPONENT_DEFAULT_VIDEO_DECODER, "MMAL Compnent")
+
 	os.Exit(gopi.CommandLineTool(config, Main))
 }
