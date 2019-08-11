@@ -5,11 +5,12 @@
 	For Licensing and Usage information, please see LICENSE.md
 */
 
-package mmal
+package media
 
 import (
 	"encoding/binary"
 	"strings"
+
 	// Frameworks
 	"github.com/djthorpe/gopi"
 )

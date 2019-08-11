@@ -15,3 +15,5 @@
 
 # Custom
 ._*
+.DS_Store
+go.sum
