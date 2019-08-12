@@ -44,8 +44,8 @@ func NewAVFormatContext() *AVFormatContext {
 	return (*AVFormatContext)(C.avformat_alloc_context())
 }
 
-// Close for AVFormatContext
-func (this *AVFormatContext) Close() {
+// Free AVFormatContext
+func (this *AVFormatContext) Free() {
 	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
 	C.avformat_free_context(ctx)
 }
@@ -66,6 +66,12 @@ func (this *AVFormatContext) OpenInput(filename string, input_format *AVInputFor
 	} else {
 		return nil
 	}
+}
+
+// Close Input
+func (this *AVFormatContext) CloseInput() {
+	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
+	C.avformat_close_input(&ctx)
 }
 
 // Return Metadata Dictionary

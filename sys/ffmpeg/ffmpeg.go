@@ -128,6 +128,7 @@ func NewInput(filename string, log gopi.Logger) (*ffinput, error) {
 	} else if ctx := ff.NewAVFormatContext(); ctx == nil {
 		return nil, gopi.ErrAppError
 	} else if err := ctx.OpenInput(filename, nil); err != nil {
+		ctx.Free()
 		return nil, err
 	} else {
 		dict := ctx.Metadata()
@@ -188,7 +189,7 @@ func (this *ffinput) Destroy() error {
 		// Do nothing
 		return nil
 	} else {
-		this.ctx.Close()
+		this.ctx.CloseInput()
 		this.ctx = nil
 		this.keys = nil
 		return nil

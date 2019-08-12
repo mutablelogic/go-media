@@ -30,7 +30,7 @@ func Test_avformat_002(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else {
-		ctx.Close()
+		ctx.Free()
 	}
 }
 
@@ -38,9 +38,10 @@ func Test_avformat_003(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
+		ctx.Free()
 		t.Error(err)
 	} else {
-		ctx.Close()
+		ctx.CloseInput()
 	}
 }
 
@@ -48,10 +49,11 @@ func Test_avformat_004(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
+		ctx.Free()
 		t.Error(err)
 	} else {
 		t.Log(ctx.Metadata())
-		ctx.Close()
+		ctx.CloseInput()
 	}
 }
 
@@ -59,9 +61,10 @@ func Test_avformat_005(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
+		ctx.Free()
 		t.Error(err)
 	} else {
 		t.Log(ctx.Filename())
-		ctx.Close()
+		ctx.CloseInput()
 	}
 }
