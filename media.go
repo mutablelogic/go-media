@@ -31,7 +31,8 @@ type Media interface {
 
 type MediaItem interface {
 
-	// Return title for the media item
+	// Return title for the media item, based on the metadata
+	// or the filename
 	Title() string
 
 	// Return type for the media item
@@ -45,8 +46,16 @@ type MediaItem interface {
 type MediaFile interface {
 	MediaItem
 
+	// Return filename for the media file
 	Filename() string
+
+	// Probe the file and enumerate the streams
 	Streams() []MediaStream
+}
+
+type MediaStream interface {
+	// Return type for the media stream
+	Type() MediaType
 }
 
 ////////////////////////////////////////////////////////////////////////////////
