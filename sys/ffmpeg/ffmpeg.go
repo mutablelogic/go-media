@@ -47,6 +47,9 @@ type ffinput struct {
 func (config Config) Open(logger gopi.Logger) (gopi.Driver, error) {
 	logger.Debug("<ffmpeg.Open>{ config=%+v }", config)
 
+	// Init ffmpeg
+	ff.AVFormatInit()
+
 	this := new(ffmpeg)
 	this.log = logger
 	this.files = make([]*ffinput, 0)
@@ -65,6 +68,12 @@ func (this *ffmpeg) Close() error {
 			err.Add(file.Destroy())
 		}
 	}
+
+	// Release resources
+	this.files = nil
+
+	// Deallocate for AVFormat
+	ff.AVFormatDeinit()
 
 	// Return success
 	return err.ErrorOrSelf()
@@ -160,6 +169,21 @@ func NewInput(filename string, log gopi.Logger) (*ffinput, error) {
 	}
 }
 
+func (this *ffinput) Destroy() error {
+	this.log.Debug2("<ffinput.Destroy>{ ctx=%v }", this.ctx)
+
+	if this.ctx == nil {
+		// Do nothing - already closed
+		this.keys = nil
+		return nil
+	} else {
+		this.ctx.CloseInput()
+		this.ctx = nil
+		this.keys = nil
+		return nil
+	}
+}
+
 func (this *ffinput) String() string {
 	if this.ctx == nil {
 		return fmt.Sprintf("<ffinput>{ ctx=nil }")
@@ -182,20 +206,6 @@ func (this *ffinput) Filename() string {
 	}
 }
 
-func (this *ffinput) Destroy() error {
-	this.log.Debug2("<ffinput.Destroy>{ ctx=%v }", this.ctx)
-
-	if this.ctx == nil {
-		// Do nothing
-		return nil
-	} else {
-		this.ctx.CloseInput()
-		this.ctx = nil
-		this.keys = nil
-		return nil
-	}
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // MEDIAITEM INTERFACE IMPLEMENTATION
 
@@ -208,6 +218,7 @@ func (this *ffinput) Keys() []media.MetadataKey {
 }
 
 func (this *ffinput) StringForKey(media.MetadataKey) string {
+	this.log.Warn("TODO: StringForKey")
 	return ""
 }
 

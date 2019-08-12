@@ -68,3 +68,30 @@ func Test_avformat_005(t *testing.T) {
 		ctx.CloseInput()
 	}
 }
+
+func Test_avformat_006(t *testing.T) {
+	ffmpeg.AVFormatInit()
+	ffmpeg.AVFormatInit()
+	ffmpeg.AVFormatDeinit()
+	ffmpeg.AVFormatDeinit()
+}
+
+func Test_avformat_007(t *testing.T) {
+	if iformats := ffmpeg.EnumerateInputFormats(); len(iformats) == 0 {
+		t.Error("EnumerateInputFormats expected a return value")
+	} else {
+		for _, iformat := range iformats {
+			t.Log(iformat)
+		}
+	}
+}
+
+func Test_avformat_008(t *testing.T) {
+	if oformats := ffmpeg.EnumerateOutputFormats(); len(oformats) == 0 {
+		t.Error("EnumerateOutputFormats expected a return value")
+	} else {
+		for _, oformat := range oformats {
+			t.Log(oformat)
+		}
+	}
+}

@@ -2,6 +2,9 @@ package ffmpeg
 
 import (
 	"unsafe"
+	"sync"
+	"fmt"
+	"strconv"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +22,7 @@ import "C"
 type (
 	AVFormatContext C.struct_AVFormatContext
 	AVInputFormat   C.struct_AVInputFormat
-	//AVIOContext     C.struct_AVIOContext
+	AVOutputFormat   C.struct_AVOutputFormat
 )
 
 type (
@@ -36,8 +39,28 @@ const (
 	AVIO_FLAG_READ_WRITE AVIOFlags = (AVIO_FLAG_READ | AVIO_FLAG_WRITE)
 )
 
+var (
+	once_init,once_deinit sync.Once
+)
+
 ////////////////////////////////////////////////////////////////////////////////
-// LIBRARY FUNCTIONS
+// INIT AND DEINIT
+
+// Register and Deregister
+func AVFormatInit() {
+	once_init.Do(func() {
+		C.avformat_network_init()		
+	})
+}
+
+func AVFormatDeinit() {
+	once_deinit.Do(func() {
+		C.avformat_network_deinit()
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVFORMATCONTEXT
 
 // NewAVFormatContext creates a new format context
 func NewAVFormatContext() *AVFormatContext {
@@ -84,24 +107,79 @@ func (this *AVFormatContext) Filename() string {
 	return C.GoString(&this.filename[0])
 }
 
-/*
-func NewAVIOContext(url string, flags AVIOFlags) (*AVIOContext, error) {
-	ctx := new(AVIOContext)
-	url_ := C.CString(url)
-	defer C.free(unsafe.Pointer(url_))
-	if err := AVError(C.avio_open((**C.AVIOContext)(unsafe.Pointer(ctx)), url_, C.int(flags))); err != 0 {
-		return nil, err
-	} else {
-		return ctx, nil
+////////////////////////////////////////////////////////////////////////////////
+// AVInputFormat and AVOutputFormat
+
+// Return input formats
+func EnumerateInputFormats() []*AVInputFormat {
+	a := make([]*AVInputFormat,0,100)
+	p := unsafe.Pointer(uintptr(0))
+	for {
+		if iformat := (*AVInputFormat)(C.av_demuxer_iterate(&p)); iformat == nil {
+			break
+		} else {
+			a = append(a,iformat)
+		}
 	}
+	return a
 }
 
-func (this *AVIOContext) Close() error {
-	ctx := (*C.AVIOContext)(unsafe.Pointer(this))
-	if err := AVError(C.avio_close(ctx)); err != 0 {
-		return err
-	} else {
-		return nil
+
+// Return output formats
+func EnumerateOutputFormats() []*AVOutputFormat {
+	a := make([]*AVOutputFormat,0,100)
+	p := unsafe.Pointer(uintptr(0))
+	for {
+		if oformat := (*AVOutputFormat)(C.av_muxer_iterate(&p)); oformat == nil {
+			break
+		} else {
+			a = append(a,oformat)
+		}
 	}
+	return a
 }
-*/
+
+func  (this *AVInputFormat) Name() string {
+	return C.GoString(this.name)
+}
+
+func  (this *AVInputFormat) Description() string {
+	return C.GoString(this.long_name)
+}
+
+func (this *AVInputFormat) Ext() string {
+	return C.GoString(this.extensions)
+}
+
+func (this *AVInputFormat) MimeType() string {
+	return C.GoString(this.mime_type)
+}
+
+
+func  (this *AVOutputFormat) Name() string {
+	return C.GoString(this.name)
+}
+
+func  (this *AVOutputFormat) Description() string {
+	return C.GoString(this.long_name)
+}
+
+func (this *AVOutputFormat) Ext() string {
+	return C.GoString(this.extensions)
+}
+
+func (this *AVOutputFormat) MimeType() string {
+	return C.GoString(this.mime_type)
+}
+
+func (this *AVInputFormat) Id() int {
+	return int(this.raw_codec_id)
+}
+
+func (this *AVInputFormat) String() string {
+	return fmt.Sprintf("<AVInputFormat>{ id=0x%08X name=%v description=%v ext=%v mime_type=%v }",this.Id(),strconv.Quote(this.Name()),strconv.Quote(this.Description()),strconv.Quote(this.Ext()),strconv.Quote(this.MimeType()))
+}
+
+func (this *AVOutputFormat) String() string {
+	return fmt.Sprintf("<AVOutputFormat>{ name=%v description=%v ext=%v mime_type=%v }",strconv.Quote(this.Name()),strconv.Quote(this.Description()),strconv.Quote(this.Ext()),strconv.Quote(this.MimeType()))
+}
