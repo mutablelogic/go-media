@@ -30,6 +30,14 @@ type Media interface {
 }
 
 type MediaItem interface {
+
+	// Return title for the media item
+	Title() string
+
+	// Return type for the media item
+	Type() MediaType
+
+	// Return additional metadata for the media item
 	Keys() []MetadataKey
 	StringForKey(MetadataKey) string
 }
@@ -38,20 +46,31 @@ type MediaFile interface {
 	MediaItem
 
 	Filename() string
+	Streams() []MediaStream
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
-var (
+const (
 	MEDIA_TYPE_NONE       MediaType = 0
-	MEDIA_TYPE_MUSIC      MediaType = 1
-	MEDIA_TYPE_AUDIOBOOK  MediaType = 2
-	MEDIA_TYPE_MUSICVIDEO MediaType = 6
-	MEDIA_TYPE_MOVIE      MediaType = 9
-	MEDIA_TYPE_TVSHOW     MediaType = 10
-	MEDIA_TYPE_BOOKLET    MediaType = 11
-	MEDIA_TYPE_RINGTONE   MediaType = 14
+	MEDIA_TYPE_AUDIO      MediaType = (1 << iota)
+	MEDIA_TYPE_VIDEO      MediaType = (1 << iota)
+	MEDIA_TYPE_IMAGE      MediaType = (1 << iota)
+	MEDIA_TYPE_SUBTITLE   MediaType = (1 << iota)
+	MEDIA_TYPE_DATA       MediaType = (1 << iota)
+	MEDIA_TYPE_ATTACHMENT MediaType = (1 << iota)
+	MEDIA_TYPE_MUSIC      MediaType = (1 << iota)
+	MEDIA_TYPE_AUDIOBOOK  MediaType = (1 << iota)
+	MEDIA_TYPE_MUSICVIDEO MediaType = (1 << iota)
+	MEDIA_TYPE_FILM       MediaType = (1 << iota)
+	MEDIA_TYPE_MOVIE      MediaType = (1 << iota)
+	MEDIA_TYPE_TVSHOW     MediaType = (1 << iota)
+	MEDIA_TYPE_BOOKLET    MediaType = (1 << iota)
+	MEDIA_TYPE_RINGTONE   MediaType = (1 << iota)
+	MEDIA_TYPE_TVSEASON   MediaType = (1 << iota)
+	MEDIA_TYPE_TVEPISODE  MediaType = (1 << iota)
+	MEDIA_TYPE_ALBUM      MediaType = (1 << iota)
 )
 
 var (
