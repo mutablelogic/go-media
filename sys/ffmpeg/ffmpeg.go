@@ -41,6 +41,10 @@ type ffinput struct {
 	keys map[media.MetadataKey]string
 }
 
+type ffstream struct {
+	ctx *ff.AVStream
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // OPEN AND CLOSE
 
@@ -194,7 +198,7 @@ func (this *ffinput) String() string {
 			metadata_value := strconv.Quote(v)
 			metadata += fmt.Sprintf("%v=%v ", metadata_key, metadata_value)
 		}
-		return fmt.Sprintf("<ffinput>{ filename=%v metadata={%v} }", strconv.Quote(this.Filename()), strings.TrimSpace(metadata))
+		return fmt.Sprintf("<ffinput>{ filename=%v metadata={%v} streams=%v }", strconv.Quote(this.Filename()), strings.TrimSpace(metadata), this.Streams())
 	}
 }
 
@@ -204,6 +208,17 @@ func (this *ffinput) Filename() string {
 	} else {
 		return this.ctx.Filename()
 	}
+}
+
+func (this *ffinput) Streams() []media.MediaStream {
+	if this.ctx == nil {
+		return nil
+	}
+	streams := make([]media.MediaStream, this.ctx.NumStreams())
+	for i, stream := range this.ctx.Streams() {
+		streams[i] = NewStream(stream)
+	}
+	return streams
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +235,31 @@ func (this *ffinput) Keys() []media.MetadataKey {
 func (this *ffinput) StringForKey(media.MetadataKey) string {
 	this.log.Warn("TODO: StringForKey")
 	return ""
+}
+
+func (this *ffinput) Title() string {
+	// TODO
+	return "TODO"
+}
+
+func (this *ffinput) Type() media.MediaType {
+	// TODO
+	return media.MEDIA_TYPE_NONE
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MEDIASTREAM INTERFACE IMPLEMENTATION
+
+func NewStream(ctx *ff.AVStream) media.MediaStream {
+	if ctx == nil {
+		return nil
+	}
+	return &ffstream{ctx}
+}
+
+func (this *ffstream) Type() media.MediaType {
+	// TODO
+	return media.MEDIA_TYPE_NONE
 }
 
 ////////////////////////////////////////////////////////////////////////////////
