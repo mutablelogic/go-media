@@ -14,18 +14,6 @@ func Test_avformat_000(t *testing.T) {
 	t.Log("Test_avformat_000")
 }
 
-/*
-func Test_avformat_001(t *testing.T) {
-	ffmpeg.AVInit()
-	if ctx, err := ffmpeg.NewAVIOContext("avutil.go", ffmpeg.AVIO_FLAG_READ); err != nil {
-		t.Fatal(err)
-	} else if err := ctx.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-*/
-
 func Test_avformat_002(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
@@ -38,7 +26,6 @@ func Test_avformat_003(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
-		ctx.Free()
 		t.Error(err)
 	} else {
 		ctx.CloseInput()
@@ -49,7 +36,6 @@ func Test_avformat_004(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
-		ctx.Free()
 		t.Error(err)
 	} else {
 		t.Log(ctx.Metadata())
@@ -61,7 +47,6 @@ func Test_avformat_005(t *testing.T) {
 	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
-		ctx.Free()
 		t.Error(err)
 	} else {
 		t.Log(ctx.Filename())
@@ -92,6 +77,21 @@ func Test_avformat_008(t *testing.T) {
 	} else {
 		for _, oformat := range oformats {
 			t.Log(oformat)
+		}
+	}
+}
+
+func Test_avformat_009(t *testing.T) {
+	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
+		t.Fatal("NewAVFormatContext failed")
+	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
+		t.Error(err)
+	} else if streams := ctx.Streams(); len(streams) == 0 {
+		t.Error("No streams found")
+		ctx.CloseInput()
+	} else {
+		for _, stream := range streams {
+			t.Log(stream)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"fmt"
 	"strconv"
+	"reflect"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +24,7 @@ type (
 	AVFormatContext C.struct_AVFormatContext
 	AVInputFormat   C.struct_AVInputFormat
 	AVOutputFormat   C.struct_AVOutputFormat
+	AVStream C.struct_AVStream
 )
 
 type (
@@ -107,6 +109,30 @@ func (this *AVFormatContext) Filename() string {
 	return C.GoString(&this.filename[0])
 }
 
+// Return number of streams
+func (this *AVFormatContext) NumStreams() uint {
+	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
+	return uint(ctx.nb_streams)
+}
+
+// Return Streams
+func (this *AVFormatContext) Streams() []*AVStream {
+	var streams []*AVStream	
+
+	// Get context
+	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
+
+	// Make a fake slice
+	if nb_streams := this.NumStreams(); nb_streams > 0 {
+		// Make a fake slice
+		sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&streams)))
+		sliceHeader.Cap = int(nb_streams)
+		sliceHeader.Len = int(nb_streams)
+		sliceHeader.Data = uintptr(unsafe.Pointer(ctx.streams))
+	}
+	return streams
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // AVInputFormat and AVOutputFormat
 
@@ -172,14 +198,31 @@ func (this *AVOutputFormat) MimeType() string {
 	return C.GoString(this.mime_type)
 }
 
-func (this *AVInputFormat) Id() int {
-	return int(this.raw_codec_id)
-}
-
 func (this *AVInputFormat) String() string {
-	return fmt.Sprintf("<AVInputFormat>{ id=0x%08X name=%v description=%v ext=%v mime_type=%v }",this.Id(),strconv.Quote(this.Name()),strconv.Quote(this.Description()),strconv.Quote(this.Ext()),strconv.Quote(this.MimeType()))
+	return fmt.Sprintf("<AVInputFormat>{ name=%v description=%v ext=%v mime_type=%v }",strconv.Quote(this.Name()),strconv.Quote(this.Description()),strconv.Quote(this.Ext()),strconv.Quote(this.MimeType()))
 }
 
 func (this *AVOutputFormat) String() string {
 	return fmt.Sprintf("<AVOutputFormat>{ name=%v description=%v ext=%v mime_type=%v }",strconv.Quote(this.Name()),strconv.Quote(this.Description()),strconv.Quote(this.Ext()),strconv.Quote(this.MimeType()))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVStream
+
+func (this *AVStream) Index() int {
+	ctx := (*C.AVStream)(unsafe.Pointer(this))
+	return int(ctx.index)
+}
+
+func (this *AVStream) Id() int {
+	ctx := (*C.AVStream)(unsafe.Pointer(this))
+	return int(ctx.id)
+}
+
+func (this *AVStream) Metadata() *AVDictionary {
+	return &AVDictionary{ctx: this.metadata}
+}
+
+func (this *AVStream) String() string {
+	return fmt.Sprintf("<AVStream>{ index=%v id=%v metadata=%v }",this.Index(),this.Id(),this.Metadata())
 }
