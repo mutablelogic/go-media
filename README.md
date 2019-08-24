@@ -15,7 +15,10 @@ For Mac, use the following commands to satisfy dependencies (ffpmeg 4.1 or above
 % cd gopi-media
 % xcode-select --install
 % brew install ffmpeg
+% brew install sqlite3
 ```
+
+
 
 
 
