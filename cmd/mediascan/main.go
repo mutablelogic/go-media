@@ -12,6 +12,7 @@ import (
 
 	// Modules
 	_ "github.com/djthorpe/gopi-media/sys/ffmpeg"
+	_ "github.com/djthorpe/gopi-media/sys/sqlite"
 	_ "github.com/djthorpe/gopi/sys/logger"
 )
 
@@ -117,7 +118,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
 func main() {
 	// Create the configuration
-	config := gopi.NewAppConfig("ffmpeg")
+	config := gopi.NewAppConfig("ffmpeg", "sqlite")
 
 	// Run the command line tool
 	os.Exit(gopi.CommandLineTool2(config, Main, WalkPaths, WalkFiles))
