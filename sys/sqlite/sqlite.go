@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"strconv"
 
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
@@ -33,6 +34,10 @@ type Config struct {
 type sqlite struct {
 	log  gopi.Logger
 	conn *sql.DB
+}
+
+type statement struct {
+	p *sql.Stmt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,22 +80,34 @@ func (this *sqlite) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // STATEMENT PREPARE AND EXECUTE
 
-func (this *sqlite) Prepare(statement string) (sq.Statement, error) {
-	if _, err := this.conn.Prepare(statement); err != nil {
+func (this *sqlite) Prepare(str string) (sq.Statement, error) {
+	this.log.Debug2("<sqlite.Prepare>{ str=%v }", strconv.Quote(str))
+	if prepared, err := this.conn.Prepare(str); err != nil {
 		return nil, err
 	} else {
-		return nil, gopi.ErrNotImplemented
+		return &statement{prepared}, nil
 	}
 }
 
-func (this *sqlite) Do(statement sq.Statement) error {
-	this.log.Debug2("<sqlite.Do>{ %v }", statement.SQL())
-	if s, err := this.conn.Prepare(statement.SQL()); err != nil {
-		return err
-	} else if _, err := s.Exec([]driver.Value{}); err != nil {
+func (this *sqlite) Do(s sq.Statement) error {
+	this.log.Debug2("<sqlite.Do>{ statement=%v }", s)
+	if _, err := s.(*statement).p.Exec([]driver.Value{}); err != nil {
 		return err
 	} else {
 		return nil
 	}
 	return gopi.ErrNotImplemented
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RETURN TABLES
+
+func (this *sqlite) Tables() ([]string, error) {
+	if p, err := this.Prepare("SELECT name FROM sqlite_master WHERE type=?"); err != nil {
+		return nil, err
+	} else if err := this.Do(p); err != nil {
+		return nil, err
+	} else {
+		return nil, gopi.ErrNotImplemented
+	}
 }

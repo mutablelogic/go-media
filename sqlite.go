@@ -19,13 +19,13 @@ import (
 type Connection interface {
 	gopi.Driver
 
-	// Prepare and execute statements
+	// Prepare statement
 	Prepare(string) (Statement, error)
+
+	// Execute statement, no resultset
 	Do(Statement) error
 }
 
 // Statement that can be executed
 type Statement interface {
-	// Return SQL string for the statement
-	SQL() string
 }
