@@ -11,7 +11,6 @@ package sqlite
 
 import (
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"strconv"
 
@@ -89,14 +88,15 @@ func (this *sqlite) Prepare(str string) (sq.Statement, error) {
 	}
 }
 
-func (this *sqlite) Do(s sq.Statement) error {
-	this.log.Debug2("<sqlite.Do>{ statement=%v }", s)
-	if _, err := s.(*statement).p.Exec([]driver.Value{}); err != nil {
+func (this *sqlite) Do(st sq.Statement, args ...interface{}) error {
+	this.log.Debug2("<sqlite.Do>{ %v }", st)
+	if statement_, ok := st.(*statement); ok == false {
+		return gopi.ErrBadParameter
+	} else if _, err := statement_.p.Exec(args...); err != nil {
 		return err
 	} else {
 		return nil
 	}
-	return gopi.ErrNotImplemented
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +105,7 @@ func (this *sqlite) Do(s sq.Statement) error {
 func (this *sqlite) Tables() ([]string, error) {
 	if p, err := this.Prepare("SELECT name FROM sqlite_master WHERE type=?"); err != nil {
 		return nil, err
-	} else if err := this.Do(p); err != nil {
+	} else if err := this.Do(p, "table"); err != nil {
 		return nil, err
 	} else {
 		return nil, gopi.ErrNotImplemented

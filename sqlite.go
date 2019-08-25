@@ -23,7 +23,7 @@ type Connection interface {
 	Prepare(string) (Statement, error)
 
 	// Execute statement, no resultset
-	Do(Statement) error
+	Do(Statement, ...interface{}) error
 }
 
 // Statement that can be executed
