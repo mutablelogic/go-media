@@ -20,7 +20,7 @@ import (
 	errors "github.com/djthorpe/gopi/util/errors"
 
 	// Anonymous
-	_ "github.com/mattn/go-sqlite3"
+	driver "github.com/mattn/go-sqlite3"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +37,18 @@ type sqlite struct {
 
 type statement struct {
 	p *sql.Stmt
+}
+
+type resultset struct {
+	r *sql.Rows
+	c []string
+	t []*sql.ColumnType
+}
+
+type column struct {
+	name string
+	pos  uint
+	t    *sql.ColumnType
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +85,7 @@ func (this *sqlite) Close() error {
 // STRINGIFY
 
 func (this *sqlite) String() string {
-	return fmt.Sprintf("<sqlite>{ conn=%v }", this.conn)
+	return fmt.Sprintf("<sqlite>{ version=%v }", strconv.Quote(this.Version()))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,26 +100,86 @@ func (this *sqlite) Prepare(str string) (sq.Statement, error) {
 	}
 }
 
-func (this *sqlite) Do(st sq.Statement, args ...interface{}) error {
+func (this *sqlite) Do(st sq.Statement, args ...interface{}) (sq.Result, error) {
 	this.log.Debug2("<sqlite.Do>{ %v }", st)
 	if statement_, ok := st.(*statement); ok == false {
-		return gopi.ErrBadParameter
-	} else if _, err := statement_.p.Exec(args...); err != nil {
-		return err
+		return sq.Result{}, gopi.ErrBadParameter
+	} else if r, err := statement_.p.Exec(args...); err != nil {
+		return sq.Result{}, err
+	} else if lastInsertID, err := r.LastInsertId(); err != nil {
+		return sq.Result{}, err
+	} else if rowsAffected, err := r.RowsAffected(); err != nil {
+		return sq.Result{}, err
 	} else {
-		return nil
+		return sq.Result{lastInsertID, uint64(rowsAffected)}, nil
+	}
+}
+
+func (this *sqlite) Query(st sq.Statement, args ...interface{}) (sq.Rows, error) {
+	this.log.Debug2("<sqlite.Query>{ %v }", st)
+	if statement_, ok := st.(*statement); ok == false {
+		return nil, gopi.ErrBadParameter
+	} else if rows, err := statement_.p.Query(args...); err != nil {
+		return nil, err
+	} else if columns, err := rows.Columns(); err != nil {
+		return nil, err
+	} else if types, err := rows.ColumnTypes(); err != nil {
+		return nil, err
+	} else if len(columns) != len(types) {
+		return nil, gopi.ErrAppError
+	} else {
+		return &resultset{
+			r: rows,
+			c: columns,
+			t: types,
+		}, nil
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// RETURN TABLES
+// RESULTSET
+
+func (this *resultset) Columns() []sq.Column {
+	c := make([]sq.Column, len(this.c))
+	for i, name := range this.c {
+		c[i] = &column{name, uint(i), this.t[i]}
+	}
+	return c
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// COLUMN
+
+func (this *column) Name() string {
+	return this.name
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RETURN METADATA
+
+func (this *sqlite) Version() string {
+	version, _, _ := driver.Version()
+	return version
+}
 
 func (this *sqlite) Tables() ([]string, error) {
-	if p, err := this.Prepare("SELECT name FROM sqlite_master WHERE type=?"); err != nil {
+	if p, err := this.Prepare("SELECT * FROM sqlite_master WHERE type=?"); err != nil {
 		return nil, err
-	} else if err := this.Do(p, "table"); err != nil {
+	} else if rows, err := this.Query(p, "table"); err != nil {
 		return nil, err
 	} else {
+		this.log.Info("r=%v", rows)
 		return nil, gopi.ErrNotImplemented
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (r *resultset) String() string {
+	return fmt.Sprintf("<sqlite.Rows>{ columns=%v }", r.Columns())
+}
+
+func (t *column) String() string {
+	return fmt.Sprintf("<sqlite.Column>{ name=%v pos=%v }", strconv.Quote(t.name), t.pos)
 }

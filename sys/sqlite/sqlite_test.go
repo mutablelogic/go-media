@@ -61,10 +61,26 @@ func Test_005(t *testing.T) {
 			_ = driver.(sq.Connection)
 		} else if s, err := sqlite.Prepare("SELECT 1"); err != nil {
 			t.Error(err)
-		} else if err := sqlite.Do(s); err != nil {
+		} else if result, err := sqlite.Do(s); err != nil {
 			t.Error(err)
 		} else {
-			t.Log(s)
+			t.Log(result, s)
+		}
+	}
+}
+
+func Test_006(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		defer driver.Close()
+		if sqlite, ok := driver.(sq.Connection); !ok {
+			t.Error("Cannot cast connection object")
+			_ = driver.(sq.Connection)
+		} else if tables, err := sqlite.Tables(); err != nil {
+			t.Error(err)
+		} else {
+			t.Log(tables)
 		}
 	}
 }
