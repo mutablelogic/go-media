@@ -32,7 +32,7 @@ type Config struct {
 
 type ffmpeg struct {
 	log   gopi.Logger
-	files []*ffinput
+	files map[*ffinput]bool
 }
 
 type ffinput struct {
@@ -56,7 +56,7 @@ func (config Config) Open(logger gopi.Logger) (gopi.Driver, error) {
 
 	this := new(ffmpeg)
 	this.log = logger
-	this.files = make([]*ffinput, 0)
+	this.files = make(map[*ffinput]bool, 0)
 
 	// Success
 	return this, nil
@@ -66,11 +66,8 @@ func (this *ffmpeg) Close() error {
 	this.log.Debug("<ffmpeg.Close>{ }")
 
 	var err errors.CompoundError
-	for _, file := range this.files {
-		if file != nil {
-			this.log.Debug2("Close: %v", file)
-			err.Add(file.Destroy())
-		}
+	for file, _ := range this.files {
+		err.Add(file.Destroy())
 	}
 
 	// Release resources
@@ -96,37 +93,28 @@ func (this *ffmpeg) String() string {
 func (this *ffmpeg) Open(filename string) (media.MediaFile, error) {
 	this.log.Debug2("<ffmpeg.Open>{ filename=%v }", strconv.Quote(filename))
 
-	if stat, err := os.Stat(filename); os.IsNotExist(err) {
-		return nil, gopi.ErrNotFound
-	} else if err != nil {
-		return nil, err
-	} else if stat.Mode().IsRegular() == false {
-		return nil, gopi.ErrBadParameter
-	} else if file, err := NewInput(filename, this.log); err != nil {
+	if file, err := NewInput(filename, this.log); err != nil {
 		return nil, err
 	} else {
-		this.files = append(this.files, file)
+		// Append file to list of opened files
+		this.files[file] = true
 		return file, nil
 	}
 }
 
 func (this *ffmpeg) Destroy(file media.MediaFile) error {
 	this.log.Debug2("<ffmpeg.Destroy>{ file=%v }", file)
-	// TODO
-	return gopi.ErrNotImplemented
-}
 
-func (this *ffmpeg) TypeFor(filename string) media.MediaType {
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".mp4", ".m4v", ".mov", ".m2v", ".vob":
-		return media.MEDIA_TYPE_MOVIE
-	case ".mp3", ".aac", ".m4a":
-		return media.MEDIA_TYPE_MUSIC
-	case ".m4r":
-		return media.MEDIA_TYPE_RINGTONE
-	default:
-		return media.MEDIA_TYPE_NONE
+	// If in list of files, then remove
+	if file_, ok := file.(*ffinput); ok == false {
+		return gopi.ErrBadParameter
+	} else if _, exists := this.files[file_]; exists == false {
+		return gopi.ErrNotFound
+	} else if err := file_.Destroy(); err != nil {
+		return err
+	} else {
+		delete(this.files, file_)
+		return nil
 	}
 }
 
@@ -141,7 +129,7 @@ func NewInput(filename string, log gopi.Logger) (*ffinput, error) {
 	} else if ctx := ff.NewAVFormatContext(); ctx == nil {
 		return nil, gopi.ErrAppError
 	} else if err := ctx.OpenInput(filename, nil); err != nil {
-		ctx.Free()
+		// ctx is freed on error, so no need to free here
 		return nil, err
 	} else {
 		dict := ctx.Metadata()
@@ -228,13 +216,20 @@ func (this *ffinput) Keys() []media.MetadataKey {
 	if this.ctx == nil {
 		return nil
 	} else {
-		return nil
+		keys := make([]media.MetadataKey, 0, len(this.keys))
+		for k := range this.keys {
+			keys = append(keys, k)
+		}
+		return keys
 	}
 }
 
-func (this *ffinput) StringForKey(media.MetadataKey) string {
-	this.log.Warn("TODO: StringForKey")
-	return ""
+func (this *ffinput) StringForKey(key media.MetadataKey) string {
+	if value, exists := this.keys[key]; exists {
+		return value
+	} else {
+		return ""
+	}
 }
 
 func (this *ffinput) Title() string {

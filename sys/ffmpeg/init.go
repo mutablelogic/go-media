@@ -19,7 +19,7 @@ import (
 
 func init() {
 	gopi.RegisterModule(gopi.Module{
-		Name: "ffmpeg",
+		Name: "media/ffmpeg",
 		Type: gopi.MODULE_TYPE_OTHER,
 		New: func(app *gopi.AppInstance) (gopi.Driver, error) {
 			return gopi.Open(Config{}, app.Logger)

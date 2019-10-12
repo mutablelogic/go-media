@@ -8,7 +8,6 @@
 package media
 
 import (
-	// Frameworks
 	"github.com/djthorpe/gopi"
 )
 
@@ -27,9 +26,6 @@ type Media interface {
 	// Open and close media files
 	Open(filename string) (MediaFile, error)
 	Destroy(MediaFile) error
-
-	// Guess type by filename
-	TypeFor(filename string) MediaType
 }
 
 type MediaItem interface {
@@ -61,27 +57,36 @@ type MediaStream interface {
 	Type() MediaType
 }
 
+type MediaLibrary interface {
+	gopi.Driver
+
+	// Scan a path or file for media files
+	AddPath(string) error
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (
-	MEDIA_TYPE_NONE       MediaType = 0
-	MEDIA_TYPE_AUDIO      MediaType = (1 << iota)
-	MEDIA_TYPE_VIDEO      MediaType = (1 << iota)
-	MEDIA_TYPE_IMAGE      MediaType = (1 << iota)
-	MEDIA_TYPE_SUBTITLE   MediaType = (1 << iota)
-	MEDIA_TYPE_DATA       MediaType = (1 << iota)
-	MEDIA_TYPE_ATTACHMENT MediaType = (1 << iota)
-	MEDIA_TYPE_MUSIC      MediaType = (1 << iota)
-	MEDIA_TYPE_ALBUM      MediaType = (1 << iota)
-	MEDIA_TYPE_TVSHOW     MediaType = (1 << iota)
-	MEDIA_TYPE_TVSEASON   MediaType = (1 << iota)
-	MEDIA_TYPE_TVEPISODE  MediaType = (1 << iota)
-	MEDIA_TYPE_AUDIOBOOK  MediaType = (1 << iota)
-	MEDIA_TYPE_MUSICVIDEO MediaType = (1 << iota)
-	MEDIA_TYPE_MOVIE      MediaType = (1 << iota)
-	MEDIA_TYPE_BOOKLET    MediaType = (1 << iota)
-	MEDIA_TYPE_RINGTONE   MediaType = (1 << iota)
+	MEDIA_TYPE_AUDIO MediaType = (1 << iota)
+	MEDIA_TYPE_VIDEO
+	MEDIA_TYPE_IMAGE
+	MEDIA_TYPE_SUBTITLE
+	MEDIA_TYPE_DATA
+	MEDIA_TYPE_ATTACHMENT
+	MEDIA_TYPE_MUSIC
+	MEDIA_TYPE_ALBUM
+	MEDIA_TYPE_TVSHOW
+	MEDIA_TYPE_TVSEASON
+	MEDIA_TYPE_TVEPISODE
+	MEDIA_TYPE_AUDIOBOOK
+	MEDIA_TYPE_MUSICVIDEO
+	MEDIA_TYPE_MOVIE
+	MEDIA_TYPE_BOOKLET
+	MEDIA_TYPE_RINGTONE
+	MEDIA_TYPE_NONE MediaType = 0
+	MEDIA_TYPE_MIN  MediaType = MEDIA_TYPE_AUDIO
+	MEDIA_TYPE_MAX  MediaType = MEDIA_TYPE_RINGTONE
 )
 
 var (
