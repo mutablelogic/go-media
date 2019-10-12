@@ -20,6 +20,7 @@ import (
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	media "github.com/djthorpe/gopi-media"
+	event "github.com/djthorpe/gopi/util/event"
 	tasks "github.com/djthorpe/gopi/util/tasks"
 	sqlite "github.com/djthorpe/sqlite"
 )
@@ -41,6 +42,7 @@ type medialib struct {
 	recursive bool
 
 	tasks.Tasks
+	event.Publisher
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +77,9 @@ func (config MediaLib) Open(logger gopi.Logger) (gopi.Driver, error) {
 	if _, err := this.sqobj.RegisterStruct(&MediaKey{}); err != nil {
 		return nil, err
 	}
+	if _, err := this.sqobj.RegisterStruct(&MediaArtwork{}); err != nil {
+		return nil, err
+	}
 
 	// Background scanning process
 	this.Start(this.ScanPath)
@@ -85,6 +90,9 @@ func (config MediaLib) Open(logger gopi.Logger) (gopi.Driver, error) {
 
 func (this *medialib) Close() error {
 	this.log.Debug("<medialib.Close>{ }")
+
+	// Remove subscribers
+	this.Publisher.Close()
 
 	// stop tasks
 	if err := this.Tasks.Close(); err != nil {
@@ -137,8 +145,8 @@ func (this *medialib) AddPath(path string) error {
 
 func (this *medialib) WalkPath(path string) error {
 	this.log.Debug2("<medialib>WalkPath{ path=%v }", strconv.Quote(path))
-
-	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	this.Emit(NewEventWithPath(this, media.MEDIA_EVENT_SCAN_START, path))
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		// Always skip hidden files and folders
 		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
 			return filepath.SkipDir
@@ -164,8 +172,14 @@ func (this *medialib) WalkPath(path string) error {
 		}
 
 		// Output path for opening
-		return this.AddFile(path, info)
+		if err := this.AddFile(path, info); err != nil {
+			this.Emit(NewEventWithError(this, err, path))
+		}
+		// Return success
+		return nil
 	})
+	this.Emit(NewEventWithPath(this, media.MEDIA_EVENT_SCAN_END, path))
+	return err
 }
 
 func (this *medialib) AddFile(path string, info os.FileInfo) error {
@@ -180,10 +194,10 @@ func (this *medialib) AddFile(path string, info os.FileInfo) error {
 			return err
 		} else if objs := ObjectsForMediaFile(id, mediafile); objs == nil {
 			return gopi.ErrBadParameter
-		} else if rowsAffected, err := this.sqobj.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, objs...); err != nil {
+		} else if _, err := this.sqobj.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, objs...); err != nil {
 			return err
 		} else {
-			fmt.Println(rowsAffected)
+			this.Emit(NewEventWithItem(this, media.MEDIA_EVENT_FILE_ADDED, objs[0].(media.MediaItem)))
 		}
 	}
 

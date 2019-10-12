@@ -23,6 +23,7 @@ type (
 	AVError           int
 	AVDictionaryEntry C.struct_AVDictionaryEntry
 	AVDictionaryFlag  int
+	AVRational        C.struct_AVRational
 )
 
 type AVDictionary struct {
@@ -123,7 +124,11 @@ func (this *AVDictionary) Entries() []*AVDictionaryEntry {
 }
 
 func (this *AVDictionary) String() string {
-	return fmt.Sprintf("<AVDictionary>{ count=%v entries=%v }", this.Count(), this.Entries())
+	if this.Count() == 0 {
+		return fmt.Sprintf("<AVDictionary>{ }")
+	} else {
+		return fmt.Sprintf("<AVDictionary>{ count=%v entries=%v }", this.Count(), this.Entries())
+	}
 }
 
 func (this *AVDictionary) context() *C.struct_AVDictionary {
@@ -143,4 +148,23 @@ func (this *AVDictionaryEntry) Value() string {
 
 func (this *AVDictionaryEntry) String() string {
 	return fmt.Sprintf("%v=%v", this.Key(), strconv.Quote(this.Value()))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RATIONAL NUMBER
+
+func (this AVRational) Num() int {
+	return int(this.num)
+}
+
+func (this AVRational) Den() int {
+	return int(this.den)
+}
+
+func (this AVRational) String() string {
+	if this.Num() == 0 {
+		return "0"
+	} else {
+		return fmt.Sprintf("<AVRational>{ num=%v den=%v }", this.Num(), this.Den())
+	}
 }

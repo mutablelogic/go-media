@@ -27,6 +27,8 @@ func Test_avformat_003(t *testing.T) {
 		t.Fatal("NewAVFormatContext failed")
 	} else if err := ctx.OpenInput("../etc/sample.mp4", nil); err != nil {
 		t.Error(err)
+	} else if err := ctx.ReadHeader(); err != nil {
+		t.Error(err)
 	} else {
 		ctx.CloseInput()
 	}

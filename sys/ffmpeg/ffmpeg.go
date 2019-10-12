@@ -11,10 +11,12 @@ package ffmpeg
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	// Frameworks
@@ -39,6 +41,8 @@ type ffinput struct {
 	log  gopi.Logger
 	ctx  *ff.AVFormatContext
 	keys map[media.MetadataKey]string
+
+	sync.Mutex
 }
 
 type ffstream struct {
@@ -131,6 +135,9 @@ func NewInput(filename string, log gopi.Logger) (*ffinput, error) {
 	} else if err := ctx.OpenInput(filename, nil); err != nil {
 		// ctx is freed on error, so no need to free here
 		return nil, err
+	} else if err := ctx.ReadHeader(); err != nil {
+		ctx.CloseInput()
+		return nil, err
 	} else {
 		dict := ctx.Metadata()
 		this := new(ffinput)
@@ -163,6 +170,8 @@ func NewInput(filename string, log gopi.Logger) (*ffinput, error) {
 
 func (this *ffinput) Destroy() error {
 	this.log.Debug2("<ffinput.Destroy>{ ctx=%v }", this.ctx)
+	this.Lock()
+	defer this.Unlock()
 
 	if this.ctx == nil {
 		// Do nothing - already closed
@@ -186,11 +195,14 @@ func (this *ffinput) String() string {
 			metadata_value := strconv.Quote(v)
 			metadata += fmt.Sprintf("%v=%v ", metadata_key, metadata_value)
 		}
-		return fmt.Sprintf("<ffinput>{ filename=%v metadata={%v} streams=%v }", strconv.Quote(this.Filename()), strings.TrimSpace(metadata), this.Streams())
+		return fmt.Sprintf("<ffinput>{ filename=%v type=%v metadata={%v} streams=%v }", strconv.Quote(this.Filename()), this.Type(), strings.TrimSpace(metadata), this.Streams())
 	}
 }
 
 func (this *ffinput) Filename() string {
+	this.log.Debug2("<ffinput.Filename>{}")
+	this.Lock()
+	defer this.Unlock()
 	if this.ctx == nil {
 		return ""
 	} else {
@@ -199,6 +211,9 @@ func (this *ffinput) Filename() string {
 }
 
 func (this *ffinput) Streams() []media.MediaStream {
+	this.log.Debug2("<ffinput.Streams>{}")
+	this.Lock()
+	defer this.Unlock()
 	if this.ctx == nil {
 		return nil
 	}
@@ -213,33 +228,104 @@ func (this *ffinput) Streams() []media.MediaStream {
 // MEDIAITEM INTERFACE IMPLEMENTATION
 
 func (this *ffinput) Keys() []media.MetadataKey {
+	this.log.Debug2("<ffinput.Keys>{}")
+	this.Lock()
+	defer this.Unlock()
 	if this.ctx == nil {
 		return nil
-	} else {
-		keys := make([]media.MetadataKey, 0, len(this.keys))
-		for k := range this.keys {
-			keys = append(keys, k)
-		}
-		return keys
 	}
+
+	keys := make([]media.MetadataKey, 0, len(this.keys))
+	for k := range this.keys {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
-func (this *ffinput) StringForKey(key media.MetadataKey) string {
+func (this *ffinput) StringForKey(key media.MetadataKey) (string, bool) {
+	this.log.Debug2("<ffinput.StringForKey>{ key=%v }", key)
+	this.Lock()
+	defer this.Unlock()
+	if this.ctx == nil {
+		return "", false
+	}
 	if value, exists := this.keys[key]; exists {
-		return value
+		return value, true
 	} else {
-		return ""
+		return "", false
 	}
 }
 
 func (this *ffinput) Title() string {
-	// TODO
-	return "TODO"
+	if title, exists := this.StringForKey(media.METADATA_KEY_TITLE); exists {
+		// Obtain title from media key
+		return title
+	} else {
+		// Obtain title from filename
+		base := filepath.Base(this.Filename())
+		if ext := filepath.Ext(base); ext != "" {
+			base = strings.TrimSuffix(base, ext)
+		}
+		return base
+	}
 }
 
 func (this *ffinput) Type() media.MediaType {
-	// TODO
-	return media.MEDIA_TYPE_NONE
+	if this.ctx == nil {
+		return media.MEDIA_TYPE_NONE
+	}
+
+	media_type := media.MEDIA_TYPE_FILE
+
+	// Add in all the stream types
+	for _, stream := range this.Streams() {
+		media_type |= stream.Type()
+	}
+
+	// If there is a key METADATA_KEY_ALBUM then this is an album song
+	if _, exists := this.keys[media.METADATA_KEY_ALBUM]; exists {
+		media_type |= media.MEDIA_TYPE_ALBUM
+	}
+
+	// If there is a key METADATA_KEY_SHOW then this is a TV episode
+	if _, exists := this.keys[media.METADATA_KEY_SHOW]; exists {
+		media_type |= media.MEDIA_TYPE_TVEPISODE
+	}
+
+	// Compilations
+	if value, exists := this.keys[media.METADATA_KEY_COMPILATION]; exists {
+		if int_value, err := strconv.ParseInt(value, 10, 32); err == nil && int_value != 0 {
+			media_type |= media.MEDIA_TYPE_COMPILATION
+		}
+	}
+
+	// If the extension is .m4r then ringtone
+	if value, exists := this.keys[media.METADATA_KEY_EXTENSION]; exists {
+		if strings.ToLower(value) == ".m4r" {
+			media_type |= media.MEDIA_TYPE_RINGTONE
+		}
+	}
+
+	// Return combined media type
+	return media_type
+}
+
+// ArtworkData returns raw image data for artwork, or
+// nil if no artwork associated with the file
+func (this *ffinput) ArtworkData() ([]byte, string) {
+	this.log.Debug2("<ffinput.ArtworkData>{}")
+	if this.ctx == nil {
+		return nil, ""
+	}
+	for _, stream := range this.Streams() {
+		if stream.Type() == media.MEDIA_TYPE_ARTWORK {
+			if data := stream.(*ffstream).AttachedPic(); len(data) > 0 {
+				return data, http.DetectContentType(data)
+			}
+		}
+	}
+	// No artwork associated
+	return nil, ""
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,8 +339,48 @@ func NewStream(ctx *ff.AVStream) media.MediaStream {
 }
 
 func (this *ffstream) Type() media.MediaType {
-	// TODO
-	return media.MEDIA_TYPE_NONE
+	flags := media.MEDIA_TYPE_NONE
+
+	// Codec flags
+	switch this.ctx.Codec().Type() {
+	case ff.AV_MEDIA_TYPE_VIDEO:
+		if this.ctx.Codec().BitRate() > 0 {
+			flags |= media.MEDIA_TYPE_VIDEO
+		}
+	case ff.AV_MEDIA_TYPE_AUDIO:
+		flags |= media.MEDIA_TYPE_AUDIO
+	case ff.AV_MEDIA_TYPE_UNKNOWN, ff.AV_MEDIA_TYPE_DATA:
+		flags |= media.MEDIA_TYPE_DATA
+	case ff.AV_MEDIA_TYPE_ATTACHMENT:
+		flags |= media.MEDIA_TYPE_ATTACHMENT
+	}
+
+	// Disposition flags
+	if this.ctx.Disposition()&ff.AV_DISPOSITION_ATTACHED_PIC != 0 {
+		flags |= media.MEDIA_TYPE_ARTWORK
+	}
+	if this.ctx.Disposition()&ff.AV_DISPOSITION_CAPTIONS != 0 {
+		flags |= media.MEDIA_TYPE_CAPTIONS
+	}
+
+	// Return flags
+	return flags
+}
+
+func (this *ffstream) AttachedPic() []byte {
+	if this.ctx.Disposition()&ff.AV_DISPOSITION_ATTACHED_PIC != 0 {
+		return this.ctx.AttachedPic().Data()
+	} else {
+		return nil
+	}
+}
+
+func (this *ffstream) String() string {
+	if this.ctx == nil {
+		return fmt.Sprintf("<ffstream>{ nil }")
+	} else {
+		return fmt.Sprintf("<ffstream>{ type=%v %v }", this.Type(), this.ctx.String())
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
