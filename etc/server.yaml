@@ -1,0 +1,26 @@
+# Plugins to load, the order of these is important
+plugins:
+  - build/httpserver.plugin
+  - build/log.plugin
+  - build/media.plugin
+
+# HTTP Server parameters
+httpserver:
+  # Port to listen on. Can be a path to unix socket to serve through FastCGI
+  addr: :80
+
+handlers:
+  media:
+    prefix: "/api/media"
+    middleware:
+      - log
+
+media:
+  # Lots of extra debug output
+  debug: true
+
+  # Buckets to serve media from
+  buckets:
+    music: /Volumes/Drobo/Media/Music
+    films: /Volumes/Drobo/Media/Movies
+    tv: /Volumes/Drobo/Media/TV Shows
