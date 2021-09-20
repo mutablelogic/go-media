@@ -10,6 +10,7 @@ import (
 	"github.com/djthorpe/go-media/pkg/media"
 
 	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-server"
 )
 

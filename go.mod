@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/djthorpe/go-errors v1.0.2
-	github.com/djthorpe/go-server v1.0.12
+	github.com/djthorpe/go-server v1.0.13
 	github.com/hashicorp/go-multierror v1.1.1
 )
 
