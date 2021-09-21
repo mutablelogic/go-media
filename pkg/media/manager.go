@@ -35,7 +35,8 @@ type Manager struct {
 // GLOBALS
 
 var (
-	DefaultConfig = Config{Debug: false}
+	DefaultConfig     = Config{Debug: false}
+	defaultBufferSize = 1024 * 64
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +116,11 @@ func (mgr *Manager) String() string {
 
 // Open a stream for input
 func (mgr *Manager) Open(r io.Reader, bufsize int) (*MediaInput, error) {
+	// Set buffer size if default
+	if bufsize == 0 {
+		bufsize = defaultBufferSize
+	}
+
 	// Create the IO Context
 	io := ffmpeg.NewAVIOContext(bufsize, false, r.Read, nil, nil)
 	if io == nil {

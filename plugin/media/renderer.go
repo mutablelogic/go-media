@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"os"
+	"io"
+	"io/fs"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-server"
 )
 
@@ -20,20 +20,13 @@ func (p *plugin) Mimetypes() []string {
 	return result
 }
 
-func (p *plugin) Read(ctx context.Context, path string) (Document, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	if info.IsDir() {
-		return nil, ErrBadParameter.With(path)
-	}
-	media, err := p.OpenFile(path)
+func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo) (Document, error) {
+	media, err := p.Open(r, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer p.Release(media)
 
-	// Return success
-	return NewDocument(path, info, media)
+	// TODO: Get path from the context
+	return NewDocument("/", info, media)
 }

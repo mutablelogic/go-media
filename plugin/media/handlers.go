@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -229,8 +230,21 @@ func (p *plugin) ServeBucket(w http.ResponseWriter, req *http.Request) {
 	// Extract files based on mimetypes
 	var lock sync.Mutex
 	if err := p.process(bucket, files, func(path string) error {
+		// Get info
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+
+		// Open file
+		r, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
 		// Read documents
-		document, err := p.Read(req.Context(), path)
+		document, err := p.Read(req.Context(), r, info)
 		if err != nil {
 			return err
 		}
