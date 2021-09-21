@@ -50,11 +50,23 @@ func NewMediaInput(ctx *ffmpeg.AVFormatContext) *MediaInput {
 
 func (m *MediaInput) Release() error {
 	var result error
+
+	// Release streams
 	for _, stream := range m.s {
 		if err := stream.Release(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
+
+	// If there is custom io, free it
+	if m.ctx != nil {
+		if io := m.ctx.IOContext(); io != nil {
+			io.Free()
+			m.ctx.SetIOContext(nil)
+		}
+	}
+
+	// Close input
 	if m.ctx != nil {
 		m.ctx.CloseInput()
 	}
@@ -72,6 +84,9 @@ func (m *MediaInput) Release() error {
 
 func (m *MediaInput) String() string {
 	str := "<media input"
+	if io := m.CustomIO(); io {
+		str += " customio"
+	}
 	if url := m.URL(); url != nil {
 		str += " url=" + strconv.Quote(url.String())
 	}
@@ -92,6 +107,17 @@ func (m *MediaInput) URL() *url.URL {
 		return nil
 	}
 	return m.ctx.Url()
+}
+
+func (m *MediaInput) CustomIO() bool {
+	if m.ctx == nil {
+		return false
+	}
+	if io := m.ctx.IOContext(); io != nil {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (m *MediaInput) Streams() []*Stream {

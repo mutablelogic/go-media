@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -111,6 +112,44 @@ func (mgr *Manager) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Open a stream for input
+func (mgr *Manager) Open(r io.Reader, bufsize int) (*MediaInput, error) {
+	// Create the IO Context
+	io := ffmpeg.NewAVIOContext(bufsize, false, r.Read, nil, nil)
+	if io == nil {
+		return nil, ErrInternalAppError.With("NewIOContext")
+	}
+
+	// Create the media object and return it
+	ctx := ffmpeg.NewAVFormatContext()
+	if ctx == nil {
+		io.Free()
+		return nil, ErrInternalAppError.With("NewAVFormatContext")
+	}
+
+	// Open the input
+	err := ctx.OpenInputIO(io.AVIOContext, nil)
+	if err != nil {
+		io.Free()
+		return nil, err
+	}
+
+	// Create media object
+	in := NewMediaInput(ctx)
+	if in == nil {
+		ctx.CloseInput()
+		return nil, ErrInternalAppError.With("NewMediaInput")
+	}
+
+	// Set parameters
+	mgr.Mutex.Lock()
+	mgr.in = append(mgr.in, in)
+	mgr.Mutex.Unlock()
+
+	// Return success
+	return in, nil
+}
 
 func (mgr *Manager) OpenFile(path string) (*MediaInput, error) {
 	// Clean up the path

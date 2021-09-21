@@ -3,6 +3,7 @@ package media_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 
@@ -96,6 +97,28 @@ func Test_Manager_005(t *testing.T) {
 	}
 	for _, fmt := range mgr.Formats(MEDIA_FLAG_ENCODER) {
 		t.Log("  Encoder: ", fmt)
+	}
+}
+
+func Test_Manager_006(t *testing.T) {
+	errs, cancel := catchErrors(t)
+	defer cancel()
+
+	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
+	if err != nil {
+		t.Error(err)
+	}
+	defer mgr.Close()
+
+	r, err := os.Open(MEDIA_TEST_FILE)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if in, err := mgr.Open(r, 4096); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log(in)
 	}
 }
 
