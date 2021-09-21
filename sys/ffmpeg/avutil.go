@@ -76,6 +76,10 @@ const (
 	AV_DICT_MULTIKEY        AVDictionaryFlag = 64
 )
 
+const (
+	AVERROR_EOF AVError = C.AVERROR_EOF
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // VARIABLES
 
@@ -84,7 +88,7 @@ var (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// ERROR HANDLINE
+// ERROR HANDLING
 
 func (this AVError) Error() string {
 	cbuffer := make([]byte, BUF_SIZE)
@@ -241,4 +245,36 @@ func av_log_cb_(level C.int, message *C.char, userInfo unsafe.Pointer) {
 			log_callback(level_, C.GoString(message), uintptr(userInfo))
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MEMORY
+
+func AVMalloc(sz int64) unsafe.Pointer {
+	return C.av_malloc(C.size_t(sz))
+}
+
+func AVFree(ptr unsafe.Pointer) {
+	C.av_free(ptr)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// OTHER
+
+func boolToInt(v bool) int {
+	if v == true {
+		return 1
+	}
+	return 0
+}
+
+func intToBool(v int) bool {
+	if v == 0 {
+		return false
+	}
+	return true
+}
+
+func cByteSlice(p unsafe.Pointer, sz C.int) []byte {
+	return (*[1 << 30]byte)(p)[:int(sz)]
 }

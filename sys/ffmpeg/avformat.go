@@ -140,7 +140,7 @@ func (this *AVFormatContext) OpenInput(filename string, input_format *AVInputFor
 func (this *AVFormatContext) OpenInputUrl(url string, input_format *AVInputFormat) error {
 	url_ := C.CString(url)
 	defer C.free(unsafe.Pointer(url_))
-	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
+	ctx := (*C.AVFormatContext)(this)
 	dict := new(AVDictionary)
 	if err := AVError(C.avformat_open_input(
 		&ctx,
@@ -148,6 +148,18 @@ func (this *AVFormatContext) OpenInputUrl(url string, input_format *AVInputForma
 		(*C.struct_AVInputFormat)(input_format),
 		(**C.struct_AVDictionary)(unsafe.Pointer(dict)),
 	)); err != 0 {
+		return err
+	} else {
+		return nil
+	}
+}
+
+// Open Input with AVIO Context
+func (this *AVFormatContext) OpenInputIO(io *AVIOContext, input_format *AVInputFormat) error {
+	ctx := (*C.AVFormatContext)(this)
+	this.SetIOContext(io)
+	if err := AVError(C.avformat_open_input(&ctx, nil, (*C.struct_AVInputFormat)(input_format), nil)); err != 0 {
+		this.SetIOContext(nil)
 		return err
 	} else {
 		return nil
@@ -190,16 +202,12 @@ func (this *AVFormatContext) Metadata() *AVDictionary {
 }
 
 // Find Stream Info
-func (this *AVFormatContext) FindStreamInfo() (*AVDictionary, error) {
-	ctx := (*C.AVFormatContext)(unsafe.Pointer(this))
-	dict := new(AVDictionary)
-	if err := AVError(C.avformat_find_stream_info(
-		ctx,
-		(**C.struct_AVDictionary)(unsafe.Pointer(dict)),
-	)); err != 0 {
-		return nil, err
+func (this *AVFormatContext) FindStreamInfo() error {
+	ctx := (*C.AVFormatContext)(this)
+	if err := AVError(C.avformat_find_stream_info(ctx, nil)); err != 0 {
+		return err
 	} else {
-		return dict, nil
+		return nil
 	}
 }
 
@@ -276,9 +284,14 @@ func (this *AVFormatContext) SetIOContext(avio *AVIOContext) {
 
 func (this *AVFormatContext) String() string {
 	str := "<AVFormatContext"
-	str += " filename=" + strconv.Quote(this.Filename())
+	if fn := this.Filename(); fn != "" {
+		str += fmt.Sprintf(" filename=%q", fn)
+	}
 	if u := this.Url(); u != nil {
-		str += " url=" + strconv.Quote(u.String())
+		str += fmt.Sprintf(" url=%q", u.String())
+	}
+	if io := this.IOContext(); io != nil {
+		str += " io=" + fmt.Sprint(io)
 	}
 	if ifmt := this.InputFormat(); ifmt != nil {
 		str += " iformat=" + fmt.Sprint(ifmt)
@@ -292,10 +305,14 @@ func (this *AVFormatContext) String() string {
 }
 
 func (this *AVFormatContext) Dump(index int) {
+	str := ""
+	if url := this.Url(); url != nil {
+		str = url.String()
+	}
 	if this.OutputFormat() != nil {
-		AVDumpFormat(this, index, this.Url().String(), true)
+		AVDumpFormat(this, index, str, true)
 	} else if this.InputFormat() != nil {
-		AVDumpFormat(this, index, this.Url().String(), false)
+		AVDumpFormat(this, index, str, false)
 	}
 }
 
