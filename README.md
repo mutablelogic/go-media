@@ -6,7 +6,8 @@ This module provides an interface for media services, including:
   * Bindings in golang for [ffmpeg](https://ffmpeg.org/);
   * Opening media files for reading and writing;
   * Retrieving metadata and artwork from audio and video media;
-  * Re-multiplexing media files from one format to another.
+  * Re-multiplexing media files from one format to another;
+  * Serve a backend API for access to media services.
 
 Presently the module is in development and the API is subject to change.
 
