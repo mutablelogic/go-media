@@ -13,12 +13,12 @@ import (
 
 	// Packages
 	media "github.com/djthorpe/go-media/pkg/media"
-	router "github.com/djthorpe/go-server/pkg/httprouter"
 	multierror "github.com/hashicorp/go-multierror"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-media"
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

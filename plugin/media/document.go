@@ -16,7 +16,7 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-media"
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -21,15 +21,15 @@ cmd: dependencies mkdir $(CMD_DIR)
 
 server: dependencies mkdir
 	@echo Build server
-	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/djthorpe/go-server/cmd/server
+	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/mutablelogic/go-server/cmd/server
 
 plugins: $(PLUGIN_DIR)
 	@echo Build plugin httpserver 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/httpserver
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/httpserver
 	@echo Build plugin log 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/log.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/log
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/log.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/log
 	@echo Build plugin static 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/static.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/static
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/static.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/static
 
 $(CMD_DIR): FORCE
 	@echo Build cmd $(notdir $@)

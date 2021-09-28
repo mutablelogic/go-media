@@ -20,7 +20,8 @@ Presently the module is in development and the API is subject to change.
 
 ## Requirements
 
-  * Library and header files for [ffmpeg](https://ffmpeg.org/download.html), with ;
+  * Library and header files for [ffmpeg](https://ffmpeg.org/download.html);
+  * Library and header files for [chromaprint](https://github.com/acoustid/chromaprint);
   * [go1.17](https://golang.org/dl/) or later;
   * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64
     architectures.
@@ -43,7 +44,7 @@ You may need two environment variables set in order to locate the correct instal
 On Macintosh with homebrew, for example:
 
 ```bash
-[bash] brew install ffmpeg
+[bash] brew install ffmpeg chromaprint
 [bash] git clone git@github.com:djthorpe/go-media.git
 [bash] cd go-media
 [bash] PKG_CONFIG_PATH="/usr/local/lib/pkgconfig" make
@@ -53,7 +54,8 @@ On Debian Linux you shouldn't need to locate the correct path to the sqlite3 lib
 only one copy is installed:
 
 ```bash
-[bash] sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavresample-dev libavutil-dev
+[bash] sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev \
+       libavformat-dev libavresample-dev libavutil-dev libchromaprint-dev
 [bash] git clone git@github.com:djthorpe/go-media.git
 [bash] cd go-media
 [bash] make

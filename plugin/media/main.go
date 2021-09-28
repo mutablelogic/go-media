@@ -11,7 +11,7 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
