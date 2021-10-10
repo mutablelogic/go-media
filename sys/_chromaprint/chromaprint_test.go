@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media/sys/chromaprint"
+	. "github.com/mutablelogic/go-media/sys/chromaprint"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

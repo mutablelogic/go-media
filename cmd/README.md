@@ -6,13 +6,13 @@ This folder provides examples of using the `go-media` module:
   * `mediatool` can be used for extracting metadata and artwork in bulk from
     media files.
 
-This package is part of a wider project, `github.com/djthorpe/go-media`.
-Please see the [module documentation](https://github.com/djthorpe/go-media/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-media`.
+Please see the [module documentation](https://github.com/mutablelogic/go-media/blob/master/README.md)
 for more information.
 
 ## Building
 
-In order to build any command, following the instructons for installing `ffmpeg` [here](https://github.com/djthorpe/go-media/blob/master/README.md) and then run:
+In order to build any command, following the instructons for installing `ffmpeg` [here](https://github.com/mutablelogic/go-media/blob/master/README.md) and then run:
 On Macintosh with homebrew, for example:
 
 ```bash

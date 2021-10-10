@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	// Namespace import
-	. "github.com/djthorpe/go-media/pkg/media"
+	. "github.com/mutablelogic/go-media/pkg/media"
 )
 
 func Test_Util_001(t *testing.T) {

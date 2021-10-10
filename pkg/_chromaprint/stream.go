@@ -8,10 +8,10 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 
 	// Package imports
-	"github.com/djthorpe/go-media/sys/chromaprint"
+	"github.com/mutablelogic/go-media/sys/chromaprint"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

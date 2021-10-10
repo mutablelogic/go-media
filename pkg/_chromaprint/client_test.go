@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/djthorpe/go-media/pkg/chromaprint"
+	. "github.com/mutablelogic/go-media/pkg/chromaprint"
 )
 
 // Run tests setting your API KEY using environment variable

@@ -5,10 +5,10 @@ import (
 	// Packages
 	"fmt"
 
-	ffmpeg "github.com/djthorpe/go-media/sys/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

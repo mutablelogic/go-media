@@ -6,6 +6,6 @@ the monolithic server [`github.com/djthorpe/go-server`](github.com/djthorpe/go-s
 and as such the server needs to be installed in addition to the plugin. Instructions on how
 to install the server and necessary plugins is described below.
 
-This package is part of a wider project, `github.com/djthorpe/go-media`.
-Please see the [module documentation](https://github.com/djthorpe/go-media/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-media`.
+Please see the [module documentation](https://github.com/mutablelogic/go-media/blob/master/README.md)
 for more information.

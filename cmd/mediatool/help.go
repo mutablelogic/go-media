@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	// Packages
-	config "github.com/djthorpe/go-media/pkg/config"
+	config "github.com/mutablelogic/go-media/pkg/config"
 )
 
 var (

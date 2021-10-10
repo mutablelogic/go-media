@@ -21,6 +21,6 @@ media:
 
   # Buckets to serve media from
   buckets:
-    music: /Volumes/Drobo/Media/Music
-    films: /Volumes/Drobo/Media/Movies
-    tv: /Volumes/Drobo/Media/TV Shows
+    music: /home/djt/media/Music
+    films: /home/djt/media/Movies
+    tv: /home/djt/media/TV

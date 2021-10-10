@@ -4,8 +4,8 @@
 This package provides bindings for some parts of the [ffmpeg API](https://ffmpeg.org/doxygen/trunk/)
 including `libavformat`, `libavcodec` and `libavutil`.
 
-This package is part of a wider project, `github.com/djthorpe/go-media`.
-Please see the [module documentation](https://github.com/djthorpe/go-media/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablogic/go-media`.
+Please see the [module documentation](https://github.com/mutablogic/go-media/blob/master/README.md)
 for more information.
 
 ## Introduction

@@ -9,12 +9,12 @@ import (
 	"strconv"
 
 	// Packages
-	ffmpeg "github.com/djthorpe/go-media/sys/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
 	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

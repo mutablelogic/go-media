@@ -13,10 +13,10 @@ Presently the module is in development and the API is subject to change.
 
 | If you want to...                    |  Folder         | Documentation |
 |--------------------------------------|-----------------|---------------|
-| Use the lower-level ffmpeg bindings similar to the [C API](https://ffmpeg.org/doxygen/trunk/) | [sys/ffmpeg](https://github.com/djthorpe/go-media/tree/master/sys/ffmpeg) | [README.md](https://github.com/djthorpe/go-media/blob/master/sys/ffmpeg/README.md) |
-| Use the high-level media manager package for reading, writing, multiplexing and transcoding| [pkg/media](https://github.com/djthorpe/go-media/tree/master/pkg/media) | [README.md](https://github.com/djthorpe/go-media/blob/master/pkg/media/README.md) |
-| Implement or use a REST API for media files | [plugin/media](https://github.com/djthorpe/go-media/tree/master/plugin/media) | [README.md](https://github.com/djthorpe/go-media/blob/master/plugin/media/README.md) |
-| See example command-line tools | [cmd](https://github.com/djthorpe/go-media/tree/master/cmd) | [README.md](https://github.com/djthorpe/go-media/blob/master/cmd/README.md) |
+| Use the lower-level ffmpeg bindings similar to the [C API](https://ffmpeg.org/doxygen/trunk/) | [sys/ffmpeg](https://github.com/mutablelogic/go-media/tree/master/sys/ffmpeg) | [README.md](https://github.com/mutablelogic/go-media/blob/master/sys/ffmpeg/README.md) |
+| Use the high-level media manager package for reading, writing, multiplexing and transcoding| [pkg/media](https://github.com/mutablelogic/go-media/tree/master/pkg/media) | [README.md](https://github.com/mutablelogic/go-media/blob/master/pkg/media/README.md) |
+| Implement or use a REST API for media files | [plugin/media](https://github.com/mutablelogic/go-media/tree/master/plugin/media) | [README.md](https://github.com/mutablelogic/go-media/blob/master/plugin/media/README.md) |
+| See example command-line tools | [cmd](https://github.com/mutablelogic/go-media/tree/master/cmd) | [README.md](https://github.com/mutablelogic/go-media/blob/master/cmd/README.md) |
 
 ## Requirements
 
@@ -74,7 +74,7 @@ the package. The various make targets are:
 
 __This module is currently in development and subject to change.__
 
-Please do file feature requests and bugs [here](https://github.com/djthorpe/go-media/issues).
+Please do file feature requests and bugs [here](https://github.com/mutablelogic/go-media/issues).
 The license is Apache 2 so feel free to redistribute. Redistributions in either source
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:

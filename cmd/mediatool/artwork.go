@@ -16,10 +16,10 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 
 	// Packages
-	media "github.com/djthorpe/go-media/pkg/media"
+	media "github.com/mutablelogic/go-media/pkg/media"
 	multierror "github.com/hashicorp/go-multierror"
 )
 

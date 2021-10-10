@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media/sys/ffmpeg"
+	. "github.com/mutablelogic/go-media/sys/ffmpeg"
 )
 
 const (

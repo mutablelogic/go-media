@@ -6,6 +6,7 @@ import (
 	"io/fs"
 
 	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-server"
 )
 
@@ -20,7 +21,7 @@ func (p *plugin) Mimetypes() []string {
 	return result
 }
 
-func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo) (Document, error) {
+func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	media, err := p.Open(r, 0)
 	if err != nil {
 		return nil, err
@@ -28,5 +29,9 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo) (Docum
 	defer p.Release(media)
 
 	// TODO: Get path from the context
-	return NewDocument("/", info, media)
+	return NewDocument(info.Name(), media, meta)
+}
+
+func (p *plugin) ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error) {
+	return nil, ErrNotImplemented.With("ReadDir")
 }

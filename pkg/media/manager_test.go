@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	// Namespace import
-	. "github.com/djthorpe/go-media"
-	. "github.com/djthorpe/go-media/pkg/media"
+	. "github.com/mutablelogic/go-media"
+	. "github.com/mutablelogic/go-media/pkg/media"
 )
 
 const (

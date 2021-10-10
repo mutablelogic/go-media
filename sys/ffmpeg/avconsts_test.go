@@ -3,7 +3,7 @@ package ffmpeg_test
 import (
 	"testing"
 
-	. "github.com/djthorpe/go-media/sys/ffmpeg"
+	. "github.com/mutablelogic/go-media/sys/ffmpeg"
 )
 
 func Test_Consts_001(t *testing.T) {

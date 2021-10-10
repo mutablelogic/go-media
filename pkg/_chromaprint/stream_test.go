@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media"
-	. "github.com/djthorpe/go-media/pkg/chromaprint"
+	. "github.com/mutablelogic/go-media"
+	. "github.com/mutablelogic/go-media/pkg/chromaprint"
 )
 
 const (

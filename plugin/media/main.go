@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	// Packages
-	"github.com/djthorpe/go-media/pkg/media"
+	"github.com/mutablelogic/go-media/pkg/media"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"

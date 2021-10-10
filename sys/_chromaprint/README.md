@@ -3,8 +3,8 @@
 
 This package provides bindings for [chromaprint](https://acoustid.org/chromaprint) audio fingerprinting.
 
-This package is part of a wider project, `github.com/djthorpe/go-media`.
-Please see the [module documentation](https://github.com/djthorpe/go-media/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-media`.
+Please see the [module documentation](https://github.com/mutablelogic/go-media/blob/master/README.md)
 for more information.
 
 ## Building
@@ -32,7 +32,7 @@ For more information:
   * Web Service: https://acoustid.org/webservice
 
 This package provides low-level library bindings. There is also a 
-[client library for the web service](https://github.com/djthorpe/go-media/tree/master/pkg/chromaprint).
+[client library for the web service](https://github.com/mutablelogic/go-media/tree/master/pkg/chromaprint).
 
 ## Usage
 

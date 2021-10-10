@@ -3,7 +3,7 @@ package ffmpeg_test
 import (
 	"testing"
 
-	ffmpeg "github.com/djthorpe/go-media/sys/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
 )
 
 const (

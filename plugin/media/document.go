@@ -6,16 +6,13 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/fs"
-	"path/filepath"
 	"strings"
-	"time"
 
 	// Packages
-	"github.com/djthorpe/go-media/pkg/media"
+	"github.com/mutablelogic/go-media/pkg/media"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 	. "github.com/mutablelogic/go-server"
 )
 
@@ -23,24 +20,26 @@ import (
 // TYPES
 
 type document struct {
-	path  string
-	info  fs.FileInfo
-	meta  map[MediaKey]interface{}
+	name  string
+	meta  map[DocumentKey]interface{}
 	flags MediaFlag
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo, media *media.MediaInput) (*document, error) {
+func NewDocument(name string, media *media.MediaInput, meta map[DocumentKey]interface{}) (*document, error) {
 	document := new(document)
 
 	// Set up document
-	document.path = path
-	document.info = info
-	document.meta = make(map[MediaKey]interface{})
+	document.name = name
+	document.meta = make(map[DocumentKey]interface{})
+	for k, v := range meta {
+		document.meta[k] = v
+	}
 	for _, k := range media.Metadata().Keys() {
-		document.meta[k] = media.Metadata().Value(k)
+		key := DocumentKey(k)
+		document.meta[key] = media.Metadata().Value(k)
 	}
 	document.flags = media.Flags() &^ (MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER)
 
@@ -71,21 +70,6 @@ func (d *document) String() string {
 		} else {
 			str += fmt.Sprintf(" %s=%v", k, v)
 		}
-	}
-	if name := d.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
-	}
-	if path := d.Path(); path != "" {
-		str += fmt.Sprintf(" path=%q", path)
-	}
-	if ext := d.Ext(); ext != "" {
-		str += fmt.Sprintf(" ext=%q", ext)
-	}
-	if modtime := d.ModTime(); !modtime.IsZero() {
-		str += fmt.Sprint(" modtime=", modtime.Format(time.RFC3339))
-	}
-	if size := d.Size(); size > 0 {
-		str += fmt.Sprint(" size=", size)
 	}
 	return str + ">"
 }
@@ -133,15 +117,17 @@ func (d *document) marshalKV(w io.Writer, key string, value interface{}, suffix 
 // PUBLIC METHODS
 
 func (d *document) Title() string {
-	if title := d.meta[MEDIA_KEY_TITLE]; title != nil {
+	key := DocumentKey(MEDIA_KEY_TITLE)
+	if title := d.meta[key]; title != nil {
 		return title.(string)
 	} else {
-		return filepath.Base(d.path)
+		return d.name
 	}
 }
 
 func (d *document) Description() string {
-	if desc := d.meta[MEDIA_KEY_DESCRIPTION]; desc != nil {
+	key := DocumentKey(MEDIA_KEY_DESCRIPTION)
+	if desc := d.meta[key]; desc != nil {
 		return desc.(string)
 	} else {
 		return ""
@@ -163,39 +149,10 @@ func (d *document) Tags() []string {
 	return tags
 }
 
-func (d *document) File() DocumentFile {
-	return d
-}
-
 func (d *document) Meta() map[DocumentKey]interface{} {
-	m := make(map[DocumentKey]interface{}, len(d.meta))
-	for k, v := range d.meta {
-		key := DocumentKey(k)
-		m[key] = v
-	}
-	return m
+	return d.meta
 }
 
 func (d *document) HTML() []DocumentSection {
 	return nil
-}
-
-func (d *document) Name() string {
-	return d.info.Name()
-}
-
-func (d *document) Path() string {
-	return filepath.Dir(d.path)
-}
-
-func (d *document) Ext() string {
-	return filepath.Ext(d.path)
-}
-
-func (d *document) ModTime() time.Time {
-	return d.info.ModTime()
-}
-
-func (d *document) Size() int64 {
-	return d.info.Size()
 }

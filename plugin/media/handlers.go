@@ -12,12 +12,12 @@ import (
 	"sync"
 
 	// Packages
-	media "github.com/djthorpe/go-media/pkg/media"
 	multierror "github.com/hashicorp/go-multierror"
+	media "github.com/mutablelogic/go-media/pkg/media"
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-media"
+	. "github.com/mutablelogic/go-media"
 	. "github.com/mutablelogic/go-server"
 )
 
@@ -244,7 +244,7 @@ func (p *plugin) ServeBucket(w http.ResponseWriter, req *http.Request) {
 		defer r.Close()
 
 		// Read documents
-		document, err := p.Read(req.Context(), r, info)
+		document, err := p.Read(req.Context(), r, info, nil)
 		if err != nil {
 			return err
 		}
