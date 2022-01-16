@@ -3,7 +3,7 @@
 
 This module provides an interface for media services, including:
 
-  * Bindings in golang for [ffmpeg](https://ffmpeg.org/);
+  * Bindings in golang for [ffmpeg 4.1](https://ffmpeg.org/);
   * Opening media files for reading and writing;
   * Retrieving metadata and artwork from audio and video media;
   * Re-multiplexing media files from one format to another;
@@ -20,7 +20,7 @@ Presently the module is in development and the API is subject to change.
 
 ## Requirements
 
-  * Library and header files for [ffmpeg](https://ffmpeg.org/download.html);
+  * Library and header files for [ffmpeg 4.1](https://ffmpeg.org/download.html);
   * Library and header files for [chromaprint](https://github.com/acoustid/chromaprint);
   * [go1.17](https://golang.org/dl/) or later;
   * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64
@@ -80,4 +80,8 @@ code or binary form must reproduce the copyright notice, and please link back to
 repository for more information:
 
 > Copyright (c) 2021, David Thorpe, All rights reserved.
+
+## References
+
+  * https://ffmpeg.org/doxygen/4.1/index.html
 
