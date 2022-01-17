@@ -3,6 +3,7 @@ package googlephotos
 import (
 	"encoding/json"
 
+	// Packages
 	"github.com/mutablelogic/go-media/pkg/googleclient"
 )
 
@@ -49,12 +50,70 @@ type Video struct {
 	Status          string  `json:"status,omitempty"`
 }
 
+type mediaItemSearch struct {
+	AlbumId   string           `json:"albumId,omitempty"`
+	PageSize  uint             `json:"pageSize,omitempty"`
+	PageToken string           `json:"pageToken,omitempty"`
+	OrderBy   string           `json:"orderBy,omitempty"`
+	Filters   mediaItemFilters `json:"filters,omitempty"`
+}
+
+type mediaItemFilters struct {
+	DateFilter               `json:"dateFilter,omitempty"`
+	ContentFilter            `json:"contentFilter,omitempty"`
+	MediaTypeFilter          `json:"mediaTypeFilter,omitempty"`
+	FeatureFilter            `json:"featureFilter,omitempty"`
+	IncludeArchivedMedia     bool `json:"includeArchivedMedia,omitempty"`
+	ExcludeNonAppCreatedData bool `json:"excludeNonAppCreatedData,omitempty"`
+}
+
+type DateFilter struct{}
+
+type ContentFilter struct {
+	IncludedContentCategories []string `json:"includedContentCategories,omitempty"`
+	ExcludedContentCategories []string `json:"excludedContentCategories,omitempty"`
+}
+
+type MediaTypeFilter struct {
+	MediaTypes []string `json:"mediaTypes,omitempty"`
+}
+
+type FeatureFilter struct {
+	IncludedFeatures []string `json:"includedFeatures,omitempty"`
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-func MediaItemList(client *googleclient.Client, opts ...googleclient.ClientOpt) ([]MediaItem, error) {
+func MediaItemList(client *googleclient.Client, opts ...googleclient.ClientOpt) ([]*MediaItem, error) {
 	var result Array
 	if err := client.Get("/v1/mediaItems", &result, opts...); err != nil {
+		return nil, err
+	} else {
+		return result.MediaItems, nil
+	}
+}
+
+func MediaItemGet(client *googleclient.Client, opts ...googleclient.ClientOpt) (*MediaItem, error) {
+	var result MediaItem
+	if err := client.Get("/v1/mediaItems", &result, opts...); err != nil {
+		return nil, err
+	} else {
+		return &result, nil
+	}
+}
+
+func MediaItemSearch(client *googleclient.Client, opts ...SearchOpt) ([]*MediaItem, error) {
+	var result Array
+
+	// Set parameters for search
+	in := new(mediaItemSearch)
+	for _, opt := range opts {
+		opt(in)
+	}
+
+	// Perform the search
+	if err := client.Post("/v1/mediaItems:search", in, &result); err != nil {
 		return nil, err
 	} else {
 		return result.MediaItems, nil

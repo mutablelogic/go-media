@@ -1,7 +1,20 @@
 package googleclient
 
 import (
+	"net/http"
 	"net/url"
 )
 
-type ClientOpt func(v url.Values)
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type ClientOpt func(params url.Values, req *http.Request)
+
+////////////////////////////////////////////////////////////////////////////////
+// CLIENT OPTIONS
+
+func OptHeader(key, value string) ClientOpt {
+	return func(params url.Values, req *http.Request) {
+		req.Header.Set(key, value)
+	}
+}

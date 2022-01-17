@@ -9,6 +9,7 @@ require (
 	github.com/djthorpe/gopi/v3 v3.0.33
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mutablelogic/go-server v1.0.37
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 )
 
 require (
@@ -17,7 +18,6 @@ require (
 	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf // indirect
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect

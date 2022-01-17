@@ -1,9 +1,11 @@
 package googleclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -174,23 +176,65 @@ func (client *Client) Use(ctx context.Context, token *oauth2.Token, endpoint str
 	return nil
 }
 
-// Perform a GET
-func (client *Client) Get(path string, v interface{}, opts ...ClientOpt) error {
-	u := *client.URL
-	params := u.Query()
-
-	// Set the client path and query parameters
-	u.Path = path
-	for _, opt := range opts {
-		opt(params)
-	}
-	u.RawQuery = params.Encode()
-
+// Perform a GET with no body
+func (client *Client) Get(path string, out interface{}, opts ...ClientOpt) error {
 	// Make a new GET request
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, client.URL.String(), nil)
 	if err != nil {
 		return err
 	}
+
+	// Do request
+	return client.do(req, path, out, opts)
+}
+
+// Perform a POST with a JSON body
+func (client *Client) Post(path string, in, out interface{}, opts ...ClientOpt) error {
+	// Make a reader for the request object
+	data := new(bytes.Buffer)
+	if err := json.NewEncoder(data).Encode(in); err != nil {
+		return err
+	}
+
+	// Make a new POST request with JSON payload
+	req, err := http.NewRequest(http.MethodPost, client.URL.String(), data)
+	if err != nil {
+		return err
+	} else {
+		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	}
+
+	// Do request
+	return client.do(req, path, out, opts)
+}
+
+// Perform POST with a byte stream
+func (client *Client) PostBinary(path string, data io.Reader, out interface{}, opts ...ClientOpt) error {
+	// Make a new POST request with byte stream payload
+	req, err := http.NewRequest(http.MethodPost, client.URL.String(), data)
+	if err != nil {
+		return err
+	} else {
+		req.Header.Set("Content-Type", "application/octet-stream")
+	}
+
+	// Do request
+	return client.do(req, path, out, opts)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (client *Client) do(req *http.Request, path string, out interface{}, opts []ClientOpt) error {
+	// Process client options
+	params := req.URL.Query()
+	for _, opt := range opts {
+		opt(params, req)
+	}
+
+	// Set URL path and query based on parameters and path
+	req.URL.RawQuery = params.Encode()
+	req.URL.Path = path
 
 	// Perform a request
 	resp, err := client.Do(req)
@@ -205,7 +249,7 @@ func (client *Client) Get(path string, v interface{}, opts ...ClientOpt) error {
 	}
 
 	// Decode response
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return err
 	}
 

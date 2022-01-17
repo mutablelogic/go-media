@@ -49,8 +49,8 @@ func main() {
 		os.Exit(-1)
 	}
 
+	// No token is available - auth flow
 	if token == nil {
-		// No token is available
 		if *flagCommandLineCode != "" {
 			token, err = client.CommandLineToken(ctx, *flagCommandLineCode)
 			if err != nil {
@@ -78,12 +78,23 @@ func main() {
 	}
 
 	// Retrieve mediaitems
-	var result googlephotos.Array
-	if err := client.Get("/v1/mediaItems", &result); err != nil {
+	if items, err := googlephotos.MediaItemSearch(client); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(-1)
+	} else {
+		for _, item := range items {
+			w, err := os.Create(item.Filename)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error:", err)
+				os.Exit(-1)
+			}
+			defer w.Close()
+			if err := googlephotos.DownloadMediaItem(client, w, item, googlephotos.OptWidthHeight(500, 500, true)); err != nil {
+				fmt.Fprintln(os.Stderr, "Error:", err)
+				os.Exit(-1)
+			}
+		}
 	}
-	fmt.Println(result.MediaItems)
 }
 
 func HandleSignal() context.Context {

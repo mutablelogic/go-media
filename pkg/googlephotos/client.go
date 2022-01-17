@@ -20,8 +20,8 @@ const (
 // TYPES
 
 type Array struct {
-	Albums        []Album     `json:"albums,omitempty"`
-	SharedAlbums  []Album     `json:"sharedAlbums,omitempty"`
-	MediaItems    []MediaItem `json:"mediaItems,omitempty"`
-	NextPageToken string      `json:"nextPageToken,omitempty"`
+	Albums        []*Album     `json:"albums,omitempty"`
+	SharedAlbums  []*Album     `json:"sharedAlbums,omitempty"`
+	MediaItems    []*MediaItem `json:"mediaItems,omitempty"`
+	NextPageToken string       `json:"nextPageToken,omitempty"`
 }
