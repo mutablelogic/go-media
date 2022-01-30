@@ -26,8 +26,9 @@ func UploadMediaItem(client *googleclient.Client, r io.Reader, opts ...googlecli
 	if client == nil || r == nil {
 		return "", ErrBadParameter.With("UploadMediaItem")
 	}
-	opts = append(opts, func(params url.Values, req *http.Request) {
+	opts = append(opts, func(params url.Values, req *http.Request) googleclient.ClientOptDone {
 		req.Header.Set("X-Goog-Upload-Protocol", "raw")
+		return nil
 	})
 	if err := client.PostBinary("/v1/uploads", r, &result, opts...); err != nil {
 		return "", err

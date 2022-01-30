@@ -37,7 +37,7 @@ type SharedAlbumOptions struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// METHODS
+// BARE METHODS
 
 func AlbumList(client *googleclient.Client, opts ...googleclient.ClientOpt) ([]*Album, error) {
 	var result Array

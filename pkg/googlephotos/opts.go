@@ -20,30 +20,39 @@ type UploadOpt func(params url.Values)
 // CLIENT OPTIONS
 
 func OptPageSize(v uint) googleclient.ClientOpt {
-	return func(params url.Values, _ *http.Request) {
+	return func(params url.Values, _ *http.Request) googleclient.ClientOptDone {
 		params.Set("pageSize", fmt.Sprint(v))
+		return nil
 	}
 }
 
-func OptPageToken(v string) googleclient.ClientOpt {
-	return func(params url.Values, _ *http.Request) {
-		params.Set("pageToken", v)
+func OptPageToken(v *string) googleclient.ClientOpt {
+	return func(params url.Values, _ *http.Request) googleclient.ClientOptDone {
+		params.Set("pageToken", *v)
+		// Return a function that will set the token to the next page
+		return func(out interface{}) {
+			if arr, ok := out.(*Array); ok {
+				*v = arr.NextPageToken
+			}
+		}
 	}
 }
 
 func OptExcludeNonAppCreatedData(v bool) googleclient.ClientOpt {
-	return func(params url.Values, _ *http.Request) {
+	return func(params url.Values, _ *http.Request) googleclient.ClientOptDone {
 		params.Set("excludeNonAppCreatedData", fmt.Sprint(v))
+		return nil
 	}
 }
 
 func OptMimeType(v string) googleclient.ClientOpt {
-	return func(params url.Values, req *http.Request) {
+	return func(params url.Values, req *http.Request) googleclient.ClientOptDone {
 		if v != "" {
 			req.Header.Set("X-Goog-Upload-Content-Type", v)
 		} else {
 			req.Header.Del("X-Goog-Upload-Content-Type")
 		}
+		return nil
 	}
 }
 

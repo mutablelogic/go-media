@@ -226,10 +226,14 @@ func (client *Client) PostBinary(path string, data io.Reader, out interface{}, o
 // PRIVATE METHODS
 
 func (client *Client) do(req *http.Request, path string, out interface{}, opts []ClientOpt) error {
+	var callbacks []ClientOptDone
+
 	// Process client options
 	params := req.URL.Query()
 	for _, opt := range opts {
-		opt(params, req)
+		if fn := opt(params, req); fn != nil {
+			callbacks = append(callbacks, fn)
+		}
 	}
 
 	// Set URL path and query based on parameters and path
@@ -251,6 +255,11 @@ func (client *Client) do(req *http.Request, path string, out interface{}, opts [
 	// Decode response
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return err
+	}
+
+	// Callbacks
+	for _, fn := range callbacks {
+		fn(out)
 	}
 
 	// Return success

@@ -7,7 +7,7 @@ PLUGIN_DIR := $(wildcard plugin/*)
 CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 
 # Build flags
-BUILD_MODULE = "github.com/mutablogic/go-media"
+BUILD_MODULE = "github.com/mutablelogic/go-media"
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
