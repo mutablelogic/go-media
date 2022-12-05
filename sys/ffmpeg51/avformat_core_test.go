@@ -33,7 +33,7 @@ func Test_avformat_003(t *testing.T) {
 	}
 }
 
-func Test_avformat_003(t *testing.T) {
+func Test_avformat_004(t *testing.T) {
 	var opaque uintptr
 	for {
 		format := ffmpeg.AVFormat_av_demuxer_iterate(&opaque)

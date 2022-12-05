@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -54,7 +53,7 @@ func (ctx *AVFormatContext) AVFormat_free_context() {
 	C.avformat_free_context((*C.struct_AVFormatContext)(ctx))
 }
 
-func AVFormat_avformat_get_class() {
+func AVFormat_avformat_get_class() *AVClass {
 	return (*AVClass)(C.avformat_get_class())
 }
 
