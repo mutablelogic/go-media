@@ -19,20 +19,42 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s input output\n", filepath.Base(flag.CommandLine.Name()))
 		os.Exit(1)
 	}
-	/* create resampler context */
+
+	// create resampler context
 	ctx := ffmpeg.SWR_alloc()
 	if ctx == nil {
 		fmt.Fprintln(os.Stderr, "Could not allocate resampler context")
 		os.Exit(1)
 	}
 	defer ctx.SWR_free()
+
+	// Set parameters
+	src_ch_layout := ffmpeg.AV_CHANNEL_LAYOUT_STEREO
+	src_rate := int64(48000)
+	src_sample_fmt := ffmpeg.AV_SAMPLE_FMT_DBL
+	ctx.AVUtil_av_opt_set_chlayout("in_chlayout", &src_ch_layout)
+	ctx.AVUtil_av_opt_set_int("in_sample_rate", src_rate)
+	ctx.AVUtil_av_opt_set_sample_fmt("in_sample_fmt", src_sample_fmt)
+
+	dst_ch_layout := ffmpeg.AV_CHANNEL_LAYOUT_SURROUND
+	dst_rate := int64(44100)
+	dst_sample_fmt := ffmpeg.AV_SAMPLE_FMT_S16
+	ctx.AVUtil_av_opt_set_chlayout("out_chlayout", &dst_ch_layout)
+	ctx.AVUtil_av_opt_set_int("out_sample_rate", dst_rate)
+	ctx.AVUtil_av_opt_set_sample_fmt("out_sample_fmt", dst_sample_fmt)
+
+	// initialize the resampling context
+	if err := ctx.SWR_init(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 /*
    // set options
    av_opt_set_chlayout(swr_ctx, "in_chlayout",    &src_ch_layout, 0);
-   av_opt_set_int(swr_ctx, "in_sample_rate",       src_rate, 0);
-   av_opt_set_sample_fmt(swr_ctx, "in_sample_fmt", src_sample_fmt, 0);
+   av_opt_set_int(swr_ctx,,       src_rate, 0);
+   av_opt_set_sample_fmt(swr_ctx, , src_sample_fmt, 0);
 
    av_opt_set_chlayout(swr_ctx, "out_chlayout",    &dst_ch_layout, 0);
    av_opt_set_int(swr_ctx, "out_sample_rate",       dst_rate, 0);
