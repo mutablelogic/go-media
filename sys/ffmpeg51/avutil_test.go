@@ -116,3 +116,53 @@ func Test_avutil_005(t *testing.T) {
 	assert.EqualValues([]string{"a", "b"}, dict.AVUtil_av_dict_keys())
 	dict.AVUtil_av_dict_free()
 }
+
+func Test_avutil_006(t *testing.T) {
+	assert := assert.New(t)
+	fmts := []ffmpeg.AVSampleFormat{
+		ffmpeg.AV_SAMPLE_FMT_NONE,
+		ffmpeg.AV_SAMPLE_FMT_U8,
+		ffmpeg.AV_SAMPLE_FMT_S16,
+		ffmpeg.AV_SAMPLE_FMT_S32,
+		ffmpeg.AV_SAMPLE_FMT_FLT,
+		ffmpeg.AV_SAMPLE_FMT_DBL,
+		ffmpeg.AV_SAMPLE_FMT_U8P,
+		ffmpeg.AV_SAMPLE_FMT_S16P,
+		ffmpeg.AV_SAMPLE_FMT_S32P,
+		ffmpeg.AV_SAMPLE_FMT_FLTP,
+		ffmpeg.AV_SAMPLE_FMT_DBLP,
+		ffmpeg.AV_SAMPLE_FMT_S64,
+		ffmpeg.AV_SAMPLE_FMT_S64P,
+		ffmpeg.AV_SAMPLE_FMT_NB,
+	}
+	for _, fmt := range fmts {
+		t.Log("fmt => ", fmt)
+		if fmt != ffmpeg.AV_SAMPLE_FMT_NONE && fmt != ffmpeg.AV_SAMPLE_FMT_NB {
+			str := ffmpeg.AVUtil_av_get_sample_fmt_name(fmt)
+			assert.NotEqual("", str)
+			t.Log("str => ", str)
+			assert.Equal(fmt, ffmpeg.AVUtil_av_get_sample_fmt(str))
+		}
+	}
+}
+
+func Test_avutil_007(t *testing.T) {
+	assert := assert.New(t)
+	fmts := []ffmpeg.AVSampleFormat{
+		ffmpeg.AV_SAMPLE_FMT_U8,
+		ffmpeg.AV_SAMPLE_FMT_S16,
+		ffmpeg.AV_SAMPLE_FMT_S32,
+		ffmpeg.AV_SAMPLE_FMT_FLT,
+		ffmpeg.AV_SAMPLE_FMT_DBL,
+		ffmpeg.AV_SAMPLE_FMT_S64,
+	}
+	for _, packed := range fmts {
+		t.Log("packed => ", packed)
+		planar := ffmpeg.AVUtil_av_get_alt_sample_fmt(packed, true)
+		assert.NotEqual(ffmpeg.AV_SAMPLE_FMT_NONE, planar)
+		t.Log("  planar => ", planar)
+		assert.Equal(packed, ffmpeg.AVUtil_av_get_alt_sample_fmt(planar, false))
+		assert.Equal(true, ffmpeg.AVUtil_av_sample_fmt_is_planar(planar))
+		assert.Equal(false, ffmpeg.AVUtil_av_sample_fmt_is_planar(packed))
+	}
+}

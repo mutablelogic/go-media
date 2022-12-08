@@ -51,20 +51,6 @@ func main() {
 }
 
 /*
-   // set options
-   av_opt_set_chlayout(swr_ctx, "in_chlayout",    &src_ch_layout, 0);
-   av_opt_set_int(swr_ctx,,       src_rate, 0);
-   av_opt_set_sample_fmt(swr_ctx, , src_sample_fmt, 0);
-
-   av_opt_set_chlayout(swr_ctx, "out_chlayout",    &dst_ch_layout, 0);
-   av_opt_set_int(swr_ctx, "out_sample_rate",       dst_rate, 0);
-   av_opt_set_sample_fmt(swr_ctx, "out_sample_fmt", dst_sample_fmt, 0);
-
-   // initialize the resampling context
-   if ((ret = swr_init(swr_ctx)) < 0) {
-	   fprintf(stderr, "Failed to initialize the resampling context\n");
-	   goto end;
-   }
 
    // allocate source and destination samples buffers
 

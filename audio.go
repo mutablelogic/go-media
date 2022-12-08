@@ -22,6 +22,31 @@ type AudioFormat struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// INTERFACES
+
+// AudioSamples is a slice of audio samples
+type AudioSamples interface {
+	// Audio format
+	Format() AudioFormat
+
+	// Number of samples in a single channel
+	Samples() int
+
+	// Number of audio channels
+	Channels() int
+
+	// Linesize
+	Linesize() int
+
+	// Alignment
+	Align() bool
+
+	// Returns the samples for a specified channel, as array of bytes. For packed
+	// audio format, the channel should be 0.
+	Bytes(channel int) []byte
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (

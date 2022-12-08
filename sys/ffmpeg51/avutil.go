@@ -62,6 +62,7 @@ type (
 	AVChannel       C.enum_AVChannel
 	AVChannelLayout C.struct_AVChannelLayout
 	AVPixelFormat   C.enum_AVPixelFormat
+	AVRounding      C.enum_AVRounding
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,6 +375,15 @@ var (
 	AV_CHANNEL_LAYOUT_STEREO_DOWNMIX        = AVChannelLayout(C._AV_CHANNEL_LAYOUT_STEREO_DOWNMIX)
 	AV_CHANNEL_LAYOUT_22POINT2              = AVChannelLayout(C._AV_CHANNEL_LAYOUT_22POINT2)
 	AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER = AVChannelLayout(C._AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER)
+)
+
+const (
+	AV_ROUND_ZERO        = C.AV_ROUND_ZERO        ///< Round toward zero.
+	AV_ROUND_INF         = C.AV_ROUNT_INF         ///< Round away from zero.
+	AV_ROUND_DOWN        = C.AV_ROUND_DOWN        ///< Round toward -infinity.
+	AV_ROUND_UP          = C.AV_ROUND_UP          ///< Round toward +infinity.
+	AV_ROUND_NEAR_INF    = C.AV_ROUND_NEAR_INF    ///< Round to nearest and halfway cases away from zero.
+	AV_ROUND_PASS_MINMAX = C.AV_ROUND_PASS_MINMAX ///< Flag telling rescaling functions to pass INT64_MIN/MAX through unchanged
 )
 
 ////////////////////////////////////////////////////////////////////////////////
