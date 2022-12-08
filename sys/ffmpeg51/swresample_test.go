@@ -16,7 +16,7 @@ func Test_swr_000(t *testing.T) {
 }
 
 func Test_swr_001(t *testing.T) {
-	t.Log("SWR_version=", ffmpeg.SWR_configuration())
+	t.Log("SWR_configuration=", ffmpeg.SWR_configuration())
 }
 
 func Test_swr_002(t *testing.T) {
