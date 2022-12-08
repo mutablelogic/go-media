@@ -42,10 +42,10 @@ $(PLUGIN_DIR): FORCE
 FORCE:
 
 test:
-	@echo Test sys/ffmpeg
-	@${GO} test ./sys/ffmpeg
-	@echo Test pkg/media
-	@${GO} test ./pkg/media
+	@echo Test sys/
+	@${GO} test ./sys/...
+	@echo Test pkg/
+	@${GO} test ./pkg/...
 
 dependencies: mkdir
 ifeq (,${GO})

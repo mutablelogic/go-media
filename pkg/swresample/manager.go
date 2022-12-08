@@ -50,6 +50,7 @@ func (r *swresample) NewContext() *swcontext {
 }
 
 func (r *swresample) ConvertBytes(ctx SWResampleContext, fn SWResampleConvertBytes) error {
+	// Initialize the context
 	if err := ctx.(*swcontext).initialize(); err != nil {
 		return err
 	}
