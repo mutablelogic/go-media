@@ -1,5 +1,8 @@
 package media
 
+////////////////////////////////////////////////////////////////////////////////
+// INTERFACES
+
 // SWResample is an interface to the ffmpeg swresample library
 // which resamples audio.
 type SWResample interface {
@@ -20,5 +23,9 @@ type SWResample interface {
 type SWResampleConvertBytes func(SWResampleContext, []byte) ([]byte, error)
 
 type SWResampleContext interface {
-	// Add in methods on the input and output formats here....
+	// Set the input audio format
+	SetIn(AudioFormat) error
+
+	// Set the output audio format
+	SetOut(AudioFormat) error
 }

@@ -2,6 +2,9 @@ package swresample
 
 import (
 	// Package imports
+	"fmt"
+	"io"
+
 	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
@@ -54,5 +57,35 @@ func (r *swresample) ConvertBytes(ctx SWResampleContext, fn SWResampleConvertByt
 	if err := ctx.(*swcontext).initialize(); err != nil {
 		return err
 	}
-	return nil
+	// Repeat calling conversion until error
+	var in, out []byte
+	var err error
+	var n int
+FOR_LOOP:
+	for {
+		// Call to get an input buffer
+		in, err = fn(ctx, out)
+		if err != nil {
+			break FOR_LOOP
+		}
+		n, err := ctx.(*swcontext).ctx.SWR_convert_bytes(out, in)
+		if err != nil {
+			break FOR_LOOP
+		}
+		fmt.Println("n=", n)
+	}
+	// If error is EOF, then flush the output buffer
+	if err == io.EOF {
+		n, err = ctx.(*swcontext).ctx.SWR_convert_bytes(out, nil)
+		if err == nil {
+			_, err = fn(ctx, out)
+		}
+		fmt.Println("EOF n=", n)
+	}
+	// If error is EOF, then return nil
+	if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
