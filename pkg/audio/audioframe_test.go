@@ -38,3 +38,15 @@ func Test_audioframe_002(t *testing.T) {
 	t.Log(frame)
 	assert.NoError(frame.Close())
 }
+
+func Test_audioframe_003(t *testing.T) {
+	assert := assert.New(t)
+	frame, err := NewAudioFramePlanar(AudioFormat{Rate: 48000, Format: SAMPLE_FORMAT_U8, Layout: CHANNEL_LAYOUT_STEREO}, time.Second, true)
+	assert.NoError(err)
+	assert.NotNil(frame)
+	t.Log(frame)
+	for i, ch := range frame.Channels() {
+		t.Log("channel", ch, "size=", len(frame.Bytes(i)), "bytes")
+	}
+	assert.NoError(frame.Close())
+}

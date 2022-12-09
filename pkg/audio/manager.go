@@ -2,7 +2,7 @@ package audio
 
 import (
 	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
@@ -32,12 +32,26 @@ func (r *swresample) Close() error {
 func (r *swresample) Convert(in AudioFrame, out AudioFormat, fn SWResampleFn) error {
 	var result error
 
+	// Check arguments
+	if in == nil || fn == nil {
+		return ErrBadParameter
+	}
+
 	// Create a context
 	ctx, err := NewContext(in, out)
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
+
+	// Create an output frame based on input frame
+	out,err := NewAudioFrame(ctx.DestinationAudioFormat(), in.Duration())
+	if err != nil {
+		return err
+	}
+
+	// Call conversion function once
+	if err := fn(ctx); err != nil {
 
 	/*
 		// Repeat calling conversion until error

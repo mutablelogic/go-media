@@ -3,8 +3,10 @@ package audio
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"runtime"
 	"time"
+	"unsafe"
 
 	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
@@ -220,10 +222,23 @@ func (f *audioframe) Duration() time.Duration {
 	return time.Second * time.Duration(f.nb_samples) / time.Duration(f.rate)
 }
 
+func (f *audioframe) BytesPerSample() int {
+	return ffmpeg.AVUtil_av_get_bytes_per_sample(f.sample_fmt)
+}
+
 // Return slice of samples as bytes. ch should be zero unless planar audio.
 func (f *audioframe) Bytes(ch int) []byte {
-	// TODO
-	return nil
+	var bytes []byte
+	// Return nil if no data
+	if ch < 0 || ch >= len(f.data) || f.data[ch] == nil {
+		return nil
+	}
+	// Make a fake slice
+	sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&bytes)))
+	sliceHeader.Cap = ffmpeg.AVUtil_av_get_bytes_per_sample(f.sample_fmt) * f.nb_samples
+	sliceHeader.Len = ffmpeg.AVUtil_av_get_bytes_per_sample(f.sample_fmt) * f.nb_samples
+	sliceHeader.Data = uintptr(unsafe.Pointer(f.data[ch]))
+	return bytes
 }
 
 ////////////////////////////////////////////////////////////////////////////////

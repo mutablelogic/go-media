@@ -16,14 +16,15 @@ import (
 // TYPES
 
 type swcontext struct {
-	ctx *ffmpeg.SWRContext
+	ctx  *ffmpeg.SWRContext
+	dest AudioFormat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new empty context object
-func NewContext(in AudioFrame, out AudioFormat) (*swcontext, error) {
+func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 	r := new(swcontext)
 	runtime.SetFinalizer(r, swcontext_finalizer)
 

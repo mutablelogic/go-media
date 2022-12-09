@@ -56,8 +56,13 @@ func AVUtil_av_sample_fmt_is_planar(f AVSampleFormat) bool {
 
 // Get the required buffer size for the given audio parameters.
 // When align is 1 no alignment is done
-func AVUtil_av_samples_get_buffer_size(linesize *int, nb_channels int, nb_samples int, sample_fmt AVSampleFormat, align int) int {
-	return int(C.av_samples_get_buffer_size((*C.int)(unsafe.Pointer(linesize)), C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), C.int(align)))
+func AVUtil_av_samples_get_buffer_size(linesize *int, nb_channels int, nb_samples int, sample_fmt AVSampleFormat, align int) (int, error) {
+	n := C.av_samples_get_buffer_size((*C.int)(unsafe.Pointer(linesize)), C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), C.int(align))
+	if n < 0 {
+		return 0, AVError(n)
+	} else {
+		return int(n), nil
+	}
 }
 
 // Allocate a samples buffer for nb_samples samples, and fill data pointers and linesize accordingly.
