@@ -23,11 +23,42 @@ type swcontext struct {
 // LIFECYCLE
 
 // Create a new empty context object
-func NewContext() *swcontext {
+func NewContext(in AudioFrame, out AudioFormat) (*swcontext, error) {
 	r := new(swcontext)
-	r.ctx = ffmpeg.SWR_alloc()
 	runtime.SetFinalizer(r, swcontext_finalizer)
-	return r
+
+	// Allocate context
+	r.ctx = ffmpeg.SWR_alloc()
+
+	// Check in parameter
+	if in == nil || in.Samples() == 0 {
+		r.ctx.SWR_free()
+		r.ctx = nil
+		return nil, ErrBadParameter.With("in")
+	} else if err := r.setIn(in.AudioFormat()); err != nil {
+		r.ctx.SWR_free()
+		r.ctx = nil
+		return nil, err
+	}
+
+	// Copy in parameters to out format
+	if out.Rate == 0 {
+		out.Rate = in.AudioFormat().Rate
+	}
+	if out.Format == SAMPLE_FORMAT_NONE {
+		out.Format = in.AudioFormat().Format
+	}
+	if out.Layout == CHANNEL_LAYOUT_NONE {
+		out.Layout = in.AudioFormat().Layout
+	}
+	if err := r.setOut(out); err != nil {
+		r.ctx.SWR_free()
+		r.ctx = nil
+		return nil, err
+	}
+
+	// Return success
+	return r, nil
 }
 
 // Free resources associated with the context
@@ -47,8 +78,11 @@ func (r *swcontext) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
 // Set the input audio format
-func (r *swcontext) SetIn(f AudioFormat) error {
+func (r *swcontext) setIn(f AudioFormat) error {
 	var result error
 	if r.ctx == nil {
 		return ErrInternalAppError.With("Context is closed")
@@ -77,7 +111,7 @@ func (r *swcontext) SetIn(f AudioFormat) error {
 }
 
 // Set the output audio format
-func (r *swcontext) SetOut(f AudioFormat) error {
+func (r *swcontext) setOut(f AudioFormat) error {
 	var result error
 	if r.ctx == nil {
 		return ErrInternalAppError.With("Context is closed")
@@ -104,9 +138,6 @@ func (r *swcontext) SetOut(f AudioFormat) error {
 	// Return any errors
 	return result
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
 
 func (r *swcontext) initialize() error {
 	// Check parameters

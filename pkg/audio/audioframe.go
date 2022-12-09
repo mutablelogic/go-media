@@ -20,6 +20,7 @@ import (
 type audioframe struct {
 	sample_fmt     ffmpeg.AVSampleFormat
 	rate           int
+	layout         ChannelLayout
 	channel_layout *ffmpeg.AVChannelLayout
 	channels       []ffmpeg.AVChannel
 	data           []*byte
@@ -82,8 +83,10 @@ func newAudioFrame(audio_fmt AudioFormat, duration time.Duration, force_planar, 
 	// Set channel layout - default to mono
 	layout := ffmpeg.AV_CHANNEL_LAYOUT_MONO
 	if audio_fmt.Layout == CHANNEL_LAYOUT_NONE {
+		f.layout = CHANNEL_LAYOUT_MONO
 		layout = ffmpeg.AV_CHANNEL_LAYOUT_MONO
 	} else {
+		f.layout = audio_fmt.Layout
 		layout = toChannelLayout(audio_fmt.Layout)
 	}
 	f.channel_layout = &layout
@@ -188,24 +191,29 @@ func (f *audioframe) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func (f *audioframe) AudioFormat() AudioFormat {
+	return AudioFormat{
+		Rate:   uint(f.rate),
+		Format: fromSampleFormat(f.sample_fmt),
+		Layout: f.layout,
+	}
+}
+
 func (f *audioframe) IsPlanar() bool {
 	return f.planar
-}
-
-func (f *audioframe) Rate() int {
-	return f.rate
-}
-
-func (f *audioframe) SampleFormat() SampleFormat {
-	return fromSampleFormat(f.sample_fmt)
 }
 
 func (f *audioframe) Samples() int {
 	return f.nb_samples
 }
 
-func (f *audioframe) Channels() int {
-	return len(f.channels)
+func (f *audioframe) Channels() []AudioChannel {
+	result := make([]AudioChannel, len(f.channels))
+	for i, ch := range f.channels {
+		// TODO
+		result[i] = AudioChannel(ch)
+	}
+	return result
 }
 
 func (f *audioframe) Duration() time.Duration {
