@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"time"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,12 +29,12 @@ type AudioFormat struct {
 	Layout ChannelLayout
 }
 
-// SWResampleConvert is a function that accepts an "output" buffer of data,
+// SWResampleConvert is a function that accepts an "output" audio frame,
 // which can be nil if the conversion has not started yet, and should return
-// the next buffer of input data. Return any error
+// the next "input" audio frame. Return any error
 // for the conversion to stop (io.EOF should be returned at the end of
 // any data conversion)
-type SWResampleConvertBytes func(SWResampleContext, []byte) ([]byte, error)
+type SWResampleConvert func(SWResampleContext, AudioFrame) (AudioFrame, error)
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -47,14 +48,14 @@ type AudioFrame interface {
 	Samples() int
 
 	// Audio channels
-	//Channels() []AudioChannel
+	Channels() []AudioChannel
 
 	// Duration of the frame
-	//Duration() time.Duration
+	Duration() time.Duration
 
 	// Returns the samples for a specified channel, as array of bytes. For packed
 	// audio format, the channel should be 0.
-	//Bytes(channel int) []byte
+	Bytes(channel int) []byte
 }
 
 // SWResample is an interface to the ffmpeg swresample library
@@ -66,13 +67,10 @@ type SWResample interface {
 
 	// Convert the input data to the output data, until io.EOF is
 	// returned or an error occurs, for uint8 data.
-	ConvertBytes(SWResampleContext, SWResampleConvertBytes) error
+	Convert(SWResampleContext, SWResampleConvert) error
 }
 
 type SWResampleContext interface {
-	// Set the input audio format
-	SetIn(AudioFormat) error
-
 	// Set the output audio format
 	SetOut(AudioFormat) error
 }
