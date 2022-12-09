@@ -1,5 +1,9 @@
 package media
 
+import (
+	"fmt"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -21,29 +25,56 @@ type AudioFormat struct {
 	Layout ChannelLayout
 }
 
+// SWResampleConvert is a function that accepts an "output" buffer of data,
+// which can be nil if the conversion has not started yet, and should return
+// the next buffer of input data. Return any error
+// for the conversion to stop (io.EOF should be returned at the end of
+// any data conversion)
+type SWResampleConvertBytes func(SWResampleContext, []byte) ([]byte, error)
+
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
 
-// AudioSamples is a slice of audio samples
-type AudioSamples interface {
-	// Audio format
-	Format() AudioFormat
+// AudioFrame is a slice of audio samples
+type AudioFrame interface {
+	// Sample format
+	SampleFormat() SampleFormat
+
+	// Channel layout
+	ChannelLayout() ChannelLayout
 
 	// Number of samples in a single channel
 	Samples() int
 
+	// Duration of the slide
+	//Duration() time.Duration
+
 	// Number of audio channels
-	Channels() int
-
-	// Linesize
-	Linesize() int
-
-	// Alignment
-	Align() bool
+	//Channels() int
 
 	// Returns the samples for a specified channel, as array of bytes. For packed
 	// audio format, the channel should be 0.
-	Bytes(channel int) []byte
+	//Bytes(channel int) []byte
+}
+
+// SWResample is an interface to the ffmpeg swresample library
+// which resamples audio.
+type SWResample interface {
+	// Create a new empty context object for conversion. Returns a
+	// cancel function which can interrupt the conversion.
+	NewContext() SWResampleContext
+
+	// Convert the input data to the output data, until io.EOF is
+	// returned or an error occurs, for uint8 data.
+	ConvertBytes(SWResampleContext, SWResampleConvertBytes) error
+}
+
+type SWResampleContext interface {
+	// Set the input audio format
+	SetIn(AudioFormat) error
+
+	// Set the output audio format
+	SetOut(AudioFormat) error
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,15 +85,16 @@ const (
 	SAMPLE_FORMAT_U8                // Byte
 	SAMPLE_FORMAT_S16               // Signed 16-bit
 	SAMPLE_FORMAT_S32               // Signed 32-bit
+	SAMPLE_FORMAT_S64               // Signed 64-bit
 	SAMPLE_FORMAT_FLT               // Float 32-bit
 	SAMPLE_FORMAT_DBL               // Float 64-bit
 	SAMPLE_FORMAT_U8P               // Planar byte
 	SAMPLE_FORMAT_S16P              // Planar signed 16-bit
 	SAMPLE_FORMAT_S32P              // Planar signed 32-bit
+	SAMPLE_FORMAT_S64P              // Planar signed 64-bit
 	SAMPLE_FORMAT_FLTP              // Planar float 32-bit
 	SAMPLE_FORMAT_DBLP              // Planar float 64-bit
-	SAMPLE_FORMAT_S64               // Signed 64-bit
-	SAMPLE_FORMAT_S64P              // Planar signed 64-bit
+	SAMPLE_FORMAT_MAX  = SAMPLE_FORMAT_S64P
 )
 
 const (
@@ -97,10 +129,25 @@ const (
 	CHANNEL_LAYOUT_STEREO_DOWNMIX
 	CHANNEL_LAYOUT_22POINT2
 	CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER
+	CHANNEL_LAYOUT_MAX = CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (v AudioFormat) String() string {
+	str := "<AudioFormat"
+	if v.Rate != 0 {
+		str += fmt.Sprint(" rate=", v.Rate)
+	}
+	if v.Format != SAMPLE_FORMAT_NONE {
+		str += fmt.Sprint(" format=", v.Format)
+	}
+	if v.Layout != CHANNEL_LAYOUT_NONE {
+		str += fmt.Sprint(" layout=", v.Layout)
+	}
+	return str + ">"
+}
 
 func (v SampleFormat) String() string {
 	switch v {

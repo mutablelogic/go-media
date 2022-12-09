@@ -379,7 +379,7 @@ var (
 
 const (
 	AV_ROUND_ZERO        = C.AV_ROUND_ZERO        ///< Round toward zero.
-	AV_ROUND_INF         = C.AV_ROUNT_INF         ///< Round away from zero.
+	AV_ROUND_INF         = C.AV_ROUND_INF         ///< Round away from zero.
 	AV_ROUND_DOWN        = C.AV_ROUND_DOWN        ///< Round toward -infinity.
 	AV_ROUND_UP          = C.AV_ROUND_UP          ///< Round toward +infinity.
 	AV_ROUND_NEAR_INF    = C.AV_ROUND_NEAR_INF    ///< Round to nearest and halfway cases away from zero.

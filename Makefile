@@ -41,7 +41,7 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-test:
+test: clean dependencies
 	@echo Test sys/
 	@${GO} test ./sys/...
 	@echo Test pkg/

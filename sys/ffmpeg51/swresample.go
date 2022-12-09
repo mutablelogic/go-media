@@ -1,5 +1,9 @@
 package ffmpeg
 
+import (
+	"unsafe"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -8,9 +12,6 @@ package ffmpeg
 #include <libswresample/swresample.h>
 */
 import "C"
-import (
-	"unsafe"
-)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -115,4 +116,37 @@ func (ctx *SWRContext) SWR_convert_bytes(out, in []byte) (int, error) {
 // Convert the next timestamp from input to output timestamps are in 1/(in_sample_rate * out_sample_rate) units.
 func (ctx *SWRContext) SWR_next_pts(pts int64) int64 {
 	return int64(C.swr_next_pts((*C.struct_SwrContext)(ctx), C.int64_t(pts)))
+}
+
+// Drops the specified number of output samples.
+func (ctx *SWRContext) SWR_drop_output(count int) error {
+	if err := AVError(C.swr_drop_output((*C.struct_SwrContext)(ctx), C.int(count))); err != 0 {
+		return err
+	} else {
+		return nil
+	}
+}
+
+// Inject the specified number of silence samples.
+func (ctx *SWRContext) SWR_inject_silence(count int) error {
+	if err := AVError(C.swr_inject_silence((*C.struct_SwrContext)(ctx), C.int(count))); err != 0 {
+		return err
+	} else {
+		return nil
+	}
+}
+
+// Gets the delay the next input sample will experience relative to the next output sample.
+func (ctx *SWRContext) SWR_get_delay(base int64) int64 {
+	return int64(C.swr_get_delay((*C.struct_SwrContext)(ctx), C.int64_t(base)))
+}
+
+// Find an upper bound on the number of samples that the next swr_convert
+func (ctx *SWRContext) SWR_get_out_samples(in_samples int) (int, error) {
+	n := int(C.swr_get_out_samples((*C.struct_SwrContext)(ctx), C.int(in_samples)))
+	if n < 0 {
+		return n, AVError(n)
+	} else {
+		return n, nil
+	}
 }

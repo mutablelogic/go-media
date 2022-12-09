@@ -3,28 +3,16 @@
 
 This module provides an interface for media services, including:
 
-  * Bindings in golang for [ffmpeg 4.1](https://ffmpeg.org/);
+  * Bindings in golang for [ffmpeg 5.1](https://ffmpeg.org/);
   * Opening media files for reading and writing;
   * Retrieving metadata and artwork from audio and video media;
   * Re-multiplexing media files from one format to another;
+  * Resampling raw audio from one format to another;
   * Serve a backend API for access to media services.
-
-Presently the module is in development and the API is subject to change.
-
-| If you want to...                    |  Folder         | Documentation |
-|--------------------------------------|-----------------|---------------|
-| Use the lower-level ffmpeg bindings similar to the [C API](https://ffmpeg.org/doxygen/trunk/) | [sys/ffmpeg](https://github.com/mutablelogic/go-media/tree/master/sys/ffmpeg) | [README.md](https://github.com/mutablelogic/go-media/blob/master/sys/ffmpeg/README.md) |
-| Use the high-level media manager package for reading, writing, multiplexing and transcoding| [pkg/media](https://github.com/mutablelogic/go-media/tree/master/pkg/media) | [README.md](https://github.com/mutablelogic/go-media/blob/master/pkg/media/README.md) |
-| Implement or use a REST API for media files | [plugin/media](https://github.com/mutablelogic/go-media/tree/master/plugin/media) | [README.md](https://github.com/mutablelogic/go-media/blob/master/plugin/media/README.md) |
-| See example command-line tools | [cmd](https://github.com/mutablelogic/go-media/tree/master/cmd) | [README.md](https://github.com/mutablelogic/go-media/blob/master/cmd/README.md) |
 
 ## Requirements
 
-  * Library and header files for [ffmpeg 4.1](https://ffmpeg.org/download.html);
-  * Library and header files for [chromaprint](https://github.com/acoustid/chromaprint);
-  * [go1.17](https://golang.org/dl/) or later;
-  * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64
-    architectures.
+  * Library and header files for [ffmpeg 5.1](https://ffmpeg.org/download.html);
 
 ## Building
 

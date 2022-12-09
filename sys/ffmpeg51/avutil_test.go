@@ -166,3 +166,42 @@ func Test_avutil_007(t *testing.T) {
 		assert.Equal(false, ffmpeg.AVUtil_av_sample_fmt_is_planar(packed))
 	}
 }
+
+func Test_avutil_008(t *testing.T) {
+	assert := assert.New(t)
+	var iter uintptr
+	for {
+		layout := ffmpeg.AVUtil_av_channel_layout_standard(&iter)
+		if layout == nil {
+			break
+		}
+		str, err := ffmpeg.AVUtil_av_channel_layout_describe(layout)
+		assert.NoError(err)
+		assert.NotEqual("", str)
+		t.Log("layout => ", str)
+	}
+}
+
+func Test_avutil_009(t *testing.T) {
+	assert := assert.New(t)
+	var ch_layout ffmpeg.AVChannelLayout
+	for ch := 1; ch <= 8; ch++ {
+		ffmpeg.AVUtil_av_channel_layout_default(&ch_layout, ch)
+		str, err := ffmpeg.AVUtil_av_channel_layout_describe(&ch_layout)
+		assert.NoError(err)
+		assert.NotEqual("", str)
+		assert.Equal(true, ffmpeg.AVUtil_av_channel_layout_check(&ch_layout))
+		assert.NoError(ffmpeg.AVUtil_av_channel_layout_from_string(&ch_layout, str))
+		t.Log("ch=>", ch, " layout=>", str)
+		for i := 0; i < ffmpeg.AVUtil_av_get_channel_layout_nb_channels(&ch_layout); i++ {
+			ch := ffmpeg.AVUtil_av_channel_layout_channel_from_index(&ch_layout, i)
+			name, err := ffmpeg.AVUtil_av_channel_name(ch)
+			assert.NoError(err)
+			assert.NotEqual("", name)
+			description, err := ffmpeg.AVUtil_av_channel_description(ch)
+			assert.NoError(err)
+			assert.NotEqual("", description)
+			t.Log("  ", i, "=> ch:", ch, "name:", name, "description:", description)
+		}
+	}
+}
