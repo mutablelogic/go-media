@@ -2,6 +2,7 @@ package audio
 
 import (
 	// Namespace imports
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 

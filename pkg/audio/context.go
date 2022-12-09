@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"fmt"
 	"runtime"
 
 	// Package imports
@@ -101,6 +102,7 @@ func (r *swcontext) setIn(f AudioFormat) error {
 	}
 	if f.Layout != CHANNEL_LAYOUT_NONE {
 		l := toChannelLayout(f.Layout)
+		fmt.Println("layout=", &l)
 		if err := r.ctx.AVUtil_av_opt_set_chlayout("in_channel_layout", &l); err != nil {
 			result = multierror.Append(result, ErrBadParameter.With("Invalid channel layout:", f.Layout))
 		}

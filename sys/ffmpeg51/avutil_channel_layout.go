@@ -1,5 +1,10 @@
 package ffmpeg
 
+import (
+	"fmt"
+	"unsafe"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -9,7 +14,6 @@ package ffmpeg
 #include <stdlib.h>
 */
 import "C"
-import "unsafe"
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
@@ -17,6 +21,26 @@ import "unsafe"
 const (
 	cBufSize = 1024
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINFIGY
+
+func (l *AVChannelLayout) String() string {
+	str := "<AVChannelLayout"
+	if description, err := AVUtil_av_channel_layout_describe(l); err == nil {
+		str += fmt.Sprintf(" description=%q", description)
+	}
+	nb_channels := AVUtil_av_get_channel_layout_nb_channels(l)
+	for i := 0; i < nb_channels; i++ {
+		ch := AVUtil_av_channel_layout_channel_from_index(l, i)
+		if str, err := AVUtil_av_channel_name(ch); err == nil {
+			str += fmt.Sprintf(" ch_%d=%q", i, str)
+		} else {
+			str += fmt.Sprintf(" ch_%d=%v", i, ch)
+		}
+	}
+	return str + ">"
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
