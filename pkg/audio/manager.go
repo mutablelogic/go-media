@@ -39,11 +39,6 @@ func (r *swresample) Convert(in AudioFrame, out AudioFormat, fn SWResampleFn) er
 	}
 	defer ctx.Close()
 
-	// Initialize the context
-	if err := ctx.initialize(); err != nil {
-		return err
-	}
-
 	/*
 		// Repeat calling conversion until error
 		   	var in, out []byte

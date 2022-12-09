@@ -27,14 +27,17 @@ const (
 
 func (l *AVChannelLayout) String() string {
 	str := "<AVChannelLayout"
+	if order := AVChannelOrder(l.order); order != AV_CHANNEL_ORDER_UNSPEC {
+		str += fmt.Sprint(" order=", order)
+	}
 	if description, err := AVUtil_av_channel_layout_describe(l); err == nil {
 		str += fmt.Sprintf(" description=%q", description)
 	}
 	nb_channels := AVUtil_av_get_channel_layout_nb_channels(l)
 	for i := 0; i < nb_channels; i++ {
 		ch := AVUtil_av_channel_layout_channel_from_index(l, i)
-		if str, err := AVUtil_av_channel_name(ch); err == nil {
-			str += fmt.Sprintf(" ch_%d=%q", i, str)
+		if name, err := AVUtil_av_channel_name(ch); err == nil {
+			str += fmt.Sprintf(" ch_%d=%q", i, name)
 		} else {
 			str += fmt.Sprintf(" ch_%d=%v", i, ch)
 		}

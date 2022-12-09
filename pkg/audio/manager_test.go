@@ -13,7 +13,7 @@ import (
 	. "github.com/mutablelogic/go-media/pkg/audio"
 )
 
-func Test_swresample_000(t *testing.T) {
+func Test_manager_000(t *testing.T) {
 	assert := assert.New(t)
 	mgr := New()
 	assert.NotNil(mgr)
