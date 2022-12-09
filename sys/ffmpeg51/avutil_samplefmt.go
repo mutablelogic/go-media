@@ -6,10 +6,13 @@ package ffmpeg
 /*
 #cgo pkg-config: libavutil
 #include <libavutil/samplefmt.h>
+#include <libavutil/mem.h>
 #include <stdlib.h>
 */
 import "C"
-import "unsafe"
+import (
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -60,6 +63,24 @@ func AVUtil_av_samples_get_buffer_size(linesize *int, nb_channels int, nb_sample
 // Allocate a samples buffer for nb_samples samples, and fill data pointers and linesize accordingly.
 // Allocated data will be initialized to silence.
 // When align is 1 no alignment is done
-func AVUtil_av_samples_alloc(data **uint8, linesize *int, nb_channels int, nb_samples int, sample_fmt AVSampleFormat, align int) int {
-	return int(C.av_samples_alloc((**C.uint8_t)(unsafe.Pointer(data)), (*C.int)(unsafe.Pointer(linesize)), C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), C.int(align)))
+func AVUtil_av_samples_alloc(data **uint8, linesize *int, nb_channels int, nb_samples int, sample_fmt AVSampleFormat, align int) error {
+	if err := AVError(
+		C.av_samples_alloc(
+			(**C.uint8_t)(unsafe.Pointer(data)),
+			(*C.int)(unsafe.Pointer(linesize)),
+			C.int(nb_channels),
+			C.int(nb_samples),
+			C.enum_AVSampleFormat(sample_fmt),
+			C.int(align),
+		)); err < 0 {
+		C.av_freep(unsafe.Pointer(data))
+		return err
+	} else {
+		return nil
+	}
+}
+
+// Free buffers which were allocated by av_samples_alloc().
+func AVUtil_av_samples_free(data **uint8) {
+	C.av_freep(unsafe.Pointer(data))
 }

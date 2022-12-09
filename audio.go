@@ -13,6 +13,9 @@ type SampleFormat uint
 // ChannelLayout specifies the layout of channels
 type ChannelLayout uint
 
+// AudioChannel specifies a single audio channel
+type AudioChannel uint
+
 // AudioFormat specifies the interface for audio format
 type AudioFormat struct {
 	// Sample rate in Hz
@@ -40,17 +43,14 @@ type AudioFrame interface {
 	// Sample format
 	SampleFormat() SampleFormat
 
-	// Channel layout
-	ChannelLayout() ChannelLayout
-
 	// Number of samples in a single channel
 	Samples() int
 
-	// Duration of the slide
-	//Duration() time.Duration
+	// Audio channels
+	//Channels() []AudioChannel
 
-	// Number of audio channels
-	//Channels() int
+	// Duration of the frame
+	//Duration() time.Duration
 
 	// Returns the samples for a specified channel, as array of bytes. For packed
 	// audio format, the channel should be 0.

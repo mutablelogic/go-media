@@ -20,7 +20,10 @@ import (
 type audioframe struct {
 	sample_fmt     ffmpeg.AVSampleFormat
 	rate           int
-	channel_layout ffmpeg.AVChannelLayout
+	channel_layout *ffmpeg.AVChannelLayout
+	channels       []ffmpeg.AVChannel
+	data           []*byte
+	stride         int
 	nb_samples     int
 	align          bool
 	planar         bool
@@ -32,53 +35,121 @@ var _ AudioFrame = (*audioframe)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewAudioFrame(fmt AudioFormat, duration time.Duration, align bool) (*audioframe, error) {
-	f := new(audioframe)
+// Create a new audio frame with the expected format and duration
+func NewAudioFrame(audio_fmt AudioFormat, duration time.Duration) (*audioframe, error) {
+	return newAudioFrame(audio_fmt, duration, false, false)
+}
 
-	if ffmpeg.AVUtil_av_sample_fmt_is_planar(f.sample_fmt) {
-		f.align = align
-		f.planar = true
-	}
+// Create a new audio frame with the expected format and duration, as a planar
+// frame (channels are separate). Set 'align' to true to align the data to boundaries
+func NewAudioFramePlanar(audio_fmt AudioFormat, duration time.Duration, align bool) (*audioframe, error) {
+	return newAudioFrame(audio_fmt, duration, true, align)
+}
+
+func newAudioFrame(audio_fmt AudioFormat, duration time.Duration, force_planar, align bool) (*audioframe, error) {
+	f := new(audioframe)
 
 	// Set finalizer to panic if not closed
 	runtime.SetFinalizer(f, audioframe_finalizer)
 
 	// Set sample rate
-	if fmt.Rate == 0 || fmt.Rate > math.MaxInt {
-		return nil, ErrBadParameter.With("rate:", fmt.Rate)
+	if audio_fmt.Rate == 0 || audio_fmt.Rate > math.MaxInt {
+		return nil, ErrBadParameter.With("rate:", audio_fmt.Rate)
 	} else {
-		f.rate = int(fmt.Rate)
+		f.rate = int(audio_fmt.Rate)
 	}
 
 	// Set sample format
-	if sample_fmt := toSampleFormat(fmt.Format); sample_fmt == ffmpeg.AV_SAMPLE_FMT_NONE || sample_fmt == ffmpeg.AV_SAMPLE_FMT_NB {
-		return nil, ErrBadParameter.With("format:", fmt.Format)
+	if sample_fmt := toSampleFormat(audio_fmt.Format); sample_fmt == ffmpeg.AV_SAMPLE_FMT_NONE || sample_fmt == ffmpeg.AV_SAMPLE_FMT_NB {
+		return nil, ErrBadParameter.With("format:", audio_fmt.Format)
 	} else {
 		f.sample_fmt = sample_fmt
 	}
 
-	// Set channel layout - default to mono
-	if fmt.Layout == CHANNEL_LAYOUT_NONE {
-		f.channel_layout = ffmpeg.AV_CHANNEL_LAYOUT_MONO
+	// Force to planar if requested
+	if force_planar {
+		f.sample_fmt = ffmpeg.AVUtil_av_get_planar_sample_fmt(f.sample_fmt)
+	}
+
+	// Set alignment and planar flags
+	if ffmpeg.AVUtil_av_sample_fmt_is_planar(f.sample_fmt) {
+		f.align = align
+		f.planar = true
 	} else {
-		f.channel_layout = toChannelLayout(fmt.Layout)
+		f.align = true
+	}
+
+	// Set channel layout - default to mono
+	layout := ffmpeg.AV_CHANNEL_LAYOUT_MONO
+	if audio_fmt.Layout == CHANNEL_LAYOUT_NONE {
+		layout = ffmpeg.AV_CHANNEL_LAYOUT_MONO
+	} else {
+		layout = toChannelLayout(audio_fmt.Layout)
+	}
+	f.channel_layout = &layout
+
+	// Ensure valid channel layout
+	if !ffmpeg.AVUtil_av_channel_layout_check(f.channel_layout) {
+		return nil, ErrBadParameter.With("layout:", audio_fmt.Layout)
+	}
+
+	// Create array for audio channels and pointers to data
+	if nb_channels := ffmpeg.AVUtil_av_get_channel_layout_nb_channels(f.channel_layout); nb_channels == 0 {
+		return nil, ErrBadParameter.With("layout:", audio_fmt.Layout)
+	} else {
+		f.channels = make([]ffmpeg.AVChannel, nb_channels)
+
+		// If planar, allocate array of pointers to data
+		if f.planar {
+			f.data = make([]*byte, nb_channels)
+		} else {
+			f.data = make([]*byte, 1)
+		}
+	}
+
+	// Fill channels
+	for i := range f.channels {
+		if ch := ffmpeg.AVUtil_av_channel_layout_channel_from_index(f.channel_layout, i); ch == ffmpeg.AV_CHAN_NONE {
+			return nil, ErrBadParameter.With("layout:", audio_fmt.Layout)
+		} else {
+			f.channels[i] = ch
+		}
 	}
 
 	// Set number of samples in a single channel
 	if duration <= 0 {
 		f.nb_samples = 0
 	} else {
-		f.nb_samples = int(duration * time.Duration(f.rate) / time.Second)
+		f.nb_samples = int(duration.Seconds() * float64(f.rate))
 	}
 
-	// Round up the number of samples
-
 	// Allocate buffer
-	//AVUtil_av_samples_alloc(buf, nil, buf.channels(), buf.nb_samples, buf.sample_fmt, align)
-	// rate * duration / time.Second
+	if f.nb_samples > 0 {
+		if err := ffmpeg.AVUtil_av_samples_alloc(&f.data[0], &f.stride, len(f.channels), f.nb_samples, f.sample_fmt, toAlign(f.align)); err != nil {
+			return nil, ErrInternalAppError.With("av_samples_alloc: ", err)
+		}
+	}
 
 	// Return success
 	return f, nil
+}
+
+func (f *audioframe) Close() error {
+	var result error
+
+	// Free any data
+	ffmpeg.AVUtil_av_samples_free(&f.data[0])
+
+	// Release resources
+	f.rate = 0
+	f.sample_fmt = ffmpeg.AV_SAMPLE_FMT_NONE
+	f.nb_samples = 0
+	f.channels = nil
+	f.data = nil
+	f.stride = 0
+
+	// Return any errors
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,8 +157,11 @@ func NewAudioFrame(fmt AudioFormat, duration time.Duration, align bool) (*audiof
 
 func (f *audioframe) String() string {
 	str := "<AudioFrame"
-	if f.align {
-		str += " align"
+	if f.planar {
+		str += " planar"
+		if f.align {
+			str += " align"
+		}
 	}
 	if f.rate > 0 {
 		str += fmt.Sprint(" rate=", f.rate)
@@ -97,12 +171,26 @@ func (f *audioframe) String() string {
 		if f.nb_samples > 0 {
 			str += fmt.Sprint(" nb_samples=", f.nb_samples)
 		}
+		if len(f.channels) > 0 {
+			str += fmt.Sprint(" channels=", f.channels)
+		}
+		if len(f.data) > 0 {
+			str += fmt.Sprint(" data=", f.data)
+		}
+		if f.stride > 0 {
+			str += fmt.Sprint(" stride=", f.stride)
+		}
+		str += fmt.Sprint(" duration=", f.Duration())
 	}
 	return str + ">"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (f *audioframe) IsPlanar() bool {
+	return f.planar
+}
 
 func (f *audioframe) Rate() int {
 	return f.rate
@@ -112,45 +200,37 @@ func (f *audioframe) SampleFormat() SampleFormat {
 	return fromSampleFormat(f.sample_fmt)
 }
 
-func (f *audioframe) ChannelLayout() ChannelLayout {
-	return fromChannelLayout(f.channel_layout)
-}
-
 func (f *audioframe) Samples() int {
 	return f.nb_samples
 }
 
-// Sample format
-/*
+func (f *audioframe) Channels() int {
+	return len(f.channels)
+}
 
-	// Audio format
-	AudioFormat() AudioFormat
+func (f *audioframe) Duration() time.Duration {
+	return time.Second * time.Duration(f.nb_samples) / time.Duration(f.rate)
+}
 
-	// Number of samples in a single channel
-	Samples() int
-
-	// Duration of the slide
-	Duration() time.Duration
-
-	// Number of audio channels
-	Channels() int
-
-	// Returns the samples for a specified channel, as array of bytes. For packed
-	// audio format, the channel should be 0.
-	Bytes(channel int) []byte
-*/
-
-func (f *audioframe) IsPlanar() bool {
-	if f.sample_fmt != ffmpeg.AV_SAMPLE_FMT_NONE {
-		return ffmpeg.AVUtil_av_sample_fmt_is_planar(f.sample_fmt)
-	} else {
-		return false
-	}
+// Return slice of samples as bytes. ch should be zero unless planar audio.
+func (f *audioframe) Bytes(ch int) []byte {
+	// TODO
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func audioframe_finalizer(f *audioframe) {
-	fmt.Println("swresample: audioframe_finalizer")
+	if f.data != nil {
+		panic("swresample: audioframe_finalizer: data not nil")
+	}
+}
+
+func toAlign(align bool) int {
+	if align {
+		return 0
+	} else {
+		return 1
+	}
 }
