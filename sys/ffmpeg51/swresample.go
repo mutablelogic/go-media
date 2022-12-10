@@ -99,20 +99,6 @@ func (ctx *SWRContext) SWR_convert(out **byte, out_count int, in **byte, in_coun
 	}
 }
 
-// Core conversion functions. Returns number of samples output per channel.
-// in can be set to nil to flush the last few samples out at the end.
-func (ctx *SWRContext) SWR_convert_bytes(out, in []byte) (int, error) {
-	var pOut *byte
-	var pIn *byte
-	if out != nil {
-		pOut = &out[0]
-	}
-	if in != nil {
-		pIn = &in[0]
-	}
-	return ctx.SWR_convert(&pOut, len(out), &pIn, len(in))
-}
-
 // Convert the next timestamp from input to output timestamps are in 1/(in_sample_rate * out_sample_rate) units.
 func (ctx *SWRContext) SWR_next_pts(pts int64) int64 {
 	return int64(C.swr_next_pts((*C.struct_SwrContext)(ctx), C.int64_t(pts)))

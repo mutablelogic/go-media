@@ -68,6 +68,35 @@ const (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (ctx *AVFormatContext) String() string {
+	str := "<AVFormatContext"
+	if input := ctx.Input(); input != nil {
+		str += fmt.Sprint(" input=", input)
+	}
+	if output := ctx.Output(); output != nil {
+		str += fmt.Sprint(" output=", output)
+	}
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - FORMAT CONTEXT
+
+func (ctx *AVFormatContext) Class() *AVClass {
+	return (*AVClass)(ctx.av_class)
+}
+
+func (ctx *AVFormatContext) Input() *AVInputFormat {
+	return (*AVInputFormat)(ctx.iformat)
+}
+
+func (ctx *AVFormatContext) Output() *AVOutputFormat {
+	return (*AVOutputFormat)(ctx.oformat)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - INPUT
 
 func (this *AVInputFormat) Name() string {

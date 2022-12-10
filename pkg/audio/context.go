@@ -16,8 +16,14 @@ import (
 // TYPES
 
 type swcontext struct {
-	ctx  *ffmpeg.SWRContext
+	// Context for resampling
+	ctx *ffmpeg.SWRContext
+
+	// Destination audio format
 	dest AudioFormat
+
+	// Frame to contain converted data
+	frame AudioFrame
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,44 +31,50 @@ type swcontext struct {
 
 // Create a new empty context object
 func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
+	var result error
+
 	r := new(swcontext)
+	defer func() {
+		if result != nil && r.ctx != nil {
+			r.ctx.SWR_free()
+			r.ctx = nil
+		}
+	}()
+
+	// Set finalizer to panic if Close() is not called
 	runtime.SetFinalizer(r, swcontext_finalizer)
 
 	// Allocate context
 	r.ctx = ffmpeg.SWR_alloc()
 
 	// Check in parameter
-	if in == nil || in.Samples() == 0 {
-		r.ctx.SWR_free()
-		r.ctx = nil
-		return nil, ErrBadParameter.With("in")
-	} else if err := r.setIn(in.AudioFormat()); err != nil {
-		r.ctx.SWR_free()
-		r.ctx = nil
-		return nil, err
+	if src == nil || src.Samples() == 0 {
+		result = ErrBadParameter.With("in")
+		return nil, result
+	} else if err := r.setIn(src.AudioFormat()); err != nil {
+		result = err
+		return nil, result
 	}
 
 	// Copy in parameters to out format
-	if out.Rate == 0 {
-		out.Rate = in.AudioFormat().Rate
+	if dest.Rate == 0 {
+		dest.Rate = src.AudioFormat().Rate
 	}
-	if out.Format == SAMPLE_FORMAT_NONE {
-		out.Format = in.AudioFormat().Format
+	if dest.Format == SAMPLE_FORMAT_NONE {
+		dest.Format = src.AudioFormat().Format
 	}
-	if out.Layout == CHANNEL_LAYOUT_NONE {
-		out.Layout = in.AudioFormat().Layout
+	if dest.Layout == CHANNEL_LAYOUT_NONE {
+		dest.Layout = src.AudioFormat().Layout
 	}
-	if err := r.setOut(out); err != nil {
-		r.ctx.SWR_free()
-		r.ctx = nil
-		return nil, err
+	if err := r.setOut(dest); err != nil {
+		result = err
+		return nil, result
 	}
 
 	// Initialize the context
 	if err := r.ctx.SWR_init(); err != nil {
-		r.ctx.SWR_free()
-		r.ctx = nil
-		return nil, err
+		result = err
+		return nil, result
 	}
 
 	// Return success
@@ -72,6 +84,13 @@ func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 // Free resources associated with the context
 func (r *swcontext) Close() error {
 	var result error
+
+	// Free frame
+	if r.frame != nil {
+		if err := r.frame.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
 
 	// Free context
 	if r.ctx != nil {
@@ -85,6 +104,21 @@ func (r *swcontext) Close() error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Return an audio frame which is used as the destination for the conversion
+func (r *swcontext) Dest() AudioFrame {
+	return r.frame
+}
+
+// Convert from input to output. Returns the number of samples converted
+func (r *swcontext) Convert(src AudioFrame) (int, error) {
+	if r.ctx == nil {
+		return -1, ErrInternalAppError.With("Context is closed")
+	}
+
+	// Convert the data
+	return r.ctx.SWR_convert()
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS

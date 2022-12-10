@@ -2,6 +2,7 @@ package audio
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"runtime"
@@ -20,16 +21,36 @@ import (
 // TYPES
 
 type audioframe struct {
-	sample_fmt     ffmpeg.AVSampleFormat
-	rate           int
-	layout         ChannelLayout
+	// The sample format of the audio frame
+	sample_fmt ffmpeg.AVSampleFormat
+
+	// The sample rate in Hz
+	rate int
+
+	// The channel layout
+	layout ChannelLayout
+
+	// Channel layout as ffmpeg.AVChannelLayout
 	channel_layout *ffmpeg.AVChannelLayout
-	channels       []ffmpeg.AVChannel
-	data           []*byte
-	stride         int
-	nb_samples     int
-	align          bool
-	planar         bool
+
+	// The number of channels
+	channels []ffmpeg.AVChannel
+
+	// Sample data. If planar, then each channel is a separate slice. If packed
+	// then one slice is used.
+	data []*byte
+
+	// The numner of samples in a single channel
+	nb_samples int
+
+	// The number of samples in each data slice
+	stride int
+
+	// Whether alignment is required for planar data
+	align bool
+
+	// Whether the data is planar
+	planar bool
 }
 
 // Check interface compliance
@@ -193,6 +214,7 @@ func (f *audioframe) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return the audio format of the frame
 func (f *audioframe) AudioFormat() AudioFormat {
 	return AudioFormat{
 		Rate:   uint(f.rate),
@@ -201,14 +223,20 @@ func (f *audioframe) AudioFormat() AudioFormat {
 	}
 }
 
+// Return true if the frame is planar, which means that the data is
+// stored in separate data slices for each channel, as opposed to
+// interleaved data in the zero-indexed slice.
 func (f *audioframe) IsPlanar() bool {
 	return f.planar
 }
 
+// Return the number of samples per channel in the frame
 func (f *audioframe) Samples() int {
 	return f.nb_samples
 }
 
+// Return an array of channel positions. For example, for a stereo
+// frame, the array will contain [ CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT ]
 func (f *audioframe) Channels() []AudioChannel {
 	result := make([]AudioChannel, len(f.channels))
 	for i, ch := range f.channels {
@@ -218,12 +246,27 @@ func (f *audioframe) Channels() []AudioChannel {
 	return result
 }
 
+// Return the duration of the audio frame, based on the number of
+// samples and the sample rate
 func (f *audioframe) Duration() time.Duration {
 	return time.Second * time.Duration(f.nb_samples) / time.Duration(f.rate)
 }
 
+// Return the number of bytes per sample. For example, for a 16-bit
+// sample format, this will return 2.
 func (f *audioframe) BytesPerSample() int {
 	return ffmpeg.AVUtil_av_get_bytes_per_sample(f.sample_fmt)
+}
+
+// Read samples from an io.Reader into a channel. Returns the number
+// of bytes read and any error encountered. Returns io.EOF on end of
+// the file
+func (f *audioframe) Read(r io.Reader, ch int) (int, error) {
+	data := f.Bytes(ch)
+	if data == nil {
+		return 0, ErrInternalAppError.With("invalid read for channel", ch)
+	}
+	return r.Read(data)
 }
 
 // Return slice of samples as bytes. ch should be zero unless planar audio.
