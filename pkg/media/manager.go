@@ -1,13 +1,11 @@
 package media
 
 import (
-
 	// Packages
+	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
-
-	. "github.com/djthorpe/go-errors"
-	multierror "github.com/hashicorp/go-multierror"
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
@@ -70,5 +68,17 @@ func (m *manager) OpenFile(path string) (Media, error) {
 
 // Create media for writing and return it
 func (m *manager) CreateFile(path string) (Media, error) {
-	return nil, ErrNotImplemented
+	media, err := NewOutputFile(path, func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
 }

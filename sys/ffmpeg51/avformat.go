@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"fmt"
+	"unsafe"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +23,7 @@ type (
 	AVFormatFlag    C.int
 	AVFormatContext C.struct_AVFormatContext
 	AVContextFlags  C.int
+	AVStream        C.struct_AVStream
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +80,11 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+func (ctx *AVStream) String() string {
+	str := "<AVStream"
+	return str + ">"
+}
+
 func (ctx *AVFormatContext) String() string {
 	str := "<AVFormatContext"
 	if input := ctx.Input(); input != nil {
@@ -91,6 +98,9 @@ func (ctx *AVFormatContext) String() string {
 	}
 	if num_streams := ctx.NumStreams(); num_streams != 0 {
 		str += fmt.Sprint(" nb_streams=", num_streams)
+	}
+	if streams := ctx.Streams(); len(streams) != 0 {
+		str += fmt.Sprint(" streams=", streams)
 	}
 	if url := ctx.Url(); url != "" {
 		str += fmt.Sprintf(" url=%q", url)
@@ -146,6 +156,10 @@ func (ctx *AVFormatContext) ContextFlags() AVContextFlags {
 
 func (ctx *AVFormatContext) NumStreams() uint {
 	return (uint)(ctx.nb_streams)
+}
+
+func (ctx *AVFormatContext) Streams() []*AVStream {
+	return (*[1 << 28]*AVStream)(unsafe.Pointer(ctx.streams))[:ctx.nb_streams:ctx.nb_streams]
 }
 
 func (ctx *AVFormatContext) Url() string {
