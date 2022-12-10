@@ -17,9 +17,11 @@ import "C"
 // TYPES
 
 type (
-	AVInputFormat  C.struct_AVInputFormat
-	AVOutputFormat C.struct_AVOutputFormat
-	AVFormatFlag   C.int
+	AVInputFormat   C.struct_AVInputFormat
+	AVOutputFormat  C.struct_AVOutputFormat
+	AVFormatFlag    C.int
+	AVFormatContext C.struct_AVFormatContext
+	AVContextFlags  C.int
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,12 @@ const (
 	AVFMT_MAX AVFormatFlag = AVFMT_TS_NEGATIVE
 )
 
+const (
+	AVFMTCTX_NONE       AVContextFlags = 0
+	AVFMTCTX_NOHEADER   AVContextFlags = C.AVFMTCTX_NOHEADER   // signal that no header is present (streams are added dynamically)
+	AVFMTCTX_UNSEEKABLE AVContextFlags = C.AVFMTCTX_UNSEEKABLE // signal that the stream is definitely not seekable
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -77,6 +85,9 @@ func (ctx *AVFormatContext) String() string {
 	}
 	if output := ctx.Output(); output != nil {
 		str += fmt.Sprint(" output=", output)
+	}
+	if flags := ctx.ContextFlags(); flags != AVFMTCTX_NONE {
+		str += fmt.Sprint(" ctx_flags=", flags)
 	}
 	return str + ">"
 }
@@ -94,6 +105,66 @@ func (ctx *AVFormatContext) Input() *AVInputFormat {
 
 func (ctx *AVFormatContext) Output() *AVOutputFormat {
 	return (*AVOutputFormat)(ctx.oformat)
+}
+
+func (ctx *AVFormatContext) ContextFlags() AVContextFlags {
+	return (AVContextFlags)(ctx.ctx_flags)
+}
+
+func (ctx *AVFormatContext) NumStreams() uint {
+	return (uint)(ctx.nb_streams)
+}
+
+func (ctx *AVFormatContext) Url() string {
+	return C.GoString(ctx.url)
+}
+
+func (ctx *AVFormatContext) StartTime() int64 {
+	return int64(ctx.start_time)
+}
+
+func (ctx *AVFormatContext) Duration() int64 {
+	return int64(ctx.duration)
+}
+
+func (ctx *AVFormatContext) BitRate() int64 {
+	return int64(ctx.bit_rate)
+}
+
+func (ctx *AVFormatContext) PacketSize() uint {
+	return uint(ctx.packet_size)
+}
+
+func (ctx *AVFormatContext) MaxDelay() int {
+	return int(ctx.max_delay)
+}
+
+func (ctx *AVFormatContext) Flags() AVFormatFlag {
+	return AVFormatFlag(ctx.flags)
+}
+
+func (ctx *AVFormatContext) ProbeSize() int64 {
+	return int64(ctx.probesize)
+}
+
+func (ctx *AVFormatContext) MaxAnalyzeDuration() int64 {
+	return int64(ctx.max_analyze_duration)
+}
+
+func (ctx *AVFormatContext) VideoCodecID() AVCodecID {
+	return AVCodecID(ctx.video_codec_id)
+}
+
+func (ctx *AVFormatContext) AudioCodecID() AVCodecID {
+	return AVCodecID(ctx.audio_codec_id)
+}
+
+func (ctx *AVFormatContext) SubtitleCodecID() AVCodecID {
+	return AVCodecID(ctx.subtitle_codec_id)
+}
+
+func (ctx *AVFormatContext) DataCodecID() AVCodecID {
+	return AVCodecID(ctx.data_codec_id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
