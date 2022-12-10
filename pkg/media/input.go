@@ -29,7 +29,6 @@ var _ Media = (*input)(nil)
 
 func NewInputFile(path string, cb func(Media) error) (*input, error) {
 	media := new(input)
-	media.cb = cb
 
 	// Check for path
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -45,6 +44,15 @@ func NewInputFile(path string, cb func(Media) error) (*input, error) {
 		return nil, ErrInternalAppError.With("AVFormat_open_input")
 	}
 
+	// Find stream info
+	if err := ffmpeg.AVFormat_find_stream_info(media.ctx, nil); err != nil {
+		ffmpeg.AVFormat_close_input(&media.ctx)
+		return nil, err
+	}
+
+	// Set close callback
+	media.cb = cb
+
 	// Return success
 	return media, nil
 }
@@ -57,6 +65,7 @@ func (media *input) Close() error {
 		if err := media.cb(media); err != nil {
 			result = multierror.Append(result, err)
 		}
+		media.cb = nil
 	}
 
 	// Close context
@@ -78,3 +87,6 @@ func (media *input) String() string {
 	}
 	return str + ">"
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS

@@ -26,7 +26,7 @@ var _ Manager = (*manager)(nil)
 
 func New() *manager {
 	m := new(manager)
-	m.media = make(map[Media]bool, 10)
+	m.media = make(map[Media]bool)
 	return m
 }
 
@@ -34,7 +34,11 @@ func (m *manager) Close() error {
 	var result error
 
 	// Close any opened media files
+	var keys []Media
 	for media := range m.media {
+		keys = append(keys, media)
+	}
+	for _, media := range keys {
 		if err := media.Close(); err != nil {
 			result = multierror.Append(result, err)
 		}
@@ -50,9 +54,6 @@ func (m *manager) Close() error {
 // Open media for reading and return it
 func (m *manager) OpenFile(path string) (Media, error) {
 	media, err := NewInputFile(path, func(media Media) error {
-		if _, exists := m.media[media]; !exists {
-			return ErrInternalAppError.With(media)
-		}
 		delete(m.media, media)
 		return nil
 	})

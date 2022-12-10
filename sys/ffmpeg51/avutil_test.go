@@ -87,34 +87,21 @@ func Test_avutil_002(t *testing.T) {
 }
 
 func Test_avutil_003(t *testing.T) {
+	var dict *ffmpeg.AVDictionary
 	assert := assert.New(t)
-	dict := ffmpeg.AVUtil_av_dict_new()
+	assert.NoError(ffmpeg.AVUtil_av_dict_set(&dict, "a", "b", 0))
 	assert.NotNil(dict)
-	assert.Equal(0, dict.AVUtil_av_dict_count())
-	dict.AVUtil_av_dict_free()
-	assert.True(dict.AVUtil_av_dict_context() == nil)
-}
-
-func Test_avutil_004(t *testing.T) {
-	assert := assert.New(t)
-	dict := ffmpeg.AVUtil_av_dict_new()
-	assert.NotNil(dict)
-	assert.Equal(0, dict.AVUtil_av_dict_count())
-	assert.NoError(dict.AVUtil_av_dict_set("a", "b", 0))
-	assert.Equal(1, dict.AVUtil_av_dict_count())
-	assert.NoError(dict.AVUtil_av_dict_set("b", "a", 0))
-	assert.Equal(2, dict.AVUtil_av_dict_count())
-	dict.AVUtil_av_dict_free()
-}
-
-func Test_avutil_005(t *testing.T) {
-	assert := assert.New(t)
-	dict := ffmpeg.AVUtil_av_dict_new()
-	assert.NoError(dict.AVUtil_av_dict_set("a", "b", 0))
-	assert.NoError(dict.AVUtil_av_dict_set("b", "a", 0))
-	assert.Equal(2, dict.AVUtil_av_dict_count())
-	assert.EqualValues([]string{"a", "b"}, dict.AVUtil_av_dict_keys())
-	dict.AVUtil_av_dict_free()
+	assert.NoError(ffmpeg.AVUtil_av_dict_set(&dict, "a", "b", 0))
+	assert.NoError(ffmpeg.AVUtil_av_dict_set(&dict, "b", "a", 0))
+	t.Log(dict)
+	keys := ffmpeg.AVUtil_av_dict_keys(dict)
+	assert.Equal(2, len(keys))
+	entries := ffmpeg.AVUtil_av_dict_entries(dict)
+	assert.Equal(2, len(entries))
+	t.Log(keys)
+	t.Log(entries)
+	ffmpeg.AVUtil_av_dict_free(&dict)
+	assert.Nil(dict)
 }
 
 func Test_avutil_006(t *testing.T) {

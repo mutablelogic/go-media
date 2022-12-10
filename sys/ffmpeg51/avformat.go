@@ -89,6 +89,39 @@ func (ctx *AVFormatContext) String() string {
 	if flags := ctx.ContextFlags(); flags != AVFMTCTX_NONE {
 		str += fmt.Sprint(" ctx_flags=", flags)
 	}
+	if num_streams := ctx.NumStreams(); num_streams != 0 {
+		str += fmt.Sprint(" nb_streams=", num_streams)
+	}
+	if url := ctx.Url(); url != "" {
+		str += fmt.Sprintf(" url=%q", url)
+	}
+	if metadata := ctx.Metadata(); metadata != nil {
+		str += fmt.Sprint(" metadata=", metadata)
+	}
+	if start_time := ctx.StartTime(); start_time != 0 {
+		str += fmt.Sprint(" start_time=", start_time)
+	}
+	if duration := ctx.Duration(); duration != 0 {
+		str += fmt.Sprint(" duration=", duration)
+	}
+	if bit_rate := ctx.BitRate(); bit_rate != 0 {
+		str += fmt.Sprint(" bit_rate=", bit_rate)
+	}
+	if packet_size := ctx.PacketSize(); packet_size != 0 {
+		str += fmt.Sprint(" packet_size=", packet_size)
+	}
+	if max_delay := ctx.MaxDelay(); max_delay >= 0 {
+		str += fmt.Sprint(" max_delay=", max_delay)
+	}
+	if flags := ctx.Flags(); flags != AVFMT_NONE {
+		str += fmt.Sprint(" flags=", flags)
+	}
+	if probesize := ctx.ProbeSize(); probesize != 0 {
+		str += fmt.Sprint(" probesize=", probesize)
+	}
+	if max_analyze_duration := ctx.MaxAnalyzeDuration(); max_analyze_duration != 0 {
+		str += fmt.Sprint(" max_analyze_duration=", max_analyze_duration)
+	}
 	return str + ">"
 }
 
@@ -145,6 +178,10 @@ func (ctx *AVFormatContext) Flags() AVFormatFlag {
 
 func (ctx *AVFormatContext) ProbeSize() int64 {
 	return int64(ctx.probesize)
+}
+
+func (ctx *AVFormatContext) Metadata() *AVDictionary {
+	return (*AVDictionary)(ctx.metadata)
 }
 
 func (ctx *AVFormatContext) MaxAnalyzeDuration() int64 {

@@ -52,18 +52,16 @@ type (
 	AVLogCallback     func(AVLogLevel, string, uintptr)
 	AVDictionaryEntry C.struct_AVDictionaryEntry
 	AVDictionaryFlag  int
-	AVDictionary      struct {
-		ctx *C.struct_AVDictionary
-	}
-	AVRational      C.struct_AVRational
-	AVSampleFormat  C.enum_AVSampleFormat
-	AVChannelOrder  C.enum_AVChannelOrder
-	AVChannelCustom C.struct_AVChannelCustom
-	AVChannel       C.enum_AVChannel
-	AVChannelLayout C.struct_AVChannelLayout
-	AVPixelFormat   C.enum_AVPixelFormat
-	AVRounding      C.enum_AVRounding
-	AVMediaType     C.enum_AVMediaType
+	AVDictionary      C.struct_AVDictionary
+	AVRational        C.struct_AVRational
+	AVSampleFormat    C.enum_AVSampleFormat
+	AVChannelOrder    C.enum_AVChannelOrder
+	AVChannelCustom   C.struct_AVChannelCustom
+	AVChannel         C.enum_AVChannel
+	AVChannelLayout   C.struct_AVChannelLayout
+	AVPixelFormat     C.enum_AVPixelFormat
+	AVRounding        C.enum_AVRounding
+	AVMediaType       C.enum_AVMediaType
 )
 
 ////////////////////////////////////////////////////////////////////////////////
