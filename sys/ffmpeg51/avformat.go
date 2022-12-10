@@ -24,6 +24,7 @@ type (
 	AVFormatContext C.struct_AVFormatContext
 	AVContextFlags  C.int
 	AVStream        C.struct_AVStream
+	AVDisposition   C.int
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,11 +78,112 @@ const (
 	AVFMTCTX_UNSEEKABLE AVContextFlags = C.AVFMTCTX_UNSEEKABLE // signal that the stream is definitely not seekable
 )
 
+const (
+	AV_DISPOSITION_DEFAULT          AVDisposition = C.AV_DISPOSITION_DEFAULT
+	AV_DISPOSITION_DUB              AVDisposition = C.AV_DISPOSITION_DUB
+	AV_DISPOSITION_ORIGINAL         AVDisposition = C.AV_DISPOSITION_ORIGINAL
+	AV_DISPOSITION_COMMENT          AVDisposition = C.AV_DISPOSITION_COMMENT
+	AV_DISPOSITION_LYRICS           AVDisposition = C.AV_DISPOSITION_LYRICS
+	AV_DISPOSITION_KARAOKE          AVDisposition = C.AV_DISPOSITION_KARAOKE
+	AV_DISPOSITION_FORCED           AVDisposition = C.AV_DISPOSITION_FORCED
+	AV_DISPOSITION_HEARING_IMPAIRED AVDisposition = C.AV_DISPOSITION_HEARING_IMPAIRED // Stream for hearing impaired audiences
+	AV_DISPOSITION_VISUAL_IMPAIRED  AVDisposition = C.AV_DISPOSITION_VISUAL_IMPAIRED  // Stream for visual impaired audiences
+	AV_DISPOSITION_CLEAN_EFFECTS    AVDisposition = C.AV_DISPOSITION_CLEAN_EFFECTS
+	AV_DISPOSITION_ATTACHED_PIC     AVDisposition = C.AV_DISPOSITION_ATTACHED_PIC
+	AV_DISPOSITION_TIMED_THUMBNAILS AVDisposition = C.AV_DISPOSITION_TIMED_THUMBNAILS
+	AV_DISPOSITION_NON_DIEGETIC     AVDisposition = C.AV_DISPOSITION_NON_DIEGETIC
+	AV_DISPOSITION_CAPTIONS         AVDisposition = C.AV_DISPOSITION_CAPTIONS
+	AV_DISPOSITION_DESCRIPTIONS     AVDisposition = C.AV_DISPOSITION_DESCRIPTIONS
+	AV_DISPOSITION_METADATA         AVDisposition = C.AV_DISPOSITION_METADATA
+	AV_DISPOSITION_DEPENDENT        AVDisposition = C.AV_DISPOSITION_DEPENDENT
+	AV_DISPOSITION_STILL_IMAGE      AVDisposition = C.AV_DISPOSITION_STILL_IMAGE
+	AV_DISPOSITION_NONE             AVDisposition = 0
+	AV_DISPOSITION_MAX                            = AV_DISPOSITION_STILL_IMAGE
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+func (v AVDisposition) String() string {
+	if v == AV_DISPOSITION_NONE {
+		return v.FlagString()
+	}
+	str := ""
+	for i := AVDisposition(1); i <= AV_DISPOSITION_MAX; i <<= 1 {
+		if v&i != 0 {
+			str += "|" + i.FlagString()
+		}
+	}
+	return str[1:]
+}
+
+func (v AVDisposition) FlagString() string {
+	switch v {
+	case AV_DISPOSITION_NONE:
+		return "AV_DISPOSITION_NONE"
+	case AV_DISPOSITION_DEFAULT:
+		return "AV_DISPOSITION_DEFAULT"
+	case AV_DISPOSITION_DUB:
+		return "AV_DISPOSITION_DUB"
+	case AV_DISPOSITION_ORIGINAL:
+		return "AV_DISPOSITION_ORIGINAL"
+	case AV_DISPOSITION_COMMENT:
+		return "AV_DISPOSITION_COMMENT"
+	case AV_DISPOSITION_LYRICS:
+		return "AV_DISPOSITION_LYRICS"
+	case AV_DISPOSITION_KARAOKE:
+		return "AV_DISPOSITION_KARAOKE"
+	case AV_DISPOSITION_FORCED:
+		return "AV_DISPOSITION_FORCED"
+	case AV_DISPOSITION_HEARING_IMPAIRED:
+		return "AV_DISPOSITION_HEARING_IMPAIRED"
+	case AV_DISPOSITION_VISUAL_IMPAIRED:
+		return "AV_DISPOSITION_VISUAL_IMPAIRED"
+	case AV_DISPOSITION_CLEAN_EFFECTS:
+		return "AV_DISPOSITION_CLEAN_EFFECTS"
+	case AV_DISPOSITION_ATTACHED_PIC:
+		return "AV_DISPOSITION_ATTACHED_PIC"
+	case AV_DISPOSITION_TIMED_THUMBNAILS:
+		return "AV_DISPOSITION_TIMED_THUMBNAILS"
+	case AV_DISPOSITION_NON_DIEGETIC:
+		return "AV_DISPOSITION_NON_DIEGETIC"
+	case AV_DISPOSITION_CAPTIONS:
+		return "AV_DISPOSITION_CAPTIONS"
+	case AV_DISPOSITION_DESCRIPTIONS:
+		return "AV_DISPOSITION_DESCRIPTIONS"
+	case AV_DISPOSITION_METADATA:
+		return "AV_DISPOSITION_METADATA"
+	case AV_DISPOSITION_DEPENDENT:
+		return "AV_DISPOSITION_DEPENDENT"
+	case AV_DISPOSITION_STILL_IMAGE:
+		return "AV_DISPOSITION_STILL_IMAGE"
+	default:
+		return fmt.Sprintf("AVDisposition(%d)", v)
+	}
+}
+
 func (ctx *AVStream) String() string {
 	str := "<AVStream"
+	str += fmt.Sprint(" index=", ctx.Index())
+	if id := ctx.ID(); id != 0 {
+		str += fmt.Sprint(" id=", id)
+	}
+	if time_base := ctx.TimeBase(); time_base.den != 0 {
+		str += fmt.Sprint(" time_base=", time_base)
+	}
+	if start_time := ctx.StartTime(); start_time != 0 {
+		str += fmt.Sprint(" start_time=", start_time)
+	}
+	if duration := ctx.Duration(); duration != 0 {
+		str += fmt.Sprint(" duration=", duration)
+	}
+	if nb_frames := ctx.NumFrames(); nb_frames != 0 {
+		str += fmt.Sprint(" nb_frames=", nb_frames)
+	}
+	if disposition := ctx.Disposition(); disposition != AV_DISPOSITION_NONE {
+		str += fmt.Sprint(" disposition=", disposition)
+	}
+
 	return str + ">"
 }
 
@@ -133,6 +235,57 @@ func (ctx *AVFormatContext) String() string {
 		str += fmt.Sprint(" max_analyze_duration=", max_analyze_duration)
 	}
 	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - STREAM
+
+func (ctx *AVStream) Index() int {
+	return int(ctx.index)
+}
+
+func (ctx *AVStream) ID() int {
+	return int(ctx.id)
+}
+
+func (ctx *AVStream) TimeBase() AVRational {
+	return AVRational(ctx.time_base)
+}
+
+func (ctx *AVStream) StartTime() int64 {
+	return int64(ctx.start_time)
+}
+
+func (ctx *AVStream) Duration() int64 {
+	return int64(ctx.duration)
+}
+
+func (ctx *AVStream) NumFrames() int64 {
+	return int64(ctx.nb_frames)
+}
+
+func (ctx *AVStream) Disposition() AVDisposition {
+	return AVDisposition(ctx.disposition)
+}
+
+func (ctx *AVStream) SampleAspectRatio() AVRational {
+	return AVRational(ctx.sample_aspect_ratio)
+}
+
+func (ctx *AVStream) Metadata() *AVDictionary {
+	return (*AVDictionary)(ctx.metadata)
+}
+
+func (ctx *AVStream) AverageFrameRate() AVRational {
+	return AVRational(ctx.avg_frame_rate)
+}
+
+func (ctx *AVStream) RealFrameRate() AVRational {
+	return AVRational(ctx.r_frame_rate)
+}
+
+func (ctx *AVStream) AttachedPic() AVPacket {
+	return AVPacket(ctx.attached_pic)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
