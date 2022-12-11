@@ -91,7 +91,7 @@ func (stream *stream) Artwork() []byte {
 	if stream.ctx.Disposition()&ffmpeg.AV_DISPOSITION_ATTACHED_PIC == 0 {
 		return nil
 	}
-	if pkt := stream.ctx.AttachedPic(); pkt == nil {
+	if pkt := stream.ctx.AttachedPic(); pkt.Size() == 0 {
 		return nil
 	} else {
 		return pkt.Bytes()
@@ -105,5 +105,4 @@ func (s *Stream) Codec() *Codec {
 	}
 	return s.codec
 }
-
 */

@@ -8,6 +8,7 @@ import (
 // TYPES
 
 type MediaFlag uint
+type MediaKey string
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -32,6 +33,9 @@ type Media interface {
 
 	// Return media flags for the media
 	Flags() MediaFlag
+
+	// Return metadata for the media
+	Metadata() Metadata
 }
 
 // Stream of data multiplexed in the media
@@ -44,6 +48,12 @@ type Stream interface {
 
 	// Return artwork for the stream - if MEDIA_FLAG_ARTWORK is set
 	Artwork() []byte
+}
+
+// Metadata embedded in the media
+type Metadata interface {
+	Keys() []MediaKey
+	Value(MediaKey) any
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +77,47 @@ const (
 	MEDIA_FLAG_DECODER                                   // Is an decoder
 	MEDIA_FLAG_NONE              MediaFlag = 0
 	MEDIA_FLAG_MAX                         = MEDIA_FLAG_DECODER
+)
+
+const (
+	MEDIA_KEY_BRAND_MAJOR      MediaKey = "major_brand"       // string
+	MEDIA_KEY_BRAND_COMPATIBLE MediaKey = "compatible_brands" // string
+	MEDIA_KEY_CREATED          MediaKey = "creation_time"     // time.Time
+	MEDIA_KEY_ENCODER          MediaKey = "encoder"           // string
+	MEDIA_KEY_ALBUM            MediaKey = "album"             // string
+	MEDIA_KEY_ALBUM_ARTIST     MediaKey = "artist"            // string
+	MEDIA_KEY_COMMENT          MediaKey = "comment"           // string
+	MEDIA_KEY_COMPOSER         MediaKey = "composer"          // string
+	MEDIA_KEY_COPYRIGHT        MediaKey = "copyright"         // string
+	MEDIA_KEY_YEAR             MediaKey = "date"              // uint
+	MEDIA_KEY_DISC             MediaKey = "disc"              // uint
+	MEDIA_KEY_ENCODED_BY       MediaKey = "encoded_by"        // string
+	MEDIA_KEY_FILENAME         MediaKey = "filename"          // string
+	MEDIA_KEY_GENRE            MediaKey = "genre"             // string
+	MEDIA_KEY_LANGUAGE         MediaKey = "language"          // string
+	MEDIA_KEY_PERFORMER        MediaKey = "performer"         // string
+	MEDIA_KEY_PUBLISHER        MediaKey = "publisher"         // string
+	MEDIA_KEY_SERVICE_NAME     MediaKey = "service_name"      // string
+	MEDIA_KEY_SERVICE_PROVIDER MediaKey = "service_provider"  // string
+	MEDIA_KEY_TITLE            MediaKey = "title"             // string
+	MEDIA_KEY_TRACK            MediaKey = "track"             // uint
+	MEDIA_KEY_VERSION_MAJOR    MediaKey = "major_version"     // string
+	MEDIA_KEY_VERSION_MINOR    MediaKey = "minor_version"     // string
+	MEDIA_KEY_SHOW             MediaKey = "show"              // string
+	MEDIA_KEY_SEASON           MediaKey = "season_number"     // uint
+	MEDIA_KEY_EPISODE_SORT     MediaKey = "episode_sort"      // string
+	MEDIA_KEY_EPISODE_ID       MediaKey = "episode_id"        // uint
+	MEDIA_KEY_COMPILATION      MediaKey = "compilation"       // bool
+	MEDIA_KEY_GAPLESS_PLAYBACK MediaKey = "gapless_playback"  // bool
+	MEDIA_KEY_ACCOUNT_ID       MediaKey = "account_id"        // string
+	MEDIA_KEY_DESCRIPTION      MediaKey = "description"       // string
+	MEDIA_KEY_MEDIA_TYPE       MediaKey = "media_type"        // string
+	MEDIA_KEY_PURCHASED        MediaKey = "purchase_date"     // time.Time
+	MEDIA_KEY_ALBUM_SORT       MediaKey = "sort_album"        // string
+	MEDIA_KEY_ARTIST_SORT      MediaKey = "sort_artist"       // string
+	MEDIA_KEY_TITLE_SORT       MediaKey = "sort_name"         // string
+	MEDIA_KEY_SYNOPSIS         MediaKey = "synopsis"          // string
+	MEDIA_KEY_GROUPING         MediaKey = "grouping"          // string
 )
 
 ////////////////////////////////////////////////////////////////////////////////

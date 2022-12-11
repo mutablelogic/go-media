@@ -16,9 +16,10 @@ import (
 // TYPES
 
 type output struct {
-	ctx     *ffmpeg.AVFormatContext
-	cb      func(Media) error
-	streams []Stream
+	ctx      *ffmpeg.AVFormatContext
+	cb       func(Media) error
+	streams  []Stream
+	metadata Metadata
 }
 
 // Ensure *input complies with Media interface
@@ -39,6 +40,9 @@ func NewOutputFile(path string, cb func(Media) error) (*output, error) {
 
 	// Create streams
 	media.streams = make([]Stream, 0, 3)
+
+	// Set metadata
+	media.metadata = NewMetadata(media.ctx.Metadata())
 
 	// Set close callback
 	media.cb = cb
@@ -75,6 +79,9 @@ func (media *output) String() string {
 	if len(media.streams) > 0 {
 		str += fmt.Sprint(" streams=", media.streams)
 	}
+	if media.metadata != nil {
+		str += fmt.Sprint(" metadata=", media.metadata)
+	}
 	if media.ctx != nil {
 		str += fmt.Sprint(" ctx=", media.ctx)
 	}
@@ -89,6 +96,14 @@ func (media *output) Streams() []Stream {
 		return nil
 	} else {
 		return media.streams
+	}
+}
+
+func (media *output) Metadata() Metadata {
+	if media.ctx == nil {
+		return nil
+	} else {
+		return media.metadata
 	}
 }
 
