@@ -35,6 +35,11 @@ func AVFormat_close_input(ctx **AVFormatContext) {
 	C.avformat_close_input((**C.struct_AVFormatContext)(unsafe.Pointer(ctx)))
 }
 
+// Close an opened input AVFormatContext.
+func AVFormat_close_input_ptr(ctx *AVFormatContext) {
+	C.avformat_close_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)))
+}
+
 // Read packets of a media file to get stream information.
 func AVFormat_find_stream_info(ctx *AVFormatContext, options **AVDictionary) error {
 	if err := AVError(C.avformat_find_stream_info((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err < 0 {

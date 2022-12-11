@@ -22,6 +22,9 @@ type Manager interface {
 
 	// Create media for writing and return it
 	CreateFile(path string) (Media, error)
+
+	// Log messages from ffmpeg
+	SetDebug(bool)
 }
 
 // Media is a source or destination of media

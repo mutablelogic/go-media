@@ -2,11 +2,14 @@ package media
 
 import (
 	// Packages
+	"fmt"
+
 	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
 	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,4 +84,20 @@ func (m *manager) CreateFile(path string) (Media, error) {
 
 	// Return success
 	return media, nil
+}
+
+// Set the logging function for the manager
+func (manager *manager) SetDebug(debug bool) {
+	if debug {
+		ffmpeg.AVUtil_av_log_set_level(ffmpeg.AV_LOG_DEBUG, manager.log)
+	} else {
+		ffmpeg.AVUtil_av_log_set_level(ffmpeg.AV_LOG_QUIET, manager.log)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (manager *manager) log(level ffmpeg.AVLogLevel, msg string, _ uintptr) {
+	fmt.Println("LOG=", level, msg)
 }

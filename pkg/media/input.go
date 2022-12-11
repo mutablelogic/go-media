@@ -76,12 +76,11 @@ func (media *input) Close() error {
 		if err := media.cb(media); err != nil {
 			result = multierror.Append(result, err)
 		}
-		media.cb = nil
 	}
 
 	// Close context
 	if media.ctx != nil {
-		ffmpeg.AVFormat_close_input(&media.ctx)
+		ffmpeg.AVFormat_close_input_ptr(media.ctx)
 	}
 
 	// Return any errors
