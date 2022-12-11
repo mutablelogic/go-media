@@ -35,6 +35,11 @@ type Manager interface {
 type Media interface {
 	io.Closer
 
+	// Return best streams for specific types (video, audio, subtitle, data or attachment)
+	// or returns empty slice if no streams of that type are in the media file. Only returns
+	// one stream of each type.
+	StreamsByType(MediaFlag) []Stream
+
 	// URL for the media
 	URL() string
 

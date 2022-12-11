@@ -13,8 +13,10 @@ import (
 	"os/signal"
 
 	// Packages
-
 	media "github.com/mutablelogic/go-media/pkg/media"
+
+	// Namespace imports
+	. "github.com/mutablelogic/go-media"
 )
 
 var (
@@ -55,11 +57,19 @@ func main() {
 		os.Exit(-2)
 	}
 
-	// Decode the media
-	if err := manager.Decode(ctx, media); err != nil && err != context.Canceled {
-		fmt.Fprintln(os.Stderr, err)
+	// Find the video stream for extraction
+	stream := media.StreamsByType(MEDIA_FLAG_VIDEO)
+	if len(stream) == 0 {
+		fmt.Fprintln(os.Stderr, "No video stream found")
 		os.Exit(-2)
 	}
+	fmt.Println(stream)
+
+	// Decode the media
+	//if err := manager.Decode(ctx, media); err != nil && err != context.Canceled {
+	//	fmt.Fprintln(os.Stderr, err)
+	//	os.Exit(-2)
+	//}
 
 	// If the context was cancelled, print a message
 	if ctx.Err() != nil {

@@ -94,6 +94,10 @@ func (media *output) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func (media *output) StreamsByType(media_type MediaFlag) []Stream {
+	panic("Not implemented")
+}
+
 func (media *output) URL() string {
 	if media.ctx == nil {
 		return ""

@@ -19,7 +19,7 @@ import (
 type input struct {
 	ctx      *ffmpeg.AVFormatContext
 	cb       func(Media) error
-	streams  []Stream
+	streams  map[int]Stream
 	metadata Metadata
 }
 
@@ -53,9 +53,10 @@ func NewInputFile(path string, cb func(Media) error) (*input, error) {
 	}
 
 	// Create streams
-	media.streams = make([]Stream, media.ctx.NumStreams())
-	for i, stream := range media.ctx.Streams() {
-		media.streams[i] = NewStream(stream)
+	media.streams = make(map[int]Stream, media.ctx.NumStreams())
+	for _, stream := range media.ctx.Streams() {
+		key := stream.Index()
+		media.streams[key] = NewStream(stream)
 	}
 
 	// Set metadata
@@ -99,7 +100,9 @@ func (media *input) String() string {
 		str += fmt.Sprint(" flags=", flags)
 	}
 	if len(media.streams) > 0 {
-		str += fmt.Sprint(" streams=", media.streams)
+		for key, stream := range media.streams {
+			str += fmt.Sprint(" stream_%d=%v", key, stream)
+		}
 	}
 	if media.metadata != nil {
 		str += fmt.Sprint(" metadata=", media.metadata)
@@ -124,9 +127,49 @@ func (media *input) URL() string {
 func (media *input) Streams() []Stream {
 	if media.ctx == nil {
 		return nil
-	} else {
-		return media.streams
 	}
+	result := make([]Stream, 0, len(media.streams))
+	for _, stream := range media.streams {
+		result = append(result, stream)
+	}
+	return result
+}
+
+// AVFormat_av_find_best_stream(ctx *AVFormatContext, media_type AVMediaType, wanted_stream_nb int, related_stream int, decoder_ret **AVCodec, flags int) (int, error) {
+func (media *input) StreamsByType(media_type MediaFlag) []Stream {
+	if media.ctx == nil {
+		return nil
+	}
+	streams := make([]Stream, 0, len(media.streams))
+	for _, t := range []MediaFlag{MEDIA_FLAG_AUDIO, MEDIA_FLAG_VIDEO, MEDIA_FLAG_SUBTITLE, MEDIA_FLAG_DATA, MEDIA_FLAG_ATTACHMENT} {
+		f := ffmpeg.AVMEDIA_TYPE_UNKNOWN
+		if !media_type.Is(t) {
+			continue
+		}
+		switch t {
+		case MEDIA_FLAG_AUDIO:
+			f = ffmpeg.AVMEDIA_TYPE_AUDIO
+		case MEDIA_FLAG_VIDEO:
+			f = ffmpeg.AVMEDIA_TYPE_VIDEO
+		case MEDIA_FLAG_SUBTITLE:
+			f = ffmpeg.AVMEDIA_TYPE_SUBTITLE
+		case MEDIA_FLAG_DATA:
+			f = ffmpeg.AVMEDIA_TYPE_DATA
+		case MEDIA_FLAG_ATTACHMENT:
+			f = ffmpeg.AVMEDIA_TYPE_ATTACHMENT
+		default:
+			continue
+		}
+		n, err := ffmpeg.AVFormat_av_find_best_stream(media.ctx, f, -1, -1, nil, 0)
+		if err != nil {
+			continue
+		}
+		if stream, exists := media.streams[n]; exists {
+			streams = append(streams, stream)
+		}
+	}
+	// Return streams
+	return streams
 }
 
 func (media *input) Metadata() Metadata {
@@ -142,14 +185,15 @@ func (media *input) Flags() MediaFlag {
 		return MEDIA_FLAG_NONE
 	}
 	flags := MEDIA_FLAG_DECODER
-	//	if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
+	//	TODO
+	//if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
 	//		flags |= MEDIA_FLAG_FILE
 	//	}
 	for _, stream := range media.Streams() {
 		flags |= stream.Flags()
 	}
 
-	// Add other flags with likely media file type
+	// TODO: Add other flags with likely media file type
 	/*metadata := m.Metadata()
 	if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
 		flags |= MEDIA_FLAG_ALBUM
