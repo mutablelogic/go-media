@@ -65,9 +65,10 @@ func (stream *stream) Flags() MediaFlag {
 		return flags
 	}
 
-	//	if s.codec != nil {
-	//		flags |= s.codec.Flags()
-	//	}
+	// TODO: Add codec flags
+	//if stream.ctx.CodecPar()codec != nil {
+	//	flags |= s.codec.Flags()
+	//}
 
 	// Remove encoder/decoder flags
 	flags &^= (MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER)

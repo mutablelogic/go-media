@@ -240,9 +240,6 @@ func (packet *AVPacket) String() string {
 	return str + ">"
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
 func (codec *AVCodecContext) String() string {
 	str := "<AVCodecContext"
 	media_type := codec.CodecType()
@@ -261,6 +258,15 @@ func (codec *AVCodecContext) String() string {
 	}
 	if codec := codec.Codec(); codec != nil {
 		str += fmt.Sprint(" codec=", codec)
+	}
+	return str + ">"
+}
+
+func (codec *AVCodecParameters) String() string {
+	str := "<AVCodecParameters"
+	media_type := codec.CodecType()
+	if media_type != AVMEDIA_TYPE_UNKNOWN {
+		str += fmt.Sprint(" type=", media_type)
 	}
 	return str + ">"
 }
@@ -501,4 +507,31 @@ func (c *AVCodecContext) PixelFormat() AVPixelFormat {
 
 func (c *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(c.sample_fmt)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - CODEC PARAMETERS
+
+func (c *AVCodecParameters) CodecID() AVCodecID {
+	return AVCodecID(c.codec_id)
+}
+
+func (c *AVCodecParameters) CodecType() AVMediaType {
+	return AVMediaType(c.codec_type)
+}
+
+func (c *AVCodecParameters) BitRate() int64 {
+	return int64(c.bit_rate)
+}
+
+func (c *AVCodecParameters) SampleRate() int {
+	return int(c.sample_rate)
+}
+
+func (c *AVCodecParameters) Width() int {
+	return int(c.width)
+}
+
+func (c *AVCodecParameters) Height() int {
+	return int(c.height)
 }

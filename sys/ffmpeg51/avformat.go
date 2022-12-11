@@ -203,7 +203,9 @@ func (ctx *AVStream) String() string {
 	if disposition := ctx.Disposition(); disposition != AV_DISPOSITION_NONE {
 		str += fmt.Sprint(" disposition=", disposition)
 	}
-
+	if codecpar := ctx.CodecPar(); codecpar != nil {
+		str += fmt.Sprint(" codecpar=", codecpar)
+	}
 	return str + ">"
 }
 
@@ -306,6 +308,10 @@ func (ctx *AVStream) RealFrameRate() AVRational {
 
 func (ctx *AVStream) AttachedPic() AVPacket {
 	return AVPacket(ctx.attached_pic)
+}
+
+func (ctx *AVStream) CodecPar() *AVCodecParameters {
+	return (*AVCodecParameters)(ctx.codecpar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

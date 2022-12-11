@@ -101,7 +101,7 @@ func (media *input) String() string {
 	}
 	if len(media.streams) > 0 {
 		for key, stream := range media.streams {
-			str += fmt.Sprint(" stream_%d=%v", key, stream)
+			str += fmt.Sprintf(" stream_%d=%v", key, stream)
 		}
 	}
 	if media.metadata != nil {

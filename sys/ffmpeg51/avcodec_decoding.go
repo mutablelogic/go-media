@@ -30,3 +30,11 @@ func AVCodec_receive_frame(ctx *AVCodecContext, frame *AVFrame) error {
 	}
 	return nil
 }
+
+// Copy codec parameters from input stream to output codec context.
+func AVCodec_parameters_to_context(ctx *AVCodecContext, par *AVCodecParameters) error {
+	if err := AVError(C.avcodec_parameters_to_context((*C.AVCodecContext)(ctx), (*C.AVCodecParameters)(par))); err != 0 {
+		return err
+	}
+	return nil
+}

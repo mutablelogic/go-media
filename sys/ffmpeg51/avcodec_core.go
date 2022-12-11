@@ -40,6 +40,19 @@ func AVCodec_free_context(ctx **AVCodecContext) {
 	C.avcodec_free_context((**C.struct_AVCodecContext)(unsafe.Pointer(ctx)))
 }
 
+// Free the codec context and everything associated with it
+func AVCodec_free_context_ptr(ctx *AVCodecContext) {
+	C.avcodec_free_context((**C.struct_AVCodecContext)(unsafe.Pointer(&ctx)))
+}
+
+// Initialize the AVCodecContext to use the given AVCodec.
+func AVCodec_open2(ctx *AVCodecContext, codec *AVCodec, options **AVDictionary) error {
+	if err := AVError(C.avcodec_open2((*C.struct_AVCodecContext)(ctx), (*C.struct_AVCodec)(codec), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+		return err
+	}
+	return nil
+}
+
 // Get the AVClass for AVCodecContext.
 func AVCodec_get_class() *AVClass {
 	return (*AVClass)(C.avcodec_get_class())
