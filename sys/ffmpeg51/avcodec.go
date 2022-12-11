@@ -241,6 +241,31 @@ func (packet *AVPacket) String() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (codec *AVCodecContext) String() string {
+	str := "<AVCodecContext"
+	media_type := codec.CodecType()
+	if media_type != AVMEDIA_TYPE_UNKNOWN {
+		str += fmt.Sprint(" type=", media_type)
+	}
+	if media_type == AVMEDIA_TYPE_VIDEO {
+		if pix_fmt := codec.PixelFormat(); pix_fmt != AV_PIX_FMT_NONE {
+			str += fmt.Sprint(" pix_fmt=", pix_fmt)
+		}
+	}
+	if media_type == AVMEDIA_TYPE_AUDIO {
+		if sample_fmt := codec.SampleFormat(); sample_fmt != AV_SAMPLE_FMT_NONE {
+			str += fmt.Sprint(" sample_fmt=", sample_fmt)
+		}
+	}
+	if codec := codec.Codec(); codec != nil {
+		str += fmt.Sprint(" codec=", codec)
+	}
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - PACKET
 
 func (packet *AVPacket) Pts() int64 {
@@ -403,4 +428,77 @@ func (c *AVCodec) ChannelLayouts() []AVChannelLayout {
 
 func (c *AVCodec) WrapperName() string {
 	return C.GoString(c.wrapper_name)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - CODEC CONTEXT
+
+func (c *AVCodecContext) Codec() *AVCodec {
+	return (*AVCodec)(c.codec)
+}
+
+func (c *AVCodecContext) CodecID() AVCodecID {
+	return AVCodecID(c.codec_id)
+}
+
+func (c *AVCodecContext) CodecType() AVMediaType {
+	return AVMediaType(c.codec_type)
+}
+
+func (c *AVCodecContext) BitRate() int64 {
+	return int64(c.bit_rate)
+}
+
+func (c *AVCodecContext) BitRateTolerance() int {
+	return int(c.bit_rate_tolerance)
+}
+
+func (c *AVCodecContext) GlobalQuality() int {
+	return int(c.global_quality)
+}
+
+func (c *AVCodecContext) CompressionLevel() int {
+	return int(c.compression_level)
+}
+
+/*
+func (c *AVCodecContext) Flags() AVCodecFlag {
+	return AVCodecFlag(c.flags)
+}
+
+func (c *AVCodecContext) Flags2() AVCodecFlag2 {
+	return AVCodecFlag2(c.flags2)
+}
+*/
+
+func (c *AVCodecContext) TimeBase() AVRational {
+	return AVRational(c.time_base)
+}
+
+func (c *AVCodecContext) Width() int {
+	return int(c.width)
+}
+
+func (c *AVCodecContext) Height() int {
+	return int(c.height)
+}
+
+func (c *AVCodecContext) CodedWidth() int {
+	return int(c.coded_width)
+}
+
+func (c *AVCodecContext) CodedHeight() int {
+	return int(c.coded_height)
+}
+
+func (c *AVCodecContext) GopSize() int {
+	return int(c.gop_size)
+}
+
+func (c *AVCodecContext) PixelFormat() AVPixelFormat {
+	return AVPixelFormat(c.pix_fmt)
+}
+
+func (c *AVCodecContext) SampleFormat() AVSampleFormat {
+	return AVSampleFormat(c.sample_fmt)
 }

@@ -192,3 +192,15 @@ func Test_avutil_009(t *testing.T) {
 		}
 	}
 }
+
+func Test_avutil_010(t *testing.T) {
+	t.Log("avutil_version=", ffmpeg.AVUtil_version())
+}
+
+func Test_avutil_011(t *testing.T) {
+	t.Log("avutil_configuration=", ffmpeg.AVUtil_configuration())
+}
+
+func Test_avutil_012(t *testing.T) {
+	t.Log("avutil_license=", ffmpeg.AVUtil_license())
+}

@@ -19,18 +19,28 @@ import (
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
+	config "github.com/mutablelogic/go-media/pkg/config"
 	file "github.com/mutablelogic/go-media/pkg/file"
 	media "github.com/mutablelogic/go-media/pkg/media"
 )
 
 var (
-	flagDebug = flag.Bool("debug", false, "Enable debug output")
-	flagOut   = flag.String("out", "", "Output directory for artwork")
+	flagDebug   = flag.Bool("debug", false, "Enable debug output")
+	flagOut     = flag.String("out", "", "Output directory for artwork")
+	flagVersion = flag.Bool("version", false, "Print version information")
 )
 
 func main() {
-	// Check arguments
 	flag.Parse()
+
+	// Check for version
+	if *flagVersion {
+		config.PrintVersion(flag.CommandLine.Output())
+		media.PrintVersion(flag.CommandLine.Output())
+		os.Exit(0)
+	}
+
+	// Check arguments
 	if flag.NArg() == 0 {
 		flag.Usage()
 		os.Exit(-1)

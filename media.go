@@ -104,6 +104,18 @@ type Packet interface {
 	Bytes() []byte
 }
 
+// Codec is an encoder or decoder for a specific media type
+type Codec interface {
+	// Name returns the unique name for the codec
+	Name() string
+
+	// Description returns the long description for the codec
+	Description() string
+
+	// Flags for the codec (Audio, Video, Encoder, Decoder)
+	Flags() MediaFlag
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
