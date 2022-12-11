@@ -16,8 +16,9 @@ import (
 // TYPES
 
 type output struct {
-	ctx *ffmpeg.AVFormatContext
-	cb  func(Media) error
+	ctx     *ffmpeg.AVFormatContext
+	cb      func(Media) error
+	streams []Stream
 }
 
 // Ensure *input complies with Media interface
@@ -35,6 +36,9 @@ func NewOutputFile(path string, cb func(Media) error) (*output, error) {
 	} else if media.ctx == nil {
 		return nil, ErrInternalAppError.With("AVFormat_alloc_output_context2")
 	}
+
+	// Create streams
+	media.streams = make([]Stream, 0, 3)
 
 	// Set close callback
 	media.cb = cb
@@ -65,6 +69,12 @@ func (media *output) Close() error {
 
 func (media *output) String() string {
 	str := "<media.output"
+	if flags := media.Flags(); flags != MEDIA_FLAG_NONE {
+		str += fmt.Sprint(" flags=", flags)
+	}
+	if len(media.streams) > 0 {
+		str += fmt.Sprint(" streams=", media.streams)
+	}
 	if media.ctx != nil {
 		str += fmt.Sprint(" ctx=", media.ctx)
 	}
@@ -73,3 +83,39 @@ func (media *output) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (media *output) Streams() []Stream {
+	if media.ctx == nil {
+		return nil
+	} else {
+		return media.streams
+	}
+}
+
+func (media *output) Flags() MediaFlag {
+	if media.ctx == nil {
+		return MEDIA_FLAG_NONE
+	}
+	flags := MEDIA_FLAG_ENCODER
+	//	if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
+	//		flags |= MEDIA_FLAG_FILE
+	//	}
+	for _, stream := range media.Streams() {
+		flags |= stream.Flags()
+	}
+
+	// Add other flags with likely media file type
+	/*metadata := m.Metadata()
+	if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
+		flags |= MEDIA_FLAG_ALBUM
+	}
+	if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
+		flags |= MEDIA_FLAG_ALBUM_TRACK
+	}
+	if flags&MEDIA_FLAG_ALBUM != 0 {
+		if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
+			flags |= MEDIA_FLAG_ALBUM_COMPILATION
+		}
+	}*/
+	return flags
+}

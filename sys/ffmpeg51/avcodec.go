@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"fmt"
+	"reflect"
 	"unsafe"
 )
 
@@ -25,6 +26,8 @@ type (
 	AVCodecID         C.enum_AVCodecID
 	AVCodecCap        C.int
 	AVProfile         C.struct_AVProfile
+	AVPacket          C.struct_AVPacket
+	AVPacketFlag      C.int
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +57,16 @@ const (
 )
 
 const (
+	AV_PKT_FLAG_NONE       AVPacketFlag = 0
+	AV_PKT_FLAG_KEY        AVPacketFlag = C.AV_PKT_FLAG_KEY        ///< The packet contains a keyframe
+	AV_PKT_FLAG_CORRUPT    AVPacketFlag = C.AV_PKT_FLAG_CORRUPT    ///< The packet content is corrupted
+	AV_PKT_FLAG_DISCARD    AVPacketFlag = C.AV_PKT_FLAG_DISCARD    // Flag is used to discard packets which are required to maintain valid decoder state
+	AV_PKT_FLAG_TRUSTED    AVPacketFlag = C.AV_PKT_FLAG_TRUSTED    // The packet comes from a trusted source.
+	AV_PKT_FLAG_DISPOSABLE AVPacketFlag = C.AV_PKT_FLAG_DISPOSABLE // The packet can be discarded if it is not stored
+	AV_PKT_FLAG_MAX                     = AV_PKT_FLAG_DISPOSABLE
+)
+
+const (
 	FF_PROFILE_UNKNOWN = C.FF_PROFILE_UNKNOWN
 )
 
@@ -67,6 +80,19 @@ func (p AVProfile) String() string {
 	return str + ">"
 }
 
+func (v AVPacketFlag) String() string {
+	if v == AV_PKT_FLAG_NONE {
+		return v.FlagString()
+	}
+	str := ""
+	for i := AVPacketFlag(C.int(1)); i <= AV_PKT_FLAG_MAX; i <<= 1 {
+		if v&i == i {
+			str += "|" + i.FlagString()
+		}
+	}
+	return str[1:]
+}
+
 func (v AVCodecCap) String() string {
 	if v == AV_CODEC_CAP_NONE {
 		return v.FlagString()
@@ -78,6 +104,25 @@ func (v AVCodecCap) String() string {
 		}
 	}
 	return str[1:]
+}
+
+func (v AVPacketFlag) FlagString() string {
+	switch v {
+	case AV_PKT_FLAG_NONE:
+		return "AV_PKT_FLAG_NONE"
+	case AV_PKT_FLAG_KEY:
+		return "AV_PKT_FLAG_KEY"
+	case AV_PKT_FLAG_CORRUPT:
+		return "AV_PKT_FLAG_CORRUPT"
+	case AV_PKT_FLAG_DISCARD:
+		return "AV_PKT_FLAG_DISCARD"
+	case AV_PKT_FLAG_TRUSTED:
+		return "AV_PKT_FLAG_TRUSTED"
+	case AV_PKT_FLAG_DISPOSABLE:
+		return "AV_PKT_FLAG_DISPOSABLE"
+	default:
+		return "[?? Invalid AVPacketFlag value]"
+	}
 }
 
 func (v AVCodecCap) FlagString() string {
@@ -169,8 +214,87 @@ func (c *AVCodec) String() string {
 	return str + ">"
 }
 
+func (packet *AVPacket) String() string {
+	str := "<AVPacket"
+	if pts := packet.Pts(); pts > 0 {
+		str += fmt.Sprint(" pts=", pts)
+	}
+	if dts := packet.Dts(); dts > 0 {
+		str += fmt.Sprint(" dts=", dts)
+	}
+	if size := packet.Size(); size > 0 {
+		str += fmt.Sprint(" size=", size)
+	}
+	if stream := packet.StreamIndex(); stream >= 0 {
+		str += fmt.Sprint(" stream_index=", stream)
+	}
+	if flags := packet.Flags(); flags != AV_PKT_FLAG_NONE {
+		str += fmt.Sprint(" flags=", flags)
+	}
+	if pos := packet.Pos(); pos >= 0 {
+		str += fmt.Sprint(" pos=", pos)
+	}
+	if duration := packet.Duration(); duration > 0 {
+		str += fmt.Sprint(" duration=", duration)
+	}
+	return str + ">"
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PUBLIC METHODS - PACKET
+
+func (packet *AVPacket) Pts() int64 {
+	return int64(packet.pts)
+}
+
+func (packet *AVPacket) Dts() int64 {
+	return int64(packet.dts)
+}
+
+func (packet *AVPacket) Data() *byte {
+	return (*byte)(packet.data)
+}
+
+func (packet *AVPacket) Size() int {
+	return int(packet.size)
+}
+
+// Return slice of data from packet
+func (packet *AVPacket) Bytes() []byte {
+	var bytes []byte
+
+	// Make a fake slice
+	sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&bytes)))
+	sliceHeader.Cap = int(packet.size)
+	sliceHeader.Len = int(packet.size)
+	sliceHeader.Data = uintptr(unsafe.Pointer(packet.data))
+
+	// Return slice
+	return bytes
+}
+
+func (packet *AVPacket) StreamIndex() int {
+	return int(packet.stream_index)
+}
+
+func (packet *AVPacket) Flags() AVPacketFlag {
+	return AVPacketFlag(packet.flags)
+}
+
+func (packet *AVPacket) Duration() int64 {
+	return int64(packet.duration)
+}
+
+func (packet *AVPacket) Pos() int64 {
+	return int64(packet.pos)
+}
+
+func (packet *AVPacket) TimeBase() AVRational {
+	return AVRational(packet.time_base)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - CODEC
 
 func (c *AVCodec) Name() string {
 	return C.GoString(c.name)

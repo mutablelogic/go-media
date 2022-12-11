@@ -20,6 +20,7 @@ import "C"
 type (
 	AVInputFormat   C.struct_AVInputFormat
 	AVOutputFormat  C.struct_AVOutputFormat
+	AVFormat        C.int
 	AVFormatFlag    C.int
 	AVFormatContext C.struct_AVFormatContext
 	AVContextFlags  C.int
@@ -31,45 +32,64 @@ type (
 // CONSTANTS
 
 const (
-	AVFMT_NONE AVFormatFlag = 0
+	AVFMT_NONE AVFormat = 0
 	// Demuxer will use avio_open, no opened file should be provided by the caller.
-	AVFMT_NOFILE AVFormatFlag = C.AVFMT_NOFILE
+	AVFMT_NOFILE AVFormat = C.AVFMT_NOFILE
 	// Needs '%d' in filename.
-	AVFMT_NEEDNUMBER AVFormatFlag = C.AVFMT_NEEDNUMBER
+	AVFMT_NEEDNUMBER AVFormat = C.AVFMT_NEEDNUMBER
 	// The muxer/demuxer is experimental and should be used with caution
-	AVFMT_EXPERIMENTAL AVFormatFlag = C.AVFMT_EXPERIMENTAL
+	AVFMT_EXPERIMENTAL AVFormat = C.AVFMT_EXPERIMENTAL
 	// Show format stream IDs numbers.
-	AVFMT_SHOWIDS AVFormatFlag = C.AVFMT_SHOW_IDS
+	AVFMT_SHOWIDS AVFormat = C.AVFMT_SHOW_IDS
 	// Format wants global header.
-	AVFMT_GLOBALHEADER AVFormatFlag = C.AVFMT_GLOBALHEADER
+	AVFMT_GLOBALHEADER AVFormat = C.AVFMT_GLOBALHEADER
 	// Format does not need / have any timestamps.
-	AVFMT_NOTIMESTAMPS AVFormatFlag = C.AVFMT_NOTIMESTAMPS
+	AVFMT_NOTIMESTAMPS AVFormat = C.AVFMT_NOTIMESTAMPS
 	// Use generic index building code.
-	AVFMT_GENERICINDEX AVFormatFlag = C.AVFMT_GENERIC_INDEX
+	AVFMT_GENERICINDEX AVFormat = C.AVFMT_GENERIC_INDEX
 	// Format allows timestamp discontinuities. Note, muxers always require valid (monotone) timestamps
-	AVFMT_TSDISCONT AVFormatFlag = C.AVFMT_TS_DISCONT
+	AVFMT_TSDISCONT AVFormat = C.AVFMT_TS_DISCONT
 	// Format allows variable fps.
-	AVFMT_VARIABLEFPS AVFormatFlag = C.AVFMT_VARIABLE_FPS
+	AVFMT_VARIABLEFPS AVFormat = C.AVFMT_VARIABLE_FPS
 	// Format does not need width/height
-	AVFMT_NODIMENSIONS AVFormatFlag = C.AVFMT_NODIMENSIONS
+	AVFMT_NODIMENSIONS AVFormat = C.AVFMT_NODIMENSIONS
 	// Format does not require any streams
-	AVFMT_NOSTREAMS AVFormatFlag = C.AVFMT_NOSTREAMS
+	AVFMT_NOSTREAMS AVFormat = C.AVFMT_NOSTREAMS
 	// Format does not allow to fall back on binary search via read_timestamp
-	AVFMT_NOBINSEARCH AVFormatFlag = C.AVFMT_NOBINSEARCH
+	AVFMT_NOBINSEARCH AVFormat = C.AVFMT_NOBINSEARCH
 	// Format does not allow to fall back on generic search
-	AVFMT_NOGENSEARCH AVFormatFlag = C.AVFMT_NOGENSEARCH
+	AVFMT_NOGENSEARCH AVFormat = C.AVFMT_NOGENSEARCH
 	// Format does not allow seeking by bytes
-	AVFMT_NOBYTESEEK AVFormatFlag = C.AVFMT_NO_BYTE_SEEK
+	AVFMT_NOBYTESEEK AVFormat = C.AVFMT_NO_BYTE_SEEK
 	// Format allows flushing. If not set, the muxer will not receive a NULL packet in the write_packet function.
-	AVFMT_ALLOWFLUSH AVFormatFlag = C.AVFMT_ALLOW_FLUSH
+	AVFMT_ALLOWFLUSH AVFormat = C.AVFMT_ALLOW_FLUSH
 	// Format does not require strictly increasing timestamps, but they must still be monotonic
-	AVFMT_TS_NONSTRICT AVFormatFlag = C.AVFMT_TS_NONSTRICT
+	AVFMT_TS_NONSTRICT AVFormat = C.AVFMT_TS_NONSTRICT
 	// Format allows muxing negative timestamps
-	AVFMT_TS_NEGATIVE AVFormatFlag = C.AVFMT_TS_NEGATIVE
-	// Min
-	AVFMT_MIN AVFormatFlag = AVFMT_NOFILE
-	// Max
-	AVFMT_MAX AVFormatFlag = AVFMT_TS_NEGATIVE
+	AVFMT_TS_NEGATIVE AVFormat = C.AVFMT_TS_NEGATIVE
+	AVFMT_MIN         AVFormat = AVFMT_NOFILE
+	AVFMT_MAX         AVFormat = AVFMT_TS_NEGATIVE
+)
+
+const (
+	AVFMT_FLAG_NONE            AVFormatFlag = 0
+	AVFMT_FLAG_GENPTS          AVFormatFlag = C.AVFMT_FLAG_GENPTS          ///< Generate missing pts even if it requires parsing future frames.
+	AVFMT_FLAG_IGNIDX          AVFormatFlag = C.AVFMT_FLAG_IGNIDX          ///< Ignore index.
+	AVFMT_FLAG_NONBLOCK        AVFormatFlag = C.AVFMT_FLAG_NONBLOCK        ///< Do not block when reading packets from input.
+	AVFMT_FLAG_IGNDTS          AVFormatFlag = C.AVFMT_FLAG_IGNDTS          ///< Ignore DTS on frames that contain both DTS & PTS
+	AVFMT_FLAG_NOFILLIN        AVFormatFlag = C.AVFMT_FLAG_NOFILLIN        ///< Do not infer any values from other values, just return what is stored in the container
+	AVFMT_FLAG_NOPARSE         AVFormatFlag = C.AVFMT_FLAG_NOPARSE         ///< Do not use AVParsers, you also must set AVFMT_FLAG_NOFILLIN as the fillin code works on frames and no parsing -> no frames. Also seeking to frames can not work if parsing to find frame boundaries has been disabled
+	AVFMT_FLAG_NOBUFFER        AVFormatFlag = C.AVFMT_FLAG_NOBUFFER        ///< Do not buffer frames when possible
+	AVFMT_FLAG_CUSTOM_IO       AVFormatFlag = C.AVFMT_FLAG_CUSTOM_IO       ///< The caller has supplied a custom AVIOContext, don't avio_close() it.
+	AVFMT_FLAG_DISCARD_CORRUPT AVFormatFlag = C.AVFMT_FLAG_DISCARD_CORRUPT ///< Discard frames marked corrupted
+	AVFMT_FLAG_FLUSH_PACKETS   AVFormatFlag = C.AVFMT_FLAG_FLUSH_PACKETS   ///< Flush the AVIOContext every packet.
+	AVFMT_FLAG_BITEXACT        AVFormatFlag = C.AVFMT_FLAG_BITEXACT        // When muxing, try to avoid writing any random/volatile data to the output.
+	AVFMT_FLAG_SORT_DTS        AVFormatFlag = C.AVFMT_FLAG_SORT_DTS        ///< try to interleave outputted packets by dts (using this flag can slow demuxing down)
+	AVFMT_FLAG_FAST_SEEK       AVFormatFlag = C.AVFMT_FLAG_FAST_SEEK       ///< Enable fast, but inaccurate seeks for some formats
+	AVFMT_FLAG_SHORTEST        AVFormatFlag = C.AVFMT_FLAG_SHORTEST        ///< Stop muxing when the shortest stream stops.
+	AVFMT_FLAG_AUTO_BSF        AVFormatFlag = C.AVFMT_FLAG_AUTO_BSF        ///< Add bitstream filters as requested by the muxer
+	AVFMT_FLAG_MIN                          = AVFMT_FLAG_GENPTS
+	AVFMT_FLAG_MAX                          = AVFMT_FLAG_AUTO_BSF
 )
 
 const (
@@ -225,7 +245,7 @@ func (ctx *AVFormatContext) String() string {
 	if max_delay := ctx.MaxDelay(); max_delay >= 0 {
 		str += fmt.Sprint(" max_delay=", max_delay)
 	}
-	if flags := ctx.Flags(); flags != AVFMT_NONE {
+	if flags := ctx.Flags(); flags != AVFMT_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
 	}
 	if probesize := ctx.ProbeSize(); probesize != 0 {
@@ -390,8 +410,8 @@ func (this *AVInputFormat) MimeType() string {
 	return C.GoString(this.mime_type)
 }
 
-func (this *AVInputFormat) Flags() AVFormatFlag {
-	return AVFormatFlag(this.flags)
+func (this *AVInputFormat) Format() AVFormat {
+	return AVFormat(this.flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -413,8 +433,8 @@ func (this *AVOutputFormat) MimeType() string {
 	return C.GoString(this.mime_type)
 }
 
-func (this *AVOutputFormat) Flags() AVFormatFlag {
-	return AVFormatFlag(this.flags)
+func (this *AVOutputFormat) Format() AVFormat {
+	return AVFormat(this.flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,7 +454,7 @@ func (this *AVInputFormat) String() string {
 	if mimeType := this.MimeType(); mimeType != "" {
 		str += fmt.Sprintf(" mime_type=%q", mimeType)
 	}
-	if flags := this.Flags(); flags != 0 {
+	if flags := this.Format(); flags != 0 {
 		str += fmt.Sprint(" flags=", flags)
 	}
 	return str + ">"
@@ -454,13 +474,13 @@ func (this *AVOutputFormat) String() string {
 	if mimeType := this.MimeType(); mimeType != "" {
 		str += fmt.Sprintf(" mime_type=%q", mimeType)
 	}
-	if flags := this.Flags(); flags != 0 {
+	if flags := this.Format(); flags != 0 {
 		str += fmt.Sprint(" flags=", flags)
 	}
 	return str + ">"
 }
 
-func (f AVFormatFlag) String() string {
+func (f AVFormat) String() string {
 	if f == AVFMT_NONE {
 		return f.FlagString()
 	}
@@ -473,7 +493,59 @@ func (f AVFormatFlag) String() string {
 	return str[1:]
 }
 
+func (f AVFormatFlag) String() string {
+	if f == AVFMT_FLAG_NONE {
+		return f.FlagString()
+	}
+	str := ""
+	for i := AVFMT_FLAG_MIN; i <= AVFMT_FLAG_MAX; i <<= 1 {
+		if f&i != 0 {
+			str += "|" + i.FlagString()
+		}
+	}
+	return str[1:]
+}
+
 func (f AVFormatFlag) FlagString() string {
+	switch f {
+	case AVFMT_FLAG_NONE:
+		return "AVFMT_FLAG_NONE"
+	case AVFMT_FLAG_GENPTS:
+		return "AVFMT_FLAG_GENPTS"
+	case AVFMT_FLAG_IGNIDX:
+		return "AVFMT_FLAG_IGNIDX"
+	case AVFMT_FLAG_NONBLOCK:
+		return "AVFMT_FLAG_NONBLOCK"
+	case AVFMT_FLAG_IGNDTS:
+		return "AVFMT_FLAG_IGNDTS"
+	case AVFMT_FLAG_NOFILLIN:
+		return "AVFMT_FLAG_NOFILLIN"
+	case AVFMT_FLAG_NOPARSE:
+		return "AVFMT_FLAG_NOPARSE"
+	case AVFMT_FLAG_NOBUFFER:
+		return "AVFMT_FLAG_NOBUFFER"
+	case AVFMT_FLAG_CUSTOM_IO:
+		return "AVFMT_FLAG_CUSTOM_IO"
+	case AVFMT_FLAG_DISCARD_CORRUPT:
+		return "AVFMT_FLAG_DISCARD_CORRUPT"
+	case AVFMT_FLAG_FLUSH_PACKETS:
+		return "AVFMT_FLAG_FLUSH_PACKETS"
+	case AVFMT_FLAG_BITEXACT:
+		return "AVFMT_FLAG_BITEXACT"
+	case AVFMT_FLAG_SORT_DTS:
+		return "AVFMT_FLAG_SORT_DTS"
+	case AVFMT_FLAG_FAST_SEEK:
+		return "AVFMT_FLAG_FAST_SEEK"
+	case AVFMT_FLAG_SHORTEST:
+		return "AVFMT_FLAG_SHORTEST"
+	case AVFMT_FLAG_AUTO_BSF:
+		return "AVFMT_FLAG_AUTO_BSF"
+	default:
+		return "[?? Invalid AVFormatFlag value]"
+	}
+}
+
+func (f AVFormat) FlagString() string {
 	switch f {
 	case AVFMT_NONE:
 		return "AVFMT_NONE"
