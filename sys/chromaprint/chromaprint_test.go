@@ -56,7 +56,7 @@ func Test_Chromaprint_005(t *testing.T) {
 	buf := make([]byte, size*2)
 	for i := 0; i < 5; i++ {
 		t.Log("Feeding 5 seconds of silence...")
-		if err := ctx.Write(buf, size); err != nil {
+		if err := ctx.Write(buf); err != nil {
 			t.Error(err)
 		}
 	}
@@ -69,5 +69,4 @@ func Test_Chromaprint_005(t *testing.T) {
 		t.Log("Ctx=", ctx)
 		t.Log("Fingerprint=", fp)
 	}
-
 }
