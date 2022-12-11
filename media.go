@@ -82,6 +82,9 @@ type Metadata interface {
 
 // Packet is a single unit of data in the media
 type Packet interface {
+	// Flags returns the flags for the packet from the stream
+	Flags() MediaFlag
+
 	// Stream returns the stream which the packet belongs to
 	Stream() Stream
 

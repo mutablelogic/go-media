@@ -62,6 +62,7 @@ type (
 	AVPixelFormat     C.enum_AVPixelFormat
 	AVRounding        C.enum_AVRounding
 	AVMediaType       C.enum_AVMediaType
+	AVFrame           C.struct_AVFrame
 )
 
 ////////////////////////////////////////////////////////////////////////////////

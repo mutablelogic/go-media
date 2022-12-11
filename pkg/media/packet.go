@@ -59,8 +59,8 @@ func (packet *packet) Close() error {
 
 func (packet *packet) String() string {
 	str := "<media.packet"
-	if key := packet.IsKeyFrame(); key {
-		str += " contains_keyframe"
+	if flags := packet.Flags(); flags != MEDIA_FLAG_NONE {
+		str += fmt.Sprint(" flags=", flags)
 	}
 	if stream := packet.Stream(); stream != nil {
 		str += fmt.Sprint(" stream_index=", stream.Index())
@@ -74,6 +74,9 @@ func (packet *packet) String() string {
 	if size := packet.Size(); size > 0 {
 		str += fmt.Sprint(" size=", size)
 	}
+	if key := packet.IsKeyFrame(); key {
+		str += " contains_keyframe"
+	}
 	return str + ">"
 }
 
@@ -84,6 +87,15 @@ func (packet *packet) String() string {
 func (packet *packet) Release() {
 	if packet.ctx != nil {
 		ffmpeg.AVCodec_av_packet_unref(packet.ctx)
+	}
+}
+
+// Flags returns the  flags from the stream
+func (packet *packet) Flags() MediaFlag {
+	if stream := packet.Stream(); stream != nil {
+		return stream.Flags()
+	} else {
+		return MEDIA_FLAG_NONE
 	}
 }
 
