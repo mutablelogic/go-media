@@ -93,6 +93,9 @@ func (media *input) Close() error {
 
 func (media *input) String() string {
 	str := "<media.input"
+	if url := media.URL(); url != "" {
+		str += fmt.Sprintf(" url=%q", url)
+	}
 	if flags := media.Flags(); flags != MEDIA_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
 	}
@@ -110,6 +113,14 @@ func (media *input) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (media *input) URL() string {
+	if media.ctx == nil {
+		return ""
+	} else {
+		return media.ctx.Url()
+	}
+}
 
 func (media *input) Streams() []Stream {
 	if media.ctx == nil {

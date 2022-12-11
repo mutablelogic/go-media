@@ -73,6 +73,9 @@ func (media *output) Close() error {
 
 func (media *output) String() string {
 	str := "<media.output"
+	if url := media.URL(); url != "" {
+		str += fmt.Sprintf(" url=%q", url)
+	}
 	if flags := media.Flags(); flags != MEDIA_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
 	}
@@ -90,6 +93,14 @@ func (media *output) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (media *output) URL() string {
+	if media.ctx == nil {
+		return ""
+	} else {
+		return media.ctx.Url()
+	}
+}
 
 func (media *output) Streams() []Stream {
 	if media.ctx == nil {

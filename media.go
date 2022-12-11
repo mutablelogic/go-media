@@ -28,6 +28,9 @@ type Manager interface {
 type Media interface {
 	io.Closer
 
+	// URL for the media
+	URL() string
+
 	// Return enumeration of streams
 	Streams() []Stream
 
