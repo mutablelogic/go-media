@@ -124,13 +124,14 @@ func (packet *packet) Duration() time.Duration {
 	if packet.ctx == nil {
 		return -1
 	}
-	if duration := packet.ctx.Duration(); duration == 0 {
+	duration := packet.ctx.Duration()
+	if duration == 0 {
 		return 0
-	} else if num := packet.ctx.TimeBase().Num(); num == 0 {
-		fmt.Println("TODO tb=", packet.ctx.TimeBase())
+	} else if stream, ok := packet.Stream().(*stream); !ok {
 		return 0
 	} else {
-		return time.Second * time.Duration(int64(num)*int64(duration)/int64(packet.ctx.TimeBase().Den()))
+		tb := stream.ctx.TimeBase()
+		return time.Second * time.Duration(duration) * time.Duration(tb.Num()) / time.Duration(tb.Den())
 	}
 }
 
