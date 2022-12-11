@@ -3,8 +3,10 @@ package media
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"syscall"
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
@@ -103,8 +105,8 @@ func (manager *manager) SetDebug(debug bool) {
 	}
 }
 
-// Decode packets from a media file
-func (manager *manager) Decode(ctx context.Context, media_map Map, fn DecodeFn) error {
+// Demux packets from a media file
+func (manager *manager) Demux(ctx context.Context, media_map Map, fn DecodeFn) error {
 	var result error
 
 	// Get input
@@ -129,9 +131,10 @@ FOR_LOOP:
 				if !errors.Is(err, io.EOF) {
 					result = multierror.Append(result, err)
 				}
+				// TODO: Flush calling avcoded_send_packet with nil
 				break FOR_LOOP
 			}
-			if err := media_map.(*decodemap).Decode(ctx, packet, fn); err != nil {
+			if err := media_map.(*decodemap).Demux(ctx, packet, fn); err != nil {
 				result = multierror.Append(result, err)
 				break FOR_LOOP
 			}
@@ -143,6 +146,38 @@ FOR_LOOP:
 	// in this function?
 	if err := media_map.(*decodemap).Close(); err != nil {
 		result = multierror.Append(result, err)
+	}
+
+	// Return any errors
+	return result
+}
+
+// Decode packets into frames
+func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet) error {
+	stream := p.(*packet).StreamIndex()
+	decoder := media_map.(*decodemap).context[stream]
+	if decoder == nil || decoder.ctx == nil || decoder.frame == nil {
+		return ErrBadParameter.With("decoder")
+	}
+
+	// Iterate through frames
+	var result error
+	for {
+		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame)
+		if err == nil {
+			// a frame was returned
+			fmt.Println(" FRAME")
+			ffmpeg.AVFrame_unref(decoder.frame)
+		} else if errors.Is(err, syscall.EINVAL) {
+			// the codec has been fully flushed, and there will be no more output frames
+			break
+		} else if errors.Is(err, syscall.EAGAIN) {
+			// output is not available in this state - user must try to send new input
+			break
+		} else {
+			result = multierror.Append(result, err)
+			break
+		}
 	}
 
 	// Return any errors

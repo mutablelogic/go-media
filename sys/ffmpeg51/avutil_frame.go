@@ -5,32 +5,35 @@ package ffmpeg
 
 /*
 #cgo pkg-config: libavutil
-#include <libavutil/avutil.h>
+#include <libavutil/frame.h>
 #include <stdlib.h>
 */
 import "C"
+import "unsafe"
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func AVFrame_alloc() *AVFrame {
+	return (*AVFrame)(C.av_frame_alloc())
+}
+
+func AVFrame_free(frame **AVFrame) {
+	C.av_frame_free((**C.AVFrame)(unsafe.Pointer(frame)))
+}
+
+func AVFrame_free_ptr(frame *AVFrame) {
+	C.av_frame_free((**C.AVFrame)(unsafe.Pointer(&frame)))
+}
+
+func AVFrame_unref(frame *AVFrame) {
+	C.av_frame_unref((*C.AVFrame)(frame))
+}
 
 /*
 
 ////////////////////////////////////////////////////////////////////////////////
 // INIT
-
-func NewAVFrame() *AVFrame {
-	return (*AVFrame)(C.av_frame_alloc())
-}
-
-func (this *AVFrame) Free() {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	C.av_frame_free(&ctx)
-}
-
-func (this *AVFrame) Release() {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	C.av_frame_unref(ctx)
-}
 
 func NewAudioFrame(f AVSampleFormat, rate int, layout AVChannelLayout) *AVFrame {
 	frame := NewAVFrame()

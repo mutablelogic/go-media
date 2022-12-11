@@ -18,11 +18,7 @@ import (
 type decodemap struct {
 	packet  *packet
 	input   *input
-	context map[int]decodecontext
-}
-
-type decodecontext struct {
-	Stream *stream
+	context map[int]*decoder
 }
 
 // Ensure decodemap complies with Map interface
@@ -53,11 +49,20 @@ func NewMap(media Media, flags MediaFlag) (*decodemap, error) {
 	}
 
 	// Create map of streams
-	m.context = streamsByType(m.input, flags)
+	if flags == MEDIA_FLAG_NONE {
+		m.context = streamsByType(m.input, MEDIA_FLAG_AUDIO|MEDIA_FLAG_VIDEO|MEDIA_FLAG_SUBTITLE)
+	} else {
+		m.context = streamsByType(m.input, flags)
+	}
+
+	// Return error if no streams
+	if len(m.context) == 0 {
+		return nil, ErrNotFound.With("streams")
+	}
 
 	// Create packet
 	if packet := NewPacket(func(i int) Stream {
-		return m.context[i].Stream
+		return m.context[i].stream
 	}); packet == nil {
 		return nil, ErrInternalAppError.With("NewPacket")
 	} else {
@@ -70,12 +75,24 @@ func NewMap(media Media, flags MediaFlag) (*decodemap, error) {
 
 func (m *decodemap) Close() error {
 	var result error
+
+	// Close packet
 	if m.packet != nil {
 		if err := m.packet.Close(); err != nil {
 			result = multierror.Append(result, err)
 		}
 		m.packet = nil
 	}
+
+	// Close all decoders
+	for _, decoder := range m.context {
+		if err := decoder.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	m.context = nil
+
+	// Return any errors
 	return result
 }
 
@@ -99,7 +116,7 @@ func (m *decodemap) Input() Media {
 func (m *decodemap) Streams() []Stream {
 	var result []Stream
 	for _, stream := range m.context {
-		result = append(result, stream.Stream)
+		result = append(result, stream.stream)
 	}
 	return result
 }
@@ -107,12 +124,17 @@ func (m *decodemap) Streams() []Stream {
 // Decode a packet, by calling a decoding function with a packet.
 // If the stream associated with the packet is not in the map, then
 // ignore it
-func (m *decodemap) Decode(ctx context.Context, p Packet, fn DecodeFn) error {
+func (m *decodemap) Demux(ctx context.Context, p Packet, fn DecodeFn) error {
 	index := p.(*packet).StreamIndex()
-	if _, exists := m.context[index]; exists {
-		return fn(ctx, p)
-	} else {
+	decoder, exists := m.context[index]
+	if !exists {
 		return nil
+	}
+	// Send a packet into the decoder
+	if err := ffmpeg.AVCodec_send_packet(decoder.ctx, p.(*packet).ctx); err != nil {
+		return err
+	} else {
+		return fn(ctx, p)
 	}
 }
 
@@ -120,11 +142,11 @@ func (m *decodemap) Decode(ctx context.Context, p Packet, fn DecodeFn) error {
 // PRIVATE METHODS
 
 // Return streams of a given type for input media
-func streamsByType(input *input, media_type MediaFlag) map[int]decodecontext {
+func streamsByType(input *input, media_type MediaFlag) map[int]*decoder {
 	if input == nil || input.ctx == nil {
 		return nil
 	}
-	result := make(map[int]decodecontext, input.ctx.NumStreams())
+	result := make(map[int]*decoder, input.ctx.NumStreams())
 	for _, t := range mediaTypes {
 		if !media_type.Is(t) {
 			continue
@@ -132,8 +154,12 @@ func streamsByType(input *input, media_type MediaFlag) map[int]decodecontext {
 			continue
 		} else if n, err := ffmpeg.AVFormat_av_find_best_stream(input.ctx, f, -1, -1, nil, 0); err != nil {
 			continue
-		} else if str, exists := input.streams[n]; exists {
-			result[n] = decodecontext{Stream: str.(*stream)}
+		} else if str, exists := input.streams[n]; !exists {
+			continue
+		} else if decoder := NewDecoder(str.(*stream)); decoder == nil {
+			continue
+		} else {
+			result[n] = decoder
 		}
 	}
 

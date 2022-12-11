@@ -34,13 +34,17 @@ type Manager interface {
 	CreateFile(path string) (Media, error)
 
 	// Create a map of input media. If MediaFlag is MEDIA_FLAG_NONE, then
-	// all streams are mapped, or else a combination of MEDIA_FLAG_AUDIO,
+	// all audio, video and subtitle streams are mapped, or else a
+	// combination of MEDIA_FLAG_AUDIO,
 	// MEDIA_FLAG_VIDEO, MEDIA_FLAG_SUBTITLE and MEDIA_FLAG_DATA
 	// can be used to map specific types of streams.
 	Map(Media, MediaFlag) (Map, error)
 
-	// Decode a media file, passing packets to a callback function
-	Decode(context.Context, Map, DecodeFn) error
+	// Demux a media file, passing packets to a callback function
+	Demux(context.Context, Map, DecodeFn) error
+
+	// Decode a packet into a series of frames
+	Decode(context.Context, Map, Packet) error
 
 	// Log messages from ffmpeg
 	SetDebug(bool)

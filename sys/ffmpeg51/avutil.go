@@ -45,6 +45,9 @@ AVChannelLayout _AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER = AV_CHANNEL_LAYOUT_AMB
 */
 import "C"
 
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
 type (
 	AVError           C.int
 	AVClass           C.struct_AVClass

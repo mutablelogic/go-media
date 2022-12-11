@@ -20,8 +20,11 @@ import (
 )
 
 var (
-	flagDebug = flag.Bool("debug", false, "Enable debug output")
-	flagOut   = flag.String("out", "", "Output directory for artwork")
+	flagDebug    = flag.Bool("debug", false, "Enable debug output")
+	flagOut      = flag.String("out", "", "Output directory for artwork")
+	flagAudio    = flag.Bool("audio", false, "Extract audio")
+	flagVideo    = flag.Bool("video", false, "Extract video")
+	flagSubtitle = flag.Bool("subtitle", false, "Extract subtitles")
 )
 
 func main() {
@@ -58,17 +61,26 @@ func main() {
 	}
 
 	// Create a media map
-	media_map, err := manager.Map(media, MEDIA_FLAG_VIDEO)
+	flags := MEDIA_FLAG_NONE
+	if *flagAudio {
+		flags |= MEDIA_FLAG_AUDIO
+	}
+	if *flagVideo {
+		flags |= MEDIA_FLAG_VIDEO
+	}
+	if *flagSubtitle {
+		flags |= MEDIA_FLAG_SUBTITLE
+	}
+	media_map, err := manager.Map(media, flags)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
-	fmt.Println("MEDIA", media_map)
 
-	// Decode the media
-	if err := manager.Decode(ctx, media_map, func(_ context.Context, packet Packet) error {
-		fmt.Println("PACKET", packet)
-		return nil
+	// Demux the media
+	if err := manager.Demux(ctx, media_map, func(_ context.Context, packet Packet) error {
+		fmt.Println("Demuxed packet", packet)
+		return manager.Decode(ctx, media_map, packet)
 	}); err != nil && err != context.Canceled {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
