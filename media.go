@@ -3,13 +3,22 @@ package media
 import (
 	"context"
 	"io"
+	"time"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// MediaFlag is a bitfield of flags for media, including type of media
 type MediaFlag uint
+
+// MediaKey is a string which is used for media metadata
 type MediaKey string
+
+// DecodeFn is a function which is called for each packet in the media, which
+// is associated with a single stream. The function should return an error if
+// the decode should be terminated.
+type DecodeFn func(context.Context, Packet) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -27,8 +36,8 @@ type Manager interface {
 	// Log messages from ffmpeg
 	SetDebug(bool)
 
-	// Decode a media file
-	Decode(context.Context, Media) error
+	// Decode a media file, passing packets to a callback function
+	Decode(context.Context, Media, DecodeFn) error
 }
 
 // Media is a source or destination of media
@@ -69,6 +78,27 @@ type Stream interface {
 type Metadata interface {
 	Keys() []MediaKey
 	Value(MediaKey) any
+}
+
+// Packet is a single unit of data in the media
+type Packet interface {
+	// Stream returns the stream which the packet belongs to
+	Stream() Stream
+
+	// IsKeyFrame returns true if the packet contains a key frame
+	IsKeyFrame() bool
+
+	// Pos returns the byte position of the packet in the media
+	Pos() int64
+
+	// Duration returns the duration of the packet
+	Duration() time.Duration
+
+	// Size of the packet in bytes
+	Size() int
+
+	// Bytes returns the raw bytes of the packet
+	Bytes() []byte
 }
 
 ////////////////////////////////////////////////////////////////////////////////

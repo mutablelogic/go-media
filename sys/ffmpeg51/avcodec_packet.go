@@ -23,6 +23,11 @@ func AVCodec_av_packet_free(pkt **AVPacket) {
 	C.av_packet_free((**C.struct_AVPacket)(unsafe.Pointer(pkt)))
 }
 
+// Free the packet, if the packet is reference counted, it will be unreferenced first.
+func AVCodec_av_packet_free_ptr(pkt *AVPacket) {
+	C.av_packet_free((**C.struct_AVPacket)(unsafe.Pointer(&pkt)))
+}
+
 // Create a new packet that references the same data as src.
 func AVCodec_av_packet_clone(src *AVPacket) *AVPacket {
 	return (*AVPacket)(C.av_packet_clone((*C.struct_AVPacket)(src)))

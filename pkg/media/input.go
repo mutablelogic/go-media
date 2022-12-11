@@ -164,6 +164,7 @@ func (media *input) StreamsByType(media_type MediaFlag) []Stream {
 		if err != nil {
 			continue
 		}
+		fmt.Println("f", f, "n", n)
 		if stream, exists := media.streams[n]; exists {
 			streams = append(streams, stream)
 		}

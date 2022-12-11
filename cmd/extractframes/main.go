@@ -58,18 +58,22 @@ func main() {
 	}
 
 	// Find the video stream for extraction
-	stream := media.StreamsByType(MEDIA_FLAG_VIDEO)
-	if len(stream) == 0 {
-		fmt.Fprintln(os.Stderr, "No video stream found")
+	streams := media.StreamsByType(MEDIA_FLAG_VIDEO)
+	if len(streams) != 1 {
+		fmt.Fprintln(os.Stderr, "No video stream found, or more than one video stream found")
 		os.Exit(-2)
 	}
-	fmt.Println(stream)
 
 	// Decode the media
-	//if err := manager.Decode(ctx, media); err != nil && err != context.Canceled {
-	//	fmt.Fprintln(os.Stderr, err)
-	//	os.Exit(-2)
-	//}
+	if err := manager.Decode(ctx, media, func(_ context.Context, packet Packet) error {
+		if streams[0] == packet.Stream() {
+			fmt.Println("PACKET", packet)
+		}
+		return nil
+	}); err != nil && err != context.Canceled {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-2)
+	}
 
 	// If the context was cancelled, print a message
 	if ctx.Err() != nil {
