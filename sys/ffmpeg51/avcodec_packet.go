@@ -50,3 +50,8 @@ func AVCodec_av_grow_packet(pkt *AVPacket, size int) error {
 		return nil
 	}
 }
+
+// Unreference the packet to release the data
+func AVCodec_av_packet_unref(pkt *AVPacket) {
+	C.av_packet_unref((*C.struct_AVPacket)(pkt))
+}

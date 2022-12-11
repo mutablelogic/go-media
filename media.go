@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"io"
 )
 
@@ -25,6 +26,9 @@ type Manager interface {
 
 	// Log messages from ffmpeg
 	SetDebug(bool)
+
+	// Decode a media file
+	Decode(context.Context, Media) error
 }
 
 // Media is a source or destination of media

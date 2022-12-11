@@ -2,14 +2,18 @@ package media
 
 import (
 	// Packages
+	"context"
+	"errors"
 	"fmt"
+	"io"
 
+	// Packages
 	multierror "github.com/hashicorp/go-multierror"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,9 +99,116 @@ func (manager *manager) SetDebug(debug bool) {
 	}
 }
 
+// Decode packets from a media file
+func (manager *manager) Decode(ctx context.Context, media Media) error {
+	var result error
+
+	// Ensure media is an input, not output
+	input, ok := media.(*input)
+	if !ok || input == nil || input.ctx == nil {
+		return ErrBadParameter.With("media")
+	}
+
+	// Create a packet to contain the data
+	packet := ffmpeg.AVCodec_av_packet_alloc()
+	if packet == nil {
+		return ErrInternalAppError
+	}
+	defer ffmpeg.AVCodec_av_packet_free(&packet)
+
+	// Iterate over incoming packets, callback when packet should
+	// be processed. Return if context is done
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := ffmpeg.AVFormat_av_read_frame(input.ctx, packet); err != nil {
+				if !errors.Is(err, io.EOF) {
+					result = multierror.Append(result, err)
+				}
+				break FOR_LOOP
+			}
+			fmt.Println("PACKET", packet)
+			ffmpeg.AVCodec_av_packet_unref(packet)
+		}
+	}
+
+	// Return any errors
+	return result
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func (manager *manager) log(level ffmpeg.AVLogLevel, msg string, _ uintptr) {
 	fmt.Println("LOG=", level, msg)
 }
+
+/*
+// Iterate over packets in the input stream
+func (m *MediaInput) Read(ctx context.Context, streams []int, fn DecodeIteratorFunc) error {
+	if fn == nil || m.ctx == nil {
+		return ErrBadParameter.With("Read")
+	}
+	if len(streams) == 0 {
+		for index := range m.s {
+			streams = append(streams, index)
+		}
+	}
+
+	// Create decode contexts
+	var result error
+	streammap := NewStreamMap()
+	for _, i := range streams {
+		if stream, exists := m.s[i]; !exists {
+			result = multierror.Append(result, ErrNotFound.Withf("Stream with index %v", i))
+		} else if err := streammap.Set(stream); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Bail out if any errors
+	if result != nil {
+		return result
+	}
+
+	// Create a packet
+	packet := ffmpeg.NewAVPacket()
+	if packet == nil {
+		return ErrInternalAppError.With("NewAVPacket")
+	}
+	defer packet.Free()
+
+	// Iterate over incoming packets, callback when packet should
+	// be processed. Return if parent context is done
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := m.ctx.ReadPacket(packet); err == io.EOF {
+				// End of stream
+				break FOR_LOOP
+			} else if err != nil {
+				return err
+			} else if stream := streammap.Get(packet.Stream()); stream != nil {
+				// Call decode function with packet
+				err := fn(ctx, packet)
+				packet.Release()
+				if errors.Is(err, io.EOF) {
+					// End of stream requested with no error
+					break FOR_LOOP
+				} else if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Return success
+	return nil
+}
+*/
