@@ -57,18 +57,17 @@ func main() {
 		os.Exit(-2)
 	}
 
-	// Find the video stream for extraction
-	streams := media.StreamsByType(MEDIA_FLAG_VIDEO)
-	if len(streams) != 1 {
-		fmt.Fprintln(os.Stderr, "No video stream found, or more than one video stream found")
+	// Create a media map
+	media_map, err := manager.Map(media, MEDIA_FLAG_VIDEO)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
+	fmt.Println("MEDIA", media_map)
 
 	// Decode the media
-	if err := manager.Decode(ctx, media, func(_ context.Context, packet Packet) error {
-		if streams[0] == packet.Stream() {
-			fmt.Println("PACKET", packet)
-		}
+	if err := manager.Decode(ctx, media_map, func(_ context.Context, packet Packet) error {
+		fmt.Println("PACKET", packet)
 		return nil
 	}); err != nil && err != context.Canceled {
 		fmt.Fprintln(os.Stderr, err)

@@ -99,6 +99,14 @@ func (packet *packet) Flags() MediaFlag {
 	}
 }
 
+// StreamIndex returns the stream which the packet belongs to
+func (packet *packet) StreamIndex() int {
+	if packet.ctx == nil {
+		return -1
+	}
+	return packet.ctx.StreamIndex()
+}
+
 // Stream returns the stream which the packet belongs to
 func (packet *packet) Stream() Stream {
 	if packet.ctx == nil || packet.fn == nil {

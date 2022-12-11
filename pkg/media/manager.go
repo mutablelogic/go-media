@@ -89,6 +89,11 @@ func (m *manager) CreateFile(path string) (Media, error) {
 	return media, nil
 }
 
+// Create a new map for decoding
+func (m *manager) Map(media Media, flags MediaFlag) (Map, error) {
+	return NewMap(media, flags)
+}
+
 // Set the logging function for the manager
 func (manager *manager) SetDebug(debug bool) {
 	if debug {
@@ -99,26 +104,21 @@ func (manager *manager) SetDebug(debug bool) {
 }
 
 // Decode packets from a media file
-func (manager *manager) Decode(ctx context.Context, media Media, fn DecodeFn) error {
+func (manager *manager) Decode(ctx context.Context, media_map Map, fn DecodeFn) error {
 	var result error
 
-	// Ensure media is an input, not output
-	input, ok := media.(*input)
-	if !ok || input == nil || input.ctx == nil {
-		return ErrBadParameter.With("media")
+	// Get input
+	input, ok := media_map.Input().(*input)
+	if !ok || input == nil {
+		return ErrBadParameter.With("input")
 	}
-
-	// Create a packet to contain the data
-	packet := NewPacket(func(i int) Stream {
-		return input.streams[i]
-	})
-	if packet == nil {
-		return ErrInternalAppError
-	}
-	defer packet.Close()
 
 	// Iterate over incoming packets, callback when packet should
 	// be processed. Return if context is done
+	packet := media_map.(*decodemap).Packet().(*packet)
+	if packet == nil {
+		return ErrBadParameter.With("packet")
+	}
 FOR_LOOP:
 	for {
 		select {
@@ -131,12 +131,18 @@ FOR_LOOP:
 				}
 				break FOR_LOOP
 			}
-			if err := fn(ctx, packet); err != nil {
+			if err := media_map.(*decodemap).Decode(ctx, packet, fn); err != nil {
 				result = multierror.Append(result, err)
 				break FOR_LOOP
 			}
 			packet.Release()
 		}
+	}
+
+	// Close the map - cant be reused, so might make sense to create one
+	// in this function?
+	if err := media_map.(*decodemap).Close(); err != nil {
+		result = multierror.Append(result, err)
 	}
 
 	// Return any errors

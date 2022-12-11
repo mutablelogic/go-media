@@ -33,11 +33,26 @@ type Manager interface {
 	// Create media for writing and return it
 	CreateFile(path string) (Media, error)
 
-	// Log messages from ffmpeg
-	SetDebug(bool)
+	// Create a map of input media. If MediaFlag is MEDIA_FLAG_NONE, then
+	// all streams are mapped, or else a combination of MEDIA_FLAG_AUDIO,
+	// MEDIA_FLAG_VIDEO, MEDIA_FLAG_SUBTITLE and MEDIA_FLAG_DATA
+	// can be used to map specific types of streams.
+	Map(Media, MediaFlag) (Map, error)
 
 	// Decode a media file, passing packets to a callback function
-	Decode(context.Context, Media, DecodeFn) error
+	Decode(context.Context, Map, DecodeFn) error
+
+	// Log messages from ffmpeg
+	SetDebug(bool)
+}
+
+// Map is a mapping of input media, potentially to output media
+type Map interface {
+	// Return input media
+	Input() Media
+
+	// Return streams which are mapped for decoding
+	Streams() []Stream
 }
 
 // Media is a source or destination of media
@@ -47,7 +62,7 @@ type Media interface {
 	// Return best streams for specific types (video, audio, subtitle, data or attachment)
 	// or returns empty slice if no streams of that type are in the media file. Only returns
 	// one stream of each type.
-	StreamsByType(MediaFlag) []Stream
+	//StreamsByType(MediaFlag) []Stream
 
 	// URL for the media
 	URL() string
@@ -76,7 +91,10 @@ type Stream interface {
 
 // Metadata embedded in the media
 type Metadata interface {
+	// Return enumeration of keys
 	Keys() []MediaKey
+
+	// Return value for key
 	Value(MediaKey) any
 }
 
