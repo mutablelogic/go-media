@@ -52,6 +52,9 @@ type AudioFrame interface {
 	// Duration of the frame
 	Duration() time.Duration
 
+	// Returns true if planar format (one set of samples per channel)
+	IsPlanar() bool
+
 	// Returns the samples for a specified channel, as array of bytes. For packed
 	// audio format, the channel should be 0.
 	Bytes(channel int) []byte

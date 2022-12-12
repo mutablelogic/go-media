@@ -17,6 +17,7 @@ import (
 
 type swcontext struct {
 	ctx  *ffmpeg.SWRContext
+	src  AudioFormat
 	dest AudioFormat
 }
 
@@ -32,27 +33,27 @@ func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 	r.ctx = ffmpeg.SWR_alloc()
 
 	// Check in parameter
-	if in == nil || in.Samples() == 0 {
+	if src == nil || src.Samples() == 0 {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, ErrBadParameter.With("in")
-	} else if err := r.setIn(in.AudioFormat()); err != nil {
+	} else if err := r.setIn(src.AudioFormat()); err != nil {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, err
 	}
 
 	// Copy in parameters to out format
-	if out.Rate == 0 {
-		out.Rate = in.AudioFormat().Rate
+	if dest.Rate == 0 {
+		dest.Rate = src.AudioFormat().Rate
 	}
-	if out.Format == SAMPLE_FORMAT_NONE {
-		out.Format = in.AudioFormat().Format
+	if dest.Format == SAMPLE_FORMAT_NONE {
+		dest.Format = src.AudioFormat().Format
 	}
-	if out.Layout == CHANNEL_LAYOUT_NONE {
-		out.Layout = in.AudioFormat().Layout
+	if dest.Layout == CHANNEL_LAYOUT_NONE {
+		dest.Layout = src.AudioFormat().Layout
 	}
-	if err := r.setOut(out); err != nil {
+	if err := r.setOut(dest); err != nil {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, err
@@ -86,6 +87,26 @@ func (r *swcontext) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Gets the delay the next input sample will experience relative to the next output sample,
+// in number of input samples.
+func (r *swcontext) GetSrcDelay() int64 {
+	if r.ctx == nil {
+		return 0
+	} else {
+		return r.ctx.SWR_get_delay(int64(r.src.Rate))
+	}
+}
+
+// Return destination audio format
+func (r *swcontext) DestAudioFormat() AudioFormat {
+	return r.dest
+}
+
+// Return source audio format
+func (r *swcontext) SrcAudioFormat() AudioFormat {
+	return r.src
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -98,6 +119,8 @@ func (r *swcontext) setIn(f AudioFormat) error {
 	if f.Rate != 0 {
 		if err := r.ctx.AVUtil_av_opt_set_int("in_sample_rate", int64(f.Rate)); err != nil {
 			result = multierror.Append(result, err)
+		} else {
+			r.src.Rate = f.Rate
 		}
 	}
 	if f.Format != SAMPLE_FORMAT_NONE {
@@ -105,12 +128,16 @@ func (r *swcontext) setIn(f AudioFormat) error {
 			result = multierror.Append(result, ErrBadParameter.With("Invalid sample format", f.Format))
 		} else if err := r.ctx.AVUtil_av_opt_set_sample_fmt("in_sample_fmt", fmt); err != nil {
 			result = multierror.Append(result, err)
+		} else {
+			r.src.Format = f.Format
 		}
 	}
 	if f.Layout != CHANNEL_LAYOUT_NONE {
 		l := toChannelLayout(f.Layout)
 		if err := r.ctx.AVUtil_av_opt_set_chlayout("in_channel_layout", &l); err != nil {
 			result = multierror.Append(result, ErrBadParameter.With("Invalid channel layout:", f.Layout))
+		} else {
+			r.src.Layout = f.Layout
 		}
 	}
 
@@ -127,6 +154,8 @@ func (r *swcontext) setOut(f AudioFormat) error {
 	if f.Rate != 0 {
 		if err := r.ctx.AVUtil_av_opt_set_int("out_sample_rate", int64(f.Rate)); err != nil {
 			result = multierror.Append(result, err)
+		} else {
+			r.dest.Rate = f.Rate
 		}
 	}
 	if f.Format != SAMPLE_FORMAT_NONE {
@@ -134,27 +163,21 @@ func (r *swcontext) setOut(f AudioFormat) error {
 			result = multierror.Append(result, ErrBadParameter.With("Invalid sample format", f.Format))
 		} else if err := r.ctx.AVUtil_av_opt_set_sample_fmt("out_sample_fmt", fmt); err != nil {
 			result = multierror.Append(result, err)
+		} else {
+			r.dest.Format = f.Format
 		}
 	}
 	if f.Layout != CHANNEL_LAYOUT_NONE {
 		l := toChannelLayout(f.Layout)
 		if err := r.ctx.AVUtil_av_opt_set_chlayout("out_channel_layout", &l); err != nil {
 			result = multierror.Append(result, ErrBadParameter.With("Invalid channel layout:", f.Layout))
+		} else {
+			r.dest.Layout = f.Layout
 		}
 	}
 
 	// Return any errors
 	return result
-}
-
-func (r *swcontext) initialize() error {
-	// Check parameters
-	if r.ctx == nil {
-		return ErrInternalAppError.With("Context is closed")
-	} else if r.ctx.SWR_is_initialized() {
-		return ErrOutOfOrder.With("Context already initialized")
-	}
-	return r.ctx.SWR_init()
 }
 
 func swcontext_finalizer(r *swcontext) {

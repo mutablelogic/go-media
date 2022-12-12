@@ -1,7 +1,6 @@
 package audio_test
 
 import (
-	"io"
 	"testing"
 	"time"
 
@@ -23,8 +22,10 @@ func Test_manager_000(t *testing.T) {
 	assert.NoError(err)
 	t.Log("in=", in)
 	assert.NoError(mgr.Convert(in, AudioFormat{Format: SAMPLE_FORMAT_DBL, Rate: 44100}, func(out AudioFrame) error {
-		t.Log("out=", out)
-		return io.EOF
+		if out != nil {
+			t.Log("out=", out)
+		}
+		return nil
 	}))
 
 	// Close
