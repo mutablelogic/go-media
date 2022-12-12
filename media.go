@@ -15,10 +15,15 @@ type MediaFlag uint
 // MediaKey is a string which is used for media metadata
 type MediaKey string
 
-// DecodeFn is a function which is called for each packet in the media, which
+// Demux is a function which is called for each packet in the media, which
 // is associated with a single stream. The function should return an error if
 // the decode should be terminated.
-type DecodeFn func(context.Context, Packet) error
+type DemuxFn func(context.Context, Packet) error
+
+// DecodeFn is a function which is called for each frame in the media, which
+// is associated with a single stream. The function should return an error if
+// the decode should be terminated.
+type DecodeFn func(context.Context, Frame) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -41,10 +46,11 @@ type Manager interface {
 	Map(Media, MediaFlag) (Map, error)
 
 	// Demux a media file, passing packets to a callback function
-	Demux(context.Context, Map, DecodeFn) error
+	Demux(context.Context, Map, DemuxFn) error
 
-	// Decode a packet into a series of frames
-	Decode(context.Context, Map, Packet) error
+	// Decode a packet into a series of frames, passing decoded frames to
+	// a callback function
+	Decode(context.Context, Map, Packet, DecodeFn) error
 
 	// Log messages from ffmpeg
 	SetDebug(bool)
@@ -124,6 +130,10 @@ type Packet interface {
 
 	// Bytes returns the raw bytes of the packet
 	Bytes() []byte
+}
+
+// Frame is a decoded video or audio frame
+type Frame interface {
 }
 
 // Codec is an encoder or decoder for a specific media type

@@ -124,7 +124,7 @@ func (m *decodemap) Streams() []Stream {
 // Decode a packet, by calling a decoding function with a packet.
 // If the stream associated with the packet is not in the map, then
 // ignore it
-func (m *decodemap) Demux(ctx context.Context, p Packet, fn DecodeFn) error {
+func (m *decodemap) Demux(ctx context.Context, p Packet, fn DemuxFn) error {
 	index := p.(*packet).StreamIndex()
 	decoder, exists := m.context[index]
 	if !exists {

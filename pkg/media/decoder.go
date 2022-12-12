@@ -3,6 +3,7 @@ package media
 import (
 
 	// Packages
+	"github.com/hashicorp/go-multierror"
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 	// Namespace imports
 	//. "github.com/djthorpe/go-errors"
@@ -15,8 +16,8 @@ import (
 type decoder struct {
 	ctx    *ffmpeg.AVCodecContext
 	stream *stream
+	frame  *frame
 	codec  *ffmpeg.AVCodec
-	frame  *ffmpeg.AVFrame
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +63,7 @@ func NewDecoder(stream *stream) *decoder {
 	}
 
 	// Create a frame
-	if frame := ffmpeg.AVFrame_alloc(); frame == nil {
+	if frame := NewFrame(); frame == nil {
 		ffmpeg.AVCodec_free_context_ptr(this.ctx)
 		return nil
 	} else {
@@ -74,20 +75,23 @@ func NewDecoder(stream *stream) *decoder {
 }
 
 func (decoder *decoder) Close() error {
+	var result error
 
 	// Release codec context
 	if decoder.ctx != nil {
 		ffmpeg.AVCodec_free_context_ptr(decoder.ctx)
-		decoder.ctx = nil
 	}
 
 	// Release frame
 	if decoder.frame != nil {
-		ffmpeg.AVFrame_free_ptr(decoder.frame)
-		decoder.frame = nil
+		if err := decoder.frame.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
 	}
 
 	// Blank out other fields
+	decoder.ctx = nil
+	decoder.frame = nil
 	decoder.stream = nil
 	decoder.codec = nil
 

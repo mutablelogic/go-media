@@ -144,20 +144,23 @@ func (media *input) Metadata() Metadata {
 }
 
 func (media *input) Flags() MediaFlag {
+	flags := MEDIA_FLAG_DECODER
 	if media.ctx == nil {
 		return MEDIA_FLAG_NONE
 	}
-	flags := MEDIA_FLAG_DECODER
+
 	//	TODO
 	//if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
 	//		flags |= MEDIA_FLAG_FILE
 	//	}
+
+	// Add flags from stream
 	for _, stream := range media.Streams() {
 		flags |= stream.Flags()
 	}
 
-	// TODO: Add other flags with likely media file type
-	/*metadata := m.Metadata()
+	// Add other flags with likely media file type
+	metadata := media.Metadata()
 	if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
 		flags |= MEDIA_FLAG_ALBUM
 	}
@@ -168,6 +171,9 @@ func (media *input) Flags() MediaFlag {
 		if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
 			flags |= MEDIA_FLAG_ALBUM_COMPILATION
 		}
-	}*/
+	}
+	// TODO: Flags for TV episode, etc.
+
+	// Return flags
 	return flags
 }

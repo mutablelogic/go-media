@@ -79,8 +79,11 @@ func main() {
 
 	// Demux the media
 	if err := manager.Demux(ctx, media_map, func(_ context.Context, packet Packet) error {
-		fmt.Println("Demuxed packet", packet)
-		return manager.Decode(ctx, media_map, packet)
+		fmt.Println("Packet", packet)
+		return manager.Decode(ctx, media_map, packet, func(_ context.Context, frame Frame) error {
+			fmt.Println("  Frame", frame)
+			return nil
+		})
 	}); err != nil && err != context.Canceled {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)

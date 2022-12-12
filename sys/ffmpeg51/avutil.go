@@ -1,5 +1,10 @@
 package ffmpeg
 
+import (
+	"fmt"
+	"unsafe"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -66,6 +71,7 @@ type (
 	AVRounding        C.enum_AVRounding
 	AVMediaType       C.enum_AVMediaType
 	AVFrame           C.struct_AVFrame
+	AVPictureType     C.enum_AVPictureType
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,8 +212,42 @@ const (
 	AVMEDIA_TYPE_ATTACHMENT AVMediaType = C.AVMEDIA_TYPE_ATTACHMENT ///< Opaque data information usually sparse
 )
 
+const (
+	AV_PICTURE_TYPE_NONE AVPictureType = C.AV_PICTURE_TYPE_NONE ///< Undefined
+	AV_PICTURE_TYPE_I    AVPictureType = C.AV_PICTURE_TYPE_I    ///< Intra
+	AV_PICTURE_TYPE_P    AVPictureType = C.AV_PICTURE_TYPE_P    ///< Predicted
+	AV_PICTURE_TYPE_B    AVPictureType = C.AV_PICTURE_TYPE_B    ///< Bi-dir predicted
+	AV_PICTURE_TYPE_S    AVPictureType = C.AV_PICTURE_TYPE_S    ///< S(GMC)-VOP MPEG-4
+	AV_PICTURE_TYPE_SI   AVPictureType = C.AV_PICTURE_TYPE_SI   ///< Switching Intra
+	AV_PICTURE_TYPE_SP   AVPictureType = C.AV_PICTURE_TYPE_SP   ///< Switching Predicted
+	AV_PICTURE_TYPE_BI   AVPictureType = C.AV_PICTURE_TYPE_BI   ///< BI type
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (v AVPictureType) String() string {
+	switch v {
+	case AV_PICTURE_TYPE_NONE:
+		return "AV_PICTURE_TYPE_NONE"
+	case AV_PICTURE_TYPE_I:
+		return "AV_PICTURE_TYPE_I"
+	case AV_PICTURE_TYPE_P:
+		return "AV_PICTURE_TYPE_P"
+	case AV_PICTURE_TYPE_B:
+		return "AV_PICTURE_TYPE_B"
+	case AV_PICTURE_TYPE_S:
+		return "AV_PICTURE_TYPE_S"
+	case AV_PICTURE_TYPE_SI:
+		return "AV_PICTURE_TYPE_SI"
+	case AV_PICTURE_TYPE_SP:
+		return "AV_PICTURE_TYPE_SP"
+	case AV_PICTURE_TYPE_BI:
+		return "AV_PICTURE_TYPE_BI"
+	default:
+		return "[?? Invalid AVPictureType value]"
+	}
+}
 
 func (v AVMediaType) String() string {
 	switch v {
@@ -379,3 +419,185 @@ func (v AVChannel) String() string {
 		return "[?? Invalid AVChannel value]"
 	}
 }
+
+func (f *AVFrame) String() string {
+	str := "<AVFrame"
+	if sample_fmt := f.SampleFormat(); sample_fmt != AV_SAMPLE_FMT_NONE {
+		str += fmt.Sprint(" sample_format=", sample_fmt)
+		if sample_rate := f.SampleRate(); sample_rate > 0 {
+			str += fmt.Sprint(" sample_rate=", sample_rate)
+		}
+		if c := f.Channels(); c > 0 {
+			str += fmt.Sprint(" channels=", c)
+		}
+		if n := f.NumSamples(); n > 0 {
+			str += fmt.Sprint(" nb_samples=", n)
+		}
+	}
+	if pix_fmt := f.PixelFormat(); pix_fmt != AV_PIX_FMT_NONE {
+		str += fmt.Sprint(" pixel_format=", pix_fmt)
+		if w, h := f.Width(), f.Height(); w >= 0 && h >= 0 {
+			str += fmt.Sprint(" size={", w, ",", h, "}")
+		}
+		if pict_type := f.PictType(); pict_type != AV_PICTURE_TYPE_NONE {
+			str += fmt.Sprint(" pict_type=", pict_type)
+		}
+		if f.IsKeyFrame() {
+			str += " key_frame"
+		}
+		if f.IsInterlaced() {
+			str += " interlaced"
+		}
+	}
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ACCESSORS - FRAME
+
+func (f *AVFrame) Data(ch int) *byte {
+	return (*byte)(unsafe.Pointer(f.data[ch]))
+}
+
+func (f *AVFrame) LineSize(ch int) int {
+	return int(f.linesize[ch])
+}
+
+func (f *AVFrame) NumSamples() int {
+	return int(f.nb_samples)
+}
+
+func (f *AVFrame) SampleRate() int {
+	return int(f.sample_rate)
+}
+
+func (f *AVFrame) PixelFormat() AVPixelFormat {
+	if f.format == -1 {
+		return AV_PIX_FMT_NONE
+	} else if f.channels != 0 {
+		return AV_PIX_FMT_NONE
+	} else {
+		return AVPixelFormat(f.format)
+	}
+}
+
+func (f *AVFrame) SampleFormat() AVSampleFormat {
+	if f.format == -1 {
+		return AV_SAMPLE_FMT_NONE
+	} else if f.channels == 0 {
+		return AV_SAMPLE_FMT_NONE
+	} else {
+		return AVSampleFormat(f.format)
+	}
+}
+
+func (f *AVFrame) PictType() AVPictureType {
+	return AVPictureType(f.pict_type)
+}
+
+func (f *AVFrame) ChannelLayout() AVChannelLayout {
+	return AVChannelLayout(f.ch_layout)
+}
+
+func (f *AVFrame) Channels() int {
+	return int(f.channels)
+}
+
+func (f *AVFrame) IsPlanar() bool {
+	if fmt := f.SampleFormat(); fmt == AV_SAMPLE_FMT_NONE {
+		return false
+	} else {
+		return AVUtil_av_sample_fmt_is_planar(fmt)
+	}
+}
+
+func (f *AVFrame) IsInterlaced() bool {
+	return intToBool(int(f.interlaced_frame))
+}
+
+func (f *AVFrame) IsKeyFrame() bool {
+	return intToBool(int(f.key_frame))
+}
+
+func (f *AVFrame) Width() int {
+	return int(f.width)
+}
+
+func (f *AVFrame) Height() int {
+	return int(f.height)
+}
+
+/*
+
+func (this *AVFrame) PictType() AVPictureType {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return AVPictureType(ctx.pict_type)
+}
+
+func (this *AVFrame) PictWidth() int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.width)
+}
+
+func (this *AVFrame) PictHeight() int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.height)
+}
+
+func (this *AVFrame) Buffer(plane int) *AVBufferRef {
+	ctx := (*C.AVFrame)(this)
+	if buf := (C.av_frame_get_plane_buffer(ctx, C.int(plane))); buf == nil {
+		return nil
+	} else {
+		return (*AVBufferRef)(buf)
+	}
+}
+
+func (this *AVFrame) StrideForPlane(i int) int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.linesize[i])
+}
+
+func (this *AVFrame) GetAudioBuffer(num_samples int) error {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+
+	ctx.nb_samples = C.int(num_samples)
+	if err := AVError(C.av_frame_get_buffer(ctx, 0)); err != 0 {
+		return err
+	} else {
+		return nil
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVBufferRef
+
+func (this *AVBufferRef) Data() []byte {
+	var bytes []byte
+
+	ctx := (*C.AVBufferRef)(this)
+	if ctx.data == nil {
+		return nil
+	}
+	sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&bytes)))
+	sliceHeader.Cap = int(ctx.size)
+	sliceHeader.Len = int(ctx.size)
+	sliceHeader.Data = uintptr(unsafe.Pointer(ctx.data))
+	return bytes
+}
+
+func (this *AVBufferRef) Size() int {
+	ctx := (*C.AVBufferRef)(this)
+	return int(ctx.size)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (this *AVBufferRef) String() string {
+	str := "<AVBufferRef"
+	str += " size=" + fmt.Sprint(this.Size())
+	return str + ">"
+}
+
+*/

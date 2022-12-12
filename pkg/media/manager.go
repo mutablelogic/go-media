@@ -3,7 +3,6 @@ package media
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"syscall"
@@ -106,7 +105,7 @@ func (manager *manager) SetDebug(debug bool) {
 }
 
 // Demux packets from a media file
-func (manager *manager) Demux(ctx context.Context, media_map Map, fn DecodeFn) error {
+func (manager *manager) Demux(ctx context.Context, media_map Map, fn DemuxFn) error {
 	var result error
 
 	// Get input
@@ -153,7 +152,7 @@ FOR_LOOP:
 }
 
 // Decode packets into frames
-func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet) error {
+func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn DecodeFn) error {
 	stream := p.(*packet).StreamIndex()
 	decoder := media_map.(*decodemap).context[stream]
 	if decoder == nil || decoder.ctx == nil || decoder.frame == nil {
@@ -162,21 +161,25 @@ func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet) err
 
 	// Iterate through frames
 	var result error
-	for {
-		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame)
-		if err == nil {
-			// a frame was returned
-			fmt.Println(" FRAME")
-			ffmpeg.AVFrame_unref(decoder.frame)
-		} else if errors.Is(err, syscall.EINVAL) {
-			// the codec has been fully flushed, and there will be no more output frames
-			break
-		} else if errors.Is(err, syscall.EAGAIN) {
-			// output is not available in this state - user must try to send new input
-			break
-		} else {
+	for result == nil {
+		// Receive frames from the packet
+		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame.ctx)
+		if err != nil {
+			if errors.Is(err, syscall.EINVAL) {
+				// the codec has been fully flushed, and there will be no more output frames
+				break
+			} else if errors.Is(err, syscall.EAGAIN) {
+				// output is not available in this state - user must try to send new input
+				break
+			}
+		} else if fn != nil {
+			err = fn(ctx, decoder.frame)
+		}
+		decoder.frame.Release()
+
+		// Return any errors
+		if err != nil {
 			result = multierror.Append(result, err)
-			break
 		}
 	}
 
