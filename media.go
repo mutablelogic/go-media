@@ -135,7 +135,7 @@ type Packet interface {
 // Frame is a decoded video or audio frame
 type Frame interface {
 	AudioFrame
-	//VideoFrame
+	VideoFrame
 
 	// Returns MEDIA_FLAG_VIDEO or MEDIA_FLAG_AUDIO
 	Flags() MediaFlag
@@ -164,7 +164,10 @@ type AudioFrame interface {
 
 type VideoFrame interface {
 	// Returns the audio format, if MEDIA_FLAG_VIDEO is set
-	//PixelFormat() PixelFormat
+	PixelFormat() PixelFormat
+
+	// Return frame width and height, if MEDIA_FLAG_VIDEO is set
+	Size() (int, int)
 }
 
 // Codec is an encoder or decoder for a specific media type

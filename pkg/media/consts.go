@@ -34,6 +34,15 @@ func fromSampleFormat(v ffmpeg.AVSampleFormat) SampleFormat {
 	}
 }
 
+func fromChannelLayout(v ffmpeg.AVChannelLayout) ChannelLayout {
+	for layout := ChannelLayout(1); layout <= CHANNEL_LAYOUT_MAX; layout++ {
+		if toChannelLayout(layout) == v {
+			return layout
+		}
+	}
+	return CHANNEL_LAYOUT_NONE
+}
+
 func toChannelLayout(v ChannelLayout) ffmpeg.AVChannelLayout {
 	switch v {
 	case CHANNEL_LAYOUT_MONO:

@@ -94,6 +94,6 @@ func (decoder *decoder) Close() error {
 	decoder.stream = nil
 	decoder.codec = nil
 
-	// Return success
-	return nil
+	// Return any errors
+	return result
 }

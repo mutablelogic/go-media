@@ -75,6 +75,14 @@ func (frame *frame) String() string {
 			str += fmt.Sprint(" duration=", duration)
 		}
 	}
+	if flags.Is(MEDIA_FLAG_VIDEO) {
+		if pixel_format := frame.PixelFormat(); pixel_format != PIXEL_FORMAT_NONE {
+			str += fmt.Sprint(" format=", pixel_format)
+		}
+		if width, height := frame.Size(); width > 0 && height > 0 {
+			str += fmt.Sprint(" size={", width, ",", height, "}")
+		}
+	}
 	return str + ">"
 }
 
@@ -114,6 +122,7 @@ func (frame *frame) AudioFormat() AudioFormat {
 	return AudioFormat{
 		Rate:   uint(frame.ctx.SampleRate()),
 		Format: fromSampleFormat(frame.ctx.SampleFormat()),
+		Layout: fromChannelLayout(frame.ctx.ChannelLayout()),
 	}
 }
 
@@ -140,4 +149,23 @@ func (frame *frame) Duration() time.Duration {
 		return 0
 	}
 	return time.Second * time.Duration(frame.ctx.NumSamples()) / time.Duration(frame.ctx.SampleRate())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS: VideoFrame
+
+// Returns the pixel format, if MEDIA_FLAG_VIDEO is set
+func (frame *frame) PixelFormat() PixelFormat {
+	if frame.ctx == nil || frame.ctx.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
+		return PIXEL_FORMAT_NONE
+	}
+	return toPixelFormat(frame.ctx.PixelFormat())
+}
+
+// Return width and height of the frame, if MEDIA_FLAG_VIDEO is set
+func (frame *frame) Size() (int, int) {
+	if frame.ctx == nil || frame.ctx.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
+		return 0, 0
+	}
+	return frame.ctx.Width(), frame.ctx.Height()
 }

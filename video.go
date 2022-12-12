@@ -1,0 +1,7 @@
+package media
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// PixelFormat specifies the encoding of pixel within a frame
+type PixelFormat uint
