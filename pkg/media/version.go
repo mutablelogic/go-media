@@ -16,5 +16,5 @@ func PrintVersion(w io.Writer) {
 }
 
 func PrintVersionLib(w io.Writer, name string, version uint) {
-	fmt.Printf("  %10s: %d.%d.%d\n", name, version>>16, version>>8&0xFF, version&0xFF)
+	fmt.Printf("  %-10s %d.%d.%d\n", name+":", version>>16, version>>8&0xFF, version&0xFF)
 }

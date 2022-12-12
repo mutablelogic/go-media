@@ -13,6 +13,7 @@ import (
 	"os/signal"
 
 	// Packages
+	config "github.com/mutablelogic/go-media/pkg/config"
 	media "github.com/mutablelogic/go-media/pkg/media"
 
 	// Namespace imports
@@ -20,6 +21,7 @@ import (
 )
 
 var (
+	flagVersion  = flag.Bool("version", false, "Print version information")
 	flagDebug    = flag.Bool("debug", false, "Enable debug output")
 	flagOut      = flag.String("out", "", "Output directory for artwork")
 	flagAudio    = flag.Bool("audio", false, "Extract audio")
@@ -28,8 +30,16 @@ var (
 )
 
 func main() {
-	// Check arguments
 	flag.Parse()
+
+	// Check for version
+	if *flagVersion {
+		config.PrintVersion(flag.CommandLine.Output())
+		media.PrintVersion(flag.CommandLine.Output())
+		os.Exit(0)
+	}
+
+	// Check arguments
 	if flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(-1)

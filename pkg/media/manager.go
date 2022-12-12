@@ -164,21 +164,14 @@ func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn 
 	for result == nil {
 		// Receive frames from the packet
 		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame.ctx)
-		if err != nil {
-			if errors.Is(err, syscall.EINVAL) {
-				// the codec has been fully flushed, and there will be no more output frames
-				break
-			} else if errors.Is(err, syscall.EAGAIN) {
-				// output is not available in this state - user must try to send new input
-				break
-			}
-		} else if fn != nil {
+		if err == nil {
 			err = fn(ctx, decoder.frame)
 		}
 		decoder.frame.Release()
-
-		// Return any errors
-		if err != nil {
+		if errors.Is(err, syscall.EAGAIN) {
+			// Output is not available in this state - user must try to send new input
+			break
+		} else if err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
