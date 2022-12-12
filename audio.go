@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -29,7 +30,7 @@ type AudioFormat struct {
 	Layout ChannelLayout
 }
 
-// SWResampleConvert is a function that accepts an "output" audio frame,
+// SWResampleFn is a function that accepts an "output" audio frame,
 // which can be nil if the conversion has not started yet, and should
 // fill the audio frame provided to the Convert function. Should return
 // io.EOF on end of conversion, or any other error to stop the conversion.
@@ -40,6 +41,8 @@ type SWResampleFn func(AudioFrame) error
 
 // AudioFrame is a slice of audio samples
 type AudioFrame interface {
+	io.Closer
+
 	// Audio format
 	AudioFormat() AudioFormat
 
@@ -63,6 +66,8 @@ type AudioFrame interface {
 // SWResample is an interface to the ffmpeg swresample library
 // which resamples audio.
 type SWResample interface {
+	io.Closer
+
 	// Create a new empty context object for conversion, with an input frame which
 	// will be used to store the data and the target output format.
 	Convert(AudioFrame, AudioFormat, SWResampleFn) error
@@ -123,6 +128,41 @@ const (
 	CHANNEL_LAYOUT_MAX = CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER
 )
 
+const (
+	CHANNEL_NONE AudioChannel = iota
+	CHANNEL_FRONT_LEFT
+	CHANNEL_FRONT_RIGHT
+	CHANNEL_FRONT_CENTER
+	CHANNEL_LOW_FREQUENCY
+	CHANNEL_BACK_LEFT
+	CHANNEL_BACK_RIGHT
+	CHANNEL_FRONT_LEFT_OF_CENTER
+	CHANNEL_FRONT_RIGHT_OF_CENTER
+	CHANNEL_BACK_CENTER
+	CHANNEL_SIDE_LEFT
+	CHANNEL_SIDE_RIGHT
+	CHANNEL_TOP_CENTER
+	CHANNEL_TOP_FRONT_LEFT
+	CHANNEL_TOP_FRONT_CENTER
+	CHANNEL_TOP_FRONT_RIGHT
+	CHANNEL_TOP_BACK_LEFT
+	CHANNEL_TOP_BACK_CENTER
+	CHANNEL_TOP_BACK_RIGHT
+	CHANNEL_STEREO_LEFT
+	CHANNEL_STEREO_RIGHT
+	CHANNEL_WIDE_LEFT
+	CHANNEL_WIDE_RIGHT
+	CHANNEL_SURROUND_DIRECT_LEFT
+	CHANNEL_SURROUND_DIRECT_RIGHT
+	CHANNEL_LOW_FREQUENCY_2
+	CHANNEL_TOP_SIDE_LEFT
+	CHANNEL_TOP_SIDE_RIGHT
+	CHANNEL_BOTTOM_FRONT_CENTER
+	CHANNEL_BOTTOM_FRONT_LEFT
+	CHANNEL_BOTTOM_FRONT_RIGHT
+	CHANNEL_MAX = CHANNEL_BOTTOM_FRONT_RIGHT
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -138,6 +178,75 @@ func (v AudioFormat) String() string {
 		str += fmt.Sprint(" layout=", v.Layout)
 	}
 	return str + ">"
+}
+
+func (v AudioChannel) String() string {
+	switch v {
+	case CHANNEL_NONE:
+		return "CHANNEL_NONE"
+	case CHANNEL_FRONT_LEFT:
+		return "CHANNEL_FRONT_LEFT"
+	case CHANNEL_FRONT_RIGHT:
+		return "CHANNEL_FRONT_RIGHT"
+	case CHANNEL_FRONT_CENTER:
+		return "CHANNEL_FRONT_CENTER"
+	case CHANNEL_LOW_FREQUENCY:
+		return "CHANNEL_LOW_FREQUENCY"
+	case CHANNEL_BACK_LEFT:
+		return "CHANNEL_BACK_LEFT"
+	case CHANNEL_BACK_RIGHT:
+		return "CHANNEL_BACK_RIGHT"
+	case CHANNEL_FRONT_LEFT_OF_CENTER:
+		return "CHANNEL_FRONT_LEFT_OF_CENTER"
+	case CHANNEL_FRONT_RIGHT_OF_CENTER:
+		return "CHANNEL_FRONT_RIGHT_OF_CENTER"
+	case CHANNEL_BACK_CENTER:
+		return "CHANNEL_BACK_CENTER"
+	case CHANNEL_SIDE_LEFT:
+		return "CHANNEL_SIDE_LEFT"
+	case CHANNEL_SIDE_RIGHT:
+		return "CHANNEL_SIDE_RIGHT"
+	case CHANNEL_TOP_CENTER:
+		return "CHANNEL_TOP_CENTER"
+	case CHANNEL_TOP_FRONT_LEFT:
+		return "CHANNEL_TOP_FRONT_LEFT"
+	case CHANNEL_TOP_FRONT_CENTER:
+		return "CHANNEL_TOP_FRONT_CENTER"
+	case CHANNEL_TOP_FRONT_RIGHT:
+		return "CHANNEL_TOP_FRONT_RIGHT"
+	case CHANNEL_TOP_BACK_LEFT:
+		return "CHANNEL_TOP_BACK_LEFT"
+	case CHANNEL_TOP_BACK_CENTER:
+		return "CHANNEL_TOP_BACK_CENTER"
+	case CHANNEL_TOP_BACK_RIGHT:
+		return "CHANNEL_TOP_BACK_RIGHT"
+	case CHANNEL_STEREO_LEFT:
+		return "CHANNEL_STEREO_LEFT"
+	case CHANNEL_STEREO_RIGHT:
+		return "CHANNEL_STEREO_RIGHT"
+	case CHANNEL_WIDE_LEFT:
+		return "CHANNEL_WIDE_LEFT"
+	case CHANNEL_WIDE_RIGHT:
+		return "CHANNEL_WIDE_RIGHT"
+	case CHANNEL_SURROUND_DIRECT_LEFT:
+		return "CHANNEL_SURROUND_DIRECT_LEFT"
+	case CHANNEL_SURROUND_DIRECT_RIGHT:
+		return "CHANNEL_SURROUND_DIRECT_RIGHT"
+	case CHANNEL_LOW_FREQUENCY_2:
+		return "CHANNEL_LOW_FREQUENCY_2"
+	case CHANNEL_TOP_SIDE_LEFT:
+		return "CHANNEL_TOP_SIDE_LEFT"
+	case CHANNEL_TOP_SIDE_RIGHT:
+		return "CHANNEL_TOP_SIDE_RIGHT"
+	case CHANNEL_BOTTOM_FRONT_CENTER:
+		return "CHANNEL_BOTTOM_FRONT_CENTER"
+	case CHANNEL_BOTTOM_FRONT_LEFT:
+		return "CHANNEL_BOTTOM_FRONT_LEFT"
+	case CHANNEL_BOTTOM_FRONT_RIGHT:
+		return "CHANNEL_BOTTOM_FRONT_RIGHT"
+	default:
+		return "[?? Invalid AudioChannel value]"
+	}
 }
 
 func (v SampleFormat) String() string {

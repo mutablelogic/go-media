@@ -5,6 +5,11 @@ import (
 
 	// Pacakge imports
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
+	"github.com/stretchr/testify/assert"
+)
+
+const (
+	SAMPLE_MP4 = "../../etc/sample.mp4"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,4 +47,16 @@ func Test_avformat_004(t *testing.T) {
 		}
 		t.Log("demuxer=", format)
 	}
+}
+
+func Test_avformat_005(t *testing.T) {
+	assert := assert.New(t)
+	var ctx *ffmpeg.AVFormatContext
+	var dict *ffmpeg.AVDictionary
+	err := ffmpeg.AVFormat_open_input(&ctx, SAMPLE_MP4, nil, &dict)
+	assert.NoError(err)
+	assert.NotNil(ctx)
+	t.Log(ctx, dict)
+	ffmpeg.AVFormat_close_input(&ctx)
+	assert.Nil(ctx)
 }

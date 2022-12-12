@@ -1,5 +1,10 @@
 package ffmpeg
 
+import (
+	"fmt"
+	"unsafe"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -45,6 +50,9 @@ AVChannelLayout _AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER = AV_CHANNEL_LAYOUT_AMB
 */
 import "C"
 
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
 type (
 	AVError           C.int
 	AVClass           C.struct_AVClass
@@ -52,17 +60,18 @@ type (
 	AVLogCallback     func(AVLogLevel, string, uintptr)
 	AVDictionaryEntry C.struct_AVDictionaryEntry
 	AVDictionaryFlag  int
-	AVDictionary      struct {
-		ctx *C.struct_AVDictionary
-	}
-	AVRational      C.struct_AVRational
-	AVSampleFormat  C.enum_AVSampleFormat
-	AVChannelOrder  C.enum_AVChannelOrder
-	AVChannelCustom C.struct_AVChannelCustom
-	AVChannel       C.enum_AVChannel
-	AVChannelLayout C.struct_AVChannelLayout
-	AVPixelFormat   C.enum_AVPixelFormat
-	AVRounding      C.enum_AVRounding
+	AVDictionary      C.struct_AVDictionary
+	AVRational        C.struct_AVRational
+	AVSampleFormat    C.enum_AVSampleFormat
+	AVChannelOrder    C.enum_AVChannelOrder
+	AVChannelCustom   C.struct_AVChannelCustom
+	AVChannel         C.enum_AVChannel
+	AVChannelLayout   C.struct_AVChannelLayout
+	AVPixelFormat     C.enum_AVPixelFormat
+	AVRounding        C.enum_AVRounding
+	AVMediaType       C.enum_AVMediaType
+	AVFrame           C.struct_AVFrame
+	AVPictureType     C.enum_AVPictureType
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,198 +161,6 @@ const (
 	AV_CHAN_AMBISONIC_END         AVChannel = C.AV_CHAN_AMBISONIC_END
 )
 
-const (
-	AV_PIX_FMT_YUV420P        AVPixelFormat = C.AV_PIX_FMT_YUV420P        // planar YUV 4:2:0, 12bpp, (1 Cr & Cb sample per 2x2 Y samples)
-	AV_PIX_FMT_YUYV422        AVPixelFormat = C.AV_PIX_FMT_YUYV422        // packed YUV 4:2:2, 16bpp, Y0 Cb Y1 Cr
-	AV_PIX_FMT_RGB24          AVPixelFormat = C.AV_PIX_FMT_RGB24          // packed RGB 8:8:8, 24bpp, RGBRGB...
-	AV_PIX_FMT_BGR24          AVPixelFormat = C.AV_PIX_FMT_BGR24          // packed RGB 8:8:8, 24bpp, BGRBGR...
-	AV_PIX_FMT_YUV422P        AVPixelFormat = C.AV_PIX_FMT_YUV422P        // planar YUV 4:2:2, 16bpp, (1 Cr & Cb sample per 2x1 Y samples)
-	AV_PIX_FMT_YUV444P        AVPixelFormat = C.AV_PIX_FMT_YUV444P        // planar YUV 4:4:4, 24bpp, (1 Cr & Cb sample per 1x1 Y samples)
-	AV_PIX_FMT_YUV410P        AVPixelFormat = C.AV_PIX_FMT_YUV410P        // planar YUV 4:1:0, 9bpp, (1 Cr & Cb sample per 4x4 Y samples)
-	AV_PIX_FMT_YUV411P        AVPixelFormat = C.AV_PIX_FMT_YUV411P        // planar YUV 4:1:1, 12bpp, (1 Cr & Cb sample per 4x1 Y samples)
-	AV_PIX_FMT_GRAY8          AVPixelFormat = C.AV_PIX_FMT_GRAY8          // 8bpp.
-	AV_PIX_FMT_MONOWHITE      AVPixelFormat = C.AV_PIX_FMT_MONOWHITE      // 1bpp, 0 is white, 1 is black, in each byte pixels are ordered from the msb to the lsb.
-	AV_PIX_FMT_MONOBLACK      AVPixelFormat = C.AV_PIX_FMT_MONOBLACK      // 1bpp, 0 is black, 1 is white, in each byte pixels are ordered from the msb to the lsb.
-	AV_PIX_FMT_PAL8           AVPixelFormat = C.AV_PIX_FMT_PAL8           // 8 bits with AV_PIX_FMT_RGB32alette
-	AV_PIX_FMT_YUVJ420P       AVPixelFormat = C.AV_PIX_FMT_YUVJ420P       // planar YUV 4:2:0, 12bpp, full scale (JPEG), deprecated in favor of AV_PIX_FMT_YUV420P and setting color_range
-	AV_PIX_FMT_YUVJ422P       AVPixelFormat = C.AV_PIX_FMT_YUVJ422P       // planar YUV 4:2:2, 16bpp, full scale (JPEG), deprecated in favor of AV_PIX_FMT_YUV422P and setting color_range
-	AV_PIX_FMT_YUVJ444P       AVPixelFormat = C.AV_PIX_FMT_YUVJ444P       // planar YUV 4:4:4, 24bpp, full scale (JPEG), deprecated in favor of AV_PIX_FMT_YUV444P and setting color_range
-	AV_PIX_FMT_UYVY422        AVPixelFormat = C.AV_PIX_FMT_UYVY422        // packed YUV 4:2:2, 16bpp, Cb Y0 Cr Y1
-	AV_PIX_FMT_UYYVYY411      AVPixelFormat = C.AV_PIX_FMT_UYYVYY411      // packed YUV 4:1:1, 12bpp, Cb Y0 Y1 Cr Y2 Y3
-	AV_PIX_FMT_BGR8           AVPixelFormat = C.AV_PIX_FMT_BGR8           // packed RGB 3:3:2, 8bpp, (msb)2B 3G 3R(lsb)
-	AV_PIX_FMT_BGR4           AVPixelFormat = C.AV_PIX_FMT_BGR4           // packed RGB 1:2:1 bitstream, 4bpp, (msb)1B 2G 1R(lsb), a byte contains two pixels, the first pixel in the byte is the one composed by the 4 msb bits
-	AV_PIX_FMT_BGR4_BYTE      AVPixelFormat = C.AV_PIX_FMT_BGR4_BYTE      // packed RGB 1:2:1, 8bpp, (msb)1B 2G 1R(lsb)
-	AV_PIX_FMT_RGB8           AVPixelFormat = C.AV_PIX_FMT_RGB8           // packed RGB 3:3:2, 8bpp, (msb)2R 3G 3B(lsb)
-	AV_PIX_FMT_RGB4           AVPixelFormat = C.AV_PIX_FMT_RGB4           // packed RGB 1:2:1 bitstream, 4bpp, (msb)1R 2G 1B(lsb), a byte contains two pixels, the first pixel in the byte is the one composed by the 4 msb bits
-	AV_PIX_FMT_RGB4_BYTE      AVPixelFormat = C.AV_PIX_FMT_RGB4_BYTE      // packed RGB 1:2:1, 8bpp, (msb)1R 2G 1B(lsb)
-	AV_PIX_FMT_NV12           AVPixelFormat = C.AV_PIX_FMT_NV12           // planar YUV 4:2:0, 12bpp, 1 plane for Y and 1 plane for the UV components, which are interleaved (first byte U and the following byte V)
-	AV_PIX_FMT_NV21           AVPixelFormat = C.AV_PIX_FMT_NV21           // as above, but U and V bytes are swapped
-	AV_PIX_FMT_ARGB           AVPixelFormat = C.AV_PIX_FMT_ARGB           // packed ARGB 8:8:8:8, 32bpp, ARGBARGB...
-	AV_PIX_FMT_RGBA           AVPixelFormat = C.AV_PIX_FMT_RGBA           // packed RGBA 8:8:8:8, 32bpp, RGBARGBA...
-	AV_PIX_FMT_ABGR           AVPixelFormat = C.AV_PIX_FMT_ABGR           // packed ABGR 8:8:8:8, 32bpp, ABGRABGR...
-	AV_PIX_FMT_BGRA           AVPixelFormat = C.AV_PIX_FMT_BGRA           // packed BGRA 8:8:8:8, 32bpp, BGRABGRA...
-	AV_PIX_FMT_GRAY16BE       AVPixelFormat = C.AV_PIX_FMT_GRAY16BE       // 16bpp, big-endian.
-	AV_PIX_FMT_GRAY16LE       AVPixelFormat = C.AV_PIX_FMT_GRAY16LE       // 16bpp, little-endian.
-	AV_PIX_FMT_YUV440P        AVPixelFormat = C.AV_PIX_FMT_YUV440P        // planar YUV 4:4:0 (1 Cr & Cb sample per 1x2 Y samples)
-	AV_PIX_FMT_YUVJ440P       AVPixelFormat = C.AV_PIX_FMT_YUVJ440P       // planar YUV 4:4:0 full scale (JPEG), deprecated in favor of AV_PIX_FMT_YUV440P  and setting color_range
-	AV_PIX_FMT_YUVA420P       AVPixelFormat = C.AV_PIX_FMT_YUVA420P       // planar YUV 4:2:0, 20bpp, (1 Cr & Cb sample per 2x2 Y & A samples)
-	AV_PIX_FMT_RGB48BE        AVPixelFormat = C.AV_PIX_FMT_RGB48BE        // packed RGB 16:16:16, 48bpp, 16R, 16G, 16B, the 2-byte value for each R/G/B component is stored as big-endian
-	AV_PIX_FMT_RGB48LE        AVPixelFormat = C.AV_PIX_FMT_RGB48LE        // packed RGB 16:16:16, 48bpp, 16R, 16G, 16B, the 2-byte value for each R/G/B component is stored as little-endian
-	AV_PIX_FMT_RGB565BE       AVPixelFormat = C.AV_PIX_FMT_RGB565BE       // packed RGB 5:6:5, 16bpp, (msb) 5R 6G 5B(lsb), big-endian
-	AV_PIX_FMT_RGB565LE       AVPixelFormat = C.AV_PIX_FMT_RGB565LE       // packed RGB 5:6:5, 16bpp, (msb) 5R 6G 5B(lsb), little-endian
-	AV_PIX_FMT_RGB555BE       AVPixelFormat = C.AV_PIX_FMT_RGB555BE       // packed RGB 5:5:5, 16bpp, (msb)1X 5R 5G 5B(lsb), big-endian , X=unused/undefined
-	AV_PIX_FMT_RGB555LE       AVPixelFormat = C.AV_PIX_FMT_RGB555LE       // packed RGB 5:5:5, 16bpp, (msb)1X 5R 5G 5B(lsb), little-endian, X=unused/undefined
-	AV_PIX_FMT_BGR565BE       AVPixelFormat = C.AV_PIX_FMT_BGR565BE       // packed BGR 5:6:5, 16bpp, (msb) 5B 6G 5R(lsb), big-endian
-	AV_PIX_FMT_BGR565LE       AVPixelFormat = C.AV_PIX_FMT_BGR565LE       // packed BGR 5:6:5, 16bpp, (msb) 5B 6G 5R(lsb), little-endian
-	AV_PIX_FMT_BGR555BE       AVPixelFormat = C.AV_PIX_FMT_BGR555BE       // packed BGR 5:5:5, 16bpp, (msb)1X 5B 5G 5R(lsb), big-endian , X=unused/undefined
-	AV_PIX_FMT_BGR555LE       AVPixelFormat = C.AV_PIX_FMT_BGR555LE       // packed BGR 5:5:5, 16bpp, (msb)1X 5B 5G 5R(lsb), little-endian, X=unused/undefined
-	AV_PIX_FMT_VAAPI          AVPixelFormat = C.AV_PIX_FMT_VAAPI          //
-	AV_PIX_FMT_YUV420P16LE    AVPixelFormat = C.AV_PIX_FMT_YUV420P16LE    // planar YUV 4:2:0, 24bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian
-	AV_PIX_FMT_YUV420P16BE    AVPixelFormat = C.AV_PIX_FMT_YUV420P16BE    // planar YUV 4:2:0, 24bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian
-	AV_PIX_FMT_YUV422P16LE    AVPixelFormat = C.AV_PIX_FMT_YUV422P16LE    // planar YUV 4:2:2, 32bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_YUV422P16BE    AVPixelFormat = C.AV_PIX_FMT_YUV422P16BE    // planar YUV 4:2:2, 32bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_YUV444P16LE    AVPixelFormat = C.AV_PIX_FMT_YUV444P16LE    // planar YUV 4:4:4, 48bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian
-	AV_PIX_FMT_YUV444P16BE    AVPixelFormat = C.AV_PIX_FMT_YUV444P16BE    // planar YUV 4:4:4, 48bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian
-	AV_PIX_FMT_DXVA2_VLD      AVPixelFormat = C.AV_PIX_FMT_DXVA2_VLD      // HW decoding through DXVA2, Picture.data[3] contains a LPDIRECT3DSURFACE9 pointer.
-	AV_PIX_FMT_RGB444LE       AVPixelFormat = C.AV_PIX_FMT_RGB444LE       // packed RGB 4:4:4, 16bpp, (msb)4X 4R 4G 4B(lsb), little-endian, X=unused/undefined
-	AV_PIX_FMT_RGB444BE       AVPixelFormat = C.AV_PIX_FMT_RGB444BE       // packed RGB 4:4:4, 16bpp, (msb)4X 4R 4G 4B(lsb), big-endian, X=unused/undefined
-	AV_PIX_FMT_BGR444LE       AVPixelFormat = C.AV_PIX_FMT_BGR444LE       // packed BGR 4:4:4, 16bpp, (msb)4X 4B 4G 4R(lsb), little-endian, X=unused/undefined
-	AV_PIX_FMT_BGR444BE       AVPixelFormat = C.AV_PIX_FMT_BGR444BE       // packed BGR 4:4:4, 16bpp, (msb)4X 4B 4G 4R(lsb), big-endian, X=unused/undefined
-	AV_PIX_FMT_YA8            AVPixelFormat = C.AV_PIX_FMT_YA8            // 8 bits gray, 8 bits alpha
-	AV_PIX_FMT_Y400A          AVPixelFormat = C.AV_PIX_FMT_Y400A          // alias for AV_PIX_FMT_YA8
-	AV_PIX_FMT_GRAY8A         AVPixelFormat = C.AV_PIX_FMT_GRAY8A         // alias for AV_PIX_FMT_YA8
-	AV_PIX_FMT_BGR48BE        AVPixelFormat = C.AV_PIX_FMT_BGR48BE        // packed RGB 16:16:16, 48bpp, 16B, 16G, 16R, the 2-byte value for each R/G/B component is stored as big-endian
-	AV_PIX_FMT_BGR48LE        AVPixelFormat = C.AV_PIX_FMT_BGR48LE        // packed RGB 16:16:16, 48bpp, 16B, 16G, 16R, the 2-byte value for each R/G/B component is stored as little-endian
-	AV_PIX_FMT_YUV420P9BE     AVPixelFormat = C.AV_PIX_FMT_YUV420P9BE     // The following 12 formats have the disadvantage of needing 1 format for each bit depth.
-	AV_PIX_FMT_YUV420P9LE     AVPixelFormat = C.AV_PIX_FMT_YUV420P9LE     // planar YUV 4:2:0, 13.5bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian
-	AV_PIX_FMT_YUV420P10BE    AVPixelFormat = C.AV_PIX_FMT_YUV420P10BE    // planar YUV 4:2:0, 15bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian
-	AV_PIX_FMT_YUV420P10LE    AVPixelFormat = C.AV_PIX_FMT_YUV420P10LE    // planar YUV 4:2:0, 15bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian
-	AV_PIX_FMT_YUV422P10BE    AVPixelFormat = C.AV_PIX_FMT_YUV422P10BE    // planar YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_YUV422P10LE    AVPixelFormat = C.AV_PIX_FMT_YUV422P10LE    // planar YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_YUV444P9BE     AVPixelFormat = C.AV_PIX_FMT_YUV444P9BE     // planar YUV 4:4:4, 27bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian
-	AV_PIX_FMT_YUV444P9LE     AVPixelFormat = C.AV_PIX_FMT_YUV444P9LE     // planar YUV 4:4:4, 27bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian
-	AV_PIX_FMT_YUV444P10BE    AVPixelFormat = C.AV_PIX_FMT_YUV444P10BE    // planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian
-	AV_PIX_FMT_YUV444P10LE    AVPixelFormat = C.AV_PIX_FMT_YUV444P10LE    // planar YUV 4:4:4, 30bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian
-	AV_PIX_FMT_YUV422P9BE     AVPixelFormat = C.AV_PIX_FMT_YUV422P9BE     // planar YUV 4:2:2, 18bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_YUV422P9LE     AVPixelFormat = C.AV_PIX_FMT_YUV422P9LE     // planar YUV 4:2:2, 18bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_GBRP           AVPixelFormat = C.AV_PIX_FMT_GBRP           //
-	AV_PIX_FMT_GBR24P         AVPixelFormat = C.AV_PIX_FMT_GBR24P         // planar GBR 4:4:4 24bpp
-	AV_PIX_FMT_GBRP9BE        AVPixelFormat = C.AV_PIX_FMT_GBRP9BE        // planar GBR 4:4:4 27bpp, big-endian
-	AV_PIX_FMT_GBRP9LE        AVPixelFormat = C.AV_PIX_FMT_GBRP9LE        // planar GBR 4:4:4 27bpp, little-endian
-	AV_PIX_FMT_GBRP10BE       AVPixelFormat = C.AV_PIX_FMT_GBRP10BE       // planar GBR 4:4:4 30bpp, big-endian
-	AV_PIX_FMT_GBRP10LE       AVPixelFormat = C.AV_PIX_FMT_GBRP10LE       // planar GBR 4:4:4 30bpp, little-endian
-	AV_PIX_FMT_GBRP16BE       AVPixelFormat = C.AV_PIX_FMT_GBRP16BE       // planar GBR 4:4:4 48bpp, big-endian
-	AV_PIX_FMT_GBRP16LE       AVPixelFormat = C.AV_PIX_FMT_GBRP16LE       // planar GBR 4:4:4 48bpp, little-endian
-	AV_PIX_FMT_YUVA422P       AVPixelFormat = C.AV_PIX_FMT_YUVA422P       // planar YUV 4:2:2 24bpp, (1 Cr & Cb sample per 2x1 Y & A samples)
-	AV_PIX_FMT_YUVA444P       AVPixelFormat = C.AV_PIX_FMT_YUVA444P       // planar YUV 4:4:4 32bpp, (1 Cr & Cb sample per 1x1 Y & A samples)
-	AV_PIX_FMT_YUVA420P9BE    AVPixelFormat = C.AV_PIX_FMT_YUVA420P9BE    // planar YUV 4:2:0 22.5bpp, (1 Cr & Cb sample per 2x2 Y & A samples), big-endian
-	AV_PIX_FMT_YUVA420P9LE    AVPixelFormat = C.AV_PIX_FMT_YUVA420P9LE    // planar YUV 4:2:0 22.5bpp, (1 Cr & Cb sample per 2x2 Y & A samples), little-endian
-	AV_PIX_FMT_YUVA422P9BE    AVPixelFormat = C.AV_PIX_FMT_YUVA422P9BE    // planar YUV 4:2:2 27bpp, (1 Cr & Cb sample per 2x1 Y & A samples), big-endian
-	AV_PIX_FMT_YUVA422P9LE    AVPixelFormat = C.AV_PIX_FMT_YUVA422P9LE    // planar YUV 4:2:2 27bpp, (1 Cr & Cb sample per 2x1 Y & A samples), little-endian
-	AV_PIX_FMT_YUVA444P9BE    AVPixelFormat = C.AV_PIX_FMT_YUVA444P9BE    // planar YUV 4:4:4 36bpp, (1 Cr & Cb sample per 1x1 Y & A samples), big-endian
-	AV_PIX_FMT_YUVA444P9LE    AVPixelFormat = C.AV_PIX_FMT_YUVA444P9LE    // planar YUV 4:4:4 36bpp, (1 Cr & Cb sample per 1x1 Y & A samples), little-endian
-	AV_PIX_FMT_YUVA420P10BE   AVPixelFormat = C.AV_PIX_FMT_YUVA420P10BE   // planar YUV 4:2:0 25bpp, (1 Cr & Cb sample per 2x2 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA420P10LE   AVPixelFormat = C.AV_PIX_FMT_YUVA420P10LE   // planar YUV 4:2:0 25bpp, (1 Cr & Cb sample per 2x2 Y & A samples, little-endian)
-	AV_PIX_FMT_YUVA422P10BE   AVPixelFormat = C.AV_PIX_FMT_YUVA422P10BE   // planar YUV 4:2:2 30bpp, (1 Cr & Cb sample per 2x1 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA422P10LE   AVPixelFormat = C.AV_PIX_FMT_YUVA422P10LE   // planar YUV 4:2:2 30bpp, (1 Cr & Cb sample per 2x1 Y & A samples, little-endian)
-	AV_PIX_FMT_YUVA444P10BE   AVPixelFormat = C.AV_PIX_FMT_YUVA444P10BE   // planar YUV 4:4:4 40bpp, (1 Cr & Cb sample per 1x1 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA444P10LE   AVPixelFormat = C.AV_PIX_FMT_YUVA444P10LE   // planar YUV 4:4:4 40bpp, (1 Cr & Cb sample per 1x1 Y & A samples, little-endian)
-	AV_PIX_FMT_YUVA420P16BE   AVPixelFormat = C.AV_PIX_FMT_YUVA420P16BE   // planar YUV 4:2:0 40bpp, (1 Cr & Cb sample per 2x2 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA420P16LE   AVPixelFormat = C.AV_PIX_FMT_YUVA420P16LE   // planar YUV 4:2:0 40bpp, (1 Cr & Cb sample per 2x2 Y & A samples, little-endian)
-	AV_PIX_FMT_YUVA422P16BE   AVPixelFormat = C.AV_PIX_FMT_YUVA422P16BE   // planar YUV 4:2:2 48bpp, (1 Cr & Cb sample per 2x1 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA422P16LE   AVPixelFormat = C.AV_PIX_FMT_YUVA422P16LE   // planar YUV 4:2:2 48bpp, (1 Cr & Cb sample per 2x1 Y & A samples, little-endian)
-	AV_PIX_FMT_YUVA444P16BE   AVPixelFormat = C.AV_PIX_FMT_YUVA444P16BE   // planar YUV 4:4:4 64bpp, (1 Cr & Cb sample per 1x1 Y & A samples, big-endian)
-	AV_PIX_FMT_YUVA444P16LE   AVPixelFormat = C.AV_PIX_FMT_YUVA444P16LE   // planar YUV 4:4:4 64bpp, (1 Cr & Cb sample per 1x1 Y & A samples, little-endian)
-	AV_PIX_FMT_VDPAU          AVPixelFormat = C.AV_PIX_FMT_VDPAU          // HW acceleration through VDPAU, Picture.data[3] contains a VdpVideoSurface.
-	AV_PIX_FMT_XYZ12LE        AVPixelFormat = C.AV_PIX_FMT_XYZ12LE        // packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is stored as little-endian, the 4 lower bits are set to 0
-	AV_PIX_FMT_XYZ12BE        AVPixelFormat = C.AV_PIX_FMT_XYZ12BE        // packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is stored as big-endian, the 4 lower bits are set to 0
-	AV_PIX_FMT_NV16           AVPixelFormat = C.AV_PIX_FMT_NV16           // interleaved chroma YUV 4:2:2, 16bpp, (1 Cr & Cb sample per 2x1 Y samples)
-	AV_PIX_FMT_NV20LE         AVPixelFormat = C.AV_PIX_FMT_NV20LE         // interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_NV20BE         AVPixelFormat = C.AV_PIX_FMT_NV20BE         // interleaved chroma YUV 4:2:2, 20bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_RGBA64BE       AVPixelFormat = C.AV_PIX_FMT_RGBA64BE       // packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A component is stored as big-endian
-	AV_PIX_FMT_RGBA64LE       AVPixelFormat = C.AV_PIX_FMT_RGBA64LE       // packed RGBA 16:16:16:16, 64bpp, 16R, 16G, 16B, 16A, the 2-byte value for each R/G/B/A component is stored as little-endian
-	AV_PIX_FMT_BGRA64BE       AVPixelFormat = C.AV_PIX_FMT_BGRA64BE       // packed RGBA 16:16:16:16, 64bpp, 16B, 16G, 16R, 16A, the 2-byte value for each R/G/B/A component is stored as big-endian
-	AV_PIX_FMT_BGRA64LE       AVPixelFormat = C.AV_PIX_FMT_BGRA64LE       // packed RGBA 16:16:16:16, 64bpp, 16B, 16G, 16R, 16A, the 2-byte value for each R/G/B/A component is stored as little-endian
-	AV_PIX_FMT_YVYU422        AVPixelFormat = C.AV_PIX_FMT_YVYU422        // packed YUV 4:2:2, 16bpp, Y0 Cr Y1 Cb
-	AV_PIX_FMT_YA16BE         AVPixelFormat = C.AV_PIX_FMT_YA16BE         // 16 bits gray, 16 bits alpha (big-endian)
-	AV_PIX_FMT_YA16LE         AVPixelFormat = C.AV_PIX_FMT_YA16LE         // 16 bits gray, 16 bits alpha (little-endian)
-	AV_PIX_FMT_GBRAP          AVPixelFormat = C.AV_PIX_FMT_GBRAP          // planar GBRA 4:4:4:4 32bpp
-	AV_PIX_FMT_GBRAP16BE      AVPixelFormat = C.AV_PIX_FMT_GBRAP16BE      // planar GBRA 4:4:4:4 64bpp, big-endian
-	AV_PIX_FMT_GBRAP16LE      AVPixelFormat = C.AV_PIX_FMT_GBRAP16LE      // planar GBRA 4:4:4:4 64bpp, little-endian
-	AV_PIX_FMT_QSV            AVPixelFormat = C.AV_PIX_FMT_QSV            // HW acceleration through QSV, data[3] contains a pointer to the mfxFrameSurface1 structure.
-	AV_PIX_FMT_MMAL           AVPixelFormat = C.AV_PIX_FMT_MMAL           // HW acceleration though MMAL, data[3] contains a pointer to the MMAL_BUFFER_HEADER_T structure.
-	AV_PIX_FMT_D3D11VA_VLD    AVPixelFormat = C.AV_PIX_FMT_D3D11VA_VLD    // HW decoding through Direct3D11 via old API, Picture.data[3] contains a ID3D11VideoDecoderOutputView pointer.
-	AV_PIX_FMT_CUDA           AVPixelFormat = C.AV_PIX_FMT_CUDA           // HW acceleration through CUDA.
-	AV_PIX_FMT_0RGB           AVPixelFormat = C.AV_PIX_FMT_0RGB           // packed RGB 8:8:8, 32bpp, XRGBXRGB... X=unused/undefined
-	AV_PIX_FMT_RGB0           AVPixelFormat = C.AV_PIX_FMT_RGB0           // packed RGB 8:8:8, 32bpp, RGBXRGBX... X=unused/undefined
-	AV_PIX_FMT_0BGR           AVPixelFormat = C.AV_PIX_FMT_0BGR           // packed BGR 8:8:8, 32bpp, XBGRXBGR... X=unused/undefined
-	AV_PIX_FMT_BGR0           AVPixelFormat = C.AV_PIX_FMT_BGR0           // packed BGR 8:8:8, 32bpp, BGRXBGRX... X=unused/undefined
-	AV_PIX_FMT_YUV420P12BE    AVPixelFormat = C.AV_PIX_FMT_YUV420P12BE    // planar YUV 4:2:0,18bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian
-	AV_PIX_FMT_YUV420P12LE    AVPixelFormat = C.AV_PIX_FMT_YUV420P12LE    // planar YUV 4:2:0,18bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian
-	AV_PIX_FMT_YUV420P14BE    AVPixelFormat = C.AV_PIX_FMT_YUV420P14BE    // planar YUV 4:2:0,21bpp, (1 Cr & Cb sample per 2x2 Y samples), big-endian
-	AV_PIX_FMT_YUV420P14LE    AVPixelFormat = C.AV_PIX_FMT_YUV420P14LE    // planar YUV 4:2:0,21bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian
-	AV_PIX_FMT_YUV422P12BE    AVPixelFormat = C.AV_PIX_FMT_YUV422P12BE    // planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_YUV422P12LE    AVPixelFormat = C.AV_PIX_FMT_YUV422P12LE    // planar YUV 4:2:2,24bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_YUV422P14BE    AVPixelFormat = C.AV_PIX_FMT_YUV422P14BE    // planar YUV 4:2:2,28bpp, (1 Cr & Cb sample per 2x1 Y samples), big-endian
-	AV_PIX_FMT_YUV422P14LE    AVPixelFormat = C.AV_PIX_FMT_YUV422P14LE    // planar YUV 4:2:2,28bpp, (1 Cr & Cb sample per 2x1 Y samples), little-endian
-	AV_PIX_FMT_YUV444P12BE    AVPixelFormat = C.AV_PIX_FMT_YUV444P12BE    // planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian
-	AV_PIX_FMT_YUV444P12LE    AVPixelFormat = C.AV_PIX_FMT_YUV444P12LE    // planar YUV 4:4:4,36bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian
-	AV_PIX_FMT_YUV444P14BE    AVPixelFormat = C.AV_PIX_FMT_YUV444P14BE    // planar YUV 4:4:4,42bpp, (1 Cr & Cb sample per 1x1 Y samples), big-endian
-	AV_PIX_FMT_YUV444P14LE    AVPixelFormat = C.AV_PIX_FMT_YUV444P14LE    // planar YUV 4:4:4,42bpp, (1 Cr & Cb sample per 1x1 Y samples), little-endian
-	AV_PIX_FMT_GBRP12BE       AVPixelFormat = C.AV_PIX_FMT_GBRP12BE       // planar GBR 4:4:4 36bpp, big-endian
-	AV_PIX_FMT_GBRP12LE       AVPixelFormat = C.AV_PIX_FMT_GBRP12LE       // planar GBR 4:4:4 36bpp, little-endian
-	AV_PIX_FMT_GBRP14BE       AVPixelFormat = C.AV_PIX_FMT_GBRP14BE       // planar GBR 4:4:4 42bpp, big-endian
-	AV_PIX_FMT_GBRP14LE       AVPixelFormat = C.AV_PIX_FMT_GBRP14LE       // planar GBR 4:4:4 42bpp, little-endian
-	AV_PIX_FMT_YUVJ411P       AVPixelFormat = C.AV_PIX_FMT_YUVJ411P       // planar YUV 4:1:1, 12bpp, (1 Cr & Cb sample per 4x1 Y samples) full scale (JPEG), deprecated in favor of AV_PIX_FMT_YUV411P AVPixelFormat = C.AV_PIX_FMT_YUV411P and setting color_range
-	AV_PIX_FMT_BAYER_BGGR8    AVPixelFormat = C.AV_PIX_FMT_BAYER_BGGR8    // bayer, BGBG..(odd line), GRGR..(even line), 8-bit samples
-	AV_PIX_FMT_BAYER_RGGB8    AVPixelFormat = C.AV_PIX_FMT_BAYER_RGGB8    // bayer, RGRG..(odd line), GBGB..(even line), 8-bit samples
-	AV_PIX_FMT_BAYER_GBRG8    AVPixelFormat = C.AV_PIX_FMT_BAYER_GBRG8    // bayer, GBGB..(odd line), RGRG..(even line), 8-bit samples
-	AV_PIX_FMT_BAYER_GRBG8    AVPixelFormat = C.AV_PIX_FMT_BAYER_GRBG8    // bayer, GRGR..(odd line), BGBG..(even line), 8-bit samples
-	AV_PIX_FMT_BAYER_BGGR16LE AVPixelFormat = C.AV_PIX_FMT_BAYER_BGGR16LE // bayer, BGBG..(odd line), GRGR..(even line), 16-bit samples, little-endian
-	AV_PIX_FMT_BAYER_BGGR16BE AVPixelFormat = C.AV_PIX_FMT_BAYER_BGGR16BE // bayer, BGBG..(odd line), GRGR..(even line), 16-bit samples, big-endian
-	AV_PIX_FMT_BAYER_RGGB16LE AVPixelFormat = C.AV_PIX_FMT_BAYER_RGGB16LE // bayer, RGRG..(odd line), GBGB..(even line), 16-bit samples, little-endian
-	AV_PIX_FMT_BAYER_RGGB16BE AVPixelFormat = C.AV_PIX_FMT_BAYER_RGGB16BE // bayer, RGRG..(odd line), GBGB..(even line), 16-bit samples, big-endian
-	AV_PIX_FMT_BAYER_GBRG16LE AVPixelFormat = C.AV_PIX_FMT_BAYER_GBRG16LE // bayer, GBGB..(odd line), RGRG..(even line), 16-bit samples, little-endian
-	AV_PIX_FMT_BAYER_GBRG16BE AVPixelFormat = C.AV_PIX_FMT_BAYER_GBRG16BE // bayer, GBGB..(odd line), RGRG..(even line), 16-bit samples, big-endian
-	AV_PIX_FMT_BAYER_GRBG16LE AVPixelFormat = C.AV_PIX_FMT_BAYER_GRBG16LE // bayer, GRGR..(odd line), BGBG..(even line), 16-bit samples, little-endian
-	AV_PIX_FMT_BAYER_GRBG16BE AVPixelFormat = C.AV_PIX_FMT_BAYER_GRBG16BE // bayer, GRGR..(odd line), BGBG..(even line), 16-bit samples, big-endian
-	AV_PIX_FMT_XVMC           AVPixelFormat = C.AV_PIX_FMT_XVMC           // XVideo Motion Acceleration via common packet passing.
-	AV_PIX_FMT_YUV440P10LE    AVPixelFormat = C.AV_PIX_FMT_YUV440P10LE    // planar YUV 4:4:0,20bpp, (1 Cr & Cb sample per 1x2 Y samples), little-endian
-	AV_PIX_FMT_YUV440P10BE    AVPixelFormat = C.AV_PIX_FMT_YUV440P10BE    // planar YUV 4:4:0,20bpp, (1 Cr & Cb sample per 1x2 Y samples), big-endian
-	AV_PIX_FMT_YUV440P12LE    AVPixelFormat = C.AV_PIX_FMT_YUV440P12LE    // planar YUV 4:4:0,24bpp, (1 Cr & Cb sample per 1x2 Y samples), little-endian
-	AV_PIX_FMT_YUV440P12BE    AVPixelFormat = C.AV_PIX_FMT_YUV440P12BE    // planar YUV 4:4:0,24bpp, (1 Cr & Cb sample per 1x2 Y samples), big-endian
-	AV_PIX_FMT_AYUV64LE       AVPixelFormat = C.AV_PIX_FMT_AYUV64LE       // packed AYUV 4:4:4,64bpp (1 Cr & Cb sample per 1x1 Y & A samples), little-endian
-	AV_PIX_FMT_AYUV64BE       AVPixelFormat = C.AV_PIX_FMT_AYUV64BE       // packed AYUV 4:4:4,64bpp (1 Cr & Cb sample per 1x1 Y & A samples), big-endian
-	AV_PIX_FMT_VIDEOTOOLBOX   AVPixelFormat = C.AV_PIX_FMT_VIDEOTOOLBOX   // hardware decoding through Videotoolbox
-	AV_PIX_FMT_P010LE         AVPixelFormat = C.AV_PIX_FMT_P010LE         // like NV12, with 10bpp per component, data in the high bits, zeros in the low bits, little-endian
-	AV_PIX_FMT_P010BE         AVPixelFormat = C.AV_PIX_FMT_P010BE         // like NV12, with 10bpp per component, data in the high bits, zeros in the low bits, big-endian
-	AV_PIX_FMT_GBRAP12BE      AVPixelFormat = C.AV_PIX_FMT_GBRAP12BE      // planar GBR 4:4:4:4 48bpp, big-endian
-	AV_PIX_FMT_GBRAP12LE      AVPixelFormat = C.AV_PIX_FMT_GBRAP12LE      // planar GBR 4:4:4:4 48bpp, little-endian
-	AV_PIX_FMT_GBRAP10BE      AVPixelFormat = C.AV_PIX_FMT_GBRAP10BE      // planar GBR 4:4:4:4 40bpp, big-endian
-	AV_PIX_FMT_GBRAP10LE      AVPixelFormat = C.AV_PIX_FMT_GBRAP10LE      // planar GBR 4:4:4:4 40bpp, little-endian
-	AV_PIX_FMT_MEDIACODEC     AVPixelFormat = C.AV_PIX_FMT_MEDIACODEC     // hardware decoding through MediaCodec
-	AV_PIX_FMT_GRAY12BE       AVPixelFormat = C.AV_PIX_FMT_GRAY12BE       // Y , 12bpp, big-endian.
-	AV_PIX_FMT_GRAY12LE       AVPixelFormat = C.AV_PIX_FMT_GRAY12LE       // Y , 12bpp, little-endian.
-	AV_PIX_FMT_GRAY10BE       AVPixelFormat = C.AV_PIX_FMT_GRAY10BE       // Y , 10bpp, big-endian.
-	AV_PIX_FMT_GRAY10LE       AVPixelFormat = C.AV_PIX_FMT_GRAY10LE       // Y , 10bpp, little-endian.
-	AV_PIX_FMT_P016LE         AVPixelFormat = C.AV_PIX_FMT_P016LE         // like NV12, with 16bpp per component, little-endian
-	AV_PIX_FMT_P016BE         AVPixelFormat = C.AV_PIX_FMT_P016BE         // like NV12, with 16bpp per component, big-endian
-	AV_PIX_FMT_D3D11          AVPixelFormat = C.AV_PIX_FMT_D3D11          // Hardware surfaces for Direct3D11.
-	AV_PIX_FMT_GRAY9BE        AVPixelFormat = C.AV_PIX_FMT_GRAY9BE        // Y , 9bpp, big-endian.
-	AV_PIX_FMT_GRAY9LE        AVPixelFormat = C.AV_PIX_FMT_GRAY9LE        // Y , 9bpp, little-endian.
-	AV_PIX_FMT_GBRPF32BE      AVPixelFormat = C.AV_PIX_FMT_GBRPF32BE      // IEEE-754 single precision planar GBR 4:4:4, 96bpp, big-endian.
-	AV_PIX_FMT_GBRPF32LE      AVPixelFormat = C.AV_PIX_FMT_GBRPF32LE      // IEEE-754 single precision planar GBR 4:4:4, 96bpp, little-endian.
-	AV_PIX_FMT_GBRAPF32BE     AVPixelFormat = C.AV_PIX_FMT_GBRAPF32BE     // IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, big-endian.
-	AV_PIX_FMT_GBRAPF32LE     AVPixelFormat = C.AV_PIX_FMT_GBRAPF32LE     // IEEE-754 single precision planar GBRA 4:4:4:4, 128bpp, little-endian.
-	AV_PIX_FMT_DRM_PRIME      AVPixelFormat = C.AV_PIX_FMT_DRM_PRIME      // DRM-managed buffers exposed through PRIME buffer sharing.
-	AV_PIX_FMT_OPENCL         AVPixelFormat = C.AV_PIX_FMT_OPENCL         // Hardware surfaces for OpenCL.
-	AV_PIX_FMT_GRAY14BE       AVPixelFormat = C.AV_PIX_FMT_GRAY14BE       // Y , 14bpp, big-endian.
-	AV_PIX_FMT_GRAY14LE       AVPixelFormat = C.AV_PIX_FMT_GRAY14LE       // Y , 14bpp, little-endian.
-	AV_PIX_FMT_GRAYF32BE      AVPixelFormat = C.AV_PIX_FMT_GRAYF32BE      // IEEE-754 single precision Y, 32bpp, big-endian.
-	AV_PIX_FMT_GRAYF32LE      AVPixelFormat = C.AV_PIX_FMT_GRAYF32LE      // IEEE-754 single precision Y, 32bpp, little-endian.
-	AV_PIX_FMT_NONE           AVPixelFormat = C.AV_PIX_FMT_NONE
-)
-
 var (
 	AV_CHANNEL_LAYOUT_MONO                  = AVChannelLayout(C._AV_CHANNEL_LAYOUT_MONO)
 	AV_CHANNEL_LAYOUT_STEREO                = AVChannelLayout(C._AV_CHANNEL_LAYOUT_STEREO)
@@ -386,8 +203,70 @@ const (
 	AV_ROUND_PASS_MINMAX = C.AV_ROUND_PASS_MINMAX ///< Flag telling rescaling functions to pass INT64_MIN/MAX through unchanged
 )
 
+const (
+	AVMEDIA_TYPE_UNKNOWN    AVMediaType = C.AVMEDIA_TYPE_UNKNOWN ///< Usually treated as AVMEDIA_TYPE_DATA
+	AVMEDIA_TYPE_VIDEO      AVMediaType = C.AVMEDIA_TYPE_VIDEO
+	AVMEDIA_TYPE_AUDIO      AVMediaType = C.AVMEDIA_TYPE_AUDIO
+	AVMEDIA_TYPE_DATA       AVMediaType = C.AVMEDIA_TYPE_DATA ///< Opaque data information usually continuous
+	AVMEDIA_TYPE_SUBTITLE   AVMediaType = C.AVMEDIA_TYPE_SUBTITLE
+	AVMEDIA_TYPE_ATTACHMENT AVMediaType = C.AVMEDIA_TYPE_ATTACHMENT ///< Opaque data information usually sparse
+)
+
+const (
+	AV_PICTURE_TYPE_NONE AVPictureType = C.AV_PICTURE_TYPE_NONE ///< Undefined
+	AV_PICTURE_TYPE_I    AVPictureType = C.AV_PICTURE_TYPE_I    ///< Intra
+	AV_PICTURE_TYPE_P    AVPictureType = C.AV_PICTURE_TYPE_P    ///< Predicted
+	AV_PICTURE_TYPE_B    AVPictureType = C.AV_PICTURE_TYPE_B    ///< Bi-dir predicted
+	AV_PICTURE_TYPE_S    AVPictureType = C.AV_PICTURE_TYPE_S    ///< S(GMC)-VOP MPEG-4
+	AV_PICTURE_TYPE_SI   AVPictureType = C.AV_PICTURE_TYPE_SI   ///< Switching Intra
+	AV_PICTURE_TYPE_SP   AVPictureType = C.AV_PICTURE_TYPE_SP   ///< Switching Predicted
+	AV_PICTURE_TYPE_BI   AVPictureType = C.AV_PICTURE_TYPE_BI   ///< BI type
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (v AVPictureType) String() string {
+	switch v {
+	case AV_PICTURE_TYPE_NONE:
+		return "AV_PICTURE_TYPE_NONE"
+	case AV_PICTURE_TYPE_I:
+		return "AV_PICTURE_TYPE_I"
+	case AV_PICTURE_TYPE_P:
+		return "AV_PICTURE_TYPE_P"
+	case AV_PICTURE_TYPE_B:
+		return "AV_PICTURE_TYPE_B"
+	case AV_PICTURE_TYPE_S:
+		return "AV_PICTURE_TYPE_S"
+	case AV_PICTURE_TYPE_SI:
+		return "AV_PICTURE_TYPE_SI"
+	case AV_PICTURE_TYPE_SP:
+		return "AV_PICTURE_TYPE_SP"
+	case AV_PICTURE_TYPE_BI:
+		return "AV_PICTURE_TYPE_BI"
+	default:
+		return "[?? Invalid AVPictureType value]"
+	}
+}
+
+func (v AVMediaType) String() string {
+	switch v {
+	case AVMEDIA_TYPE_UNKNOWN:
+		return "AVMEDIA_TYPE_UNKNOWN"
+	case AVMEDIA_TYPE_VIDEO:
+		return "AVMEDIA_TYPE_VIDEO"
+	case AVMEDIA_TYPE_AUDIO:
+		return "AVMEDIA_TYPE_AUDIO"
+	case AVMEDIA_TYPE_DATA:
+		return "AVMEDIA_TYPE_DATA"
+	case AVMEDIA_TYPE_SUBTITLE:
+		return "AVMEDIA_TYPE_SUBTITLE"
+	case AVMEDIA_TYPE_ATTACHMENT:
+		return "AVMEDIA_TYPE_ATTACHMENT"
+	default:
+		return "[?? Invalid AVMediaType value]"
+	}
+}
 
 func (v AVLogLevel) String() string {
 	switch v {
@@ -540,3 +419,185 @@ func (v AVChannel) String() string {
 		return "[?? Invalid AVChannel value]"
 	}
 }
+
+func (f *AVFrame) String() string {
+	str := "<AVFrame"
+	if sample_fmt := f.SampleFormat(); sample_fmt != AV_SAMPLE_FMT_NONE {
+		str += fmt.Sprint(" sample_format=", sample_fmt)
+		if sample_rate := f.SampleRate(); sample_rate > 0 {
+			str += fmt.Sprint(" sample_rate=", sample_rate)
+		}
+		if c := f.Channels(); c > 0 {
+			str += fmt.Sprint(" channels=", c)
+		}
+		if n := f.NumSamples(); n > 0 {
+			str += fmt.Sprint(" nb_samples=", n)
+		}
+	}
+	if pix_fmt := f.PixelFormat(); pix_fmt != AV_PIX_FMT_NONE {
+		str += fmt.Sprint(" pixel_format=", pix_fmt)
+		if w, h := f.Width(), f.Height(); w >= 0 && h >= 0 {
+			str += fmt.Sprint(" size={", w, ",", h, "}")
+		}
+		if pict_type := f.PictType(); pict_type != AV_PICTURE_TYPE_NONE {
+			str += fmt.Sprint(" pict_type=", pict_type)
+		}
+		if f.IsKeyFrame() {
+			str += " key_frame"
+		}
+		if f.IsInterlaced() {
+			str += " interlaced"
+		}
+	}
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ACCESSORS - FRAME
+
+func (f *AVFrame) Data(ch int) *byte {
+	return (*byte)(unsafe.Pointer(f.data[ch]))
+}
+
+func (f *AVFrame) LineSize(ch int) int {
+	return int(f.linesize[ch])
+}
+
+func (f *AVFrame) NumSamples() int {
+	return int(f.nb_samples)
+}
+
+func (f *AVFrame) SampleRate() int {
+	return int(f.sample_rate)
+}
+
+func (f *AVFrame) PixelFormat() AVPixelFormat {
+	if f.format == -1 {
+		return AV_PIX_FMT_NONE
+	} else if f.channels != 0 {
+		return AV_PIX_FMT_NONE
+	} else {
+		return AVPixelFormat(f.format)
+	}
+}
+
+func (f *AVFrame) SampleFormat() AVSampleFormat {
+	if f.format == -1 {
+		return AV_SAMPLE_FMT_NONE
+	} else if f.channels == 0 {
+		return AV_SAMPLE_FMT_NONE
+	} else {
+		return AVSampleFormat(f.format)
+	}
+}
+
+func (f *AVFrame) PictType() AVPictureType {
+	return AVPictureType(f.pict_type)
+}
+
+func (f *AVFrame) ChannelLayout() AVChannelLayout {
+	return AVChannelLayout(f.ch_layout)
+}
+
+func (f *AVFrame) Channels() int {
+	return int(f.channels)
+}
+
+func (f *AVFrame) IsPlanar() bool {
+	if fmt := f.SampleFormat(); fmt == AV_SAMPLE_FMT_NONE {
+		return false
+	} else {
+		return AVUtil_av_sample_fmt_is_planar(fmt)
+	}
+}
+
+func (f *AVFrame) IsInterlaced() bool {
+	return intToBool(int(f.interlaced_frame))
+}
+
+func (f *AVFrame) IsKeyFrame() bool {
+	return intToBool(int(f.key_frame))
+}
+
+func (f *AVFrame) Width() int {
+	return int(f.width)
+}
+
+func (f *AVFrame) Height() int {
+	return int(f.height)
+}
+
+/*
+
+func (this *AVFrame) PictType() AVPictureType {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return AVPictureType(ctx.pict_type)
+}
+
+func (this *AVFrame) PictWidth() int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.width)
+}
+
+func (this *AVFrame) PictHeight() int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.height)
+}
+
+func (this *AVFrame) Buffer(plane int) *AVBufferRef {
+	ctx := (*C.AVFrame)(this)
+	if buf := (C.av_frame_get_plane_buffer(ctx, C.int(plane))); buf == nil {
+		return nil
+	} else {
+		return (*AVBufferRef)(buf)
+	}
+}
+
+func (this *AVFrame) StrideForPlane(i int) int {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+	return int(ctx.linesize[i])
+}
+
+func (this *AVFrame) GetAudioBuffer(num_samples int) error {
+	ctx := (*C.AVFrame)(unsafe.Pointer(this))
+
+	ctx.nb_samples = C.int(num_samples)
+	if err := AVError(C.av_frame_get_buffer(ctx, 0)); err != 0 {
+		return err
+	} else {
+		return nil
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVBufferRef
+
+func (this *AVBufferRef) Data() []byte {
+	var bytes []byte
+
+	ctx := (*C.AVBufferRef)(this)
+	if ctx.data == nil {
+		return nil
+	}
+	sliceHeader := (*reflect.SliceHeader)((unsafe.Pointer(&bytes)))
+	sliceHeader.Cap = int(ctx.size)
+	sliceHeader.Len = int(ctx.size)
+	sliceHeader.Data = uintptr(unsafe.Pointer(ctx.data))
+	return bytes
+}
+
+func (this *AVBufferRef) Size() int {
+	ctx := (*C.AVBufferRef)(this)
+	return int(ctx.size)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (this *AVBufferRef) String() string {
+	str := "<AVBufferRef"
+	str += " size=" + fmt.Sprint(this.Size())
+	return str + ">"
+}
+
+*/

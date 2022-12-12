@@ -16,9 +16,15 @@ import (
 // TYPES
 
 type swcontext struct {
-	ctx  *ffmpeg.SWRContext
-	src  AudioFormat
+	// Context for resampling
+	ctx *ffmpeg.SWRContext
+	src AudioFormat
+
+	// Destination audio format
 	dest AudioFormat
+
+	// Frame to contain converted data
+	frame AudioFrame
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,18 +32,28 @@ type swcontext struct {
 
 // Create a new empty context object
 func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
+	var result error
+
 	r := new(swcontext)
+	defer func() {
+		if result != nil && r.ctx != nil {
+			r.ctx.SWR_free()
+			r.ctx = nil
+		}
+	}()
+
+	// Set finalizer to panic if Close() is not called
 	runtime.SetFinalizer(r, swcontext_finalizer)
 
 	// Allocate context
 	r.ctx = ffmpeg.SWR_alloc()
 
 	// Check in parameter
-	if src == nil || src.Samples() == 0 {
+	if in == nil || in.Samples() == 0 {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, ErrBadParameter.With("in")
-	} else if err := r.setIn(src.AudioFormat()); err != nil {
+	} else if err := r.setIn(in.AudioFormat()); err != nil {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, err
@@ -53,7 +69,7 @@ func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 	if dest.Layout == CHANNEL_LAYOUT_NONE {
 		dest.Layout = src.AudioFormat().Layout
 	}
-	if err := r.setOut(dest); err != nil {
+	if err := r.setOut(out); err != nil {
 		r.ctx.SWR_free()
 		r.ctx = nil
 		return nil, err
@@ -61,9 +77,8 @@ func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 
 	// Initialize the context
 	if err := r.ctx.SWR_init(); err != nil {
-		r.ctx.SWR_free()
-		r.ctx = nil
-		return nil, err
+		result = err
+		return nil, result
 	}
 
 	// Return success
@@ -73,6 +88,13 @@ func NewContext(src AudioFrame, dest AudioFormat) (*swcontext, error) {
 // Free resources associated with the context
 func (r *swcontext) Close() error {
 	var result error
+
+	// Free frame
+	if r.frame != nil {
+		if err := r.frame.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
 
 	// Free context
 	if r.ctx != nil {
@@ -86,26 +108,6 @@ func (r *swcontext) Close() error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
-// Gets the delay the next input sample will experience relative to the next output sample,
-// in number of input samples.
-func (r *swcontext) GetSrcDelay() int64 {
-	if r.ctx == nil {
-		return 0
-	} else {
-		return r.ctx.SWR_get_delay(int64(r.src.Rate))
-	}
-}
-
-// Return destination audio format
-func (r *swcontext) DestAudioFormat() AudioFormat {
-	return r.dest
-}
-
-// Return source audio format
-func (r *swcontext) SrcAudioFormat() AudioFormat {
-	return r.src
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
