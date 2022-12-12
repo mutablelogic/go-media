@@ -159,7 +159,7 @@ func (frame *frame) PixelFormat() PixelFormat {
 	if frame.ctx == nil || frame.ctx.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
 		return PIXEL_FORMAT_NONE
 	}
-	return toPixelFormat(frame.ctx.PixelFormat())
+	return fromPixelFormat(frame.ctx.PixelFormat())
 }
 
 // Return width and height of the frame, if MEDIA_FLAG_VIDEO is set

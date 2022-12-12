@@ -13,6 +13,8 @@ func PrintVersion(w io.Writer) {
 	printVersionLib(w, "libavformat", ffmpeg.AVFormat_version())
 	printVersionLib(w, "libavcodec", ffmpeg.AVCodec_version())
 	printVersionLib(w, "libavdevice", ffmpeg.AVDevice_version())
+	printVersionLib(w, "libswresample", ffmpeg.SWR_version())
+	printVersionLib(w, "libswscale", ffmpeg.SWS_version())
 }
 
 func printVersionLib(w io.Writer, name string, version uint) {

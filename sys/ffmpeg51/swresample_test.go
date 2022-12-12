@@ -28,5 +28,5 @@ func Test_swr_003(t *testing.T) {
 	swr := ffmpeg.SWR_alloc()
 	assert.NotNil(swr)
 	t.Log(swr)
-	swr.SWR_free()
+	ffmpeg.SWR_free(swr)
 }

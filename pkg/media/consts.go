@@ -43,6 +43,11 @@ func fromChannelLayout(v ffmpeg.AVChannelLayout) ChannelLayout {
 	return CHANNEL_LAYOUT_NONE
 }
 
+func fromPixelFormat(v ffmpeg.AVPixelFormat) PixelFormat {
+	// TODO: Implement
+	return PixelFormat(v)
+}
+
 func toChannelLayout(v ChannelLayout) ffmpeg.AVChannelLayout {
 	switch v {
 	case CHANNEL_LAYOUT_MONO:
