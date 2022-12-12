@@ -449,6 +449,9 @@ func (f *AVFrame) String() string {
 			str += " interlaced"
 		}
 	}
+	if f.IsPlanar() {
+		str += " planar"
+	}
 	return str + ">"
 }
 
@@ -515,6 +518,14 @@ func (f *AVFrame) IsInterlaced() bool {
 	return intToBool(int(f.interlaced_frame))
 }
 
+func (f *AVFrame) IsTopFieldFirst() bool {
+	return intToBool(int(f.top_field_first))
+}
+
+func (f *AVFrame) IsPaletteHasChanged() bool {
+	return intToBool(int(f.palette_has_changed))
+}
+
 func (f *AVFrame) IsKeyFrame() bool {
 	return intToBool(int(f.key_frame))
 }
@@ -527,23 +538,23 @@ func (f *AVFrame) Height() int {
 	return int(f.height)
 }
 
+func (f *AVFrame) PixelAspectRatio() AVRational {
+	return AVRational(f.sample_aspect_ratio)
+}
+
+func (f *AVFrame) Pts() int64 {
+	return int64(f.pts)
+}
+
+func (f *AVFrame) PacketDts() int64 {
+	return int64(f.pkt_dts)
+}
+
+func (f *AVFrame) Quality() int {
+	return int(f.quality)
+}
+
 /*
-
-func (this *AVFrame) PictType() AVPictureType {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	return AVPictureType(ctx.pict_type)
-}
-
-func (this *AVFrame) PictWidth() int {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	return int(ctx.width)
-}
-
-func (this *AVFrame) PictHeight() int {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	return int(ctx.height)
-}
-
 func (this *AVFrame) Buffer(plane int) *AVBufferRef {
 	ctx := (*C.AVFrame)(this)
 	if buf := (C.av_frame_get_plane_buffer(ctx, C.int(plane))); buf == nil {
@@ -551,11 +562,6 @@ func (this *AVFrame) Buffer(plane int) *AVBufferRef {
 	} else {
 		return (*AVBufferRef)(buf)
 	}
-}
-
-func (this *AVFrame) StrideForPlane(i int) int {
-	ctx := (*C.AVFrame)(unsafe.Pointer(this))
-	return int(ctx.linesize[i])
 }
 
 func (this *AVFrame) GetAudioBuffer(num_samples int) error {

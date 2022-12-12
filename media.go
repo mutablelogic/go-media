@@ -134,6 +134,37 @@ type Packet interface {
 
 // Frame is a decoded video or audio frame
 type Frame interface {
+	AudioFrame
+	//VideoFrame
+
+	// Returns MEDIA_FLAG_VIDEO or MEDIA_FLAG_AUDIO
+	Flags() MediaFlag
+
+	// Returns true if planar format
+	//IsPlanar() bool
+
+	// Returns the samples for a specified channel, as array of bytes. For packed
+	// audio format, the channel should be 0.
+	//Bytes(channel int) []byte
+}
+
+type AudioFrame interface {
+	// Returns the audio format, if MEDIA_FLAG_AUDIO is set
+	AudioFormat() AudioFormat
+
+	// Number of samples, if MEDIA_FLAG_AUDIO is set
+	NumSamples() int
+
+	// Audio channels, if MEDIA_FLAG_AUDIO is set
+	Channels() []AudioChannel
+
+	// Duration of the frame, if MEDIA_FLAG_AUDIO is set
+	Duration() time.Duration
+}
+
+type VideoFrame interface {
+	// Returns the audio format, if MEDIA_FLAG_VIDEO is set
+	//PixelFormat() PixelFormat
 }
 
 // Codec is an encoder or decoder for a specific media type

@@ -1,9 +1,8 @@
 package media
 
 import (
-
 	// Packages
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 	// Namespace imports
 	//. "github.com/djthorpe/go-errors"

@@ -3,7 +3,6 @@ package media
 import (
 	"fmt"
 	"io"
-	"time"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +38,7 @@ type SWResampleFn func(AudioFrame) error
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
 
+/*
 // AudioFrame is a slice of audio samples
 type AudioFrame interface {
 	io.Closer
@@ -62,6 +62,7 @@ type AudioFrame interface {
 	// audio format, the channel should be 0.
 	Bytes(channel int) []byte
 }
+*/
 
 // SWResample is an interface to the ffmpeg swresample library
 // which resamples audio.
@@ -90,7 +91,7 @@ const (
 	SAMPLE_FORMAT_S64P              // Planar signed 64-bit
 	SAMPLE_FORMAT_FLTP              // Planar float 32-bit
 	SAMPLE_FORMAT_DBLP              // Planar float 64-bit
-	SAMPLE_FORMAT_MAX  = SAMPLE_FORMAT_S64P
+	SAMPLE_FORMAT_MAX  = SAMPLE_FORMAT_DBLP
 )
 
 const (
