@@ -154,7 +154,11 @@ FOR_LOOP:
 // Decode packets into frames
 func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn DecodeFn) error {
 	stream := p.(*packet).StreamIndex()
-	decoder := media_map.(*decodemap).context[stream]
+	mapentry, exists := media_map.(*decodemap).context[stream]
+	if !exists {
+		return ErrBadParameter.With("stream")
+	}
+	decoder := mapentry.Decoder
 	if decoder == nil || decoder.ctx == nil || decoder.frame == nil {
 		return ErrBadParameter.With("decoder")
 	}
@@ -167,7 +171,15 @@ func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn 
 		if err == nil {
 			err = fn(ctx, decoder.frame)
 		}
+
+		// TODO: Rescaler and Resampler
+
+		// TODO: Encoder
+
+		// TODO: Release frames for decoder, scaler, resampler, encoder for reuse
 		decoder.frame.Release()
+
+		// Check for errors
 		if errors.Is(err, syscall.EAGAIN) {
 			// Output is not available in this state - user must try to send new input
 			break

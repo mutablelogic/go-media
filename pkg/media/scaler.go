@@ -11,7 +11,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type scalar struct {
+type scaler struct {
 	ctx *ffmpeg.SWSContext
 }
 
@@ -20,8 +20,8 @@ type scalar struct {
 
 // Create a new video scalar for a source and destination frame. If the destination
 // is nil then use the sample parameters as the source.
-func NewScalar(src, dest *ffmpeg.AVFrame) *scalar {
-	this := new(scalar)
+func NewScalar(src, dest *ffmpeg.AVFrame) *scaler {
+	this := new(scaler)
 
 	// if source frame is nil or not a video frame, return nil
 	if src == nil || src.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
@@ -49,16 +49,16 @@ func NewScalar(src, dest *ffmpeg.AVFrame) *scalar {
 }
 
 // Release scalar resources
-func (scalar *scalar) Close() error {
+func (scaler *scaler) Close() error {
 	var result error
 
 	// Release context
-	if scalar.ctx != nil {
-		ffmpeg.SWS_free_context(scalar.ctx)
+	if scaler.ctx != nil {
+		ffmpeg.SWS_free_context(scaler.ctx)
 	}
 
 	// Blank out other fields
-	scalar.ctx = nil
+	scaler.ctx = nil
 
 	// Return success
 	return result
@@ -67,7 +67,7 @@ func (scalar *scalar) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (scalar *scalar) String() string {
+func (scaler *scaler) String() string {
 	str := "<media.scalar"
 	return str + ">"
 }
@@ -76,7 +76,7 @@ func (scalar *scalar) String() string {
 // PUBLIC METHODS
 
 // Perform the scaling operation on one frame
-func (scalar *scalar) Scale(src, dest *ffmpeg.AVFrame) error {
+func (scaler *scaler) Scale(src, dest *ffmpeg.AVFrame) error {
 	if src == nil || dest == nil || src.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE || dest.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
 		return ErrBadParameter.With("Scale")
 	}
@@ -86,5 +86,5 @@ func (scalar *scalar) Scale(src, dest *ffmpeg.AVFrame) error {
 	if !ffmpeg.SWS_is_supported_output(dest.PixelFormat()) {
 		return ErrBadParameter.With("Unsupported destination pixel format", dest.PixelFormat())
 	}
-	return ffmpeg.SWS_scale_frame(scalar.ctx, src, dest)
+	return ffmpeg.SWS_scale_frame(scaler.ctx, src, dest)
 }

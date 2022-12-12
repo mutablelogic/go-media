@@ -18,7 +18,13 @@ import (
 type decodemap struct {
 	packet  *packet
 	input   *input
-	context map[int]*decoder
+	context map[int]*mapentry
+}
+
+type mapentry struct {
+	Decoder   *decoder   // Decoder context for the stream
+	Resampler *resampler // Resampler context for the audio frames
+	Scaler    *scaler    // Scaler context for the video frames
 }
 
 // Ensure decodemap complies with Map interface
@@ -62,7 +68,7 @@ func NewMap(media Media, flags MediaFlag) (*decodemap, error) {
 
 	// Create packet
 	if packet := NewPacket(func(i int) Stream {
-		return m.context[i].stream
+		return m.context[i].Decoder.stream
 	}); packet == nil {
 		return nil, ErrInternalAppError.With("NewPacket")
 	} else {
@@ -85,12 +91,41 @@ func (m *decodemap) Close() error {
 	}
 
 	// Close all decoders
-	for _, decoder := range m.context {
-		if err := decoder.Close(); err != nil {
+	for _, mapentry := range m.context {
+		if err := mapentry.Close(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
 	m.context = nil
+
+	// Return any errors
+	return result
+}
+
+func (mapentry *mapentry) Close() error {
+	var result error
+
+	// Call close on all objects
+	if mapentry.Decoder != nil {
+		if err := mapentry.Decoder.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	if mapentry.Resampler != nil {
+		if err := mapentry.Resampler.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	if mapentry.Scaler != nil {
+		if err := mapentry.Scaler.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Release resources
+	mapentry.Decoder = nil
+	mapentry.Resampler = nil
+	mapentry.Scaler = nil
 
 	// Return any errors
 	return result
@@ -115,8 +150,10 @@ func (m *decodemap) Input() Media {
 // Return the input media streams which should be decoded
 func (m *decodemap) Streams() []Stream {
 	var result []Stream
-	for _, stream := range m.context {
-		result = append(result, stream.stream)
+	for _, mapentry := range m.context {
+		if mapentry.Decoder != nil {
+			result = append(result, mapentry.Decoder.stream)
+		}
 	}
 	return result
 }
@@ -126,12 +163,12 @@ func (m *decodemap) Streams() []Stream {
 // ignore it
 func (m *decodemap) Demux(ctx context.Context, p Packet, fn DemuxFn) error {
 	index := p.(*packet).StreamIndex()
-	decoder, exists := m.context[index]
+	mapentry, exists := m.context[index]
 	if !exists {
 		return nil
 	}
 	// Send a packet into the decoder
-	if err := ffmpeg.AVCodec_send_packet(decoder.ctx, p.(*packet).ctx); err != nil {
+	if err := ffmpeg.AVCodec_send_packet(mapentry.Decoder.ctx, p.(*packet).ctx); err != nil {
 		return err
 	} else {
 		return fn(ctx, p)
@@ -142,11 +179,11 @@ func (m *decodemap) Demux(ctx context.Context, p Packet, fn DemuxFn) error {
 // PRIVATE METHODS
 
 // Return streams of a given type for input media
-func streamsByType(input *input, media_type MediaFlag) map[int]*decoder {
+func streamsByType(input *input, media_type MediaFlag) map[int]*mapentry {
 	if input == nil || input.ctx == nil {
 		return nil
 	}
-	result := make(map[int]*decoder, input.ctx.NumStreams())
+	result := make(map[int]*mapentry, input.ctx.NumStreams())
 	for _, t := range mediaTypes {
 		if !media_type.Is(t) {
 			continue
@@ -159,7 +196,9 @@ func streamsByType(input *input, media_type MediaFlag) map[int]*decoder {
 		} else if decoder := NewDecoder(str.(*stream)); decoder == nil {
 			continue
 		} else {
-			result[n] = decoder
+			result[n] = &mapentry{
+				Decoder: decoder,
+			}
 		}
 	}
 
