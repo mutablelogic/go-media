@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	// Packages
 	config "github.com/mutablelogic/go-media/pkg/config"
@@ -58,7 +59,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
-	fmt.Println(out)
+
+	// Set output timestamp
+	out.Set(MEDIA_KEY_CREATED, time.Now())
 
 	// Open the input file
 	media, err := manager.OpenFile(flag.Arg(0))

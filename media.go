@@ -85,6 +85,9 @@ type Media interface {
 
 	// Return metadata for the media
 	Metadata() Metadata
+
+	// Set metadata value
+	Set(MediaKey, any) error
 }
 
 // Stream of data multiplexed in the media
@@ -216,7 +219,7 @@ const (
 	MEDIA_KEY_COMPOSER         MediaKey = "composer"          // string
 	MEDIA_KEY_COPYRIGHT        MediaKey = "copyright"         // string
 	MEDIA_KEY_YEAR             MediaKey = "date"              // uint
-	MEDIA_KEY_DISC             MediaKey = "disc"              // uint
+	MEDIA_KEY_DISC             MediaKey = "disc"              // uint xx or xx/yy
 	MEDIA_KEY_ENCODED_BY       MediaKey = "encoded_by"        // string
 	MEDIA_KEY_FILENAME         MediaKey = "filename"          // string
 	MEDIA_KEY_GENRE            MediaKey = "genre"             // string
@@ -226,7 +229,7 @@ const (
 	MEDIA_KEY_SERVICE_NAME     MediaKey = "service_name"      // string
 	MEDIA_KEY_SERVICE_PROVIDER MediaKey = "service_provider"  // string
 	MEDIA_KEY_TITLE            MediaKey = "title"             // string
-	MEDIA_KEY_TRACK            MediaKey = "track"             // uint
+	MEDIA_KEY_TRACK            MediaKey = "track"             // uint xx or xx/yy
 	MEDIA_KEY_VERSION_MAJOR    MediaKey = "major_version"     // string
 	MEDIA_KEY_VERSION_MINOR    MediaKey = "minor_version"     // string
 	MEDIA_KEY_SHOW             MediaKey = "show"              // string
