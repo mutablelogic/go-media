@@ -141,25 +141,32 @@ func (media *output) Flags() MediaFlag {
 		return MEDIA_FLAG_NONE
 	}
 	flags := MEDIA_FLAG_ENCODER
+
+	// Check for file flag
 	if !media.ctx.Output().Format().Is(ffmpeg.AVFMT_NOFILE) {
 		flags |= MEDIA_FLAG_FILE
 	}
+
+	// Append streams
 	for _, stream := range media.Streams() {
 		flags |= stream.Flags()
 	}
 
 	// Add other flags with likely media file type
-	/*metadata := m.Metadata()
-	if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
-		flags |= MEDIA_FLAG_ALBUM
-	}
-	if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
-		flags |= MEDIA_FLAG_ALBUM_TRACK
-	}
-	if flags&MEDIA_FLAG_ALBUM != 0 {
-		if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
-			flags |= MEDIA_FLAG_ALBUM_COMPILATION
+	metadata := media.Metadata()
+	if metadata != nil {
+		if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
+			flags |= MEDIA_FLAG_ALBUM
 		}
-	}*/
+		if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
+			flags |= MEDIA_FLAG_ALBUM_TRACK
+		}
+		if flags&MEDIA_FLAG_ALBUM != 0 {
+			if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
+				flags |= MEDIA_FLAG_ALBUM_COMPILATION
+			}
+		}
+	}
+
 	return flags
 }

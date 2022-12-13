@@ -149,10 +149,10 @@ func (media *input) Flags() MediaFlag {
 		return MEDIA_FLAG_NONE
 	}
 
-	//	TODO
-	//if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
-	//		flags |= MEDIA_FLAG_FILE
-	//	}
+	// Check for file flag
+	if !media.ctx.Output().Format().Is(ffmpeg.AVFMT_NOFILE) {
+		flags |= MEDIA_FLAG_FILE
+	}
 
 	// Add flags from stream
 	for _, stream := range media.Streams() {
@@ -161,18 +161,20 @@ func (media *input) Flags() MediaFlag {
 
 	// Add other flags with likely media file type
 	metadata := media.Metadata()
-	if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
-		flags |= MEDIA_FLAG_ALBUM
-	}
-	if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
-		flags |= MEDIA_FLAG_ALBUM_TRACK
-	}
-	if flags&MEDIA_FLAG_ALBUM != 0 {
-		if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
-			flags |= MEDIA_FLAG_ALBUM_COMPILATION
+	if metadata != nil {
+		if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
+			flags |= MEDIA_FLAG_ALBUM
 		}
+		if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
+			flags |= MEDIA_FLAG_ALBUM_TRACK
+		}
+		if flags&MEDIA_FLAG_ALBUM != 0 {
+			if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
+				flags |= MEDIA_FLAG_ALBUM_COMPILATION
+			}
+		}
+		// TODO: Flags for TV episode, etc.
 	}
-	// TODO: Flags for TV episode, etc.
 
 	// Return flags
 	return flags
