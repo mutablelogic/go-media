@@ -8,7 +8,7 @@ import (
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-errors"
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
@@ -32,20 +32,25 @@ func NewOutputFile(path string, cb func(Media) error) (*output, error) {
 	media := new(output)
 
 	// Create a context - detect format
-	if err := ffmpeg.AVFormat_alloc_output_context2(&media.ctx, nil, "", path); err != nil {
+	ctx, err := ffmpeg.AVFormat_alloc_output_context2(nil, "", path)
+	if err != nil {
 		return nil, err
-	} else if media.ctx == nil {
-		return nil, ErrInternalAppError.With("AVFormat_alloc_output_context2")
 	}
 
-	// Create streams
-	media.streams = make([]Stream, 0, 3)
+	// Open the actual file if required
+	if !ctx.Output().Format().Is(ffmpeg.AVFMT_NOFILE) {
+		if ioctx, err := ffmpeg.AVFormat_avio_open(path, ffmpeg.AVIO_FLAG_WRITE); err != nil {
+			ffmpeg.AVFormat_free_context(ctx)
+			return nil, err
+		} else {
+			ctx.SetPB(ioctx)
+		}
+	}
 
-	// Set metadata
-	media.metadata = NewMetadata(media.ctx.Metadata())
-
-	// Set close callback
+	// Set properties
 	media.cb = cb
+	media.ctx = ctx
+	media.metadata = NewMetadata(media.ctx.Metadata())
 
 	// Return success
 	return media, nil
@@ -62,7 +67,20 @@ func (media *output) Close() error {
 		media.cb = nil
 	}
 
-	// Close context - TODO
+	// Close context
+	if ctx := media.ctx; ctx != nil {
+		if ioctx := ctx.PB(); ioctx != nil {
+			if err := ffmpeg.AVFormat_avio_close(ioctx); err != nil {
+				result = multierror.Append(result, err)
+			}
+		}
+		ffmpeg.AVFormat_free_context(ctx)
+	}
+
+	// Release resources
+	media.ctx = nil
+	media.streams = nil
+	media.metadata = nil
 
 	// Return any errors
 	return result
@@ -94,10 +112,6 @@ func (media *output) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (media *output) StreamsByType(media_type MediaFlag) []Stream {
-	panic("Not implemented")
-}
-
 func (media *output) URL() string {
 	if media.ctx == nil {
 		return ""
@@ -127,9 +141,9 @@ func (media *output) Flags() MediaFlag {
 		return MEDIA_FLAG_NONE
 	}
 	flags := MEDIA_FLAG_ENCODER
-	//	if media.ctx.Format()&ffmpeg.AVFMT_NOFILE != 0 {
-	//		flags |= MEDIA_FLAG_FILE
-	//	}
+	if !media.ctx.Output().Format().Is(ffmpeg.AVFMT_NOFILE) {
+		flags |= MEDIA_FLAG_FILE
+	}
 	for _, stream := range media.Streams() {
 		flags |= stream.Flags()
 	}

@@ -23,7 +23,7 @@ import (
 var (
 	flagVersion  = flag.Bool("version", false, "Print version information")
 	flagDebug    = flag.Bool("debug", false, "Enable debug output")
-	flagOut      = flag.String("out", "", "Output directory for artwork")
+	flagOut      = flag.String("out", "", "Output filename")
 	flagAudio    = flag.Bool("audio", false, "Extract audio")
 	flagVideo    = flag.Bool("video", false, "Extract video")
 	flagSubtitle = flag.Bool("subtitle", false, "Extract subtitles")
@@ -39,8 +39,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Check arguments
-	if flag.NArg() != 1 {
+	// Check output arguments
+	if flag.NArg() != 1 || *flagOut == "" {
 		flag.Usage()
 		os.Exit(-1)
 	}
@@ -52,18 +52,15 @@ func main() {
 	manager := media.New()
 	manager.SetDebug(*flagDebug)
 
-	// Check the out directory
-	if *flagOut != "" {
-		if info, err := os.Stat(*flagOut); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(-2)
-		} else if !info.IsDir() {
-			fmt.Fprintf(os.Stderr, "%q: not a directory\n", info.Name())
-			os.Exit(-2)
-		}
+	// Open the output file
+	out, err := manager.CreateFile(*flagOut)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-2)
 	}
+	fmt.Println(out)
 
-	// Open the file
+	// Open the input file
 	media, err := manager.OpenFile(flag.Arg(0))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -95,6 +92,12 @@ func main() {
 			return nil
 		})
 	}); err != nil && err != context.Canceled {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-2)
+	}
+
+	// Close the output file
+	if err := out.Close(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}

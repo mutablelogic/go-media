@@ -49,7 +49,7 @@ func AVFormat_alloc_context() *AVFormatContext {
 	return (*AVFormatContext)(C.avformat_alloc_context())
 }
 
-func (ctx *AVFormatContext) AVFormat_free_context() {
+func AVFormat_free_context(ctx *AVFormatContext) {
 	C.avformat_free_context((*C.struct_AVFormatContext)(ctx))
 }
 

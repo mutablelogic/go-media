@@ -20,12 +20,17 @@ import "C"
 type (
 	AVInputFormat   C.struct_AVInputFormat
 	AVOutputFormat  C.struct_AVOutputFormat
-	AVFormat        C.int
-	AVFormatFlag    C.int
 	AVFormatContext C.struct_AVFormatContext
-	AVContextFlags  C.int
 	AVStream        C.struct_AVStream
-	AVDisposition   C.int
+	AVIOContext     C.struct_AVIOContext
+)
+
+type (
+	AVFormat       C.int
+	AVFormatFlag   C.int
+	AVContextFlags C.int
+	AVDisposition  C.int
+	AVIOFlag       C.int
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +124,13 @@ const (
 	AV_DISPOSITION_STILL_IMAGE      AVDisposition = C.AV_DISPOSITION_STILL_IMAGE
 	AV_DISPOSITION_NONE             AVDisposition = 0
 	AV_DISPOSITION_MAX                            = AV_DISPOSITION_STILL_IMAGE
+)
+
+const (
+	AVIO_FLAG_NONE       AVIOFlag = 0
+	AVIO_FLAG_READ       AVIOFlag = C.AVIO_FLAG_READ
+	AVIO_FLAG_WRITE      AVIOFlag = C.AVIO_FLAG_WRITE
+	AVIO_FLAG_READ_WRITE AVIOFlag = C.AVIO_FLAG_READ_WRITE
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,6 +229,9 @@ func (ctx *AVFormatContext) String() string {
 	if output := ctx.Output(); output != nil {
 		str += fmt.Sprint(" output=", output)
 	}
+	if pb := ctx.PB(); pb != nil {
+		str += fmt.Sprint(" pb=", pb)
+	}
 	if flags := ctx.ContextFlags(); flags != AVFMTCTX_NONE {
 		str += fmt.Sprint(" ctx_flags=", flags)
 	}
@@ -256,11 +271,38 @@ func (ctx *AVFormatContext) String() string {
 	if max_analyze_duration := ctx.MaxAnalyzeDuration(); max_analyze_duration != 0 {
 		str += fmt.Sprint(" max_analyze_duration=", max_analyze_duration)
 	}
+
+	return str + ">"
+}
+
+func (ctx *AVIOContext) String() string {
+	str := "<AVIOContext"
+	if ctx.IsEOF() {
+		str += " eof"
+	}
+	if ctx.IsWriteable() {
+		str += " writable"
+	}
+	if ctx.IsSeekable() {
+		str += " seekable"
+	}
+	if ctx.IsDirect() {
+		str += " direct"
+	}
+	if pos := ctx.Pos(); pos >= 0 {
+		str += fmt.Sprint(" pos=", pos)
+	}
+	if size := ctx.BufferSize(); size > 0 {
+		str += fmt.Sprint(" buffer_size=", size)
+	}
+	if err := ctx.Error(); err != nil {
+		str += fmt.Sprintf(" error=%q", err)
+	}
 	return str + ">"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - STREAM
+// PROPERTIES - STREAM
 
 func (ctx *AVStream) Index() int {
 	return int(ctx.index)
@@ -315,7 +357,7 @@ func (ctx *AVStream) CodecPar() *AVCodecParameters {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - FORMAT CONTEXT
+// PROPERTIES - FORMAT CONTEXT
 
 func (ctx *AVFormatContext) Class() *AVClass {
 	return (*AVClass)(ctx.av_class)
@@ -338,6 +380,9 @@ func (ctx *AVFormatContext) NumStreams() uint {
 }
 
 func (ctx *AVFormatContext) Streams() []*AVStream {
+	if ctx.streams == nil {
+		return nil
+	}
 	return (*[1 << 28]*AVStream)(unsafe.Pointer(ctx.streams))[:ctx.nb_streams:ctx.nb_streams]
 }
 
@@ -397,8 +442,16 @@ func (ctx *AVFormatContext) DataCodecID() AVCodecID {
 	return AVCodecID(ctx.data_codec_id)
 }
 
+func (ctx *AVFormatContext) PB() *AVIOContext {
+	return (*AVIOContext)(ctx.pb)
+}
+
+func (ctx *AVFormatContext) SetPB(pb *AVIOContext) {
+	ctx.pb = (*C.struct_AVIOContext)(pb)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - INPUT
+// PROPERTIES - INPUT
 
 func (this *AVInputFormat) Name() string {
 	return C.GoString(this.name)
@@ -421,7 +474,7 @@ func (this *AVInputFormat) Format() AVFormat {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - OUTPUT
+// PROPERTIES - OUTPUT
 
 func (this *AVOutputFormat) Name() string {
 	return C.GoString(this.name)
@@ -444,6 +497,56 @@ func (this *AVOutputFormat) Format() AVFormat {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// PROPERTIES - IO
+
+func (ctx *AVIOContext) Class() *AVClass {
+	return (*AVClass)(ctx.av_class)
+}
+
+func (ctx *AVIOContext) Buffer() []byte {
+	return (*[1 << 28]byte)(unsafe.Pointer(ctx.buffer))[:ctx.buffer_size:ctx.buffer_size]
+}
+
+func (ctx *AVIOContext) BufferSize() int {
+	return int(ctx.buffer_size)
+}
+
+func (ctx *AVIOContext) Pos() int64 {
+	return int64(ctx.pos)
+}
+
+func (ctx *AVIOContext) IsEOF() bool {
+	return ctx.eof_reached != 0
+}
+
+func (ctx *AVIOContext) IsWriteable() bool {
+	return ctx.write_flag != 0
+}
+
+func (ctx *AVIOContext) IsSeekable() bool {
+	return ctx.seekable != 0
+}
+
+func (ctx *AVIOContext) IsDirect() bool {
+	return ctx.direct != 0
+}
+
+func (ctx *AVIOContext) Error() error {
+	if ctx.error == 0 {
+		return nil
+	} else {
+		return AVError(ctx.error)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (v AVFormat) Is(f AVFormat) bool {
+	return (v & f) != 0
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (this *AVInputFormat) String() string {
@@ -461,7 +564,7 @@ func (this *AVInputFormat) String() string {
 		str += fmt.Sprintf(" mime_type=%q", mimeType)
 	}
 	if flags := this.Format(); flags != 0 {
-		str += fmt.Sprint(" flags=", flags)
+		str += fmt.Sprint(" format_flags=", flags)
 	}
 	return str + ">"
 }
@@ -481,7 +584,7 @@ func (this *AVOutputFormat) String() string {
 		str += fmt.Sprintf(" mime_type=%q", mimeType)
 	}
 	if flags := this.Format(); flags != 0 {
-		str += fmt.Sprint(" flags=", flags)
+		str += fmt.Sprint(" format_flags=", flags)
 	}
 	return str + ">"
 }
