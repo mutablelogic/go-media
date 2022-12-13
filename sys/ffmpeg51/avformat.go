@@ -418,8 +418,8 @@ func (ctx *AVFormatContext) ProbeSize() int64 {
 	return int64(ctx.probesize)
 }
 
-func (ctx *AVFormatContext) Metadata() *AVDictionary {
-	return (*AVDictionary)(ctx.metadata)
+func (ctx *AVFormatContext) Metadata() **AVDictionary {
+	return (**AVDictionary)(unsafe.Pointer(&ctx.metadata))
 }
 
 func (ctx *AVFormatContext) MaxAnalyzeDuration() int64 {

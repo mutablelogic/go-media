@@ -86,7 +86,7 @@ type Media interface {
 	// Return metadata for the media
 	Metadata() Metadata
 
-	// Set metadata value
+	// Set metadata value by key, or remove it if the value is nil
 	Set(MediaKey, any) error
 }
 

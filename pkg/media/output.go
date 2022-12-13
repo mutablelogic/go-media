@@ -16,10 +16,7 @@ import (
 // TYPES
 
 type output struct {
-	ctx      *ffmpeg.AVFormatContext
-	cb       func(Media) error
-	streams  []Stream
-	metadata Metadata
+	media
 }
 
 // Ensure *input complies with Media interface
@@ -47,40 +44,35 @@ func NewOutputFile(path string, cb func(Media) error) (*output, error) {
 		}
 	}
 
-	// Set properties
-	media.cb = cb
-	media.ctx = ctx
-	media.metadata = NewMetadata(media.ctx.Metadata())
+	// Initialize the media
+	if err := media.new(ctx, cb); err != nil {
+		if ctx.PB() != nil {
+			ffmpeg.AVFormat_avio_close(ctx.PB())
+		}
+		ffmpeg.AVFormat_free_context(ctx)
+		return nil, err
+	}
 
 	// Return success
 	return media, nil
 }
 
-func (media *output) Close() error {
+func (output *output) Close() error {
 	var result error
 
-	// Callback
-	if media.cb != nil {
-		if err := media.cb(media); err != nil {
-			result = multierror.Append(result, err)
-		}
-		media.cb = nil
-	}
-
-	// Close context
-	if ctx := media.ctx; ctx != nil {
-		if ioctx := ctx.PB(); ioctx != nil {
+	// Close output
+	if output.ctx != nil {
+		if ioctx := output.ctx.PB(); ioctx != nil {
 			if err := ffmpeg.AVFormat_avio_close(ioctx); err != nil {
 				result = multierror.Append(result, err)
 			}
 		}
-		ffmpeg.AVFormat_free_context(ctx)
 	}
 
-	// Release resources
-	media.ctx = nil
-	media.streams = nil
-	media.metadata = nil
+	// Callback with media
+	if err := output.media.Close(output); err != nil {
+		result = multierror.Append(result, err)
+	}
 
 	// Return any errors
 	return result
@@ -103,70 +95,5 @@ func (media *output) String() string {
 	if media.metadata != nil {
 		str += fmt.Sprint(" metadata=", media.metadata)
 	}
-	if media.ctx != nil {
-		str += fmt.Sprint(" ctx=", media.ctx)
-	}
 	return str + ">"
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-func (media *output) URL() string {
-	if media.ctx == nil {
-		return ""
-	} else {
-		return media.ctx.Url()
-	}
-}
-
-func (media *output) Streams() []Stream {
-	if media.ctx == nil {
-		return nil
-	} else {
-		return media.streams
-	}
-}
-
-func (media *output) Metadata() Metadata {
-	if media.ctx == nil {
-		return nil
-	} else {
-		return media.metadata
-	}
-}
-
-func (media *output) Flags() MediaFlag {
-	if media.ctx == nil {
-		return MEDIA_FLAG_NONE
-	}
-	flags := MEDIA_FLAG_ENCODER
-
-	// Check for file flag
-	if !media.ctx.Output().Format().Is(ffmpeg.AVFMT_NOFILE) {
-		flags |= MEDIA_FLAG_FILE
-	}
-
-	// Append streams
-	for _, stream := range media.Streams() {
-		flags |= stream.Flags()
-	}
-
-	// Add other flags with likely media file type
-	metadata := media.Metadata()
-	if metadata != nil {
-		if flags&MEDIA_FLAG_AUDIO != 0 && metadata.Value(MEDIA_KEY_ALBUM) != nil {
-			flags |= MEDIA_FLAG_ALBUM
-		}
-		if flags&MEDIA_FLAG_ALBUM != 0 && metadata.Value(MEDIA_KEY_ALBUM_ARTIST) != nil && metadata.Value(MEDIA_KEY_TITLE) != nil {
-			flags |= MEDIA_FLAG_ALBUM_TRACK
-		}
-		if flags&MEDIA_FLAG_ALBUM != 0 {
-			if compilation, ok := metadata.Value(MEDIA_KEY_COMPILATION).(bool); ok && compilation {
-				flags |= MEDIA_FLAG_ALBUM_COMPILATION
-			}
-		}
-	}
-
-	return flags
 }

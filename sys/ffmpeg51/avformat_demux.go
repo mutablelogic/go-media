@@ -23,11 +23,12 @@ func AVFormat_av_find_input_format(short_name string) *AVInputFormat {
 }
 
 // Open an input stream and read the header.
-func AVFormat_open_input(ctx **AVFormatContext, url string, input_fmt *AVInputFormat, options **AVDictionary) error {
-	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(ctx)), C.CString(url), (*C.struct_AVInputFormat)(input_fmt), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
-		return err
+func AVFormat_open_input(url string, input_fmt *AVInputFormat, options **AVDictionary) (*AVFormatContext, error) {
+	var ctx *AVFormatContext
+	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), C.CString(url), (*C.struct_AVInputFormat)(input_fmt), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+		return nil, err
 	} else {
-		return nil
+		return ctx, nil
 	}
 }
 

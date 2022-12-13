@@ -5,12 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	// Package imports
 	assert "github.com/stretchr/testify/assert"
 
 	// Namespace imports
-	//. "github.com/mutablelogic/go-media"
+	. "github.com/mutablelogic/go-media"
 	. "github.com/mutablelogic/go-media/pkg/media"
 )
 
@@ -46,6 +47,8 @@ func Test_manager_002(t *testing.T) {
 	media, err := mgr.CreateFile(filepath.Join(path, "XX.mp4"))
 	assert.NoError(err)
 	assert.NotNil(media)
+	err = media.Set(MEDIA_KEY_CREATED, time.Now())
+	assert.NoError(err)
 	t.Log(media)
 	assert.NoError(media.Close())
 	assert.NoError(mgr.Close())
