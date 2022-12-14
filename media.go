@@ -45,6 +45,9 @@ type Manager interface {
 	// to "force" a specific format
 	OpenURL(string, MediaFormat) (Media, error)
 
+	// Open media device with a specific name for reading and return it.
+	OpenDevice(string) (Media, error)
+
 	// Create file for writing and return it
 	CreateFile(string) (Media, error)
 

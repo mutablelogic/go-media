@@ -92,6 +92,30 @@ func (m *manager) OpenURL(url string, format MediaFormat) (Media, error) {
 	return media, nil
 }
 
+// Open media device with a specific name for reading and return it.
+func (m *manager) OpenDevice(device string) (Media, error) {
+	// Return device by name
+	formats := m.MediaFormats(MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE, device)
+	if len(formats) == 0 {
+		return nil, ErrNotFound.With(device)
+	} else if len(formats) > 1 {
+		return nil, ErrDuplicateEntry.With(device)
+	}
+	media, err := NewInputDevice(formats[0], func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
 // Create media for writing and return it
 func (m *manager) CreateFile(path string) (Media, error) {
 	media, err := NewOutputFile(path, func(media Media) error {

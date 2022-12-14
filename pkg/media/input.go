@@ -38,6 +38,15 @@ func NewInputFile(path string, format MediaFormat, cb func(Media) error) (*input
 	}
 }
 
+func NewInputDevice(device MediaFormat, cb func(Media) error) (*input, error) {
+	format, ok := device.(*format_in)
+	if !ok || format == nil || format.ctx == nil {
+		return nil, ErrBadParameter.With("device")
+	} else {
+		return newInput("", device, cb)
+	}
+}
+
 func NewInputURL(path string, format MediaFormat, cb func(Media) error) (*input, error) {
 	url, err := url.Parse(path)
 	if err != nil {

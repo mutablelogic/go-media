@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	reOutputDevice = regexp.MustCompile(`^([A-Z][a-z]\w+)$`)
+	reDeviceName = regexp.MustCompile(`^([A-Za-z]\w+)$`)
 )
 
 func main() {
@@ -90,8 +90,14 @@ func main() {
 		}
 	}
 
-	// Check for a URL or filepath
-	if url, err := url.Parse(flags.Arg(0)); err == nil && url.Scheme != "" {
+	// Check for a device, URL or filepath
+	if reDeviceName.MatchString(flags.Arg(0)) {
+		media, err = manager.OpenDevice(flags.Arg(0))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(-2)
+		}
+	} else if url, err := url.Parse(flags.Arg(0)); err == nil && url.Scheme != "" {
 		media, err = manager.OpenURL(flags.Arg(0), in)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -116,7 +122,7 @@ func main() {
 
 	// For the output, we can output to a device, a URL, or a file
 	var out Media
-	if reOutputDevice.MatchString(flags.Out()) {
+	if reDeviceName.MatchString(flags.Out()) {
 		out, err = manager.CreateDevice(flags.Out())
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
