@@ -4,11 +4,16 @@
 This module provides an interface for media services, including:
 
   * Bindings in golang for [ffmpeg 5.1](https://ffmpeg.org/);
-  * Opening media files for reading and writing;
+  * Opening media files, devices and network sockets for reading 
+    and writing;
   * Retrieving metadata and artwork from audio and video media;
   * Re-multiplexing media files from one format to another;
-  * Resampling raw audio from one format to another;
-  * Serve a backend API for access to media services.
+  * Fingerprinting audio files to identify music.
+
+## Current Status
+
+This module is currently in development and subject to change. If there are any specific features
+you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
@@ -44,12 +49,15 @@ the package. The various make targets are:
 
 ## Examples
 
-There are two example Command Line applications:
+There are two example [Command Line applications](https://github.com/mutablelogic/go-media/tree/master/cmd):
 
-  * `extractartwork` can be used to walk through a directory and extract artwork from media files and save the artwork into files;
+  * `extractartwork` can be used to walk through a directory and extract artwork from media
+    files and save the artwork into files;
   * `transcode` can be used to copy, re-mux and re-sample media files from one format to another.
 
-You can compile both applications with `make cmd`which places the binaries into the `build` folder.
+You can compile both applications with `make cmd`which places the binaries into the `build` folder. 
+Use the `-help` option on either application to see the options.
+
 
 ## The Media Transcoding API
 

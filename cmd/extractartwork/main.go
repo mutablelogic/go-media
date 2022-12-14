@@ -73,9 +73,10 @@ func main() {
 		}
 
 		// open the file
-		media, err := manager.OpenFile(filepath.Join(root, path))
+		media, err := manager.OpenFile(filepath.Join(root, path), nil)
 		if err != nil {
-			result = multierror.Append(result, err)
+			result = multierror.Append(result, fmt.Errorf("%q: %w", info.Name(), err))
+			return nil
 		}
 		defer media.Close()
 
