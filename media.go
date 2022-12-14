@@ -89,6 +89,15 @@ type MediaFormat interface {
 
 	// Return file extensions handled
 	Ext() []string
+
+	// Return the default audio codec for the format
+	DefaultAudioCodec() Codec
+
+	// Return the default video codec for the format
+	DefaultVideoCodec() Codec
+
+	// Return the default subtitle codec for the format
+	DefaultSubtitleCodec() Codec
 }
 
 // Map is a mapping of input media, potentially to output media

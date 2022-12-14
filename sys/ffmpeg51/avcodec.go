@@ -57,6 +57,10 @@ const (
 )
 
 const (
+	AV_CODEC_ID_NONE AVCodecID = 0
+)
+
+const (
 	AV_PKT_FLAG_NONE       AVPacketFlag = 0
 	AV_PKT_FLAG_KEY        AVPacketFlag = C.AV_PKT_FLAG_KEY        ///< The packet contains a keyframe
 	AV_PKT_FLAG_CORRUPT    AVPacketFlag = C.AV_PKT_FLAG_CORRUPT    ///< The packet content is corrupted

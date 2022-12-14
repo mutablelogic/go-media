@@ -63,6 +63,7 @@ func NewOutputDevice(device MediaFormat, cb func(Media) error) (*output, error) 
 	if !ok || format == nil || format.ctx == nil {
 		return nil, ErrBadParameter.With("device")
 	}
+
 	// Create a context - detect format
 	ctx, err := ffmpeg.AVFormat_alloc_output_context2(format.ctx, "", "")
 	if err != nil {

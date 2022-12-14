@@ -20,8 +20,11 @@ type format_in struct {
 }
 
 type format_out struct {
-	ctx   *ffmpeg.AVOutputFormat
-	flags MediaFlag
+	ctx      *ffmpeg.AVOutputFormat
+	flags    MediaFlag
+	audio    *codec
+	video    *codec
+	subtitle *codec
 }
 
 // Ensure *format_in *format_out comply with Media interface
@@ -55,6 +58,17 @@ func NewOutputFormat(ctx *ffmpeg.AVOutputFormat, flags MediaFlag) *format_out {
 	} else {
 		this.ctx = ctx
 		this.flags = flags
+	}
+
+	// Default codecs
+	if id := this.ctx.DefaultAudioCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.audio = NewCodecEncoder(id)
+	}
+	if id := this.ctx.DefaultVideoCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.video = NewCodecEncoder(id)
+	}
+	if id := this.ctx.DefaultSubtitleCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.subtitle = NewCodecEncoder(id)
 	}
 
 	// Return success
@@ -140,12 +154,36 @@ func (format *format_in) Ext() []string {
 	return toExt(".", format.ctx.Ext())
 }
 
+// Return nil
+func (format *format_in) DefaultAudioCodec() Codec {
+	return nil
+}
+
+func (format *format_in) DefaultVideoCodec() Codec {
+	return nil
+}
+
+func (format *format_in) DefaultSubtitleCodec() Codec {
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - OUT
 
-// Return MEDIA_FLAG_DECODER and MEDIA_FLAG_DEVICE flags
+// Return MEDIA_FLAG_DECODER, MEDIA_FLAG_DEVICE, MEDIA_FLAG_AUDIO,
+// MEDIA_FLAG_VIDEO and MEDIA_FLAG_SUBTITLE flags
 func (format *format_out) Flags() MediaFlag {
-	return format.flags
+	flags := format.flags
+	if format.audio != nil {
+		flags |= MEDIA_FLAG_AUDIO
+	}
+	if format.video != nil {
+		flags |= MEDIA_FLAG_VIDEO
+	}
+	if format.subtitle != nil {
+		flags |= MEDIA_FLAG_SUBTITLE
+	}
+	return flags
 }
 
 // Return the name of the media format
@@ -166,6 +204,18 @@ func (format *format_out) MimeType() []string {
 // Return file extensions
 func (format *format_out) Ext() []string {
 	return toExt(".", format.ctx.Ext())
+}
+
+func (format *format_out) DefaultAudioCodec() Codec {
+	return format.audio
+}
+
+func (format *format_out) DefaultVideoCodec() Codec {
+	return format.video
+}
+
+func (format *format_out) DefaultSubtitleCodec() Codec {
+	return format.subtitle
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -496,6 +496,18 @@ func (this *AVOutputFormat) Format() AVFormat {
 	return AVFormat(this.flags)
 }
 
+func (this *AVOutputFormat) DefaultAudioCodec() AVCodecID {
+	return AVCodecID(this.audio_codec)
+}
+
+func (this *AVOutputFormat) DefaultVideoCodec() AVCodecID {
+	return AVCodecID(this.video_codec)
+}
+
+func (this *AVOutputFormat) DefaultSubtitleCodec() AVCodecID {
+	return AVCodecID(this.subtitle_codec)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES - IO
 
@@ -585,6 +597,15 @@ func (this *AVOutputFormat) String() string {
 	}
 	if flags := this.Format(); flags != 0 {
 		str += fmt.Sprint(" format_flags=", flags)
+	}
+	if codec := this.DefaultVideoCodec(); codec != AV_CODEC_ID_NONE {
+		str += fmt.Sprint(" video_codec=", codec)
+	}
+	if codec := this.DefaultAudioCodec(); codec != AV_CODEC_ID_NONE {
+		str += fmt.Sprint(" audio_codec=", codec)
+	}
+	if codec := this.DefaultSubtitleCodec(); codec != AV_CODEC_ID_NONE {
+		str += fmt.Sprint(" subtitle_codec=", codec)
 	}
 	return str + ">"
 }

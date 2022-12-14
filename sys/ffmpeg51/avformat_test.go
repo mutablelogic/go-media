@@ -30,6 +30,7 @@ func Test_avformat_002(t *testing.T) {
 }
 
 func Test_avformat_003(t *testing.T) {
+	assert := assert.New(t)
 	var opaque uintptr
 	for {
 		format := ffmpeg.AVFormat_av_muxer_iterate(&opaque)
@@ -37,6 +38,21 @@ func Test_avformat_003(t *testing.T) {
 			break
 		}
 		t.Log("muxer=", format)
+		if id := format.DefaultAudioCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+			codec := ffmpeg.AVCodec_find_encoder(id)
+			assert.NotNil(codec)
+			t.Log("  audio_codec=", codec)
+		}
+		if id := format.DefaultVideoCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+			codec := ffmpeg.AVCodec_find_encoder(id)
+			assert.NotNil(codec)
+			t.Log("  video_codec=", codec)
+		}
+		if id := format.DefaultSubtitleCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+			codec := ffmpeg.AVCodec_find_encoder(id)
+			assert.NotNil(codec)
+			t.Log("  subtitle_codec=", codec)
+		}
 	}
 }
 
@@ -55,7 +71,7 @@ func Test_avformat_005(t *testing.T) {
 	assert := assert.New(t)
 	var ctx *ffmpeg.AVFormatContext
 	var dict *ffmpeg.AVDictionary
-	err := ffmpeg.AVFormat_open_input(&ctx, SAMPLE_MP4, nil, &dict)
+	ctx, err := ffmpeg.AVFormat_open_input(SAMPLE_MP4, nil, &dict)
 	assert.NoError(err)
 	assert.NotNil(ctx)
 	t.Log(ctx, dict)
