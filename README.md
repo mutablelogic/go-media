@@ -58,6 +58,7 @@ There are two example [Command Line applications](https://github.com/mutablelogi
 You can compile both applications with `make cmd`which places the binaries into the `build` folder. 
 Use the `-help` option on either application to see the options.
 
+
 ## The Media Transcoding API
 
 The API is split into two parts:
