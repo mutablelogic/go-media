@@ -60,9 +60,10 @@ func AVFormat_avformat_get_class() *AVClass {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - AVSTREAM
 
-func AVFormat_avstream_getclass() *AVClass {
-	return (*AVClass)(C.av_stream_get_class())
-}
+//Commented out due to not compiling on debian
+//func AVFormat_avstream_getclass() *AVClass {
+//	return (*AVClass)(C.av_stream_get_class())
+//}
 
 func AVFormat_avformat_new_stream(oc *AVFormatContext, c *AVCodec) *AVStream {
 	return (*AVStream)(C.avformat_new_stream((*C.struct_AVFormatContext)(oc), (*C.struct_AVCodec)(c)))
