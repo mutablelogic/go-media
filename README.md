@@ -23,20 +23,6 @@ On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
 brew install ffmpeg chromaprint make
-git clone git@github.com:djthorpe/go-media.git
-cd go-media
-make
-```
-
-On Debian Linux:
-
-
-```bash
-sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev \
-       libavformat-dev libavresample-dev libavutil-dev libchromaprint-dev
-git clone git@github.com:djthorpe/go-media.git
-cd go-media
-make
 ```
 
 There are some examples in the `cmd` folder of the main repository on how to use
@@ -46,6 +32,14 @@ the package. The various make targets are:
   * `make test` will perform tests;
   * `make cmd` will build example command-line tools into the `build` folder;
   * `make clean` will remove all build artifacts.
+
+For example,
+
+```bash
+git clone git@github.com:djthorpe/go-media.git
+cd go-media
+make
+```
 
 ## Examples
 
