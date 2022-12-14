@@ -3,7 +3,6 @@ GO=$(shell which go)
 
 # Paths to locations, etc
 BUILD_DIR := "build"
-PLUGIN_DIR := $(wildcard plugin/*)
 CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 
 # Build flags
@@ -15,21 +14,9 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HE
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-all: clean test server plugins cmd
+all: clean test cmd
 
-server: dependencies
-	@echo Build server
-	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/mutablelogic/go-server/cmd/server
-
-plugins: dependencies $(PLUGIN_DIR)
-	@echo Build plugin httpserver 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/httpserver
-	@echo Build plugin log 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/log.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/log
-	@echo Build plugin static 
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/static.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/static
-
-cmd: dependencies $(CMD_DIR)
+cmd: clean dependencies $(CMD_DIR)
 
 $(CMD_DIR): FORCE
 	@echo Build cmd $(notdir $@)
