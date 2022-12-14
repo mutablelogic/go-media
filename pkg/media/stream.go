@@ -65,10 +65,22 @@ func (stream *stream) Flags() MediaFlag {
 		return flags
 	}
 
-	// TODO: Add codec flags
-	//if stream.ctx.CodecPar()codec != nil {
-	//	flags |= s.codec.Flags()
-	//}
+	// Add codec parameter flags
+	if stream.ctx != nil {
+		t := stream.ctx.CodecPar().CodecType()
+		switch t {
+		case ffmpeg.AVMEDIA_TYPE_AUDIO:
+			flags |= MEDIA_FLAG_AUDIO
+		case ffmpeg.AVMEDIA_TYPE_VIDEO:
+			flags |= MEDIA_FLAG_VIDEO
+		case ffmpeg.AVMEDIA_TYPE_SUBTITLE:
+			flags |= MEDIA_FLAG_SUBTITLE
+		case ffmpeg.AVMEDIA_TYPE_DATA:
+			flags |= MEDIA_FLAG_DATA
+		case ffmpeg.AVMEDIA_TYPE_ATTACHMENT:
+			flags |= MEDIA_FLAG_ATTACHMENT
+		}
+	}
 
 	// Remove encoder/decoder flags
 	flags &^= (MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER)
