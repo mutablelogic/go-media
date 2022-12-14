@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 
 	// Packages
 	config "github.com/mutablelogic/go-media/pkg/config"
@@ -19,6 +20,10 @@ import (
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media"
+)
+
+var (
+	reOutputDevice = regexp.MustCompile(`^([A-Z][a-z]\w+)$`)
 )
 
 func main() {
@@ -64,13 +69,19 @@ func main() {
 	// Set the debug flag
 	manager.SetDebug(flags.Debug())
 
+	// The output is a path, URL, or the name of an output device
+	if flags.Out() == "" {
+		fmt.Fprintln(os.Stderr, "No output specified")
+		os.Exit(-2)
+	}
+
 	// Check to force a specific input format
 	var in MediaFormat
 	var media Media
 	if flags.In() != "" {
 		if formats := manager.MediaFormats(MEDIA_FLAG_DECODER, flags.In()); len(formats) == 0 {
 			fmt.Fprintf(os.Stderr, "No input format found for %q", flags.In())
-			os.Exit(-1)
+			os.Exit(-2)
 		} else if len(formats) > 1 {
 			fmt.Fprintf(os.Stderr, "Multiple input formats found for %q", flags.In())
 			os.Exit(-1)
@@ -95,12 +106,29 @@ func main() {
 	}
 	defer media.Close()
 
+	// Create a map of the streams for the input file
 	media_map, err := manager.Map(media, flags.MediaFlags())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
 	fmt.Println(media_map)
+
+	// For the output, we can output to a device, a URL, or a file
+	var out Media
+	if reOutputDevice.MatchString(flags.Out()) {
+		out, err = manager.CreateDevice(flags.Out())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(-2)
+		}
+	} else if url, err := url.Parse(flags.Out()); err == nil && url.Scheme != "" {
+		fmt.Fprintln(os.Stderr, "Output URL's are not yet supported")
+		os.Exit(-2)
+	} else if out, err = manager.CreateFile(flags.Out()); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-2)
+	}
 
 	// Create a cancellable context
 	ctx := contextForSignal(os.Interrupt)
@@ -118,10 +146,10 @@ func main() {
 	}
 
 	// Close the output file
-	//if err := out.Close(); err != nil {
-	//	fmt.Fprintln(os.Stderr, err)
-	//	os.Exit(-2)
-	//}
+	if err := out.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-2)
+	}
 
 	// If the context was cancelled, print a message
 	if ctx.Err() != nil {

@@ -48,6 +48,9 @@ type Manager interface {
 	// Create file for writing and return it
 	CreateFile(string) (Media, error)
 
+	// Create an output device with a specific name for writing and return it
+	CreateDevice(string) (Media, error)
+
 	// Create a map of input media. If MediaFlag is MEDIA_FLAG_NONE, then
 	// all audio, video and subtitle streams are mapped, or else a
 	// combination of MEDIA_FLAG_AUDIO,

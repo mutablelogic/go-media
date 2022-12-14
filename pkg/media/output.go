@@ -8,7 +8,7 @@ import (
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
@@ -42,6 +42,31 @@ func NewOutputFile(path string, cb func(Media) error) (*output, error) {
 		} else {
 			ctx.SetPB(ioctx)
 		}
+	}
+
+	// Initialize the media
+	if err := media.new(ctx, cb); err != nil {
+		if ctx.PB() != nil {
+			ffmpeg.AVFormat_avio_close(ctx.PB())
+		}
+		ffmpeg.AVFormat_free_context(ctx)
+		return nil, err
+	}
+
+	// Return success
+	return media, nil
+}
+
+func NewOutputDevice(device MediaFormat, cb func(Media) error) (*output, error) {
+	media := new(output)
+	format, ok := device.(*format_out)
+	if !ok || format == nil || format.ctx == nil {
+		return nil, ErrBadParameter.With("device")
+	}
+	// Create a context - detect format
+	ctx, err := ffmpeg.AVFormat_alloc_output_context2(format.ctx, "", "")
+	if err != nil {
+		return nil, err
 	}
 
 	// Initialize the media

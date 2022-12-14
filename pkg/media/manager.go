@@ -109,6 +109,30 @@ func (m *manager) CreateFile(path string) (Media, error) {
 	return media, nil
 }
 
+// Create an output device for writing and return it
+func (m *manager) CreateDevice(device string) (Media, error) {
+	// Return device by name
+	formats := m.MediaFormats(MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE, device)
+	if len(formats) == 0 {
+		return nil, ErrNotFound.With(device)
+	} else if len(formats) > 1 {
+		return nil, ErrDuplicateEntry.With(device)
+	}
+	media, err := NewOutputDevice(formats[0], func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
 // Create a new map for decoding
 func (m *manager) Map(media Media, flags MediaFlag) (Map, error) {
 	return NewMap(media, flags)
