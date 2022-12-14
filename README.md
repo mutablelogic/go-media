@@ -12,41 +12,26 @@ This module provides an interface for media services, including:
 
 ## Requirements
 
-  * Library and header files for [ffmpeg 5.1](https://ffmpeg.org/download.html);
+In order to build the examples, you'll need the library and header files for [ffmpeg 5.1](https://ffmpeg.org/download.html) installed. The `chromaprint` library is also required for fingerprinting audio files.
 
-## Building
-
-This module does not include a full
-copy of __ffmpeg__ as part of the build process, but expects `pkgconfig`
-files `libavcodec.pc`, `libavdevice.pc`, `libavfilter.pc`, `libavformat.pc`,
-`libavresample.pc` and `libavutil.pc` to be present (and an existing set of header
-files and libraries to be available to link against, of course).
-
-You may need two environment variables set in order to locate the correct installation of 
-`ffmpeg`:
-
-  * `PKG_CONFIG_PATH` is used for locating the pkgconfig files;
-  * `DYLD_LIBRARY_PATH` is used for locating a dynamic library when testing and/or running
-    if linked dynamically.
-
-On Macintosh with homebrew, for example:
+On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
-[bash] brew install ffmpeg chromaprint
-[bash] git clone git@github.com:djthorpe/go-media.git
-[bash] cd go-media
-[bash] PKG_CONFIG_PATH="/usr/local/lib/pkgconfig" make
+brew install ffmpeg chromaprint make
+git clone git@github.com:djthorpe/go-media.git
+cd go-media
+make
 ```
 
-On Debian Linux you shouldn't need to locate the correct path to the sqlite3 library, since
-only one copy is installed:
+On Debian Linux:
+
 
 ```bash
-[bash] sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev \
+sudo apt install libavcodec-dev libavdevice-dev libavfilter-dev \
        libavformat-dev libavresample-dev libavutil-dev libchromaprint-dev
-[bash] git clone git@github.com:djthorpe/go-media.git
-[bash] cd go-media
-[bash] make
+git clone git@github.com:djthorpe/go-media.git
+cd go-media
+make
 ```
 
 There are some examples in the `cmd` folder of the main repository on how to use
@@ -55,8 +40,34 @@ the package. The various make targets are:
   * `make all` will perform tests, build all examples and the backend API;
   * `make test` will perform tests;
   * `make cmd` will build example command-line tools into the `build` folder;
-  * `make server plugins` will install the backend server and required plugins in the `build` folder;
   * `make clean` will remove all build artifacts.
+
+## Examples
+
+There are two example Command Line applications:
+
+  * `extractartwork` can be used to walk through a directory and extract artwork from media files and save the artwork into files;
+  * `transcode` can be used to copy, re-mux and re-sample media files from one format to another.
+
+You can compile both applications with `make cmd`which places the binaries into the `build` folder.
+
+## The Media Transcoding API
+
+The API is split into two parts:
+
+  * `sys/ffmpeg51` provides the implementation of the lower-level function calls
+    to ffmpeg. The documentation is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/sys/ffmpeg51)
+  * `pkg/media` provides the higher-level API for opening media files, reading,
+    transcoding, resampling and writing media files. The interfaces and documentation
+    are best read here:
+      * [Audio](https://github.com/mutablelogic/go-media/blob/master/audio.go)
+      * [Video](https://github.com/mutablelogic/go-media/blob/master/video.go)
+      * [Media](https://github.com/mutablelogic/go-media/blob/master/media.go)
+      * And [here](https://pkg.go.dev/github.com/mutablelogic/go-media/)
+
+## Audio Fingerprinting
+
+TODO
 
 ## Contributing & Distribution
 
@@ -71,5 +82,5 @@ repository for more information:
 
 ## References
 
-  * https://ffmpeg.org/doxygen/4.1/index.html
+  * https://ffmpeg.org/doxygen/5.1/index.html
 

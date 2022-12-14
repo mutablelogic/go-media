@@ -159,10 +159,12 @@ func (format *format_in) DefaultAudioCodec() Codec {
 	return nil
 }
 
+// Return nil
 func (format *format_in) DefaultVideoCodec() Codec {
 	return nil
 }
 
+// Return nil
 func (format *format_in) DefaultSubtitleCodec() Codec {
 	return nil
 }
