@@ -1,118 +1,234 @@
 package media
 
 import (
-
-	// Packages
 	"fmt"
+	"strings"
 
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Format struct {
-	in  *ffmpeg.AVInputFormat
-	out *ffmpeg.AVOutputFormat
+type format_in struct {
+	ctx   *ffmpeg.AVInputFormat
+	flags MediaFlag
 }
+
+type format_out struct {
+	ctx      *ffmpeg.AVOutputFormat
+	flags    MediaFlag
+	audio    *codec
+	video    *codec
+	subtitle *codec
+}
+
+// Ensure *format_in *format_out comply with Media interface
+var _ MediaFormat = (*format_in)(nil)
+var _ MediaFormat = (*format_out)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewInputFormat(ctx *ffmpeg.AVInputFormat) *Format {
+// Create a input format container
+func NewInputFormat(ctx *ffmpeg.AVInputFormat, flags MediaFlag) *format_in {
+	this := new(format_in)
+
 	if ctx == nil {
 		return nil
+	} else {
+		this.ctx = ctx
+		this.flags = flags
 	}
-	return &Format{ctx, nil}
+
+	// Return success
+	return this
 }
 
-func NewOutputFormat(ctx *ffmpeg.AVOutputFormat) *Format {
+// Create a output format container
+func NewOutputFormat(ctx *ffmpeg.AVOutputFormat, flags MediaFlag) *format_out {
+	this := new(format_out)
+
 	if ctx == nil {
 		return nil
+	} else {
+		this.ctx = ctx
+		this.flags = flags
 	}
-	return &Format{nil, ctx}
-}
 
-func (f *Format) Release() error {
-	f.in = nil
-	f.out = nil
-	return nil
+	// Default codecs
+	if id := this.ctx.DefaultAudioCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.audio = NewCodecEncoder(id)
+	}
+	if id := this.ctx.DefaultVideoCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.video = NewCodecEncoder(id)
+	}
+	if id := this.ctx.DefaultSubtitleCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
+		this.subtitle = NewCodecEncoder(id)
+	}
+
+	// Return success
+	return this
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (f *Format) String() string {
-	str := "<format"
-	if name := f.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
+func (format *format_in) String() string {
+	str := "<media.format"
+	if flags := format.Flags(); flags != MEDIA_FLAG_NONE {
+		str += fmt.Sprint(" flags=", flags)
 	}
-	if desc := f.Description(); desc != "" {
-		str += fmt.Sprintf(" description=%q", desc)
+	if name := format.Name(); len(name) > 0 {
+		if len(name) == 1 {
+			str += fmt.Sprintf(" name=%q", name[0])
+		} else {
+			str += fmt.Sprintf(" name=%q", name)
+		}
 	}
-	if ext := f.Ext(); ext != "" {
-		str += fmt.Sprintf(" ext=%q", ext)
+	if description := format.Description(); description != "" {
+		str += fmt.Sprintf(" description=%q", description)
 	}
-	if mimetype := f.MimeType(); mimetype != "" {
+	if mimetype := format.MimeType(); len(mimetype) > 0 {
 		str += fmt.Sprintf(" mimetype=%q", mimetype)
 	}
-	if flags := f.Flags(); flags != MEDIA_FLAG_NONE {
+	if ext := format.Ext(); len(ext) > 0 {
+		str += fmt.Sprintf(" ext=%q", ext)
+	}
+	return str + ">"
+}
+
+func (format *format_out) String() string {
+	str := "<media.format"
+	if flags := format.Flags(); flags != MEDIA_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
+	}
+	if name := format.Name(); len(name) > 0 {
+		if len(name) == 1 {
+			str += fmt.Sprintf(" name=%q", name[0])
+		} else {
+			str += fmt.Sprintf(" name=%q", name)
+		}
+	}
+	if description := format.Description(); description != "" {
+		str += fmt.Sprintf(" description=%q", description)
+	}
+	if mimetype := format.MimeType(); len(mimetype) > 0 {
+		str += fmt.Sprintf(" mimetype=%q", mimetype)
+	}
+	if ext := format.Ext(); len(ext) > 0 {
+		str += fmt.Sprintf(" ext=%q", ext)
 	}
 	return str + ">"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PROPERTIES
+// PUBLIC METHODS - IN
 
-func (f *Format) Name() string {
-	if f.in != nil {
-		return f.in.Name()
-	} else if f.out != nil {
-		return f.out.Name()
-	} else {
-		return ""
-	}
+// Return MEDIA_FLAG_ENCODER and MEDIA_FLAG_DEVICE flags
+func (format *format_in) Flags() MediaFlag {
+	return format.flags
 }
 
-func (f *Format) Description() string {
-	if f.in != nil {
-		return f.in.Description()
-	} else if f.out != nil {
-		return f.out.Description()
-	} else {
-		return ""
-	}
+// Return the name of the media format
+func (format *format_in) Name() []string {
+	return toExt("", format.ctx.Name())
 }
 
-func (f *Format) Ext() string {
-	if f.in != nil {
-		return f.in.Ext()
-	} else if f.out != nil {
-		return f.out.Ext()
-	} else {
-		return ""
-	}
+// Return a longer description of the media format
+func (format *format_in) Description() string {
+	return format.ctx.Description()
 }
 
-func (f *Format) MimeType() string {
-	if f.in != nil {
-		return f.in.MimeType()
-	} else if f.out != nil {
-		return f.out.MimeType()
-	} else {
-		return ""
-	}
+// Return mimetype
+func (format *format_in) MimeType() []string {
+	return toExt("", format.ctx.MimeType())
 }
 
-func (f *Format) Flags() MediaFlag {
-	if f.in != nil {
-		return MEDIA_FLAG_DECODER
-	} else if f.out != nil {
-		return MEDIA_FLAG_ENCODER
+// Return file extensions
+func (format *format_in) Ext() []string {
+	return toExt(".", format.ctx.Ext())
+}
+
+// Return nil
+func (format *format_in) DefaultAudioCodec() Codec {
+	return nil
+}
+
+// Return nil
+func (format *format_in) DefaultVideoCodec() Codec {
+	return nil
+}
+
+// Return nil
+func (format *format_in) DefaultSubtitleCodec() Codec {
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - OUT
+
+// Return MEDIA_FLAG_DECODER, MEDIA_FLAG_DEVICE, MEDIA_FLAG_AUDIO,
+// MEDIA_FLAG_VIDEO and MEDIA_FLAG_SUBTITLE flags
+func (format *format_out) Flags() MediaFlag {
+	flags := format.flags
+	if format.audio != nil {
+		flags |= MEDIA_FLAG_AUDIO
 	}
-	return MEDIA_FLAG_NONE
+	if format.video != nil {
+		flags |= MEDIA_FLAG_VIDEO
+	}
+	if format.subtitle != nil {
+		flags |= MEDIA_FLAG_SUBTITLE
+	}
+	return flags
+}
+
+// Return the name of the media format
+func (format *format_out) Name() []string {
+	return toExt("", format.ctx.Name())
+}
+
+// Return a longer description of the media format
+func (format *format_out) Description() string {
+	return format.ctx.Description()
+}
+
+// Return mimetype
+func (format *format_out) MimeType() []string {
+	return toExt("", format.ctx.MimeType())
+}
+
+// Return file extensions
+func (format *format_out) Ext() []string {
+	return toExt(".", format.ctx.Ext())
+}
+
+func (format *format_out) DefaultAudioCodec() Codec {
+	return format.audio
+}
+
+func (format *format_out) DefaultVideoCodec() Codec {
+	return format.video
+}
+
+func (format *format_out) DefaultSubtitleCodec() Codec {
+	return format.subtitle
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func toExt(prefix, exts string) []string {
+	result := make([]string, 0, 3)
+	if ext := strings.TrimSpace(exts); ext != "" {
+		for _, ext := range strings.Split(ext, ",") {
+			result = append(result, prefix+strings.ToLower(ext))
+		}
+	}
+	return result
 }

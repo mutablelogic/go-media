@@ -4,123 +4,106 @@ import (
 	"fmt"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
-	multierror "github.com/hashicorp/go-multierror"
+
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Stream struct {
-	ctx   *ffmpeg.AVStream
-	codec *Codec
+type stream struct {
+	ctx *ffmpeg.AVStream
 }
+
+// Ensure *stream complies with Stream interface
+var _ Stream = (*stream)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewStream(ctx *ffmpeg.AVStream, source *Stream) *Stream {
-	this := new(Stream)
-	this.ctx = ctx
-	if source == nil {
-		this.codec = NewCodecWithParameters(ctx.CodecPar())
-	} else {
-		this.codec = NewCodecWithParameters(source.ctx.CodecPar())
+func NewStream(ctx *ffmpeg.AVStream) *stream {
+	if ctx == nil {
+		return nil
 	}
-
-	// Return success
-	return this
-}
-
-func (s *Stream) Release() error {
-	var result error
-	if s.codec != nil {
-		if err := s.codec.Release(); err != nil {
-			result = multierror.Append(result, err)
-		}
+	return &stream{
+		ctx: ctx,
 	}
-
-	// Set instance variables to nil
-	s.ctx = nil
-	s.codec = nil
-
-	// Return any errors
-	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (s *Stream) String() string {
-	str := "<stream"
-	if i := s.Index(); i >= 0 {
-		str += fmt.Sprint(" index=", i)
-	}
-	if codec := s.Codec(); codec != nil {
-		str += fmt.Sprint(" codec=", codec)
-	}
-	if flags := s.Flags(); flags != MEDIA_FLAG_NONE {
+func (stream *stream) String() string {
+	str := "<media.stream"
+	str += fmt.Sprint(" index=", stream.Index())
+	if flags := stream.Flags(); flags != MEDIA_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
+	}
+	if stream.ctx != nil {
+		str += fmt.Sprint(" ctx=", stream.ctx)
 	}
 	return str + ">"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// METHODS
+// PUBLIC METHODS
 
-func (s *Stream) Index() int {
-	if s.ctx == nil {
+func (stream *stream) Index() int {
+	if stream.ctx == nil {
 		return -1
 	}
-	return s.ctx.Index()
+	return stream.ctx.Index()
 }
 
-func (s *Stream) Codec() *Codec {
-	if s.ctx == nil {
-		return nil
-	}
-	return s.codec
-}
-
-func (s *Stream) Artwork() []byte {
-	if s.ctx == nil {
-		return nil
-	}
-	if s.ctx.Disposition()&ffmpeg.AV_DISPOSITION_ATTACHED_PIC == 0 {
-		return nil
-	}
-	if pkt := s.ctx.AttachedPicture(); pkt == nil {
-		return nil
-	} else {
-		return pkt.Bytes()
-	}
-}
-
-func (s *Stream) Flags() MediaFlag {
+func (stream *stream) Flags() MediaFlag {
 	flags := MEDIA_FLAG_NONE
-	if s.ctx == nil {
+	if stream.ctx == nil {
 		return flags
 	}
 
-	// Codec flags
-	if s.codec != nil {
-		flags |= s.codec.Flags()
-	}
+	// TODO: Add codec flags
+	//if stream.ctx.CodecPar()codec != nil {
+	//	flags |= s.codec.Flags()
+	//}
 
 	// Remove encoder/decoder flags
 	flags &^= (MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER)
 
 	// Disposition flags
-	if s.ctx.Disposition()&ffmpeg.AV_DISPOSITION_ATTACHED_PIC != 0 {
+	if stream.ctx.Disposition()&ffmpeg.AV_DISPOSITION_ATTACHED_PIC != 0 {
 		flags |= MEDIA_FLAG_ARTWORK
 	}
-	if s.ctx.Disposition()&ffmpeg.AV_DISPOSITION_CAPTIONS != 0 {
+	if stream.ctx.Disposition()&ffmpeg.AV_DISPOSITION_CAPTIONS != 0 {
 		flags |= MEDIA_FLAG_CAPTIONS
 	}
 
 	// Return flags
 	return flags
 }
+
+func (stream *stream) Artwork() []byte {
+	if stream.ctx == nil {
+		return nil
+	}
+	if stream.ctx.Disposition()&ffmpeg.AV_DISPOSITION_ATTACHED_PIC == 0 {
+		return nil
+	}
+	if pkt := stream.ctx.AttachedPic(); pkt.Size() == 0 {
+		return nil
+	} else {
+		return pkt.Bytes()
+	}
+}
+
+/*
+func (s *Stream) Codec() *Codec {
+	if s.ctx == nil {
+		return nil
+	}
+	return s.codec
+}
+*/

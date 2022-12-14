@@ -1,16 +1,17 @@
 package media
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"io"
-	"net/url"
-	"os"
-	"path/filepath"
-	"sync"
+	"log"
+	"strings"
+	"syscall"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
 	multierror "github.com/hashicorp/go-multierror"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
+	"golang.org/x/exp/slices"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -20,330 +21,352 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Config struct {
-	// Debug will output debug messages on error channel
-	Debug bool `yaml:"debug"`
+type manager struct {
+	media map[Media]bool
 }
 
-type Manager struct {
-	sync.Mutex
-	in  []*MediaInput
-	out []*MediaOutput
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-var (
-	DefaultConfig     = Config{Debug: false}
-	defaultBufferSize = 1024 * 64
-)
+// Ensure manager complies with Manager interface
+var _ Manager = (*manager)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewManagerWithConfig(cfg Config, err chan<- error) (*Manager, error) {
-	mgr := new(Manager)
-	level := ffmpeg.AV_LOG_ERROR
-	if cfg.Debug {
-		level = ffmpeg.AV_LOG_DEBUG
-	}
-	ffmpeg.AVLogSetCallback(level, func(level ffmpeg.AVLogLevel, message string, userInfo uintptr) {
-		select {
-		case err <- NewMediaError(level, message):
-			break
-		default:
-			break
-		}
-	})
-
-	// Initialize format
-	ffmpeg.AVFormatInit()
-
-	// Return success
-	return mgr, nil
+func New() *manager {
+	m := new(manager)
+	m.media = make(map[Media]bool)
+	return m
 }
 
-func (mgr *Manager) Close() error {
-	mgr.Mutex.Lock()
-	defer mgr.Mutex.Unlock()
-
-	// Close input streams
+func (m *manager) Close() error {
 	var result error
-	for _, in := range mgr.in {
-		if err := in.Release(); err != nil {
+
+	// Close any opened media files
+	var keys []Media
+	for media := range m.media {
+		keys = append(keys, media)
+	}
+	for _, media := range keys {
+		if err := media.Close(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
-
-	// Close output streams
-	for _, out := range mgr.out {
-		if err := out.Release(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	// Deinit
-	ffmpeg.AVFormatDeinit()
-
-	// Return to standard logging
-	ffmpeg.AVLogSetCallback(0, nil)
-
-	// Release resources
-	mgr.in, mgr.out = nil, nil
 
 	// Return any errors
 	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
+// PUBLIC METHODS
 
-func (mgr *Manager) String() string {
-	str := "<manager"
-	str += fmt.Sprintf(" version=%v", Version())
-	if len(mgr.in) > 0 {
-		str += fmt.Sprint(" in=", len(mgr.in))
+// Open file for reading and return the media
+func (m *manager) OpenFile(path string, format MediaFormat) (Media, error) {
+	media, err := NewInputFile(path, format, func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if len(mgr.out) > 0 {
-		str += fmt.Sprint(" out=", len(mgr.out))
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Open URL for reading and return the media
+func (m *manager) OpenURL(url string, format MediaFormat) (Media, error) {
+	media, err := NewInputURL(url, format, func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return str + ">"
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Open media device with a specific name for reading and return it.
+func (m *manager) OpenDevice(device string) (Media, error) {
+	// Return device by name
+	formats := m.MediaFormats(MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE, device)
+	if len(formats) == 0 {
+		return nil, ErrNotFound.With(device)
+	} else if len(formats) > 1 {
+		return nil, ErrDuplicateEntry.With(device)
+	}
+	media, err := NewInputDevice(formats[0], func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Create media for writing and return it
+func (m *manager) CreateFile(path string) (Media, error) {
+	media, err := NewOutputFile(path, func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Create an output device for writing and return it
+func (m *manager) CreateDevice(device string) (Media, error) {
+	// Return device by name
+	formats := m.MediaFormats(MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE, device)
+	if len(formats) == 0 {
+		return nil, ErrNotFound.With(device)
+	} else if len(formats) > 1 {
+		return nil, ErrDuplicateEntry.With(device)
+	}
+	media, err := NewOutputDevice(formats[0], func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Create a new map for decoding
+func (m *manager) Map(media Media, flags MediaFlag) (Map, error) {
+	return NewMap(media, flags)
+}
+
+// Set the logging function for the manager
+func (manager *manager) SetDebug(debug bool) {
+	if debug {
+		ffmpeg.AVUtil_av_log_set_level(ffmpeg.AV_LOG_DEBUG, manager.log)
+	} else {
+		ffmpeg.AVUtil_av_log_set_level(ffmpeg.AV_LOG_QUIET, manager.log)
+	}
+}
+
+// Demux packets from a media file
+func (manager *manager) Demux(ctx context.Context, media_map Map, fn DemuxFn) error {
+	var result error
+
+	// Get input
+	input, ok := media_map.Input().(*input)
+	if !ok || input == nil {
+		return ErrBadParameter.With("input")
+	}
+
+	// Iterate over incoming packets, callback when packet should
+	// be processed. Return if context is done
+	packet := media_map.(*decodemap).Packet().(*packet)
+	if packet == nil {
+		return ErrBadParameter.With("packet")
+	}
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := ffmpeg.AVFormat_av_read_frame(input.ctx, packet.ctx); err != nil {
+				if !errors.Is(err, io.EOF) {
+					result = multierror.Append(result, err)
+				}
+				// TODO: Flush calling avcoded_send_packet with nil
+				break FOR_LOOP
+			}
+			if err := media_map.(*decodemap).Demux(ctx, packet, fn); err != nil {
+				result = multierror.Append(result, err)
+				break FOR_LOOP
+			}
+			packet.Release()
+		}
+	}
+
+	// Close the map - cant be reused, so might make sense to create one
+	// in this function?
+	if err := media_map.(*decodemap).Close(); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	// Return any errors
+	return result
+}
+
+// Decode packets into frames
+func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn DecodeFn) error {
+	stream := p.(*packet).StreamIndex()
+	mapentry, exists := media_map.(*decodemap).context[stream]
+	if !exists {
+		return ErrBadParameter.With("stream")
+	}
+	decoder := mapentry.Decoder
+	if decoder == nil || decoder.ctx == nil || decoder.frame == nil {
+		return ErrBadParameter.With("decoder")
+	}
+
+	// Iterate through frames
+	var result error
+	for result == nil {
+		// Receive frames from the packet
+		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame.ctx)
+		if err == nil {
+			err = fn(ctx, decoder.frame)
+		}
+
+		// TODO: Rescaler and Resampler
+
+		// TODO: Encoder
+
+		// TODO: Release frames for decoder, scaler, resampler, encoder for reuse
+		decoder.frame.Release()
+
+		// Check for errors
+		if errors.Is(err, syscall.EAGAIN) {
+			// Output is not available in this state - user must try to send new input
+			break
+		} else if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Return any errors
+	return result
+}
+
+// Enumerate formats with MEDIA_FLAG_ENCODER, MEDIA_FLAG_DECODER, MEDIA_FLAG_FILE and
+// MEDIA_FLAG_DEVICE flags. Use the filter argument to further filter by extension,
+// name and mimetype
+func (manager *manager) MediaFormats(flags MediaFlag, filter ...string) []MediaFormat {
+	result := make([]MediaFormat, 0, 50) // Allocate an estimate of 50 media formats
+
+	// Sanitize filter
+	for i, name := range filter {
+		filter[i] = strings.ToLower(strings.TrimSpace(name))
+	}
+
+	// If flags is MEDIA_FLAG_NONE then expand to all
+	if flags == MEDIA_FLAG_NONE {
+		flags = MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER | MEDIA_FLAG_DEVICE | MEDIA_FLAG_FILE
+	}
+	// If flags does not contain MEDIA_FLAG_DEVICE OR MEDIA_FLAG_FILE, then expand to both
+	if !(flags.Is(MEDIA_FLAG_DEVICE) || flags.Is(MEDIA_FLAG_FILE)) {
+		flags |= MEDIA_FLAG_FILE | MEDIA_FLAG_DEVICE
+	}
+
+	// Append decoder input formats
+	if flags.Is(MEDIA_FLAG_DECODER) {
+		// File Formats
+		if flags.Is(MEDIA_FLAG_FILE) {
+			var opaque uintptr
+			for {
+				format := ffmpeg.AVFormat_av_demuxer_iterate(&opaque)
+				if format == nil {
+					break
+				}
+				result = appendMatchedFormat(result, filter, NewInputFormat(format, MEDIA_FLAG_DECODER|MEDIA_FLAG_FILE))
+			}
+		}
+		// Devices
+		if flags.Is(MEDIA_FLAG_DEVICE) {
+			device := ffmpeg.AVDevice_av_input_audio_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewInputFormat(device, MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_AUDIO))
+				device = device.AVDevice_av_input_audio_device_next()
+			}
+			device = ffmpeg.AVDevice_av_input_video_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewInputFormat(device, MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_VIDEO))
+				device = device.AVDevice_av_input_video_device_next()
+			}
+		}
+	}
+
+	// Append encoder input formats
+	if flags.Is(MEDIA_FLAG_ENCODER) {
+		// File Formats
+		if flags.Is(MEDIA_FLAG_FILE) {
+			var opaque uintptr
+			for {
+				format := ffmpeg.AVFormat_av_muxer_iterate(&opaque)
+				if format == nil {
+					break
+				}
+				result = appendMatchedFormat(result, filter, NewOutputFormat(format, MEDIA_FLAG_ENCODER))
+			}
+		}
+		// Devices
+		if flags.Is(MEDIA_FLAG_DEVICE) {
+			device := ffmpeg.AVDevice_av_output_audio_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewOutputFormat(device, MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_AUDIO))
+				device = device.AVDevice_av_output_audio_device_next()
+			}
+			device = ffmpeg.AVDevice_av_output_video_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewOutputFormat(device, MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_VIDEO))
+				device = device.AVDevice_av_output_video_device_next()
+			}
+		}
+	}
+
+	// Return formats
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PRIVATE METHODS
 
-// Open a stream for input
-func (mgr *Manager) Open(r io.Reader, bufsize int) (*MediaInput, error) {
-	// Set buffer size if default
-	if bufsize == 0 {
-		bufsize = defaultBufferSize
-	}
-
-	// Create the IO Context
-	io := ffmpeg.NewAVIOContext(bufsize, false, r.Read, nil, nil)
-	if io == nil {
-		return nil, ErrInternalAppError.With("NewIOContext")
-	}
-
-	// Create the media object and return it
-	ctx := ffmpeg.NewAVFormatContext()
-	if ctx == nil {
-		io.Free()
-		return nil, ErrInternalAppError.With("NewAVFormatContext")
-	}
-
-	// Open the input
-	err := ctx.OpenInputIO(io.AVIOContext, nil)
-	if err != nil {
-		io.Free()
-		return nil, err
-	}
-
-	// Create media object
-	in := NewMediaInput(ctx)
-	if in == nil {
-		ctx.CloseInput()
-		return nil, ErrInternalAppError.With("NewMediaInput")
-	}
-
-	// Set parameters
-	mgr.Mutex.Lock()
-	mgr.in = append(mgr.in, in)
-	mgr.Mutex.Unlock()
-
-	// Return success
-	return in, nil
+func (manager *manager) log(level ffmpeg.AVLogLevel, msg string, _ uintptr) {
+	log.Println(level, msg)
 }
 
-func (mgr *Manager) OpenFile(path string) (*MediaInput, error) {
-	// Clean up the path
-	if abspath, err := filepath.Abs(path); err != nil {
-		return nil, err
+func appendMatchedFormat(result []MediaFormat, filter []string, format MediaFormat) []MediaFormat {
+	// If name is empty, append anyway
+	if len(filter) == 0 || formatMatchesFilter(filter, format) {
+		return append(result, format)
 	} else {
-		path = abspath
-	}
-
-	// Check to see if path exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, ErrNotFound.With(path)
-	} else if err != nil {
-		return nil, err
-	}
-
-	// Create the media object and return it
-	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
-		return nil, ErrInternalAppError.With("NewAVFormatContext")
-	} else if err := ctx.OpenInput(path, nil); err != nil {
-		return nil, err
-	} else if in := NewMediaInput(ctx); in == nil {
-		return nil, ErrInternalAppError.With("NewMediaInput")
-	} else {
-		mgr.Mutex.Lock()
-		defer mgr.Mutex.Unlock()
-		mgr.in = append(mgr.in, in)
-		return in, nil
-	}
-}
-
-func (mgr *Manager) OpenURL(url *url.URL) (*MediaInput, error) {
-	// Check incoming parameters
-	if url == nil {
-		return nil, ErrBadParameter.With("OpenURL")
-	}
-
-	// Input
-	if ctx := ffmpeg.NewAVFormatContext(); ctx == nil {
-		return nil, ErrInternalAppError.With("NewAVFormatContext")
-	} else if err := ctx.OpenInputUrl(url.String(), nil); err != nil {
-		return nil, err
-	} else if in := NewMediaInput(ctx); in == nil {
-		return nil, ErrInternalAppError.With("NewMediaInput")
-	} else {
-		mgr.Mutex.Lock()
-		defer mgr.Mutex.Unlock()
-		mgr.in = append(mgr.in, in)
-		return in, nil
-	}
-}
-
-func (mgr *Manager) CreateFile(path string) (*MediaOutput, error) {
-	// Clean up the path
-	if abspath, err := filepath.Abs(path); err != nil {
-		return nil, err
-	} else {
-		path = abspath
-	}
-
-	// Create file
-	if ctx, err := ffmpeg.NewAVFormatOutputContext(path, nil); err != nil {
-		return nil, err
-	} else if out := NewMediaOutput(ctx); out == nil {
-		return nil, ErrInternalAppError.With("NewMediaInput")
-	} else {
-		mgr.Mutex.Lock()
-		defer mgr.Mutex.Unlock()
-		mgr.out = append(mgr.out, out)
-		return out, nil
-	}
-}
-
-func (mgr *Manager) Release(f Media) error {
-	if i, ok := f.(*MediaInput); ok {
-		return mgr.ReleaseInput(i)
-	} else if o, ok := f.(*MediaOutput); ok {
-		return mgr.ReleaseOutput(o)
-	} else {
-		return ErrBadParameter.With("Release")
-	}
-}
-
-func (mgr *Manager) ReleaseInput(f *MediaInput) error {
-	// Remove from array
-	for i, in := range mgr.in {
-		if in == f {
-			mgr.in = append(mgr.in[:i], mgr.in[i+1:]...)
-			return f.Release()
-		}
-	}
-	// Not found, return error
-	return ErrInternalAppError.With("ReleaseInput")
-}
-
-func (mgr *Manager) ReleaseOutput(f *MediaOutput) error {
-	// Remove from array
-	for i, out := range mgr.out {
-		if out == f {
-			mgr.out = append(mgr.out[:i], mgr.out[i+1:]...)
-			return f.Release()
-		}
-	}
-	// Not found, return error
-	return ErrInternalAppError.With("ReleaseOutput")
-}
-
-func (this *Manager) CodecByName(name string) *Codec {
-	if name == "" {
-		return nil
-	}
-	return NewCodec(ffmpeg.FindCodecByName(name))
-}
-
-func (this *Manager) Codecs(f ...MediaFlag) []*Codec {
-	// Gather flags
-	flags := MEDIA_FLAG_NONE
-	for _, flag := range f {
-		flags |= flag
-	}
-
-	// Enumerate all codecs
-	result := make([]*Codec, 0, 100)
-	for _, codec := range ffmpeg.AllCodecs() {
-		result = append(result, NewCodec(codec))
-	}
-	if flags == MEDIA_FLAG_NONE {
 		return result
 	}
-
-	// Filter by flags
-	dst := 0
-	for src, codec := range result {
-		codecflags := codec.Flags()
-		skip := false
-		for _, test := range []MediaFlag{MEDIA_FLAG_VIDEO, MEDIA_FLAG_AUDIO, MEDIA_FLAG_SUBTITLE, MEDIA_FLAG_ENCODER, MEDIA_FLAG_DECODER} {
-			if flags.Is(test) && !codecflags.Is(test) {
-				skip = true
-			}
-		}
-		if !skip {
-			result[dst] = result[src]
-			dst++
-		}
-	}
-
-	// Return result
-	return result[:dst]
 }
 
-func (mgr *Manager) Formats(f ...MediaFlag) []*Format {
-	// Gather flags
-	flags := MEDIA_FLAG_NONE
-	for _, flag := range f {
-		flags |= flag
-	}
-
-	// Enumerate all codecs
-	result := make([]*Format, 0, 100)
-	if flags == MEDIA_FLAG_NONE || flags&MEDIA_FLAG_ENCODER != 0 {
-		for _, mux := range ffmpeg.AllMuxers() {
-			result = append(result, NewOutputFormat(mux))
+func formatMatchesFilter(filter []string, format MediaFormat) bool {
+	for _, name := range filter {
+		if strings.HasPrefix(name, ".") {
+			return slices.Contains(format.Ext(), name)
+		} else if slices.Contains(format.Name(), name) {
+			return true
+		} else if slices.Contains(format.MimeType(), name) {
+			return true
+		} else if slices.Contains(format.Ext(), "."+name) {
+			return true
 		}
 	}
-	if flags == MEDIA_FLAG_NONE || flags&MEDIA_FLAG_DECODER != 0 {
-		for _, demux := range ffmpeg.AllDemuxers() {
-			result = append(result, NewInputFormat(demux))
-		}
-	}
-
-	// Filter by flags
-	dst := 0
-	for src, codec := range result {
-		codecflags := codec.Flags()
-		if flags.Is(MEDIA_FLAG_ENCODER) {
-			if !codecflags.Is(MEDIA_FLAG_ENCODER) {
-				continue
-			}
-		}
-		if flags.Is(MEDIA_FLAG_DECODER) {
-			if !codecflags.Is(MEDIA_FLAG_DECODER) {
-				continue
-			}
-		}
-		result[dst] = result[src]
-		dst++
-	}
-
-	// Return result
-	return result[:dst]
+	// No match found
+	return false
 }

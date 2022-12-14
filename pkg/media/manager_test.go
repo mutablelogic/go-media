@@ -1,157 +1,80 @@
 package media_test
 
 import (
-	"context"
-	"fmt"
+	"io/ioutil"
 	"os"
-	"sync"
+	"path/filepath"
 	"testing"
+	"time"
 
-	// Namespace import
+	// Package imports
+	assert "github.com/stretchr/testify/assert"
+
+	// Namespace imports
 	. "github.com/mutablelogic/go-media"
 	. "github.com/mutablelogic/go-media/pkg/media"
 )
 
 const (
-	MEDIA_TEST_FILE = "../../etc/sample.mp4"
+	SAMPLE_MP4 = "../../etc/sample.mp4"
+	SAMPLE_HLS = "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_vlow/ak/bbc_radio_fourfm.m3u8"
 )
 
-func Test_Manager_001(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
-	} else {
-		t.Log(mgr)
-	}
+func Test_manager_000(t *testing.T) {
+	assert := assert.New(t)
+	mgr := New()
+	assert.NotNil(mgr)
+	assert.NoError(mgr.Close())
 }
 
-func Test_Manager_002(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
-	}
-	if file, err := mgr.OpenFile(MEDIA_TEST_FILE); err != nil {
-		t.Error(err)
-	} else if metadata := file.Metadata(); metadata == nil {
-		t.Error("Metadata is nil")
-	} else {
-		t.Log(file)
-		for _, key := range metadata.Keys() {
-			t.Log(" ", key, "=>", metadata.Value(key))
-		}
-	}
+func Test_manager_001(t *testing.T) {
+	assert := assert.New(t)
+	mgr := New()
+	assert.NotNil(mgr)
+	media, err := mgr.OpenFile(SAMPLE_MP4, nil)
+	assert.NoError(err)
+	t.Log(media)
+	assert.NoError(media.Close())
+	assert.NoError(mgr.Close())
 }
 
-func Test_Manager_003(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
-	}
-	file, err := mgr.OpenFile(MEDIA_TEST_FILE)
-	if err != nil {
-		t.Error(err)
-	}
-
-	file.Read(context.Background(), nil, func(ctx context.Context, packet MediaPacket) error {
-		fmt.Println("READ", packet)
-		return nil
-	})
+func Test_manager_002(t *testing.T) {
+	assert := assert.New(t)
+	mgr := New()
+	assert.NotNil(mgr)
+	path, err := ioutil.TempDir("", "media")
+	assert.NoError(err)
+	defer os.RemoveAll(path)
+	media, err := mgr.CreateFile(filepath.Join(path, "XX.mp4"))
+	assert.NoError(err)
+	assert.NotNil(media)
+	err = media.Set(MEDIA_KEY_CREATED, time.Now())
+	assert.NoError(err)
+	t.Log(media)
+	assert.NoError(media.Close())
+	assert.NoError(mgr.Close())
 }
 
-func Test_Manager_004(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+func Test_manager_003(t *testing.T) {
+	assert := assert.New(t)
+	mgr := New()
+	assert.NotNil(mgr)
 
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
+	formats := mgr.MediaFormats(MEDIA_FLAG_NONE)
+	assert.True(len(formats) > 0)
+	for _, format := range formats {
+		t.Log(format)
 	}
-	for _, codec := range mgr.Codecs() {
-		if c := mgr.CodecByName(codec.Name()); c == nil {
-			t.Error("CodecByName() returned nil")
-		} else {
-			t.Log("  ", codec)
-		}
-	}
+	assert.NoError(mgr.Close())
 }
 
-func Test_Manager_005(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
-	}
-	for _, fmt := range mgr.Formats(MEDIA_FLAG_DECODER) {
-		t.Log("  Decoder: ", fmt)
-	}
-	for _, fmt := range mgr.Formats(MEDIA_FLAG_ENCODER) {
-		t.Log("  Encoder: ", fmt)
-	}
-}
-
-func Test_Manager_006(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	mgr, err := NewManagerWithConfig(DefaultConfig, errs)
-	if err != nil {
-		t.Error(err)
-	}
-	defer mgr.Close()
-
-	r, err := os.Open(MEDIA_TEST_FILE)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if in, err := mgr.Open(r, 4096); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log(in)
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// catchErrors returns an error channel and a function to cancel catching the errors
-func catchErrors(t *testing.T) (chan<- error, context.CancelFunc) {
-	var wg sync.WaitGroup
-
-	errs := make(chan error)
-	ctx, cancel := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func(ctx context.Context) {
-		defer wg.Done()
-		for {
-			select {
-			case err := <-errs:
-				if err != nil {
-					if err := err.(MediaError); err.Level > AV_LOG_WARNING {
-						t.Log(err)
-					} else {
-						t.Error(err)
-					}
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx)
-
-	return errs, func() {
-		cancel()
-		wg.Wait()
-	}
+func Test_manager_004(t *testing.T) {
+	assert := assert.New(t)
+	mgr := New()
+	assert.NotNil(mgr)
+	media, err := mgr.OpenURL(SAMPLE_HLS, nil)
+	assert.NoError(err)
+	t.Log(media)
+	assert.NoError(media.Close())
+	assert.NoError(mgr.Close())
 }

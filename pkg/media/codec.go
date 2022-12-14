@@ -4,119 +4,103 @@ import (
 	"fmt"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 
 	// Namespace imports
+	//. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Codec struct {
-	ctx   *ffmpeg.AVCodecParameters
-	codec *ffmpeg.AVCodec
+type codec struct {
+	ctx *ffmpeg.AVCodec
 }
+
+// Ensure *stream complies with Stream interface
+var _ Codec = (*codec)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewCodec(ctx *ffmpeg.AVCodec) *Codec {
-	if ctx == nil {
+// Create a codec from a AVCodecID for a stream
+func NewCodecEncoder(id ffmpeg.AVCodecID) *codec {
+	this := new(codec)
+	if id == ffmpeg.AV_CODEC_ID_NONE {
 		return nil
 	}
-	return &Codec{nil, ctx}
-}
 
-func NewCodecWithParameters(ctx *ffmpeg.AVCodecParameters) *Codec {
-	if ctx == nil {
+	// Find the decoder
+	encoder := ffmpeg.AVCodec_find_encoder(id)
+	if encoder == nil {
 		return nil
+	} else {
+		this.ctx = encoder
 	}
-	return &Codec{ctx, ffmpeg.FindCodecById(ctx.Id())}
-}
 
-func (c *Codec) Release() error {
-	c.ctx = nil
-	c.codec = nil
-	return nil
+	// Return success
+	return this
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (c *Codec) String() string {
-	str := "<codec"
-	if name := c.Name(); name != "" {
+func (codec *codec) String() string {
+	str := "<media.codec"
+	if name := codec.Name(); name != "" {
 		str += fmt.Sprintf(" name=%q", name)
 	}
-	if description := c.Description(); description != "" {
-		str += fmt.Sprintf(" desc=%q", description)
+	if desc := codec.Description(); desc != "" {
+		str += fmt.Sprintf(" desc=%q", desc)
 	}
-	if flags := c.Flags(); flags != MEDIA_FLAG_NONE {
+	if flags := codec.Flags(); flags != MEDIA_FLAG_NONE {
 		str += fmt.Sprint(" flags=", flags)
 	}
 	return str + ">"
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// PROPERTIES
-
-func (c *Codec) Name() string {
-	if c.codec == nil {
+// //////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+// Name returns the unique name for the codec
+func (codec *codec) Name() string {
+	if codec.ctx == nil {
 		return ""
 	}
-	return c.codec.Name()
+	return codec.ctx.Name()
 }
 
-func (c *Codec) Description() string {
-	if c.codec == nil {
+// Description returns the long description for the codec
+func (codec *codec) Description() string {
+	if codec.ctx == nil {
 		return ""
 	}
-	return c.codec.Description()
+	return codec.ctx.Description()
 }
 
-func (c *Codec) Flags() MediaFlag {
+// Flags for the codec (Audio, Video, Encoder, Decoder, ...)
+func (codec *codec) Flags() MediaFlag {
 	flags := MEDIA_FLAG_NONE
-
-	switch {
-	case c.ctx != nil:
-		switch c.ctx.Type() {
-		case ffmpeg.AVMEDIA_TYPE_VIDEO:
-			if c.ctx.BitRate() > 0 {
-				flags |= MEDIA_FLAG_VIDEO
-			}
-		case ffmpeg.AVMEDIA_TYPE_AUDIO:
-			flags |= MEDIA_FLAG_AUDIO
-		case ffmpeg.AVMEDIA_TYPE_SUBTITLE:
-			flags |= MEDIA_FLAG_SUBTITLE
-		case ffmpeg.AVMEDIA_TYPE_UNKNOWN, ffmpeg.AVMEDIA_TYPE_DATA:
-			flags |= MEDIA_FLAG_DATA
-		case ffmpeg.AVMEDIA_TYPE_ATTACHMENT:
-			flags |= MEDIA_FLAG_ATTACHMENT
-		}
-	case c.codec != nil:
-		switch c.codec.Type() {
-		case ffmpeg.AVMEDIA_TYPE_VIDEO:
-			flags |= MEDIA_FLAG_VIDEO
-		case ffmpeg.AVMEDIA_TYPE_AUDIO:
-			flags |= MEDIA_FLAG_AUDIO
-		case ffmpeg.AVMEDIA_TYPE_SUBTITLE:
-			flags |= MEDIA_FLAG_SUBTITLE
-		case ffmpeg.AVMEDIA_TYPE_UNKNOWN, ffmpeg.AVMEDIA_TYPE_DATA:
-			flags |= MEDIA_FLAG_DATA
-		case ffmpeg.AVMEDIA_TYPE_ATTACHMENT:
-			flags |= MEDIA_FLAG_ATTACHMENT
-		}
+	if codec.ctx == nil {
+		return flags
 	}
-
-	// Encode and decode flags
-	if c.codec.IsEncoder() {
-		flags |= MEDIA_FLAG_ENCODER
-	}
-	if c.codec.IsDecoder() {
+	if codec.ctx.AVCodec_is_decoder() {
 		flags |= MEDIA_FLAG_DECODER
 	}
-
-	// Return flags
+	if codec.ctx.AVCodec_is_encoder() {
+		flags |= MEDIA_FLAG_ENCODER
+	}
+	switch codec.ctx.MediaType() {
+	case ffmpeg.AVMEDIA_TYPE_AUDIO:
+		flags |= MEDIA_FLAG_AUDIO
+	case ffmpeg.AVMEDIA_TYPE_VIDEO:
+		flags |= MEDIA_FLAG_VIDEO
+	case ffmpeg.AVMEDIA_TYPE_SUBTITLE:
+		flags |= MEDIA_FLAG_SUBTITLE
+	case ffmpeg.AVMEDIA_TYPE_DATA:
+		flags |= MEDIA_FLAG_DATA
+	case ffmpeg.AVMEDIA_TYPE_ATTACHMENT:
+		flags |= MEDIA_FLAG_ATTACHMENT
+	}
 	return flags
 }
