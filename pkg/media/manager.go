@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io"
 	"log"
+	"strings"
 	"syscall"
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
+	"golang.org/x/exp/slices"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -56,9 +58,26 @@ func (m *manager) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Open media for reading and return it
-func (m *manager) OpenFile(path string) (Media, error) {
-	media, err := NewInputFile(path, func(media Media) error {
+// Open file for reading and return the media
+func (m *manager) OpenFile(path string, format MediaFormat) (Media, error) {
+	media, err := NewInputFile(path, format, func(media Media) error {
+		delete(m.media, media)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to map
+	m.media[media] = true
+
+	// Return success
+	return media, nil
+}
+
+// Open URL for reading and return the media
+func (m *manager) OpenURL(url string, format MediaFormat) (Media, error) {
+	media, err := NewInputURL(url, format, func(media Media) error {
 		delete(m.media, media)
 		return nil
 	})
@@ -192,9 +211,108 @@ func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn 
 	return result
 }
 
+// Enumerate formats with MEDIA_FLAG_ENCODER, MEDIA_FLAG_DECODER, MEDIA_FLAG_FILE and
+// MEDIA_FLAG_DEVICE flags. Use the filter argument to further filter by extension,
+// name and mimetype
+func (manager *manager) MediaFormats(flags MediaFlag, filter ...string) []MediaFormat {
+	result := make([]MediaFormat, 0, 50) // Allocate an estimate of 50 media formats
+
+	// Sanitize filter
+	for i, name := range filter {
+		filter[i] = strings.ToLower(strings.TrimSpace(name))
+	}
+
+	// If flags is MEDIA_FLAG_NONE then expand to all
+	if flags == MEDIA_FLAG_NONE {
+		flags = MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER | MEDIA_FLAG_DEVICE | MEDIA_FLAG_FILE
+	}
+
+	// Append decoder input formats
+	if flags.Is(MEDIA_FLAG_DECODER) {
+		// File Formats
+		if flags.Is(MEDIA_FLAG_FILE) {
+			var opaque uintptr
+			for {
+				format := ffmpeg.AVFormat_av_demuxer_iterate(&opaque)
+				if format == nil {
+					break
+				}
+				result = appendMatchedFormat(result, filter, NewInputFormat(format, MEDIA_FLAG_DECODER|MEDIA_FLAG_FILE))
+			}
+		}
+		// Devices
+		if flags.Is(MEDIA_FLAG_DEVICE) {
+			device := ffmpeg.AVDevice_av_input_audio_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewInputFormat(device, MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_AUDIO))
+				device = device.AVDevice_av_input_audio_device_next()
+			}
+			device = ffmpeg.AVDevice_av_input_video_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewInputFormat(device, MEDIA_FLAG_DECODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_VIDEO))
+				device = device.AVDevice_av_input_video_device_next()
+			}
+		}
+	}
+
+	// Append encoder input formats
+	if flags.Is(MEDIA_FLAG_ENCODER) {
+		// File Formats
+		if flags.Is(MEDIA_FLAG_FILE) {
+			var opaque uintptr
+			for {
+				format := ffmpeg.AVFormat_av_muxer_iterate(&opaque)
+				if format == nil {
+					break
+				}
+				result = appendMatchedFormat(result, filter, NewOutputFormat(format, MEDIA_FLAG_ENCODER))
+			}
+		}
+		// Devices
+		if flags.Is(MEDIA_FLAG_DEVICE) {
+			device := ffmpeg.AVDevice_av_output_audio_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewOutputFormat(device, MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_AUDIO))
+				device = device.AVDevice_av_output_audio_device_next()
+			}
+			device = ffmpeg.AVDevice_av_output_video_device_first()
+			for device != nil {
+				result = appendMatchedFormat(result, filter, NewOutputFormat(device, MEDIA_FLAG_ENCODER|MEDIA_FLAG_DEVICE|MEDIA_FLAG_VIDEO))
+				device = device.AVDevice_av_output_video_device_next()
+			}
+		}
+	}
+
+	// Return formats
+	return result
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func (manager *manager) log(level ffmpeg.AVLogLevel, msg string, _ uintptr) {
 	log.Println(level, msg)
+}
+
+func appendMatchedFormat(result []MediaFormat, filter []string, format MediaFormat) []MediaFormat {
+	// If name is empty, append anyway
+	if len(filter) == 0 || formatMatchesFilter(filter, format) {
+		return append(result, format)
+	} else {
+		return result
+	}
+}
+
+func formatMatchesFilter(filter []string, format MediaFormat) bool {
+	for _, name := range filter {
+		if strings.HasPrefix(name, ".") {
+			return slices.Contains(format.Ext(), name)
+		} else if slices.Contains(format.Name(), name) {
+			return true
+		} else if slices.Contains(format.MimeType(), name) {
+			return true
+		}
+	}
+	// No match found
+	return false
 }

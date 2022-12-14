@@ -32,11 +32,21 @@ type DecodeFn func(context.Context, Frame) error
 type Manager interface {
 	io.Closer
 
-	// Open media for reading and return it
-	OpenFile(path string) (Media, error)
+	// Enumerate formats with MEDIA_FLAG_ENCODER, MEDIA_FLAG_DECODER,
+	// MEDIA_FLAG_FILE and MEDIA_FLAG_DEVICE flags to filter.
+	// Lookups can be further filtered by name, mimetype and extension
+	MediaFormats(MediaFlag, ...string) []MediaFormat
 
-	// Create media for writing and return it
-	CreateFile(path string) (Media, error)
+	// Open media file for reading and return it. A format can be specified
+	// to "force" a specific format
+	OpenFile(string, MediaFormat) (Media, error)
+
+	// Open media URL for reading and return it. A format can be specified
+	// to "force" a specific format
+	OpenURL(string, MediaFormat) (Media, error)
+
+	// Create file for writing and return it
+	CreateFile(string) (Media, error)
 
 	// Create a map of input media. If MediaFlag is MEDIA_FLAG_NONE, then
 	// all audio, video and subtitle streams are mapped, or else a
@@ -54,6 +64,25 @@ type Manager interface {
 
 	// Log messages from ffmpeg
 	SetDebug(bool)
+}
+
+// MediaFormat is an input or output format for media items
+type MediaFormat interface {
+	// Return the names of the media format
+	Name() []string
+
+	// Return a longer description of the media format
+	Description() string
+
+	// Return MEDIA_FLAG_ENCODER, MEDIA_FLAG_DECODER, MEDIA_FLAG_FILE
+	// and MEDIA_FLAG_DEVICE flags
+	Flags() MediaFlag
+
+	// Return mimetypes handled
+	MimeType() []string
+
+	// Return file extensions handled
+	Ext() []string
 }
 
 // Map is a mapping of input media, potentially to output media
@@ -140,7 +169,7 @@ type Frame interface {
 	AudioFrame
 	VideoFrame
 
-	// Returns MEDIA_FLAG_VIDEO or MEDIA_FLAG_AUDIO
+	// Returns MEDIA_FLAG_VIDEO, MEDIA_FLAG_AUDIO
 	Flags() MediaFlag
 
 	// Returns true if planar format
@@ -195,6 +224,7 @@ const (
 	MEDIA_FLAG_TVSHOW                                    // Is part of a TV Show
 	MEDIA_FLAG_TVSHOW_EPISODE                            // Is a TV Show episode
 	MEDIA_FLAG_FILE                                      // Is a file
+	MEDIA_FLAG_DEVICE                                    // Is a device
 	MEDIA_FLAG_VIDEO                                     // Contains video
 	MEDIA_FLAG_AUDIO                                     // Contains audio
 	MEDIA_FLAG_SUBTITLE                                  // Contains subtitles
@@ -281,6 +311,8 @@ func (f MediaFlag) FlagString() string {
 		return "MEDIA_FLAG_TVSHOW_EPISODE"
 	case MEDIA_FLAG_FILE:
 		return "MEDIA_FLAG_FILE"
+	case MEDIA_FLAG_DEVICE:
+		return "MEDIA_FLAG_DEVICE"
 	case MEDIA_FLAG_VIDEO:
 		return "MEDIA_FLAG_VIDEO"
 	case MEDIA_FLAG_AUDIO:

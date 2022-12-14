@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	// Packages
@@ -26,18 +27,35 @@ var _ Media = (*input)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewInputFile(path string, cb func(Media) error) (*input, error) {
-	this := new(input)
-
+func NewInputFile(path string, format MediaFormat, cb func(Media) error) (*input, error) {
 	// Check for path
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, ErrNotFound.With(path)
 	} else if err != nil {
 		return nil, err
+	} else {
+		return newInput(path, format, cb)
 	}
+}
 
-	// Create a context - detect format
-	ctx, err := ffmpeg.AVFormat_open_input(path, nil, nil)
+func NewInputURL(path string, format MediaFormat, cb func(Media) error) (*input, error) {
+	url, err := url.Parse(path)
+	if err != nil {
+		return nil, ErrBadParameter.With(path)
+	} else {
+		return newInput(url.String(), format, cb)
+	}
+}
+
+func newInput(path string, format MediaFormat, cb func(Media) error) (*input, error) {
+	this := new(input)
+
+	// Create a context - detect format or use format argument
+	var format_ctx *ffmpeg.AVInputFormat
+	if format_in, ok := format.(*format_in); ok && format_in != nil {
+		format_ctx = format_in.ctx
+	}
+	ctx, err := ffmpeg.AVFormat_open_input(path, format_ctx, nil)
 	if err != nil {
 		return nil, err
 	}
