@@ -226,6 +226,10 @@ func (manager *manager) MediaFormats(flags MediaFlag, filter ...string) []MediaF
 	if flags == MEDIA_FLAG_NONE {
 		flags = MEDIA_FLAG_ENCODER | MEDIA_FLAG_DECODER | MEDIA_FLAG_DEVICE | MEDIA_FLAG_FILE
 	}
+	// If flags does not contain MEDIA_FLAG_DEVICE OR MEDIA_FLAG_FILE, then expand to both
+	if !(flags.Is(MEDIA_FLAG_DEVICE) || flags.Is(MEDIA_FLAG_FILE)) {
+		flags |= MEDIA_FLAG_FILE | MEDIA_FLAG_DEVICE
+	}
 
 	// Append decoder input formats
 	if flags.Is(MEDIA_FLAG_DECODER) {
@@ -310,6 +314,8 @@ func formatMatchesFilter(filter []string, format MediaFormat) bool {
 		} else if slices.Contains(format.Name(), name) {
 			return true
 		} else if slices.Contains(format.MimeType(), name) {
+			return true
+		} else if slices.Contains(format.Ext(), "."+name) {
 			return true
 		}
 	}

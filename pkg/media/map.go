@@ -56,14 +56,11 @@ func NewMap(media Media, flags MediaFlag) (*decodemap, error) {
 
 	// Create map of streams
 	if flags == MEDIA_FLAG_NONE {
-		m.context = streamsByType(m.input, MEDIA_FLAG_AUDIO|MEDIA_FLAG_VIDEO|MEDIA_FLAG_SUBTITLE)
-	} else {
-		m.context = streamsByType(m.input, flags)
+		flags = MEDIA_FLAG_AUDIO | MEDIA_FLAG_VIDEO | MEDIA_FLAG_SUBTITLE
 	}
-
-	// Return error if no streams
+	m.context = streamsByType(m.input, flags)
 	if len(m.context) == 0 {
-		return nil, ErrNotFound.With("streams")
+		return nil, ErrNotFound.With("No streams of type: ", flags)
 	}
 
 	// Create packet

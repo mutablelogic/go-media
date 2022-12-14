@@ -30,7 +30,7 @@ var _ Media = (*input)(nil)
 func NewInputFile(path string, format MediaFormat, cb func(Media) error) (*input, error) {
 	// Check for path
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, ErrNotFound.With(path)
+		return nil, ErrNotFound.Withf("%q", path)
 	} else if err != nil {
 		return nil, err
 	} else {
