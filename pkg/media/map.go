@@ -2,6 +2,8 @@ package media
 
 import (
 	"context"
+	"fmt"
+	"io"
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
@@ -172,8 +174,34 @@ func (m *decodemap) Demux(ctx context.Context, p Packet, fn DemuxFn) error {
 	}
 }
 
+// PrintMap will print out a summary of the mapping
+func (m *decodemap) PrintMap(w io.Writer) {
+	for id := range m.context {
+		stream := m.input.streams[id]
+		fmt.Fprintf(w, "Stream %2d (%s): %s\n", id, toMediaType(stream.Flags()), stream)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// Return media type (audio, video, subtitle, etc)
+func toMediaType(flag MediaFlag) string {
+	switch {
+	case flag.Is(MEDIA_FLAG_AUDIO):
+		return "audio"
+	case flag.Is(MEDIA_FLAG_VIDEO):
+		return "video"
+	case flag.Is(MEDIA_FLAG_SUBTITLE):
+		return "subtitle"
+	case flag.Is(MEDIA_FLAG_DATA):
+		return "data"
+	case flag.Is(MEDIA_FLAG_ATTACHMENT):
+		return "attachment"
+	default:
+		return "other"
+	}
+}
 
 // Return streams of a given type for input media
 func streamsByType(input *input, media_type MediaFlag) map[int]*mapentry {

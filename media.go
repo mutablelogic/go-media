@@ -107,6 +107,9 @@ type Map interface {
 
 	// Return streams which are mapped for decoding
 	Streams() []Stream
+
+	// Print a summary of the mapping
+	PrintMap(w io.Writer)
 }
 
 // Media is a source or destination of media

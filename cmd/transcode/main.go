@@ -118,7 +118,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
-	fmt.Println(media_map)
+
+	// Print the map
+	media_map.PrintMap(os.Stdout)
 
 	// For the output, we can output to a device, a URL, or a file
 	var out Media
