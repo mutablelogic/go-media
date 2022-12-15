@@ -53,9 +53,9 @@ You can compile both applications with `make cmd`which places the binaries into 
 Use the `-help` option on either application to see the options.
 
 
-## The Media Transcoding API
+## Media Transcoding
 
-The API is split into two parts:
+You can programmatically demultiplex, re-multiplex and re-sample media files using the following packages:
 
   * `sys/ffmpeg51` provides the implementation of the lower-level function calls
     to ffmpeg. The documentation is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/sys/ffmpeg51)
@@ -69,7 +69,15 @@ The API is split into two parts:
 
 ## Audio Fingerprinting
 
-TODO
+You can programmatically fingerprint audio files, compare fingerprints and identify music using the following packages:
+
+  * `sys/chromaprint` provides the implementation of the lower-level function calls
+    to chromaprint. The documentation is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/sys/chromaprint)
+  * `pkg/chromaprint` provides the higher-level API for fingerprinting and identifying music. The documentation 
+    is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/pkg/chromaprint).
+
+You'll need an API key in order to use the [AcoustID](https://acoustid.org/) service. You can get a key 
+[here](https://acoustid.org/login).
 
 ## Contributing & Distribution
 
@@ -80,7 +88,7 @@ The license is Apache 2 so feel free to redistribute. Redistributions in either 
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
 
-> Copyright (c) 2021, David Thorpe, All rights reserved.
+> Copyright (c) 2021-2023 David Thorpe, All rights reserved.
 
 ## References
 
