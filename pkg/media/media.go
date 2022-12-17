@@ -16,6 +16,7 @@ import (
 
 type media struct {
 	ctx      *ffmpeg.AVFormatContext
+	format   MediaFormat
 	streams  map[int]Stream
 	metadata *metadata
 	cb       func(Media) error
@@ -33,6 +34,13 @@ func (media *media) new(ctx *ffmpeg.AVFormatContext, cb func(Media) error) error
 		key := stream.Index()
 		media.streams[key] = NewStream(stream)
 	}
+
+	if in := media.ctx.Input(); in != nil {
+		media.format = NewInputFormat(in, MEDIA_FLAG_DECODER)
+	} else if out := media.ctx.Output(); out != nil {
+		media.format = NewOutputFormat(out, MEDIA_FLAG_ENCODER)
+	}
+
 	// Return success
 	return nil
 }
@@ -59,6 +67,7 @@ func (media *media) Close(parent Media) error {
 	media.ctx = nil
 	media.streams = nil
 	media.metadata = nil
+	media.format = nil
 
 	// Return any errors
 	return result
@@ -73,6 +82,10 @@ func (media *media) URL() string {
 	} else {
 		return media.ctx.Url()
 	}
+}
+
+func (media *media) Format() MediaFormat {
+	return media.format
 }
 
 func (media *media) Streams() []Stream {

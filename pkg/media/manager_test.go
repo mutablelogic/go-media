@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	SAMPLE_MP4 = "../../etc/sample.mp4"
+	SAMPLE_MP4 = "../../etc/test/sample.mp4"
 	SAMPLE_HLS = "http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_vlow/ak/bbc_radio_fourfm.m3u8"
 )
 

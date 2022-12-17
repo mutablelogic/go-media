@@ -11,7 +11,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type scaler struct {
+type rescaler struct {
 	ctx *ffmpeg.SWSContext
 }
 
@@ -20,8 +20,8 @@ type scaler struct {
 
 // Create a new video scalar for a source and destination frame. If the destination
 // is nil then use the sample parameters as the source.
-func NewScalar(src, dest *ffmpeg.AVFrame) *scaler {
-	this := new(scaler)
+func NewScalar(src, dest *ffmpeg.AVFrame) *rescaler {
+	this := new(rescaler)
 
 	// if source frame is nil or not a video frame, return nil
 	if src == nil || src.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
@@ -49,7 +49,7 @@ func NewScalar(src, dest *ffmpeg.AVFrame) *scaler {
 }
 
 // Release scalar resources
-func (scaler *scaler) Close() error {
+func (scaler *rescaler) Close() error {
 	var result error
 
 	// Release context
@@ -67,8 +67,8 @@ func (scaler *scaler) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (scaler *scaler) String() string {
-	str := "<media.scalar"
+func (rescaler *rescaler) String() string {
+	str := "<media.rescaler"
 	return str + ">"
 }
 
@@ -76,7 +76,7 @@ func (scaler *scaler) String() string {
 // PUBLIC METHODS
 
 // Perform the scaling operation on one frame
-func (scaler *scaler) Scale(src, dest *ffmpeg.AVFrame) error {
+func (rescaler *rescaler) Scale(src, dest *ffmpeg.AVFrame) error {
 	if src == nil || dest == nil || src.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE || dest.PixelFormat() == ffmpeg.AV_PIX_FMT_NONE {
 		return ErrBadParameter.With("Scale")
 	}
@@ -86,5 +86,5 @@ func (scaler *scaler) Scale(src, dest *ffmpeg.AVFrame) error {
 	if !ffmpeg.SWS_is_supported_output(dest.PixelFormat()) {
 		return ErrBadParameter.With("Unsupported destination pixel format", dest.PixelFormat())
 	}
-	return ffmpeg.SWS_scale_frame(scaler.ctx, src, dest)
+	return ffmpeg.SWS_scale_frame(rescaler.ctx, src, dest)
 }

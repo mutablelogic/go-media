@@ -259,6 +259,9 @@ func (codec *AVCodecContext) String() string {
 		if sample_fmt := codec.SampleFormat(); sample_fmt != AV_SAMPLE_FMT_NONE {
 			str += fmt.Sprint(" sample_fmt=", sample_fmt)
 		}
+		if bit_rate := codec.BitRate(); bit_rate != 0 {
+			str += fmt.Sprint(" bit_rate=", bit_rate)
+		}
 	}
 	if codec := codec.Codec(); codec != nil {
 		str += fmt.Sprint(" codec=", codec)
@@ -511,6 +514,10 @@ func (c *AVCodecContext) PixelFormat() AVPixelFormat {
 
 func (c *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(c.sample_fmt)
+}
+
+func (c *AVCodecContext) ChannelLayout() AVChannelLayout {
+	return AVChannelLayout(c.ch_layout)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

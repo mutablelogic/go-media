@@ -26,7 +26,8 @@ type decodemap struct {
 type mapentry struct {
 	Decoder   *decoder   // Decoder context for the stream
 	Resampler *resampler // Resampler context for the audio frames
-	Scaler    *scaler    // Scaler context for the video frames
+	Rescaler  *rescaler  // Rescaler context for the video frames
+	Encoder   *encoder   // Encoder context for the stream
 }
 
 // Ensure decodemap complies with Map interface
@@ -115,8 +116,13 @@ func (mapentry *mapentry) Close() error {
 			result = multierror.Append(result, err)
 		}
 	}
-	if mapentry.Scaler != nil {
-		if err := mapentry.Scaler.Close(); err != nil {
+	if mapentry.Rescaler != nil {
+		if err := mapentry.Rescaler.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	if mapentry.Encoder != nil {
+		if err := mapentry.Encoder.Close(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -124,7 +130,8 @@ func (mapentry *mapentry) Close() error {
 	// Release resources
 	mapentry.Decoder = nil
 	mapentry.Resampler = nil
-	mapentry.Scaler = nil
+	mapentry.Rescaler = nil
+	mapentry.Encoder = nil
 
 	// Return any errors
 	return result
@@ -147,14 +154,41 @@ func (m *decodemap) Input() Media {
 }
 
 // Return the input media streams which should be decoded
-func (m *decodemap) Streams() []Stream {
+func (m *decodemap) Streams(flag MediaFlag) []Stream {
 	var result []Stream
 	for _, mapentry := range m.context {
 		if mapentry.Decoder != nil {
-			result = append(result, mapentry.Decoder.stream)
+			if flag == MEDIA_FLAG_NONE || mapentry.Decoder.stream.Flags().Is(flag) {
+				result = append(result, mapentry.Decoder.stream)
+			}
 		}
 	}
 	return result
+}
+
+// Create a resampler for an audio stream
+func (m *decodemap) Resample(out AudioFormat, in Stream) error {
+	decoder := toDecoder(m.context, in)
+	if decoder == nil {
+		return ErrBadParameter.With("resample: no decoder: ", in)
+	}
+
+	// Check decoder is audio
+	if !in.Flags().Is(MEDIA_FLAG_AUDIO) {
+		return ErrBadParameter.With("not an audio stream: ", in)
+	}
+
+	// Create a resampler
+	resampler := NewResampler(out, decoder.AudioFormat())
+	if resampler == nil {
+		return ErrInternalAppError.With("resample: returned nil: ", decoder)
+	}
+
+	// Set resampler
+	m.context[in.Index()].Resampler = resampler
+
+	// Return success
+	return nil
 }
 
 // Decode a packet, by calling a decoding function with a packet.
@@ -176,14 +210,34 @@ func (m *decodemap) Demux(ctx context.Context, p Packet, fn DemuxFn) error {
 
 // PrintMap will print out a summary of the mapping
 func (m *decodemap) PrintMap(w io.Writer) {
-	for id := range m.context {
+	for id, entry := range m.context {
 		stream := m.input.streams[id]
 		fmt.Fprintf(w, "Stream %2d (%s): %s\n", id, toMediaType(stream.Flags()), stream)
+		if entry.Rescaler != nil {
+			fmt.Fprintf(w, "  Rescale: %s\n", entry.Rescaler)
+		}
+		if entry.Resampler != nil {
+			fmt.Fprintf(w, "  Resample: %s\n", entry.Resampler)
+		}
+		if entry.Encoder != nil {
+			fmt.Fprintf(w, "  Encode: %s\n", entry.Encoder)
+		}
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// Return a decoder from the context
+func toDecoder(context map[int]*mapentry, stream Stream) *decoder {
+	if context == nil || stream == nil {
+		return nil
+	} else if entry, exists := context[stream.Index()]; !exists || entry == nil {
+		return nil
+	} else {
+		return entry.Decoder
+	}
+}
 
 // Return media type (audio, video, subtitle, etc)
 func toMediaType(flag MediaFlag) string {
