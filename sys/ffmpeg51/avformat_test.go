@@ -40,7 +40,7 @@ func Test_avformat_003(t *testing.T) {
 		t.Log("muxer=", format)
 		if id := format.DefaultAudioCodec(); id != ffmpeg.AV_CODEC_ID_NONE {
 			codec := ffmpeg.AVCodec_find_encoder(id)
-			if id != ffmpeg.AVCodecID(86047) && id != ffmpeg.AVCodecID(86083) && id != ffmpeg.AVCodecID(86069) && id != ffmpeg.AVCodecID(69669) {
+			if id != ffmpeg.AVCodecID(86047) && id != ffmpeg.AVCodecID(73728) && id != ffmpeg.AVCodecID(86075) && id != ffmpeg.AVCodecID(86083) && id != ffmpeg.AVCodecID(86069) && id != ffmpeg.AVCodecID(69669) {
 				assert.NotNil(codec, "for id %v", id)
 				t.Log("  audio_codec=", codec)
 			}
