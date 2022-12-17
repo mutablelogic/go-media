@@ -1,4 +1,4 @@
-// +build dvb
+//go:build dvb
 
 package dvb
 

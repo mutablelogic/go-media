@@ -1,13 +1,12 @@
-// +build dvb
+//go:build dvb
 
 package dvb_test
 
 import (
+	"github.com/mutablelogic/go-media/sys/dvb"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/djthorpe/gopi/v3/pkg/sys/dvb"
 )
 
 func Test_Frontend_000(t *testing.T) {

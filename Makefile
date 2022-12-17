@@ -1,12 +1,13 @@
 # Paths to packages
 GO=$(shell which go)
+DOCKER=$(shell which docker)
 
 # Paths to locations, etc
 BUILD_DIR := "build"
 CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 
 # Build flags
-BUILD_MODULE = "github.com/mutablelogic/go-media"
+BUILD_MODULE := $(shell go list -m)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
@@ -27,6 +28,15 @@ $(PLUGIN_DIR): FORCE
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
 FORCE:
+
+docker:
+	@echo Build docker image
+	@${DOCKER} build \
+	    --tag go-media:$(shell git describe --tags) \
+		--build-arg PLATFORM=$(shell ${GO} env GOOS) \
+		--build-arg ARCH=$(shell ${GO} env GOARCH) \
+		--build-arg VERSION=kinetic \
+		-f etc/docker/Dockerfile .
 
 test: clean dependencies
 	@echo Test sys/
