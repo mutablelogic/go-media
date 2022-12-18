@@ -1,11 +1,10 @@
-// +build dvb
+//go:build dvb
 
 package dvb_test
 
 import (
+	"github.com/mutablelogic/go-media/sys/dvb"
 	"testing"
-
-	"github.com/djthorpe/gopi/v3/pkg/sys/dvb"
 )
 
 func Test_Demux_000(t *testing.T) {

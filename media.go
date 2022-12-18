@@ -105,21 +105,23 @@ type Map interface {
 	// Return input media
 	Input() Media
 
-	// Return streams which are mapped for decoding
-	Streams() []Stream
+	// Return a single stream which is mapped for decoding, filtering by
+	// stream type. Returns nil if there is no selection of that type
+	Streams(MediaFlag) []Stream
 
 	// Print a summary of the mapping
 	PrintMap(w io.Writer)
+
+	// Resample an audio stream
+	Resample(AudioFormat, Stream) error
+
+	// Encode to output media using default codec from a specific stream
+	//Encode(Media, Stream) error
 }
 
 // Media is a source or destination of media
 type Media interface {
 	io.Closer
-
-	// Return best streams for specific types (video, audio, subtitle, data or attachment)
-	// or returns empty slice if no streams of that type are in the media file. Only returns
-	// one stream of each type.
-	//StreamsByType(MediaFlag) []Stream
 
 	// URL for the media
 	URL() string
@@ -129,6 +131,9 @@ type Media interface {
 
 	// Return media flags for the media
 	Flags() MediaFlag
+
+	// Return the format of the media
+	Format() MediaFormat
 
 	// Return metadata for the media
 	Metadata() Metadata

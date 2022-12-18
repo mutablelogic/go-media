@@ -16,16 +16,17 @@ import (
 // TYPES
 
 type resampler struct {
-	ctx  *ffmpeg.SWRContext
-	src  AudioFormat
-	dest AudioFormat
+	ctx   *ffmpeg.SWRContext
+	src   AudioFormat
+	dest  AudioFormat
+	frame *frame
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new resampler for a frame
-func NewResampler(src, dest AudioFormat) *resampler {
+func NewResampler(dest, src AudioFormat) *resampler {
 	this := new(resampler)
 
 	// source needs to have all parameters set
@@ -72,6 +73,15 @@ func NewResampler(src, dest AudioFormat) *resampler {
 		return nil
 	}
 
+	// Allocate a frame
+	if frame := NewFrame(); frame == nil {
+		ffmpeg.SWR_free(this.ctx)
+		this.ctx = nil
+		return nil
+	} else {
+		this.frame = frame
+	}
+
 	// Set parameters
 	this.src = src
 	this.dest = dest
@@ -87,9 +97,16 @@ func (resampler *resampler) Close() error {
 	if resampler.ctx != nil {
 		ffmpeg.SWR_free(resampler.ctx)
 	}
+	// Release frame
+	if resampler.frame != nil {
+		if err := resampler.frame.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
 
 	// Blank out other fields
 	resampler.ctx = nil
+	resampler.frame = nil
 	resampler.src.Format = SAMPLE_FORMAT_NONE
 	resampler.dest.Format = SAMPLE_FORMAT_NONE
 
@@ -108,25 +125,25 @@ func (resampler *resampler) String() string {
 	if resampler.dest.Format != SAMPLE_FORMAT_NONE {
 		str += fmt.Sprint(" dest=", resampler.dest)
 	}
+	if resampler.frame != nil {
+		str += fmt.Sprint(" frame=", resampler.frame)
+	}
 	return str + ">"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (resampler *resampler) Resample(src, dest Frame) error {
-	if resampler.ctx == nil {
+func (resampler *resampler) Resample(src Frame) error {
+	if resampler.ctx == nil || resampler.frame == nil || resampler.frame.ctx == nil {
 		return ErrInternalAppError.With("resampler")
 	}
 	if src == nil || !src.Flags().Is(MEDIA_FLAG_AUDIO) {
 		return ErrBadParameter.With("src")
 	}
-	if dest == nil || !dest.Flags().Is(MEDIA_FLAG_AUDIO) {
-		return ErrBadParameter.With("dest")
-	}
 
 	// Do conversion
-	return ffmpeg.SWR_convert_frame(resampler.ctx, dest.(*frame).ctx, src.(*frame).ctx)
+	return ffmpeg.SWR_convert_frame(resampler.ctx, resampler.frame.ctx, src.(*frame).ctx)
 }
 
 func (resampler *resampler) Flush() error {
@@ -136,6 +153,16 @@ func (resampler *resampler) Flush() error {
 
 	// Do flush
 	return ffmpeg.SWR_convert_frame(resampler.ctx, nil, nil)
+}
+
+func (resampler *resampler) Frame() Frame {
+	return resampler.frame
+}
+
+func (resampler *resampler) Release() {
+	if resampler.frame != nil {
+		resampler.frame.Release()
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

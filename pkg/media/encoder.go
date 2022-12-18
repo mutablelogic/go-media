@@ -1,6 +1,8 @@
 package media
 
 import (
+	"fmt"
+
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg51"
 	// Namespace imports
 	//. "github.com/djthorpe/go-errors"
@@ -11,30 +13,15 @@ import (
 // TYPES
 
 type encoder struct {
-	codec *ffmpeg.AVCodec
-	ctx   *ffmpeg.AVCodecContext
+	ctx *ffmpeg.AVCodecContext
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a encoder for a stream
-func NewEncoderByName(name string) *encoder {
+func NewEncoderWithCodec(codec *ffmpeg.AVCodec) *encoder {
 	this := new(encoder)
-
-	// Find encoder
-	if codec := ffmpeg.AVCodec_find_encoder_by_name(name); codec == nil {
-		return nil
-	} else {
-		this.codec = codec
-	}
-
-	// Allocate context
-	if ctx := ffmpeg.AVCodec_alloc_context3(this.codec); ctx == nil {
-		return nil
-	} else {
-		this.ctx = ctx
-	}
 
 	// Return success
 	return this
@@ -50,7 +37,6 @@ func (encoder *encoder) Close() error {
 
 	// Blank out other fields
 	encoder.ctx = nil
-	encoder.codec = nil
 
 	// Return success
 	return result
@@ -61,8 +47,8 @@ func (encoder *encoder) Close() error {
 
 func (encoder *encoder) String() string {
 	str := "<media.encoder"
-	if encoder.codec != nil {
-		str += " name=" + encoder.codec.Name()
+	if encoder.ctx != nil {
+		str += fmt.Sprint(" context=", encoder.ctx)
 	}
 	return str + ">"
 }

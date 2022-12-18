@@ -3,6 +3,7 @@ package media
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -236,6 +237,16 @@ func (manager *manager) Decode(ctx context.Context, media_map Map, p Packet, fn 
 		// Receive frames from the packet
 		err := ffmpeg.AVCodec_receive_frame(decoder.ctx, decoder.frame.ctx)
 		if err == nil {
+			// Resample
+			if mapentry.Resampler != nil {
+				if err := mapentry.Resampler.Resample(decoder.frame); err == nil {
+					fmt.Println("Resample", mapentry.Resampler.Frame())
+				} else {
+					fmt.Println("Error", err)
+				}
+				// Release the frame
+				mapentry.Resampler.Release()
+			}
 			err = fn(ctx, decoder.frame)
 		}
 

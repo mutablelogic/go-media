@@ -1,15 +1,14 @@
-// +build dvb
+//go:build dvb
 
 package dvb_test
 
 import (
+	"github.com/mutablelogic/go-media/sys/dvb"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/djthorpe/gopi/v3/pkg/sys/dvb"
 )
 
 var (

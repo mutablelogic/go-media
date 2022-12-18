@@ -119,9 +119,6 @@ func main() {
 		os.Exit(-2)
 	}
 
-	// Print the map
-	media_map.PrintMap(os.Stdout)
-
 	// For the output, we can output to a device, a URL, or a file
 	var out Media
 	if reDeviceName.MatchString(flags.Out()) {
@@ -137,6 +134,25 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-2)
 	}
+
+	// For each input stream, add an output
+	for _, stream := range media_map.Streams(flags.MediaFlags()) {
+		// TODO
+		// If audio, then resample data
+		switch {
+		case stream.Flags().Is(MEDIA_FLAG_AUDIO):
+			if err := media_map.Resample(AudioFormat{
+				Rate:   11025,
+				Format: SAMPLE_FORMAT_U8,
+			}, stream); err != nil {
+				fmt.Fprintln(os.Stderr, "Cannot resample audio stream:", err)
+				os.Exit(-2)
+			}
+		}
+	}
+
+	// Print the map
+	media_map.PrintMap(os.Stdout)
 
 	// Create a cancellable context
 	ctx := contextForSignal(os.Interrupt)

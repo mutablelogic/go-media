@@ -88,11 +88,14 @@ func Test_avutil_002(t *testing.T) {
 
 func Test_avutil_003(t *testing.T) {
 	var dict *ffmpeg.AVDictionary
+	var err error
 	assert := assert.New(t)
-	assert.NoError(ffmpeg.AVUtil_av_dict_set(dict, "a", "b", 0))
+	dict, err = ffmpeg.AVUtil_av_dict_set_ptr(dict, "a", "b", 0)
+	assert.NoError(err)
 	assert.NotNil(dict)
-	assert.NoError(ffmpeg.AVUtil_av_dict_set(dict, "a", "b", 0))
-	assert.NoError(ffmpeg.AVUtil_av_dict_set(dict, "b", "a", 0))
+	dict, err = ffmpeg.AVUtil_av_dict_set_ptr(dict, "b", "b", 0)
+	assert.NoError(err)
+	assert.NotNil(dict)
 	t.Log(dict)
 	keys := ffmpeg.AVUtil_av_dict_keys(dict)
 	assert.Equal(2, len(keys))
@@ -100,8 +103,7 @@ func Test_avutil_003(t *testing.T) {
 	assert.Equal(2, len(entries))
 	t.Log(keys)
 	t.Log(entries)
-	ffmpeg.AVUtil_av_dict_free(&dict)
-	assert.Nil(dict)
+	ffmpeg.AVUtil_av_dict_free_ptr(dict)
 }
 
 func Test_avutil_006(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build dvb
+
 package dvb
 
 import (

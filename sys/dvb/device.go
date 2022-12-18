@@ -1,4 +1,4 @@
-// +build dvb
+//go:build dvb
 
 package dvb
 
@@ -10,8 +10,6 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
-
-	"github.com/djthorpe/gopi/v3"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

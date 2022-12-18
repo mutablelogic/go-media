@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	SAMPLE_MP4 = "../../etc/sample.mp4"
+	SAMPLE_MP4 = "../../etc/test/sample.mp4"
 )
 
 func Test_mimetype_000(t *testing.T) {
