@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -19,10 +20,10 @@ import (
 // TYPES
 
 type Config struct {
-	Key     string        `yaml:key`     // AcuostId Web Service Key
-	Timeout time.Duration `yaml:timeout` // AcoustId Client timeout
-	Rate    uint          `yaml:rate`    // Maximum requests per second
-	Base    string        `yaml:base`    // Base URL
+	Key     string        `yaml:"key"`     // AcuostId Web Service Key
+	Timeout time.Duration `yaml:"timeout"` // AcoustId Client timeout
+	Rate    uint          `yaml:"rate"`    // Maximum requests per second
+	Base    string        `yaml:"base"`    // Base URL
 }
 
 type Client struct {
@@ -50,7 +51,7 @@ const (
 )
 
 var (
-	ErrQueryRateExceeded = errors.New("Query Rate Exceeded")
+	ErrQueryRateExceeded = errors.New("query rate exceeded")
 )
 
 var (
@@ -65,8 +66,12 @@ var (
 ////////////////////////////////////////////////////////////////////////////////
 // NEW
 
-func NewClient() *Client {
-	if client, err := NewClientWithConfig(DefaultConfig); err != nil {
+func NewClient(key string) *Client {
+	config := DefaultConfig
+	if key != "" {
+		config.Key = os.ExpandEnv(key)
+	}
+	if client, err := NewClientWithConfig(config); err != nil {
 		return nil
 	} else {
 		return client
@@ -82,7 +87,7 @@ func NewClientWithConfig(cfg Config) (*Client, error) {
 		client.Config.Timeout = DefaultConfig.Timeout
 	}
 	if client.Key == "" {
-		client.Key = DefaultConfig.Key
+		client.Key = os.ExpandEnv(DefaultConfig.Key)
 	}
 	if client.Base == "" {
 		client.Base = DefaultConfig.Base
@@ -152,6 +157,8 @@ func (client *Client) Lookup(fingerprint string, duration time.Duration, flags M
 	if url == nil {
 		return nil, ErrBadParameter.With("Lookup")
 	}
+
+	//fmt.Println(url.String())
 
 	// Perform request
 	now := time.Now()

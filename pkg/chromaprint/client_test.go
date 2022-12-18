@@ -25,7 +25,7 @@ const (
 // TESTS
 
 func Test_Client_001(t *testing.T) {
-	client := NewClient()
+	client := NewClient("${CHROMAPRINT_KEY}")
 	if client == nil {
 		t.Fatal("Failed to create client")
 	} else {
