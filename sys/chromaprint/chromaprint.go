@@ -54,46 +54,46 @@ func NewChromaprint(algorithm AlgorithmType) *Context {
 	return (*Context)(ctx)
 }
 
-func (this *Context) Free() {
-	ctx := (*C.ChromaprintContext)(this)
-	C.chromaprint_free(ctx)
+func (context *Context) Free() {
+	C.chromaprint_free((*C.ChromaprintContext)(context))
 }
 
-func (this *Context) Start(rate, channels int) error {
-	ctx := (*C.ChromaprintContext)(this)
-	fmt.Println("start ", rate, channels)
-	if res := C.chromaprint_start(ctx, C.int(rate), C.int(channels)); res < 1 {
+func (context *Context) Start(rate, channels int) error {
+	if res := C.chromaprint_start((*C.ChromaprintContext)(context), C.int(rate), C.int(channels)); res < 1 {
 		return errStart
 	}
 	return nil
 }
 
-func (this *Context) Write(data []byte) error {
-	ctx := (*C.ChromaprintContext)(this)
+func (context *Context) Write(data []byte) error {
 	ptr := (*C.int16_t)(unsafe.Pointer(&data[0]))
-	if res := C.chromaprint_feed(ctx, ptr, C.int(len(data)>>1)); res < 1 {
+	if res := C.chromaprint_feed((*C.ChromaprintContext)(context), ptr, C.int(len(data)>>1)); res < 1 {
 		return errFeed
 	}
 	return nil
 }
 
-func (this *Context) Finish() error {
-	ctx := (*C.ChromaprintContext)(this)
-	fmt.Println("finish")
-	if res := C.chromaprint_finish(ctx); res < 1 {
+func (context *Context) WritePtr(data uintptr, size int) error {
+	ptr := (*C.int16_t)(unsafe.Pointer(data))
+	if res := C.chromaprint_feed((*C.ChromaprintContext)(context), ptr, C.int(size)); res < 1 {
+		return errFeed
+	}
+	return nil
+}
+
+func (context *Context) Finish() error {
+	if res := C.chromaprint_finish((*C.ChromaprintContext)(context)); res < 1 {
 		return errFinish
 	}
 	return nil
 }
 
-func (this *Context) Channels() int {
-	ctx := (*C.ChromaprintContext)(this)
-	return int(C.chromaprint_get_num_channels(ctx))
+func (context *Context) Channels() int {
+	return int(C.chromaprint_get_num_channels((*C.ChromaprintContext)(context)))
 }
 
-func (this *Context) Rate() int {
-	ctx := (*C.ChromaprintContext)(this)
-	return int(C.chromaprint_get_sample_rate(ctx))
+func (context *Context) Rate() int {
+	return int(C.chromaprint_get_sample_rate((*C.ChromaprintContext)(context)))
 }
 
 /* Function not exported
@@ -103,31 +103,25 @@ func (this *Context) Algorithm() AlgorithmType {
 }
 */
 
-func (this *Context) Duration() int {
-	ctx := (*C.ChromaprintContext)(this)
-	return int(C.chromaprint_get_item_duration(ctx))
+func (context *Context) Duration() int {
+	return int(C.chromaprint_get_item_duration((*C.ChromaprintContext)(context)))
 }
 
-func (this *Context) DurationMs() time.Duration {
-	ctx := (*C.ChromaprintContext)(this)
-	return time.Duration((C.chromaprint_get_item_duration_ms(ctx))) * time.Millisecond
+func (context *Context) DurationMs() time.Duration {
+	return time.Duration((C.chromaprint_get_item_duration_ms((*C.ChromaprintContext)(context)))) * time.Millisecond
 }
 
-func (this *Context) Delay() int {
-	ctx := (*C.ChromaprintContext)(this)
-	return int(C.chromaprint_get_delay(ctx))
+func (context *Context) Delay() int {
+	return int(C.chromaprint_get_delay((*C.ChromaprintContext)(context)))
 }
 
-func (this *Context) DelayMs() time.Duration {
-	ctx := (*C.ChromaprintContext)(this)
-	return time.Duration(C.chromaprint_get_delay_ms(ctx)) * time.Millisecond
+func (context *Context) DelayMs() time.Duration {
+	return time.Duration(C.chromaprint_get_delay_ms((*C.ChromaprintContext)(context))) * time.Millisecond
 }
 
-func (this *Context) GetFingerprint() (string, error) {
+func (context *Context) GetFingerprint() (string, error) {
 	var ptr (*C.char)
-
-	ctx := (*C.ChromaprintContext)(this)
-	if res := C.chromaprint_get_fingerprint(ctx, &ptr); res < 1 {
+	if res := C.chromaprint_get_fingerprint((*C.ChromaprintContext)(context), &ptr); res < 1 {
 		return "", errFingerprint
 	}
 	defer C.chromaprint_dealloc(unsafe.Pointer(ptr))
@@ -137,23 +131,23 @@ func (this *Context) GetFingerprint() (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *Context) String() string {
+func (context *Context) String() string {
 	str := "<chromaprint.context"
 	/*
 		if a := this.Algorithm(); a >= 0 {
 			str += " algorithm =" + fmt.Sprint(a)
 		}
 	*/
-	if r := this.Rate(); r > 0 {
+	if r := context.Rate(); r > 0 {
 		str += " sample_rate=" + fmt.Sprint(r)
 	}
-	if ch := this.Channels(); ch > 0 {
+	if ch := context.Channels(); ch > 0 {
 		str += " channels=" + fmt.Sprint(ch)
 	}
-	if d := this.DurationMs(); d > 0 {
+	if d := context.DurationMs(); d > 0 {
 		str += " duration=" + fmt.Sprint(d)
 	}
-	if d := this.DelayMs(); d > 0 {
+	if d := context.DelayMs(); d > 0 {
 		str += " delay=" + fmt.Sprint(d)
 	}
 	return str + ">"
