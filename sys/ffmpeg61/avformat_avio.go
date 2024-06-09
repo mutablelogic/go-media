@@ -40,16 +40,12 @@ type AVIOContextEx struct {
 	pin *runtime.Pinner
 }
 
+// Callbacks for AVIOContextEx
 type AVIOContextCallback interface {
 	Reader(buf []byte) int
 	Writer(buf []byte) int
 	Seeker(offset int64, whence int) int64
 }
-
-// Callbacks for avio_alloc_context
-type AVFormat_avio_read_func func(buf []byte) int
-type AVFormat_avio_write_func func(buf []byte) int
-type AVFormat_avio_seek_func func(offset int64, whence int) int64
 
 ////////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
@@ -64,11 +60,10 @@ func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCal
 	ctx.pin.Pin(ctx.pin)
 
 	// Allocate the context
-	userInfo := unsafe.Pointer(ctx)
 	ctx.AVIOContext = (*AVIOContext)(C.avio_alloc_context_(
 		C.int(sz),
 		boolToInt(writeable),
-		userInfo,
+		unsafe.Pointer(ctx),
 	))
 	if ctx.AVIOContext == nil {
 		return nil

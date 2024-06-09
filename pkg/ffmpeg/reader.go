@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"io"
 
+	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
