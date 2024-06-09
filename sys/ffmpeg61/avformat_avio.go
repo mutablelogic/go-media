@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"runtime"
 	"unsafe"
 )
 
@@ -15,7 +16,11 @@ extern int avio_read_callback(void* userInfo, uint8_t* buf, int buf_size);
 extern int avio_write_callback(void* userInfo, uint8_t* buf, int buf_size);
 extern int64_t avio_seek_callback(void* userInfo, int64_t offset, int whence);
 
-static AVIOContext* avio_alloc_context_(unsigned char* buf, int sz, int writeable, void* userInfo) {
+static AVIOContext* avio_alloc_context_(int sz, int writeable, void* userInfo) {
+	uint8_t* buf = av_malloc(sz);
+	if (!buf) {
+		return NULL;
+	}
 	return avio_alloc_context(buf, sz, writeable, userInfo,avio_read_callback,avio_write_callback,avio_seek_callback);
 }
 */
@@ -28,15 +33,18 @@ type (
 	AVIOContext C.struct_AVIOContext
 )
 
-type (
-	// Wrapper around AVIOContext with callbacks
-	AVIOContextEx struct {
-		*AVIOContext
-		reader AVFormat_avio_read_func
-		writer AVFormat_avio_write_func
-		seeker AVFormat_avio_seek_func
-	}
-)
+// Wrapper around AVIOContext with callbacks
+type AVIOContextEx struct {
+	*AVIOContext
+	cb  AVIOContextCallback
+	pin *runtime.Pinner
+}
+
+type AVIOContextCallback interface {
+	Reader(buf []byte) int
+	Writer(buf []byte) int
+	Seeker(offset int64, whence int) int64
+}
 
 // Callbacks for avio_alloc_context
 type AVFormat_avio_read_func func(buf []byte) int
@@ -47,28 +55,22 @@ type AVFormat_avio_seek_func func(offset int64, whence int) int64
 // FUNCTIONS
 
 // avio_alloc_context
-func AVFormat_avio_alloc_context(buf_size int, writeable bool, reader AVFormat_avio_read_func, writer AVFormat_avio_write_func, seeker AVFormat_avio_seek_func) *AVIOContextEx {
+func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCallback) *AVIOContextEx {
 	// Create a context
 	ctx := new(AVIOContextEx)
-	ctx.reader = reader
-	ctx.writer = writer
-	ctx.seeker = seeker
-
-	// Create a buffer
-	buf := C.av_malloc(C.size_t(buf_size))
-	if buf == nil {
-		return nil
-	}
+	ctx.cb = callback
+	ctx.pin = new(runtime.Pinner)
+	ctx.pin.Pin(ctx.cb)
+	ctx.pin.Pin(ctx.pin)
 
 	// Allocate the context
+	userInfo := unsafe.Pointer(ctx)
 	ctx.AVIOContext = (*AVIOContext)(C.avio_alloc_context_(
-		(*C.uchar)(buf),
-		C.int(buf_size),
+		C.int(sz),
 		boolToInt(writeable),
-		unsafe.Pointer(ctx),
+		userInfo,
 	))
 	if ctx.AVIOContext == nil {
-		C.av_free(unsafe.Pointer(buf))
 		return nil
 	}
 
@@ -79,6 +81,7 @@ func AVFormat_avio_alloc_context(buf_size int, writeable bool, reader AVFormat_a
 func AVFormat_avio_context_free(ctx *AVIOContextEx) {
 	C.av_free(unsafe.Pointer(ctx.buffer))
 	C.avio_context_free((**C.struct_AVIOContext)(unsafe.Pointer(&ctx.AVIOContext)))
+	ctx.pin.Unpin()
 }
 
 // avio_w8
@@ -104,6 +107,7 @@ func AVFormat_avio_put_str(ctx *AVIOContextEx, str string) int {
 }
 
 // avio_seek
+// whence: SEEK_SET, SEEK_CUR, SEEK_END (like fseek) and AVSEEK_SIZE
 func AVFormat_avio_seek(ctx *AVIOContextEx, offset int64, whence int) int64 {
 	return int64(C.avio_seek((*C.struct_AVIOContext)(ctx.AVIOContext), C.int64_t(offset), C.int(whence)))
 }
@@ -124,26 +128,17 @@ func AVFormat_avio_read(ctx *AVIOContextEx, buf []byte) int {
 //export avio_read_callback
 func avio_read_callback(userInfo unsafe.Pointer, buf *C.uint8_t, size C.int) C.int {
 	ctx := (*AVIOContextEx)(userInfo)
-	if ctx.reader == nil {
-		return AVERROR_EOF
-	}
-	return C.int(ctx.reader(cByteSlice(unsafe.Pointer(buf), size)))
+	return C.int(ctx.cb.Reader(cByteSlice(unsafe.Pointer(buf), size)))
 }
 
 //export avio_write_callback
 func avio_write_callback(userInfo unsafe.Pointer, buf *C.uint8_t, size C.int) C.int {
 	ctx := (*AVIOContextEx)(userInfo)
-	if ctx.writer == nil {
-		return AVERROR_EOF
-	}
-	return C.int(ctx.writer(cByteSlice(unsafe.Pointer(buf), size)))
+	return C.int(ctx.cb.Writer(cByteSlice(unsafe.Pointer(buf), size)))
 }
 
 //export avio_seek_callback
 func avio_seek_callback(userInfo unsafe.Pointer, offset C.int64_t, whence C.int) C.int64_t {
 	ctx := (*AVIOContextEx)(userInfo)
-	if ctx.seeker == nil {
-		return -1
-	}
-	return C.int64_t(ctx.seeker(int64(offset), int(whence)))
+	return C.int64_t(ctx.cb.Seeker(int64(offset), int(whence)))
 }

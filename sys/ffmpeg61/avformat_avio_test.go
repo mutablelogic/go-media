@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"testing"
 
+	// Packages
+	"github.com/stretchr/testify/assert"
+
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -15,13 +17,23 @@ var (
 	data = new(bytes.Buffer)
 )
 
-func reader(buf []byte) int {
+type reader struct{}
+
+func (r *reader) Reader(buf []byte) int {
 	n, err := data.Read(buf)
 	if err != nil {
 		return AVERROR_EOF
 	} else {
 		return n
 	}
+}
+
+func (r *reader) Writer([]byte) int {
+	return AVERROR_EOF
+}
+
+func (r *reader) Seeker(int64, int) int64 {
+	return -1
 }
 
 func Test_avio_001(t *testing.T) {
@@ -33,7 +45,7 @@ func Test_avio_001(t *testing.T) {
 	}
 
 	// Create the context
-	ctx := AVFormat_avio_alloc_context(20, false, reader, nil, nil)
+	ctx := AVFormat_avio_alloc_context(20, false, new(reader))
 	assert.NotNil(ctx)
 
 	// Read the data
