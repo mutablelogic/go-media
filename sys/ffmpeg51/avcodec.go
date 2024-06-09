@@ -45,7 +45,7 @@ const (
 	AV_CODEC_CAP_FRAME_THREADS            AVCodecCap = C.AV_CODEC_CAP_FRAME_THREADS       // Codec supports frame-level multithreading
 	AV_CODEC_CAP_SLICE_THREADS            AVCodecCap = C.AV_CODEC_CAP_SLICE_THREADS       // Codec supports slice-based (or partition-based) multithreading
 	AV_CODEC_CAP_PARAM_CHANGE             AVCodecCap = C.AV_CODEC_CAP_PARAM_CHANGE        // Codec supports changed parameters at any point
-	AV_CODEC_CAP_AUTO_THREADS             AVCodecCap = C.AV_CODEC_CAP_AUTO_THREADS        // Codec supports avctx->thread_count == 0 (auto)
+//	AV_CODEC_CAP_AUTO_THREADS             AVCodecCap = C.AV_CODEC_CAP_AUTO_THREADS        // Codec supports avctx->thread_count == 0 (auto)
 	AV_CODEC_CAP_VARIABLE_FRAME_SIZE      AVCodecCap = C.AV_CODEC_CAP_VARIABLE_FRAME_SIZE // Audio encoder supports receiving a different number of samples in each call
 	AV_CODEC_CAP_AVOID_PROBING            AVCodecCap = C.AV_CODEC_CAP_AVOID_PROBING       // Decoder is not a preferred choice for probing
 	AV_CODEC_CAP_HARDWARE                 AVCodecCap = C.AV_CODEC_CAP_HARDWARE            // Codec is backed by a hardware implementation
@@ -153,8 +153,8 @@ func (v AVCodecCap) FlagString() string {
 		return "AV_CODEC_CAP_SLICE_THREADS"
 	case AV_CODEC_CAP_PARAM_CHANGE:
 		return "AV_CODEC_CAP_PARAM_CHANGE"
-	case AV_CODEC_CAP_AUTO_THREADS:
-		return "AV_CODEC_CAP_AUTO_THREADS"
+//	case AV_CODEC_CAP_AUTO_THREADS:
+//		return "AV_CODEC_CAP_AUTO_THREADS"
 	case AV_CODEC_CAP_VARIABLE_FRAME_SIZE:
 		return "AV_CODEC_CAP_VARIABLE_FRAME_SIZE"
 	case AV_CODEC_CAP_AVOID_PROBING:
