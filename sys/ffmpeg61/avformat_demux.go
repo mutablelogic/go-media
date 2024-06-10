@@ -54,6 +54,11 @@ func AVFormat_open_url(url string, format *AVInputFormat, options **AVDictionary
 	return ctx, nil
 }
 
+// Open an input stream from a device.
+func AVFormat_open_device(format *AVInputFormat, options **AVDictionary) (*AVFormatContext, error) {
+	return AVFormat_open_url("", format, options)
+}
+
 // Read a frame from the input stream.
 func AVFormat_av_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
 	if err := AVError(C.av_read_frame((*C.struct_AVFormatContext)(ctx), (*C.struct_AVPacket)(packet))); err < 0 {
