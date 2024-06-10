@@ -90,5 +90,27 @@ func Test_avformat_demux_002(t *testing.T) {
 	}
 	defer AVFormat_free_context(input)
 
-	t.Log(input)
+	packet := AVCodec_av_packet_alloc()
+	if !assert.NotNil(packet) {
+		t.SkipNow()
+	}
+	defer AVCodec_av_packet_free(packet)
+
+	for {
+		if err := AVFormat_av_read_frame(input, packet); err != nil {
+			if err == io.EOF {
+				break
+			}
+			if !assert.NoError(err) {
+				t.FailNow()
+			}
+		}
+
+		// Output the packet
+		t.Logf("Packet: %v", packet)
+
+		// Mark the packet as consumed
+		AVCodec_av_packet_unref(packet)
+	}
+
 }
