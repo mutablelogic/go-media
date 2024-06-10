@@ -29,10 +29,6 @@ import "C"
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type (
-	AVIOContext C.struct_AVIOContext
-)
-
 // Wrapper around AVIOContext with callbacks
 type AVIOContextEx struct {
 	*AVIOContext

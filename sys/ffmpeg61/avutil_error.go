@@ -61,6 +61,9 @@ const (
 // PUBLIC METHODS
 
 func (err AVError) Error() string {
+	if err == 0 {
+		return ""
+	}
 	cBuffer := make([]byte, errBufferSize)
 	if err := C.av_strerror(C.int(err), (*C.char)(unsafe.Pointer(&cBuffer[0])), errBufferSize); err == 0 {
 		if n := bytes.IndexByte(cBuffer, 0); n >= 0 {
