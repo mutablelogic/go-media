@@ -129,6 +129,18 @@ func (ctx *AVPacket) StreamIndex() int {
 	return int(ctx.stream_index)
 }
 
+func (ctx *AVPacket) Pts() int64 {
+	return int64(ctx.pts)
+}
+
+func (ctx *AVPacket) Dts() int64 {
+	return int64(ctx.dts)
+}
+
+func (ctx *AVPacket) Duration() int64 {
+	return int64(ctx.duration)
+}
+
 func (ctx *AVPacket) Pos() int64 {
 	return int64(ctx.pos)
 }
