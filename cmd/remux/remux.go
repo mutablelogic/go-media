@@ -80,15 +80,6 @@ func main() {
 	// Dump the output format
 	ff.AVFormat_dump_format(output, 0, *out)
 
-	// Open the output file
-	if !output.Flags().Is(ff.AVFMT_NOFILE) {
-		if ctx, err := ff.AVFormat_avio_open(*out, ff.AVIO_FLAG_WRITE); err != nil {
-			log.Fatal(err)
-		} else {
-			output.SetPb(ctx)
-		}
-	}
-
 	// Write the header
 	if err := ff.AVFormat_write_header(output, nil); err != nil {
 		log.Fatal(err)

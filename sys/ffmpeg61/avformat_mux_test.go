@@ -95,15 +95,6 @@ func Test_avformat_mux_002(t *testing.T) {
 	// Dump the output format
 	AVFormat_dump_format(output, 0, outfile)
 
-	// Open the output file
-	if !output.Flags().Is(AVFMT_NOFILE) {
-		if ctx, err := AVFormat_avio_open(outfile, AVIO_FLAG_WRITE); !assert.NoError(err) {
-			t.FailNow()
-		} else {
-			output.SetPb(ctx)
-		}
-	}
-
 	// Write the header
 	if err := AVFormat_write_header(output, nil); !assert.NoError(err) {
 		t.FailNow()

@@ -28,9 +28,16 @@ func AVFormat_create_file(filename string, format *AVOutputFormat) (*AVFormatCon
 	var ctx *AVFormatContext
 	if err := AVError(C.avformat_alloc_output_context2((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), (*C.struct_AVOutputFormat)(format), nil, C.CString(filename))); err != 0 {
 		return nil, err
-	} else {
-		return ctx, nil
+	} else if !ctx.Flags().Is(AVFMT_NOFILE) {
+		if ioctx, err := AVFormat_avio_open(filename, AVIO_FLAG_WRITE); err != nil {
+			return nil, err
+		} else {
+			ctx.SetPb(ioctx)
+		}
 	}
+
+	// Return success
+	return ctx, nil
 }
 
 func AVFormat_close_writer(ctx *AVFormatContext) error {
