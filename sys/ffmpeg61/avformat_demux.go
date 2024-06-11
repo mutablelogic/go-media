@@ -73,7 +73,7 @@ func AVFormat_find_stream_info(ctx *AVFormatContext, options **AVDictionary) err
 	return nil
 }
 
-// Read a frame from the input stream.
+// Read a frame from the input stream. Return io.EOF if the end of the stream is reached.
 func AVFormat_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
 	if err := AVError(C.av_read_frame((*C.struct_AVFormatContext)(ctx), (*C.struct_AVPacket)(packet))); err < 0 {
 		if err == AVERROR_EOF {

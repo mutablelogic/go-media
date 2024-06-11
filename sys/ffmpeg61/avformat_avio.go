@@ -68,6 +68,19 @@ func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCal
 	return ctx
 }
 
+// Create and initialize a AVIOContext for accessing the resource indicated by url.
+func AVFormat_avio_open(url string, flags AVIOFlag) (*AVIOContextEx, error) {
+	ctx := new(AVIOContextEx)
+	cUrl := C.CString(url)
+	defer C.free(unsafe.Pointer(cUrl))
+	if err := AVError(C.avio_open((**C.struct_AVIOContext)(unsafe.Pointer(&ctx.AVIOContext)), cUrl, C.int(flags))); err != 0 {
+		return nil, err
+	}
+
+	// Return success
+	return ctx, nil
+}
+
 // Close the resource and free it.
 // This function can only be used if it was opened by avio_open().
 func AVFormat_avio_close(ctx *AVIOContextEx) error {
@@ -84,7 +97,12 @@ func AVFormat_avio_close(ctx *AVIOContextEx) error {
 func AVFormat_avio_context_free(ctx *AVIOContextEx) {
 	C.av_free(unsafe.Pointer(ctx.buffer))
 	C.avio_context_free((**C.struct_AVIOContext)(unsafe.Pointer(&ctx.AVIOContext)))
-	ctx.pin.Unpin()
+	if ctx.pin != nil {
+		ctx.pin.Unpin()
+	}
+	ctx.buffer = nil
+	ctx.AVIOContext = nil
+	ctx.pin = nil
 }
 
 // avio_w8

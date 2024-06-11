@@ -1,5 +1,7 @@
 package ffmpeg
 
+import "unsafe"
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -8,7 +10,6 @@ package ffmpeg
 #include <libavcodec/avcodec.h>
 */
 import "C"
-import "unsafe"
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
@@ -49,6 +50,11 @@ func AVCodec_av_grow_packet(pkt *AVPacket, size int) error {
 	} else {
 		return nil
 	}
+}
+
+// Convert valid timing fields (timestamps / durations) in a packet from one timebase to another.
+func AVCodec_av_packet_rescale_ts(pkt *AVPacket, tb_src, tb_dst AVRational) {
+	C.av_packet_rescale_ts((*C.AVPacket)(pkt), (C.AVRational)(tb_src), (C.AVRational)(tb_dst))
 }
 
 // Unreference the packet to release the data

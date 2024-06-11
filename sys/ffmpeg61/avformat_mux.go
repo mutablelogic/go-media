@@ -75,7 +75,7 @@ func AVFormat_init_output(ctx *AVFormatContext, options **AVDictionary) error {
 
 // Allocate the stream private data and write the stream header to an output media file.
 func AVFormat_write_header(ctx *AVFormatContext, options **AVDictionary) error {
-	if err := AVError(C.avformat_write_header((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err < 0 {
+	if err := AVError(C.avformat_write_header((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
 		return err
 	} else {
 		return nil

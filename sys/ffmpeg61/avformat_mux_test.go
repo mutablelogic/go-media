@@ -1,6 +1,7 @@
 package ffmpeg_test
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -93,4 +94,49 @@ func Test_avformat_mux_002(t *testing.T) {
 
 	// Dump the output format
 	AVFormat_dump_format(output, 0, outfile)
+
+	// Open the output file
+	if !output.Flags().Is(AVFMT_NOFILE) {
+		if ctx, err := AVFormat_avio_open(outfile, AVIO_FLAG_WRITE); !assert.NoError(err) {
+			t.FailNow()
+		} else {
+			output.SetPb(ctx)
+		}
+	}
+
+	// Write the header
+	if err := AVFormat_write_header(output, nil); !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	// Write the frames
+	for {
+		if err := AVFormat_read_frame(input, pkt); err != nil {
+			if err == io.EOF {
+				break
+			}
+			if !assert.NoError(err) {
+				t.FailNow()
+			}
+		}
+		in_stream := input.Stream(pkt.StreamIndex())
+		if out_stream_index := stream_map[pkt.StreamIndex()]; out_stream_index < 0 {
+			continue
+		} else {
+			out_stream := output.Stream(out_stream_index)
+
+			/* copy packet */
+			AVCodec_av_packet_rescale_ts(pkt, in_stream.TimeBase(), out_stream.TimeBase())
+			pkt.SetPos(-1)
+
+			if err := AVFormat_interleaved_write_frame(output, pkt); !assert.NoError(err) {
+				t.FailNow()
+			}
+		}
+	}
+
+	// Write the trailer
+	if err := AVFormat_write_trailer(output); !assert.NoError(err) {
+		t.FailNow()
+	}
 }

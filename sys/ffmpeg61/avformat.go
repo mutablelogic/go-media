@@ -21,9 +21,11 @@ type (
 	AVInputFormat   C.struct_AVInputFormat
 	AVOutputFormat  C.struct_AVOutputFormat
 	AVFormat        C.int
+	AVFormatFlag    C.int
 	AVFormatContext C.struct_AVFormatContext
 	AVIOContext     C.struct_AVIOContext
 	AVStream        C.struct_AVStream
+	AVIOFlag        C.int
 )
 
 type jsonAVFormatContext struct {
@@ -36,6 +38,7 @@ type jsonAVFormatContext struct {
 	StartTime  int64           `json:"start_time,omitempty"`
 	Duration   int64           `json:"duration,omitempty"`
 	BitRate    int64           `json:"bit_rate,omitempty"`
+	Flags      AVFormatFlag    `json:"flags,omitempty"`
 }
 
 type jsonAVInputFormat struct {
@@ -67,11 +70,13 @@ type jsonAVIOContext struct {
 }
 
 type jsonAVStream struct {
-	Index     int   `json:"index"`
-	Id        int   `json:"id,omitempty"`
-	StartTime int64 `json:"start_time,omitempty"`
-	Duration  int64 `json:"duration,omitempty"`
-	NumFrames int64 `json:"num_frames,omitempty"`
+	Index     int               `json:"index"`
+	Id        int               `json:"id,omitempty"`
+	CodecPar  AVCodecParameters `json:"codec_par,omitempty"`
+	StartTime int64             `json:"start_time,omitempty"`
+	Duration  int64             `json:"duration,omitempty"`
+	NumFrames int64             `json:"num_frames,omitempty"`
+	TimeBase  AVRational        `json:"time_base,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,6 +139,13 @@ const (
 	AVFMT_MAX         AVFormat = AVFMT_TS_NEGATIVE
 )
 
+const (
+	AVIO_FLAG_NONE       AVIOFlag = 0
+	AVIO_FLAG_READ       AVIOFlag = C.AVIO_FLAG_READ
+	AVIO_FLAG_WRITE      AVIOFlag = C.AVIO_FLAG_WRITE
+	AVIO_FLAG_READ_WRITE AVIOFlag = C.AVIO_FLAG_READ_WRITE
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
@@ -162,6 +174,7 @@ func (ctx AVFormatContext) MarshalJSON() ([]byte, error) {
 		StartTime:  int64(ctx.start_time),
 		Duration:   int64(ctx.duration),
 		BitRate:    int64(ctx.bit_rate),
+		Flags:      AVFormatFlag(ctx.flags),
 	})
 }
 
@@ -192,6 +205,7 @@ func (ctx AVStream) MarshalJSON() ([]byte, error) {
 		StartTime: int64(ctx.start_time),
 		Duration:  int64(ctx.duration),
 		NumFrames: int64(ctx.nb_frames),
+		TimeBase:  AVRational(ctx.time_base),
 	})
 }
 
@@ -241,6 +255,22 @@ func (ctx AVStream) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // AVFormatContext functions
 
+func (ctx *AVFormatContext) Input() *AVInputFormat {
+	return (*AVInputFormat)(ctx.iformat)
+}
+
+func (ctx *AVFormatContext) Output() *AVOutputFormat {
+	return (*AVOutputFormat)(ctx.oformat)
+}
+
+func (ctx *AVFormatContext) SetPb(pb *AVIOContextEx) {
+	if pb == nil {
+		ctx.pb = nil
+	} else {
+		ctx.pb = (*C.struct_AVIOContext)(pb.AVIOContext)
+	}
+}
+
 func (ctx *AVFormatContext) NumStreams() uint {
 	return uint(ctx.nb_streams)
 }
@@ -259,4 +289,41 @@ func (ctx *AVFormatContext) Stream(stream int) *AVStream {
 	} else {
 		return streams[stream]
 	}
+}
+
+func (ctx *AVFormatContext) Flags() AVFormat {
+	return AVFormat(ctx.flags)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVStream functions
+
+func (ctx *AVStream) Index() int {
+	return int(ctx.index)
+}
+
+func (ctx *AVStream) Id() int {
+	return int(ctx.id)
+}
+
+func (ctx *AVStream) CodecPar() *AVCodecParameters {
+	return (*AVCodecParameters)(ctx.codecpar)
+}
+
+func (ctx *AVStream) TimeBase() AVRational {
+	return AVRational(ctx.time_base)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVFormat
+
+func (f AVFormat) Is(flag AVFormat) bool {
+	return f&flag != 0
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVFormatFlag
+
+func (f AVFormatFlag) Is(flag AVFormatFlag) bool {
+	return f&flag != 0
 }
