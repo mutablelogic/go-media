@@ -68,6 +68,18 @@ func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCal
 	return ctx
 }
 
+// Close the resource and free it.
+// This function can only be used if it was opened by avio_open().
+func AVFormat_avio_close(ctx *AVIOContextEx) error {
+	ctx_ := (*C.struct_AVIOContext)(ctx.AVIOContext)
+	if err := AVError(C.avio_closep(&ctx_)); err != 0 {
+		return err
+	}
+
+	// Return success
+	return nil
+}
+
 // avio_context_free
 func AVFormat_avio_context_free(ctx *AVIOContextEx) {
 	C.av_free(unsafe.Pointer(ctx.buffer))

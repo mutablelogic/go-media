@@ -59,14 +59,64 @@ func AVFormat_open_device(format *AVInputFormat, options **AVDictionary) (*AVFor
 	return AVFormat_open_url("", format, options)
 }
 
+// Close an opened input AVFormatContext, free it and all its contents.
+func AVFormat_close_input(ctx *AVFormatContext) {
+	C.avformat_close_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)))
+}
+
+// Read packets of a media file to get stream information.
+func AVFormat_find_stream_info(ctx *AVFormatContext, options **AVDictionary) error {
+	if err := AVError(C.avformat_find_stream_info((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+		return err
+	}
+	// Return success
+	return nil
+}
+
 // Read a frame from the input stream.
-func AVFormat_av_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
+func AVFormat_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
 	if err := AVError(C.av_read_frame((*C.struct_AVFormatContext)(ctx), (*C.struct_AVPacket)(packet))); err < 0 {
 		if err == AVERROR_EOF {
 			return io.EOF
 		} else {
 			return err
 		}
+	}
+	// Return success
+	return nil
+}
+
+// Return the next frame of a stream.
+func AVFormat_seek_frame(ctx *AVFormatContext, stream_index int, timestamp int64, flags int) error {
+	if err := AVError(C.av_seek_frame((*C.struct_AVFormatContext)(ctx), C.int(stream_index), C.int64_t(timestamp), C.int(flags))); err != 0 {
+		return err
+	}
+	// Return success
+	return nil
+}
+
+// Discard all internally buffered data.
+func AVFormat_flush(ctx *AVFormatContext) error {
+	if err := AVError(C.avformat_flush((*C.struct_AVFormatContext)(ctx))); err != 0 {
+		return err
+	}
+	// Return success
+	return nil
+}
+
+// Start playing a network-based stream (e.g. RTSP stream) at the current position.
+func AVFormat_read_play(ctx *AVFormatContext) error {
+	if err := AVError(C.av_read_play((*C.struct_AVFormatContext)(ctx))); err != 0 {
+		return err
+	}
+	// Return success
+	return nil
+}
+
+// Pause a network-based stream (e.g. RTSP stream).
+func AVFormat_read_pause(ctx *AVFormatContext) error {
+	if err := AVError(C.av_read_pause((*C.struct_AVFormatContext)(ctx))); err != 0 {
+		return err
 	}
 	// Return success
 	return nil
