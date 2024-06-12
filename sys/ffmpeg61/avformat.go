@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"fmt"
 	"unsafe"
 )
 
@@ -149,7 +150,7 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
-func (ctx AVIOContext) MarshalJSON() ([]byte, error) {
+func (ctx *AVIOContext) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVIOContext{
 		IsEOF:        ctx.eof_reached != 0,
 		IsWriteable:  ctx.write_flag != 0,
@@ -163,7 +164,7 @@ func (ctx AVIOContext) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVFormatContext) MarshalJSON() ([]byte, error) {
+func (ctx *AVFormatContext) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVFormatContext{
 		Pb:         (*AVIOContext)(ctx.pb),
 		Input:      (*AVInputFormat)(ctx.iformat),
@@ -178,7 +179,7 @@ func (ctx AVFormatContext) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVInputFormat) MarshalJSON() ([]byte, error) {
+func (ctx *AVInputFormat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVInputFormat{
 		Name:       C.GoString(ctx.name),
 		LongName:   C.GoString(ctx.long_name),
@@ -188,7 +189,7 @@ func (ctx AVInputFormat) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVOutputFormat) MarshalJSON() ([]byte, error) {
+func (ctx *AVOutputFormat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVOutputFormat{
 		Name:       C.GoString(ctx.name),
 		LongName:   C.GoString(ctx.long_name),
@@ -198,7 +199,7 @@ func (ctx AVOutputFormat) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVStream) MarshalJSON() ([]byte, error) {
+func (ctx *AVStream) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVStream{
 		Index:     int(ctx.index),
 		Id:        int(ctx.id),
@@ -212,7 +213,7 @@ func (ctx AVStream) MarshalJSON() ([]byte, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (ctx AVIOContext) String() string {
+func (ctx *AVIOContext) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -220,7 +221,19 @@ func (ctx AVIOContext) String() string {
 	}
 }
 
-func (ctx AVFormatContext) String() string {
+func (ctx *AVFormatContext) String() string {
+	return fmt.Sprint("AVFormatContext")
+	/*
+		if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+			return err.Error()
+		} else {
+
+			return string(str)
+		}
+	*/
+}
+
+func (ctx *AVInputFormat) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -228,7 +241,7 @@ func (ctx AVFormatContext) String() string {
 	}
 }
 
-func (ctx AVInputFormat) String() string {
+func (ctx *AVOutputFormat) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -236,20 +249,16 @@ func (ctx AVInputFormat) String() string {
 	}
 }
 
-func (ctx AVOutputFormat) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
-}
+func (ctx *AVStream) String() string {
+	return fmt.Sprint("AVStream")
+	/*
+		if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+			return err.Error()
+		} else {
 
-func (ctx AVStream) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+			return string(str)
+		}
+	*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +273,7 @@ func (ctx *AVFormatContext) Output() *AVOutputFormat {
 }
 
 func (ctx *AVFormatContext) Metadata() *AVDictionary {
-	return (*AVDictionary)(ctx.metadata)
+	return &AVDictionary{ctx.metadata}
 }
 
 func (ctx *AVFormatContext) SetPb(pb *AVIOContextEx) {

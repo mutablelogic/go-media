@@ -1,6 +1,9 @@
 package ffmpeg
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -17,6 +20,7 @@ import "C"
 type (
 	AVPacket          C.AVPacket
 	AVCodec           C.AVCodec
+	AVCodecContext    C.AVCodecContext
 	AVCodecParameters C.AVCodecParameters
 	AVCodecID         C.enum_AVCodecID
 )
@@ -49,9 +53,17 @@ type jsonAVCodec struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+const (
+	AV_CODEC_ID_NONE AVCodecID = C.AV_CODEC_ID_NONE
+	AV_CODEC_ID_MP2  AVCodecID = C.AV_CODEC_ID_MP2
+)
+
+////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
-func (ctx AVPacket) MarshalJSON() ([]byte, error) {
+func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVPacket{
 		Pts:           int64(ctx.pts),
 		Dts:           int64(ctx.dts),
@@ -64,7 +76,7 @@ func (ctx AVPacket) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVCodecParameters) MarshalJSON() ([]byte, error) {
+func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVCodecParameters{
 		CodecType: AVMediaType(ctx.codec_type),
 		CodecID:   AVCodecID(ctx.codec_id),
@@ -74,7 +86,7 @@ func (ctx AVCodecParameters) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx AVCodec) MarshalJSON() ([]byte, error) {
+func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVCodec{
 		Name:         C.GoString(ctx.name),
 		LongName:     C.GoString(ctx.long_name),
@@ -103,6 +115,14 @@ func (ctx *AVCodecParameters) String() string {
 	}
 }
 
+func (ctx *AVCodec) String() string {
+	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+		return err.Error()
+	} else {
+		return string(str)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // AVCodecParameters
 
@@ -120,6 +140,26 @@ func (ctx *AVCodecParameters) CodecTag() uint32 {
 
 func (ctx *AVCodecParameters) SetCodecTag(tag uint32) {
 	ctx.codec_tag = C.uint32_t(tag)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVCodec
+
+func (c *AVCodec) SampleFormats() []AVSampleFormat {
+	var result []AVSampleFormat
+	ptr := uintptr(unsafe.Pointer(c.sample_fmts))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := AVSampleFormat(*(*C.enum_AVSampleFormat)(unsafe.Pointer(ptr)))
+		if v == AV_SAMPLE_FMT_NONE {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(AV_SAMPLE_FMT_NONE)
+	}
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,4 +187,31 @@ func (ctx *AVPacket) Pos() int64 {
 
 func (ctx *AVPacket) SetPos(pos int64) {
 	ctx.pos = C.int64_t(pos)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVCodecContext
+
+func (ctx *AVCodecContext) BitRate() int64 {
+	return int64(ctx.bit_rate)
+}
+
+func (ctx *AVCodecContext) SetBitRate(bit_rate int64) {
+	ctx.bit_rate = C.int64_t(bit_rate)
+}
+
+func (ctx *AVCodecContext) SampleFormat() AVSampleFormat {
+	return AVSampleFormat(ctx.sample_fmt)
+}
+
+func (ctx *AVCodecContext) SetSampleFormat(sample_fmt AVSampleFormat) {
+	ctx.sample_fmt = C.enum_AVSampleFormat(sample_fmt)
+}
+
+func (ctx *AVCodecContext) SampleRate() int {
+	return int(ctx.sample_rate)
+}
+
+func (ctx *AVCodecContext) SetSampleRate(sample_rate int) {
+	ctx.sample_rate = C.int(sample_rate)
 }

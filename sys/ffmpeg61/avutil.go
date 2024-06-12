@@ -1,6 +1,8 @@
 package ffmpeg
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -9,6 +11,8 @@ import "encoding/json"
 #cgo pkg-config: libavutil
 #include <libavutil/avutil.h>
 #include <libavutil/dict.h>
+#include <libavutil/samplefmt.h>
+#include <libavutil/pixdesc.h>
 */
 import "C"
 
@@ -16,14 +20,16 @@ import "C"
 // TYPES
 
 type (
-	AVClass           C.AVClass
-	AVError           C.int
-	AVDictionary      C.struct_AVDictionary
-	AVDictionaryEntry C.struct_AVDictionaryEntry
-	AVDictionaryFlag  C.int
-	AVMediaType       C.enum_AVMediaType
-	AVRational        C.AVRational
-	AVPixelFormat     C.enum_AVPixelFormat
+	AVClass            C.AVClass
+	AVError            C.int
+	AVDictionary       struct{ ctx *C.struct_AVDictionary } // Wrapper
+	AVDictionaryEntry  C.struct_AVDictionaryEntry
+	AVDictionaryFlag   C.int
+	AVMediaType        C.enum_AVMediaType
+	AVRational         C.AVRational
+	AVPixelFormat      C.enum_AVPixelFormat
+	AVPixFmtDescriptor C.AVPixFmtDescriptor
+	AVSampleFormat     C.enum_AVSampleFormat
 )
 
 type jsonAVClass struct {
@@ -75,10 +81,27 @@ const (
 	AV_DICT_MULTIKEY AVDictionaryFlag = C.AV_DICT_MULTIKEY
 )
 
+const (
+	AV_SAMPLE_FMT_NONE AVSampleFormat = C.AV_SAMPLE_FMT_NONE
+	AV_SAMPLE_FMT_U8   AVSampleFormat = C.AV_SAMPLE_FMT_U8
+	AV_SAMPLE_FMT_S16  AVSampleFormat = C.AV_SAMPLE_FMT_S16
+	AV_SAMPLE_FMT_S32  AVSampleFormat = C.AV_SAMPLE_FMT_S32
+	AV_SAMPLE_FMT_FLT  AVSampleFormat = C.AV_SAMPLE_FMT_FLT
+	AV_SAMPLE_FMT_DBL  AVSampleFormat = C.AV_SAMPLE_FMT_DBL
+	AV_SAMPLE_FMT_U8P  AVSampleFormat = C.AV_SAMPLE_FMT_U8P
+	AV_SAMPLE_FMT_S16P AVSampleFormat = C.AV_SAMPLE_FMT_S16P
+	AV_SAMPLE_FMT_S32P AVSampleFormat = C.AV_SAMPLE_FMT_S32P
+	AV_SAMPLE_FMT_FLTP AVSampleFormat = C.AV_SAMPLE_FMT_FLTP
+	AV_SAMPLE_FMT_DBLP AVSampleFormat = C.AV_SAMPLE_FMT_DBLP
+	AV_SAMPLE_FMT_S64  AVSampleFormat = C.AV_SAMPLE_FMT_S64
+	AV_SAMPLE_FMT_S64P AVSampleFormat = C.AV_SAMPLE_FMT_S64P
+	AV_SAMPLE_FMT_NB   AVSampleFormat = C.AV_SAMPLE_FMT_NB
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
-func (ctx AVClass) MarshalJSON() ([]byte, error) {
+func (ctx *AVClass) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVClass{
 		ClassName: C.GoString(ctx.class_name),
 	})
@@ -101,7 +124,7 @@ func (ctx *AVDictionaryEntry) MarshalJSON() ([]byte, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (ctx AVClass) String() string {
+func (ctx *AVClass) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -133,4 +156,9 @@ func (v AVMediaType) String() string {
 		return "AVMEDIA_TYPE_ATTACHMENT"
 	}
 	return "[AVMediaType]"
+}
+
+func (ctx *AVPixFmtDescriptor) CompPlane(i int) int {
+	comp := (C.AVComponentDescriptor)(ctx.comp[i])
+	return int(comp.plane)
 }

@@ -256,3 +256,9 @@ func (v AVPixelFormat) String() string {
 func AVUtil_get_pix_fmt_name(pixfmt AVPixelFormat) string {
 	return C.GoString(C.av_get_pix_fmt_name((C.enum_AVPixelFormat)(pixfmt)))
 }
+
+func AVUtil_get_pix_fmt_desc(pixfmt AVPixelFormat) *AVPixFmtDescriptor {
+	desc := C.av_pix_fmt_desc_get(C.enum_AVPixelFormat(pixfmt))
+	fmt.Println(pixfmt, " => desc", desc)
+	return (*AVPixFmtDescriptor)(C.av_pix_fmt_desc_get(C.enum_AVPixelFormat(pixfmt)))
+}
