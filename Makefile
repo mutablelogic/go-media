@@ -2,55 +2,66 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-
 # Build flags
-BUILD_MODULE := $(shell go list -m)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-all: clean test cmd
+# Set OS and Architecture
+ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
+OS ?= $(shell uname | tr A-Z a-z)
+VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
+DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
-cmd: clean dependencies $(CMD_DIR)
+# Paths to locations, etc
+BUILD_DIR := "build"
+CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
+BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 
-$(CMD_DIR): FORCE
+all: clean cmds
+
+cmds: $(CMD_DIR)
+
+docker: docker-dep
+	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
+	@${DOCKER} build \
+		--tag ${BUILD_TAG} \
+		--build-arg ARCH=${ARCH} \
+		--build-arg OS=${OS} \
+		--build-arg SOURCE=${BUILD_MODULE} \
+		--build-arg VERSION=${VERSION} \
+		-f etc/docker/Dockerfile .
+
+docker-tag: docker-dep
+	@echo ${BUILD_TAG}
+
+docker-push: docker-dep
+	@echo push docker image: ${BUILD_TAG}
+	@${DOCKER} push ${BUILD_TAG}
+
+test: go-dep
+	@echo Test
+	@${GO} mod tidy
+	@${GO} test ./sys/ffmpeg61
+
+$(CMD_DIR): go-dep mkdir
 	@echo Build cmd $(notdir $@)
-	@${GO} build -o ${BUILD_DIR}/$(notdir $@) ${BUILD_FLAGS} ./$@
-
-$(PLUGIN_DIR): FORCE
-	@echo Build plugin $(notdir $@)
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
 FORCE:
 
-docker:
-	@echo Build docker image
-	@${DOCKER} build \
-	    --tag go-media:$(shell git describe --tags) \
-		--build-arg PLATFORM=$(shell ${GO} env GOOS) \
-		--build-arg ARCH=$(shell ${GO} env GOARCH) \
-		--build-arg VERSION=kinetic \
-		-f etc/docker/Dockerfile .
+go-dep:
+	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
 
-test: clean dependencies
-	@echo Test sys/
-	@${GO} test ./sys/...
-	@echo Test pkg/
-	@${GO} test ./pkg/...
-
-dependencies: mkdir
-ifeq (,${GO})
-        $(error "Missing go binary")
-endif
+docker-dep:
+	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
 
 mkdir:
-	@echo Mkdir
+	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
 
 clean:
