@@ -1,5 +1,7 @@
 package ffmpeg
 
+import "encoding/json"
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -13,11 +15,17 @@ import "C"
 // TYPES
 
 type (
-	AVError      C.int
-	AVDictionary C.struct_AVDictionary
-	AVMediaType  C.enum_AVMediaType
-	AVRational   C.AVRational
+	AVClass       C.AVClass
+	AVError       C.int
+	AVDictionary  C.struct_AVDictionary
+	AVMediaType   C.enum_AVMediaType
+	AVRational    C.AVRational
+	AVPixelFormat C.enum_AVPixelFormat
 )
+
+type jsonAVClass struct {
+	ClassName string `json:"class_name"`
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
@@ -32,7 +40,24 @@ const (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// JSON OUTPUT
+
+func (ctx AVClass) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonAVClass{
+		ClassName: C.GoString(ctx.class_name),
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (ctx AVClass) String() string {
+	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+		return err.Error()
+	} else {
+		return string(str)
+	}
+}
 
 func (v AVMediaType) String() string {
 	switch v {
