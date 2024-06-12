@@ -60,7 +60,7 @@ func main() {
 	}
 	defer ff.AVUtil_image_free(dest_data)
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5; i++ {
 		// Generate synthetic video
 		fill_yuv_image(src_data, src_stride, SRC_WIDTH, SRC_HEIGHT, i)
 

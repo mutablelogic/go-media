@@ -37,7 +37,8 @@ func SWScale_get_context(src_width, src_height int, src_format AVPixelFormat, ds
 	if len(param) > 0 {
 		params = (*C.double)(unsafe.Pointer(&param[0]))
 	}
-	return (*SWSContext)(C.sws_getContext(C.int(src_width), C.int(src_height), C.enum_AVPixelFormat(src_format), C.int(dst_width), C.int(dst_height), C.enum_AVPixelFormat(dst_format), C.int(flags), (*C.struct_SwsFilter)(src_filter), (*C.struct_SwsFilter)(dst_filter), params))
+	ctx := C.sws_getContext(C.int(src_width), C.int(src_height), C.enum_AVPixelFormat(src_format), C.int(dst_width), C.int(dst_height), C.enum_AVPixelFormat(dst_format), C.int(flags), (*C.struct_SwsFilter)(src_filter), (*C.struct_SwsFilter)(dst_filter), params)
+	return (*SWSContext)(ctx)
 }
 
 // Scale the image slice in src and put the resulting scaled slice in the image in dst.
