@@ -263,6 +263,10 @@ func (ctx *AVFormatContext) Output() *AVOutputFormat {
 	return (*AVOutputFormat)(ctx.oformat)
 }
 
+func (ctx *AVFormatContext) Metadata() *AVDictionary {
+	return (*AVDictionary)(ctx.metadata)
+}
+
 func (ctx *AVFormatContext) SetPb(pb *AVIOContextEx) {
 	if pb == nil {
 		ctx.pb = nil

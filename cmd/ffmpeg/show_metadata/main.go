@@ -28,12 +28,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	for {
-		tag := AVUtil_dict_iterate(input.Metadata(), tag)
-		if tag != nil {
-			log.Println(tag, Key(), "=>", tag.Value())
-		} else {
-			break
-		}
+	for _, tag := range ff.AVUtil_dict_entries(input.Metadata()) {
+		log.Println(tag.Key(), "=>", tag.Value())
 	}
 }
