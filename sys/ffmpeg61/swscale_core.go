@@ -10,6 +10,7 @@ import (
 /*
 #cgo pkg-config: libswscale
 #include <libswscale/swscale.h>
+#include <stdio.h>
 */
 import "C"
 
@@ -44,14 +45,13 @@ func SWScale_get_context(src_width, src_height int, src_format AVPixelFormat, ds
 // Scale the image slice in src and put the resulting scaled slice in the image in dst.
 // Returns the height of the output slice.
 func SWScale_scale(ctx *SWSContext, src [][]byte, src_stride []int, src_slice_y, src_slice_height int, dest [][]byte, dest_stride []int) int {
-	src_ := avutil_image_ptr(src)
-	dest_ := avutil_image_ptr(dest)
+	src_, src_stride_ := avutil_image_ptr(src, src_stride)
+	dest_, dest_stride_ := avutil_image_ptr(dest, dest_stride)
 	return int(C.sws_scale(
 		(*C.struct_SwsContext)(ctx),
-		(**C.uint8_t)(&src_[0]),
-		(*C.int)(unsafe.Pointer(&src_stride[0])),
+		&src_[0], &src_stride_[0],
 		C.int(src_slice_y),
 		C.int(src_slice_height),
-		(**C.uint8_t)(&dest_[0]),
-		(*C.int)(unsafe.Pointer(&dest_stride[0]))))
+		&dest_[0], &dest_stride_[0],
+	))
 }

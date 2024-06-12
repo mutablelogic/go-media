@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -45,8 +44,6 @@ func main() {
 	}
 	defer ff.SWScale_free_context(ctx)
 
-	fmt.Println(ctx)
-
 	// Allocate source and destination image buffers
 	src_data, src_stride, _, err := ff.AVUtil_image_alloc(SRC_WIDTH, SRC_HEIGHT, SRC_PIX_FMT, 16)
 	if err != nil {
@@ -60,7 +57,7 @@ func main() {
 	}
 	defer ff.AVUtil_image_free(dest_data)
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1000; i++ {
 		// Generate synthetic video
 		fill_yuv_image(src_data, src_stride, SRC_WIDTH, SRC_HEIGHT, i)
 

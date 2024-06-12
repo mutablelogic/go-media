@@ -67,28 +67,29 @@ func AVUtil_image_alloc(width, height int, pixfmt AVPixelFormat, align int) ([][
 
 // Free an image buffer allocated by AVUtil_image_alloc
 func AVUtil_image_free(data [][]byte) {
-	ptrs := avutil_image_ptr(data)
+	ptrs, _ := avutil_image_ptr(data, nil)
 	C.av_free(unsafe.Pointer(ptrs[0]))
 }
 
 // Return the image as a byte buffer
 func AVUtil_image_bytes(data [][]byte, size int) []byte {
-	ptrs := avutil_image_ptr(data)
+	ptrs, _ := avutil_image_ptr(data, nil)
 	return cByteSlice(unsafe.Pointer(ptrs[0]), C.int(size))
 }
 
 // Convert [][]byte to a [4]*C.uint8_t
-func avutil_image_ptr(data [][]byte) [4]*C.uint8_t {
+func avutil_image_ptr(data [][]byte, stride []int) ([4]*C.uint8_t, [4]C.int) {
 	var ptrs [4]*C.uint8_t
-	if len(data) != 4 {
-		return ptrs
-	}
+	var strides [4]C.int
 	for i := 0; i < 4; i++ {
 		if len(data[i]) == 0 {
 			ptrs[i] = nil
 		} else {
 			ptrs[i] = (*C.uint8_t)(unsafe.Pointer(&data[i][0]))
 		}
+		if len(stride) > 0 {
+			strides[i] = C.int(stride[i])
+		}
 	}
-	return ptrs
+	return ptrs, strides
 }
