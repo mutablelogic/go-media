@@ -22,6 +22,7 @@ type (
 	AVCodec           C.AVCodec
 	AVCodecContext    C.AVCodecContext
 	AVCodecParameters C.AVCodecParameters
+	AVProfile         C.AVProfile
 	AVCodecID         C.enum_AVCodecID
 )
 
@@ -50,6 +51,21 @@ type jsonAVCodec struct {
 	Type         AVMediaType `json:"type,omitempty"`
 	ID           AVCodecID   `json:"id,omitempty"`
 	Capabilities int         `json:"capabilities,omitempty"`
+}
+
+type jsonAVCodecContext struct {
+	Class            *AVClass        `json:"class,omitempty"`
+	CodecType        AVMediaType     `json:"codec_type,omitempty"`
+	Codec            *AVCodec        `json:"codec,omitempty"`
+	BitRate          int64           `json:"bit_rate,omitempty"`
+	BitRateTolerance int             `json:"bit_rate_tolerance,omitempty"`
+	TimeBase         AVRational      `json:"time_base,omitempty"`
+	Width            int             `json:"width,omitempty"`
+	Height           int             `json:"height,omitempty"`
+	PixelFormat      AVPixelFormat   `json:"pix_fmt,omitempty"`
+	SampleFormat     AVSampleFormat  `json:"sample_fmt,omitempty"`
+	SampleRate       int             `json:"sample_rate,omitempty"`
+	ChannelLayout    AVChannelLayout `json:"channel_layout,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,10 +112,43 @@ func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonAVCodecContext{
+		Class:            (*AVClass)(ctx.av_class),
+		CodecType:        AVMediaType(ctx.codec_type),
+		Codec:            (*AVCodec)(ctx.codec),
+		BitRate:          int64(ctx.bit_rate),
+		BitRateTolerance: int(ctx.bit_rate_tolerance),
+		TimeBase:         (AVRational)(ctx.time_base),
+		Width:            int(ctx.width),
+		Height:           int(ctx.height),
+		PixelFormat:      AVPixelFormat(ctx.pix_fmt),
+		SampleFormat:     AVSampleFormat(ctx.sample_fmt),
+		SampleRate:       int(ctx.sample_rate),
+		ChannelLayout:    AVChannelLayout(ctx.ch_layout),
+	})
+}
+
+func (ctx AVProfile) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ctx.Name())
+}
+
+func (ctx AVMediaType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ctx.String())
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (ctx *AVPacket) String() string {
+	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+		return err.Error()
+	} else {
+		return string(str)
+	}
+}
+
+func (ctx *AVCodec) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -115,7 +164,15 @@ func (ctx *AVCodecParameters) String() string {
 	}
 }
 
-func (ctx *AVCodec) String() string {
+func (ctx *AVCodecContext) String() string {
+	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
+		return err.Error()
+	} else {
+		return string(str)
+	}
+}
+
+func (ctx AVProfile) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
 	} else {
@@ -145,6 +202,39 @@ func (ctx *AVCodecParameters) SetCodecTag(tag uint32) {
 ////////////////////////////////////////////////////////////////////////////////
 // AVCodec
 
+func (c *AVCodec) Name() string {
+	return C.GoString(c.name)
+}
+
+func (c *AVCodec) LongName() string {
+	return C.GoString(c.long_name)
+}
+
+func (c *AVCodec) Type() AVMediaType {
+	return AVMediaType(c._type)
+}
+
+func (c *AVCodec) ID() AVCodecID {
+	return AVCodecID(c.id)
+}
+
+func (c *AVCodec) SupportedFramerates() []AVRational {
+	var result []AVRational
+	ptr := uintptr(unsafe.Pointer(c.supported_framerates))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := AVRational(*(*C.struct_AVRational)(unsafe.Pointer(ptr)))
+		if v.IsZero() {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(AVRational{})
+	}
+	return result
+}
+
 func (c *AVCodec) SampleFormats() []AVSampleFormat {
 	var result []AVSampleFormat
 	ptr := uintptr(unsafe.Pointer(c.sample_fmts))
@@ -162,31 +252,72 @@ func (c *AVCodec) SampleFormats() []AVSampleFormat {
 	return result
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// AVPacket
-
-func (ctx *AVPacket) StreamIndex() int {
-	return int(ctx.stream_index)
+func (c *AVCodec) PixelFormats() []AVPixelFormat {
+	var result []AVPixelFormat
+	ptr := uintptr(unsafe.Pointer(c.pix_fmts))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := AVPixelFormat(*(*C.enum_AVPixelFormat)(unsafe.Pointer(ptr)))
+		if v == AV_PIX_FMT_NONE {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(AV_PIX_FMT_NONE)
+	}
+	return result
 }
 
-func (ctx *AVPacket) Pts() int64 {
-	return int64(ctx.pts)
+func (c *AVCodec) SupportedSamplerates() []int {
+	var result []int
+	ptr := uintptr(unsafe.Pointer(c.supported_samplerates))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := int(*(*C.int)(unsafe.Pointer(ptr)))
+		if v == 0 {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(C.int(0))
+	}
+	return result
 }
 
-func (ctx *AVPacket) Dts() int64 {
-	return int64(ctx.dts)
+func (c *AVCodec) Profiles() []AVProfile {
+	var result []AVProfile
+	ptr := uintptr(unsafe.Pointer(c.profiles))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := (AVProfile)(*(*C.struct_AVProfile)(unsafe.Pointer(ptr)))
+		if v.profile == C.FF_PROFILE_UNKNOWN {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(AVProfile{})
+	}
+	return result
 }
 
-func (ctx *AVPacket) Duration() int64 {
-	return int64(ctx.duration)
-}
-
-func (ctx *AVPacket) Pos() int64 {
-	return int64(ctx.pos)
-}
-
-func (ctx *AVPacket) SetPos(pos int64) {
-	ctx.pos = C.int64_t(pos)
+func (c *AVCodec) ChannelLayouts() []AVChannelLayout {
+	var result []AVChannelLayout
+	ptr := uintptr(unsafe.Pointer(c.ch_layouts))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		v := (AVChannelLayout)(*(*C.struct_AVChannelLayout)(unsafe.Pointer(ptr)))
+		if v.nb_channels == 0 {
+			break
+		}
+		result = append(result, v)
+		ptr += unsafe.Sizeof(AVChannelLayout{})
+	}
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,10 +331,12 @@ func (ctx *AVCodecContext) SetBitRate(bit_rate int64) {
 	ctx.bit_rate = C.int64_t(bit_rate)
 }
 
+// audio sample format
 func (ctx *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(ctx.sample_fmt)
 }
 
+// audio sample format
 func (ctx *AVCodecContext) SetSampleFormat(sample_fmt AVSampleFormat) {
 	ctx.sample_fmt = C.enum_AVSampleFormat(sample_fmt)
 }
@@ -212,6 +345,33 @@ func (ctx *AVCodecContext) SampleRate() int {
 	return int(ctx.sample_rate)
 }
 
+// Number of samples per channel in an audio frame.
+func (ctx *AVCodecContext) FrameSize() int {
+	return int(ctx.frame_size)
+}
+
 func (ctx *AVCodecContext) SetSampleRate(sample_rate int) {
 	ctx.sample_rate = C.int(sample_rate)
+}
+
+func (ctx *AVCodecContext) ChannelLayout() AVChannelLayout {
+	return AVChannelLayout(ctx.ch_layout)
+}
+
+func (ctx *AVCodecContext) SetChannelLayout(src AVChannelLayout) error {
+	if ret := AVError(C.av_channel_layout_copy((*C.struct_AVChannelLayout)(&ctx.ch_layout), (*C.struct_AVChannelLayout)(&src))); ret != 0 {
+		return ret
+	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - PROFILE
+
+func (c *AVProfile) ID() int {
+	return int(c.profile)
+}
+
+func (c *AVProfile) Name() string {
+	return C.GoString(c.name)
 }

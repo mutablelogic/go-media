@@ -33,6 +33,27 @@ func AVCodec_parameters_copy(ctx *AVCodecParameters, codecpar *AVCodecParameters
 	}
 }
 
+// Fill the codec context based on the values from the supplied codec parameters.
+func AVCodec_parameters_to_context(ctx *AVCodecContext, codecpar *AVCodecParameters) error {
+	if err := AVError(C.avcodec_parameters_to_context((*C.struct_AVCodecContext)(ctx), (*C.AVCodecParameters)(codecpar))); err != 0 {
+		return err
+	}
+	return nil
+}
+
+// Initialize the AVCodecContext to use the given AVCodec.
+func AVCodec_open(ctx *AVCodecContext, codec *AVCodec, options **AVDictionary) error {
+	if err := AVError(C.avcodec_open2((*C.struct_AVCodecContext)(ctx), (*C.struct_AVCodec)(codec), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+		return err
+	}
+	return nil
+}
+
+// Iterate over all registered codecs.
+func AVCodec_iterate(opaque *uintptr) *AVCodec {
+	return (*AVCodec)(C.av_codec_iterate((*unsafe.Pointer)(unsafe.Pointer(opaque))))
+}
+
 // Find a registered decoder with a matching codec ID.
 func AVCodec_find_decoder(id AVCodecID) *AVCodec {
 	return (*AVCodec)(C.avcodec_find_decoder((C.enum_AVCodecID)(id)))
@@ -58,11 +79,11 @@ func AVCodec_find_encoder_by_name(name string) *AVCodec {
 }
 
 // Return true if codec is an encoder, false otherwise.
-func (codec *AVCodec) AVCodec_is_encoder() bool {
+func AVCodec_is_encoder(codec *AVCodec) bool {
 	return C.av_codec_is_encoder((*C.struct_AVCodec)(codec)) != 0
 }
 
 // Return true if codec is a decoder, false otherwise.
-func (codec *AVCodec) AVCodec_is_decoder() bool {
+func AVCodec_is_decoder(codec *AVCodec) bool {
 	return C.av_codec_is_decoder((*C.struct_AVCodec)(codec)) != 0
 }

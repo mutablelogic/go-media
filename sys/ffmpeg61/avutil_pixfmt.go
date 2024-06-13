@@ -243,6 +243,9 @@ const (
 	//AV_PIX_FMT_RGBAF32LE AVPixelFormat = C.AV_PIX_FMT_RGBAF32LE ///< IEEE-754 single precision packed RGBA 32:32:32:32, 128bpp, RGBARGBA..., little-endian
 )
 
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
 func (v AVPixelFormat) String() string {
 	if f := AVUtil_get_pix_fmt_name(v); f != "" {
 		return f
@@ -258,7 +261,5 @@ func AVUtil_get_pix_fmt_name(pixfmt AVPixelFormat) string {
 }
 
 func AVUtil_get_pix_fmt_desc(pixfmt AVPixelFormat) *AVPixFmtDescriptor {
-	desc := C.av_pix_fmt_desc_get(C.enum_AVPixelFormat(pixfmt))
-	fmt.Println(pixfmt, " => desc", desc)
 	return (*AVPixFmtDescriptor)(C.av_pix_fmt_desc_get(C.enum_AVPixelFormat(pixfmt)))
 }

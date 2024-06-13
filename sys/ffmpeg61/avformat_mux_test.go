@@ -34,11 +34,11 @@ func Test_avformat_mux_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// Allocate a packet
-	pkt := AVCodec_av_packet_alloc()
+	pkt := AVCodec_packet_alloc()
 	if !assert.NotNil(pkt) {
 		t.SkipNow()
 	}
-	defer AVCodec_av_packet_free(pkt)
+	defer AVCodec_packet_free(pkt)
 
 	// Open input file
 	input, err := AVFormat_open_url(TEST_MP4_FILE, nil, nil)
@@ -117,7 +117,7 @@ func Test_avformat_mux_002(t *testing.T) {
 			out_stream := output.Stream(out_stream_index)
 
 			/* copy packet */
-			AVCodec_av_packet_rescale_ts(pkt, in_stream.TimeBase(), out_stream.TimeBase())
+			AVCodec_packet_rescale_ts(pkt, in_stream.TimeBase(), out_stream.TimeBase())
 			pkt.SetPos(-1)
 
 			if err := AVFormat_interleaved_write_frame(output, pkt); !assert.NoError(err) {

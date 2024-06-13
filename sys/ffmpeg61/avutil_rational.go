@@ -37,6 +37,11 @@ func (r AVRational) Den() int {
 	return int(r.den)
 }
 
+// IsZero returns true if the rational is zero
+func (r AVRational) IsZero() bool {
+	return r.num == 0
+}
+
 // Float is used to convert an int64 value multipled by the rational to a float64
 func (r AVRational) Float(multiplier int64) float64 {
 	return float64(int64(r.num)*multiplier) / float64(r.den)
