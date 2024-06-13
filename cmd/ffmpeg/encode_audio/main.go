@@ -87,14 +87,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// encode a single tone sound
+	// Encode a single tone sound
 	t := float64(0)
 	tincr := 2 * math.Pi * 440.0 / float64(ctx.SampleRate())
 	num_channels := ctx.ChannelLayout().NumChannels()
 
 	for i := 0; i < 200; i++ {
-		// make sure the frame is writable -- makes a copy if the encoder
-		// kept a reference internally
+		log.Println("frame", i)
+
+		// Make sure the frame is writable -- makes a copy if the encoder kept a reference internally
 		if err := ff.AVUtil_frame_make_writable(frame); err != nil {
 			log.Fatal(err)
 		}
@@ -102,18 +103,26 @@ func main() {
 		// Set samples in the frame
 		samples := frame.Int16(0)
 		for j := 0; j < ctx.FrameSize(); j++ {
-			samples[2*j] = (int16)(math.Sin(t) * 10000)
+			// Set sample on first channel
+			samples[j*num_channels] = (int16)(math.Sin(t) * 10000)
+
+			// Copy to other channels
 			for k := 1; k < num_channels; k++ {
-				samples[2*j+k] = samples[2*j]
+				samples[j+k] = samples[j]
 			}
+
+			// Increment the time
 			t += tincr
 		}
+
+		// Encode the frame
 		if err := encode(w, ctx, frame, pkt); err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	// flush the encoder
+	// Flush the encoder
+	log.Println("flush")
 	if err := encode(w, ctx, nil, pkt); err != nil {
 		log.Fatal(err)
 	}
@@ -140,15 +149,21 @@ func select_sample_rate(codec *ff.AVCodec) int {
 }
 
 func encode(w io.Writer, ctx *ff.AVCodecContext, frame *ff.AVFrame, pkt *ff.AVPacket) error {
-	// Send the frame for encoding */
+	// Send the frame for encoding, if the frame is nil then flush instead
+	log.Println("  send frame")
 	if err := ff.AVCodec_send_frame(ctx, frame); err != nil {
+		log.Println("Error sending frame", err)
 		return err
 	}
+
 	// Read all the available output packets (in general there may be any number of them)
 	for {
+		log.Println("  receive_packet")
 		if err := ff.AVCodec_receive_packet(ctx, pkt); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
+			log.Println("AVCodec_receive_packet returned", err)
 			return nil
 		} else if err != nil {
+			log.Println("AVCodec_receive_packet error", err)
 			return err
 		}
 		// Write the packet to the output file
