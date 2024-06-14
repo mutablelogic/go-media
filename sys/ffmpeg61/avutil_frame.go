@@ -9,6 +9,8 @@ import (
 
 /*
 #cgo pkg-config: libavutil
+#include <libavutil/avutil.h>
+#include <libavutil/buffer.h>
 #include <libavutil/frame.h>
 #include <stdlib.h>
 */
@@ -81,17 +83,64 @@ func (ctx *AVFrame) SetChannelLayout(src AVChannelLayout) error {
 	return nil
 }
 
-// Returns a plane as a uint8 array.
-func (ctx *AVFrame) Uint8(plane int) []byte {
-	return cByteSlice(unsafe.Pointer(&ctx.data[plane]), C.int(ctx.linesize[plane]))
+func (ctx *AVFrame) Width() int {
+	return int(ctx.width)
 }
 
-// Returns a plane as a uint16 array.
-func (ctx *AVFrame) Uint16(plane int) []uint16 {
-	return cUint16Slice(unsafe.Pointer(&ctx.data[plane]), C.int(ctx.linesize[plane]>>1))
+func (ctx *AVFrame) SetWidth(width int) {
+	ctx.width = C.int(width)
+}
+
+func (ctx *AVFrame) Height() int {
+	return int(ctx.height)
+}
+
+func (ctx *AVFrame) SetHeight(height int) {
+	ctx.height = C.int(height)
+}
+
+func (ctx *AVFrame) PixFmt() AVPixelFormat {
+	return AVPixelFormat(ctx.format)
+}
+
+func (ctx *AVFrame) SetPixFmt(format AVPixelFormat) {
+	ctx.format = C.int(format)
+}
+
+func (ctx *AVFrame) Linesize(plane int) int {
+	if plane < 0 || plane >= int(C.AV_NUM_DATA_POINTERS) {
+		return 0
+	}
+	return int(ctx.linesize[plane])
+}
+
+// Return a buffer reference to the data for a plane.
+func (ctx *AVFrame) BufferRef(plane int) *AVBufferRef {
+	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
+}
+
+func (ctx *AVFrame) Pts() int64 {
+	return int64(ctx.pts)
+}
+
+func (ctx *AVFrame) SetPts(pts int64) {
+	ctx.pts = C.int64_t(pts)
+}
+
+// Returns a plane as a uint8 array.
+func (ctx *AVFrame) Uint8(plane int) []uint8 {
+	if buf := ctx.BufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cUint8Slice(unsafe.Pointer(buf.data), C.int(buf.size))
+	}
 }
 
 // Returns a plane as a int16 array.
 func (ctx *AVFrame) Int16(plane int) []int16 {
-	return cInt16Slice(unsafe.Pointer(&ctx.data[plane]), C.int(ctx.linesize[plane]>>1))
+	if buf := ctx.BufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cInt16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
+	}
 }

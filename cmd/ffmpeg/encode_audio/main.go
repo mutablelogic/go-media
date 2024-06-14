@@ -160,7 +160,6 @@ func encode(w io.Writer, ctx *ff.AVCodecContext, frame *ff.AVFrame, pkt *ff.AVPa
 	for {
 		log.Println("  receive_packet")
 		if err := ff.AVCodec_receive_packet(ctx, pkt); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
-			log.Println("AVCodec_receive_packet returned", err)
 			return nil
 		} else if err != nil {
 			log.Println("AVCodec_receive_packet error", err)

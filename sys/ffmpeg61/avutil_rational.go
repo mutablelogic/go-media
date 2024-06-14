@@ -27,6 +27,11 @@ func (r AVRational) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Create a new rational
+func AVUtil_rational(num, den int) AVRational {
+	return AVRational{num: C.int(num), den: C.int(den)}
+}
+
 // Numerator
 func (r AVRational) Num() int {
 	return int(r.num)

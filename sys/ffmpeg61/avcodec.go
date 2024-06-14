@@ -9,8 +9,9 @@ import (
 // CGO
 
 /*
-#cgo pkg-config: libavcodec
+#cgo pkg-config: libavcodec libavutil
 #include <libavcodec/avcodec.h>
+#include <libavutil/opt.h>
 */
 import "C"
 
@@ -72,8 +73,11 @@ type jsonAVCodecContext struct {
 // CONSTANTS
 
 const (
-	AV_CODEC_ID_NONE AVCodecID = C.AV_CODEC_ID_NONE
-	AV_CODEC_ID_MP2  AVCodecID = C.AV_CODEC_ID_MP2
+	AV_CODEC_ID_NONE       AVCodecID = C.AV_CODEC_ID_NONE
+	AV_CODEC_ID_MP2        AVCodecID = C.AV_CODEC_ID_MP2
+	AV_CODEC_ID_H264       AVCodecID = C.AV_CODEC_ID_H264
+	AV_CODEC_ID_MPEG1VIDEO AVCodecID = C.AV_CODEC_ID_MPEG1VIDEO
+	AV_CODEC_ID_MPEG2VIDEO AVCodecID = C.AV_CODEC_ID_MPEG2VIDEO
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,18 +335,56 @@ func (ctx *AVCodecContext) SetBitRate(bit_rate int64) {
 	ctx.bit_rate = C.int64_t(bit_rate)
 }
 
-// audio sample format
+func (ctx *AVCodecContext) Width() int {
+	return int(ctx.width)
+}
+
+func (ctx *AVCodecContext) SetWidth(width int) {
+	ctx.width = C.int(width)
+}
+
+func (ctx *AVCodecContext) Height() int {
+	return int(ctx.height)
+}
+
+func (ctx *AVCodecContext) SetHeight(height int) {
+	ctx.height = C.int(height)
+}
+
+func (ctx *AVCodecContext) TimeBase() AVRational {
+	return (AVRational)(ctx.time_base)
+}
+
+func (ctx *AVCodecContext) SetTimeBase(time_base AVRational) {
+	ctx.time_base = C.struct_AVRational(time_base)
+}
+
+func (ctx *AVCodecContext) Framerate() AVRational {
+	return (AVRational)(ctx.framerate)
+}
+
+func (ctx *AVCodecContext) SetFramerate(framerate AVRational) {
+	ctx.framerate = C.struct_AVRational(framerate)
+}
+
+// Audio sample format.
 func (ctx *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(ctx.sample_fmt)
 }
 
-// audio sample format
+// Audio sample format.
 func (ctx *AVCodecContext) SetSampleFormat(sample_fmt AVSampleFormat) {
 	ctx.sample_fmt = C.enum_AVSampleFormat(sample_fmt)
 }
 
+// Audio sample rate.
 func (ctx *AVCodecContext) SampleRate() int {
 	return int(ctx.sample_rate)
+}
+
+// Audio sample rate.
+func (ctx *AVCodecContext) SetSampleRate(sample_rate int) {
+	ctx.sample_rate = C.int(sample_rate)
 }
 
 // Number of samples per channel in an audio frame.
@@ -350,16 +392,55 @@ func (ctx *AVCodecContext) FrameSize() int {
 	return int(ctx.frame_size)
 }
 
-func (ctx *AVCodecContext) SetSampleRate(sample_rate int) {
-	ctx.sample_rate = C.int(sample_rate)
-}
-
+// Audio channel layout.
 func (ctx *AVCodecContext) ChannelLayout() AVChannelLayout {
 	return AVChannelLayout(ctx.ch_layout)
 }
 
+// Audio channel layout.
 func (ctx *AVCodecContext) SetChannelLayout(src AVChannelLayout) error {
 	if ret := AVError(C.av_channel_layout_copy((*C.struct_AVChannelLayout)(&ctx.ch_layout), (*C.struct_AVChannelLayout)(&src))); ret != 0 {
+		return ret
+	}
+	return nil
+}
+
+// Group-of-pictures (GOP) size.
+func (ctx *AVCodecContext) GopSize() int {
+	return int(ctx.gop_size)
+}
+
+// Group-of-pictures (GOP) size.
+func (ctx *AVCodecContext) SetGopSize(gop_size int) {
+	ctx.gop_size = C.int(gop_size)
+}
+
+// Maximum number of B-frames between non-B-frames.
+func (ctx *AVCodecContext) MaxBFrames() int {
+	return int(ctx.max_b_frames)
+}
+
+// Maximum number of B-frames between non-B-frames.
+func (ctx *AVCodecContext) SetMaxBFrames(max_b_frames int) {
+	ctx.max_b_frames = C.int(max_b_frames)
+}
+
+// Pixel format.
+func (ctx *AVCodecContext) PixFmt() AVPixelFormat {
+	return AVPixelFormat(ctx.pix_fmt)
+}
+
+// Pixel format.
+func (ctx *AVCodecContext) SetPixFmt(pix_fmt AVPixelFormat) {
+	ctx.pix_fmt = C.enum_AVPixelFormat(pix_fmt)
+}
+
+// Private data, set key/value pair
+func (ctx *AVCodecContext) SetPrivDataKV(name, value string) error {
+	cName, cValue := C.CString(name), C.CString(value)
+	defer C.free(unsafe.Pointer(cName))
+	defer C.free(unsafe.Pointer(cValue))
+	if ret := AVError(C.av_opt_set(ctx.priv_data, cName, cValue, 0)); ret != 0 {
 		return ret
 	}
 	return nil

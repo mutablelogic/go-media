@@ -19,6 +19,14 @@ func boolToInt(v bool) C.int {
 	return 0
 }
 
+func cUint8Slice(p unsafe.Pointer, sz C.int) []uint8 {
+	return (*[1 << 30]uint8)(p)[:int(sz)]
+}
+
+func cInt8Slice(p unsafe.Pointer, sz C.int) []int8 {
+	return (*[1 << 30]int8)(p)[:int(sz)]
+}
+
 func cByteSlice(p unsafe.Pointer, sz C.int) []byte {
 	return (*[1 << 30]byte)(p)[:int(sz)]
 }

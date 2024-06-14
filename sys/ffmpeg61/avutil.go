@@ -52,6 +52,7 @@ import "C"
 // TYPES
 
 type (
+	AVBufferRef        C.struct_AVBufferRef
 	AVChannel          C.enum_AVChannel
 	AVChannelLayout    C.AVChannelLayout
 	AVClass            C.AVClass
