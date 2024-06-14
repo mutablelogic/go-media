@@ -19,12 +19,14 @@ import "C"
 // TYPES
 
 type (
-	AVPacket          C.AVPacket
-	AVCodec           C.AVCodec
-	AVCodecContext    C.AVCodecContext
-	AVCodecParameters C.AVCodecParameters
-	AVProfile         C.AVProfile
-	AVCodecID         C.enum_AVCodecID
+	AVPacket             C.AVPacket
+	AVCodec              C.AVCodec
+	AVCodecContext       C.AVCodecContext
+	AVCodecParameters    C.AVCodecParameters
+	AVCodecParser        C.AVCodecParser
+	AVCodecParserContext C.AVCodecParserContext
+	AVProfile            C.AVProfile
+	AVCodecID            C.enum_AVCodecID
 )
 
 type jsonAVPacket struct {
@@ -78,6 +80,17 @@ const (
 	AV_CODEC_ID_H264       AVCodecID = C.AV_CODEC_ID_H264
 	AV_CODEC_ID_MPEG1VIDEO AVCodecID = C.AV_CODEC_ID_MPEG1VIDEO
 	AV_CODEC_ID_MPEG2VIDEO AVCodecID = C.AV_CODEC_ID_MPEG2VIDEO
+)
+
+/**
+ * Required number of additionally allocated bytes at the end of the input bitstream for decoding.
+ * This is mainly needed because some optimized bitstream readers read
+ * 32 or 64 bit at once and could read over the end.
+ * Note: If the first 23 bits of the additional bytes are not 0, then damaged
+ * MPEG bitstreams could cause overread and segfault.
+ */
+const (
+	AV_INPUT_BUFFER_PADDING_SIZE = 64
 )
 
 ////////////////////////////////////////////////////////////////////////////////

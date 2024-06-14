@@ -165,6 +165,7 @@ func encode(w io.Writer, ctx *ff.AVCodecContext, frame *ff.AVFrame, pkt *ff.AVPa
 			log.Println("AVCodec_receive_packet error", err)
 			return err
 		}
+
 		// Write the packet to the output file
 		if _, err := w.Write(pkt.Bytes()); err != nil {
 			return err

@@ -92,3 +92,7 @@ func (ctx *AVPacket) SetPos(pos int64) {
 func (ctx *AVPacket) Bytes() []byte {
 	return C.GoBytes(unsafe.Pointer(ctx.data), C.int(ctx.size))
 }
+
+func (ctx *AVPacket) Size() int {
+	return int(ctx.size)
+}

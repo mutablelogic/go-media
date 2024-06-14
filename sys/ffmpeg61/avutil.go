@@ -150,6 +150,10 @@ var (
 	AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER = AVChannelLayout(C._AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER)
 )
 
+const (
+	AV_NOPTS_VALUE = C.AV_NOPTS_VALUE ///< Undefined timestamp value
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 

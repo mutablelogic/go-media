@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -95,8 +96,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Encode 1 second of video
-	for i := 0; i < 25; i++ {
+	// Encode 5 seconds of video
+	for i := 0; i < 25*5; i++ {
 		// Make sure the frame data is writable.
 		// On the first round, the frame is fresh from av_frame_get_buffer()
 		// and therefore we know it is writable.
@@ -157,7 +158,7 @@ func encode(w io.Writer, ctx *ff.AVCodecContext, frame *ff.AVFrame, pkt *ff.AVPa
 			return err
 		}
 		// Write the packet to the output file
-		log.Println("  write_packet: ", pkt)
+		//log.Println("  write_packet: ", pkt)
 		if _, err := w.Write(pkt.Bytes()); err != nil {
 			return err
 		}
@@ -181,9 +182,11 @@ func fill_yuv_image(frame *ff.AVFrame, frame_index int) {
 
 	/* Cb and Cr */
 	cbdata := frame.Uint8(1)
-	crdata := frame.Uint8(2)
 	cbstride := frame.Linesize(1)
+	crdata := frame.Uint8(2)
 	crstride := frame.Linesize(2)
+	fmt.Println("cbstride", cbstride, "crstride", crstride)
+
 	for y := 0; y < height>>1; y++ {
 		for x := 0; x < width>>1; x++ {
 			cbdata[y*cbstride+x] = uint8(128 + y + frame_index*2)
