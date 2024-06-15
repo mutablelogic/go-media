@@ -36,7 +36,7 @@ func init() {
 
 func main() {
 	in := flag.String("in", "", "input file")
-	codec_name := flag.String("codec", "mp3", "input codec to use")
+	codec_name := flag.String("codec", "mp2", "input codec to use")
 	out := flag.String("out", "", "output file")
 	flag.Parse()
 
@@ -74,17 +74,12 @@ func main() {
 	}
 	defer r.Close()
 
-	log.Print("in file=", r.Name())
-	log.Print("  codec=", codec)
-
 	// open file for writing
 	w, err := os.Create(*out)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer w.Close()
-
-	log.Print("out file=", w.Name())
 
 	// Create a packet
 	packet := ff.AVCodec_packet_alloc()
@@ -108,7 +103,6 @@ func main() {
 	}
 
 	for {
-		log.Print("in data_size=", data_size)
 		if data_size == 0 {
 			break
 		}
@@ -118,8 +112,6 @@ func main() {
 		if size < 0 {
 			log.Fatal("Error while parsing")
 		}
-		log.Print("parsed bytes=", size)
-		log.Print("packet to decode size=", packet.Size())
 
 		// Adjust the input buffer beyond the parsed data
 		inbuf = inbuf[size:]
@@ -176,22 +168,18 @@ func decode(w io.Writer, ctx *ff.AVCodecContext, packet *ff.AVPacket, frame *ff.
 	}
 
 	// send the packet with the compressed data to the decoder
-	log.Print("decode packet bytes=", packet.Size())
 	if err := ff.AVCodec_send_packet(ctx, packet); err != nil {
 		return err
 	}
 
 	// Read all the output frames (in general there may be any number of them)
 	for {
-		log.Println("  receive_frame")
 		if err := ff.AVCodec_receive_frame(ctx, frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
 			return nil
 		} else if err != nil {
-			log.Println("AVCodec_receive_frame error", err)
 			return err
 		}
 
-		log.Println("  write frame bytes=", frame.NumSamples()*bytes_per_sample*ctx.ChannelLayout().NumChannels())
 		for i := 0; i < frame.NumSamples(); i++ {
 			for ch := 0; ch < ctx.ChannelLayout().NumChannels(); ch++ {
 				buf := frame.Uint8(ch)
@@ -229,3 +217,25 @@ func get_format_from_sample_fmt(sample_fmt ff.AVSampleFormat) (string, error) {
 	}
 	return "", errors.New("sample format is not supported as output format")
 }
+
+/*
+ * Copyright (c) 2001 Fabrice Bellard
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */

@@ -390,6 +390,11 @@ func (ctx *AVCodecContext) SetSampleFormat(sample_fmt AVSampleFormat) {
 	ctx.sample_fmt = C.enum_AVSampleFormat(sample_fmt)
 }
 
+// Frame number.
+func (ctx *AVCodecContext) FrameNum() int {
+	return int(ctx.frame_num)
+}
+
 // Audio sample rate.
 func (ctx *AVCodecContext) SampleRate() int {
 	return int(ctx.sample_rate)
