@@ -340,6 +340,10 @@ func (c *AVCodec) ChannelLayouts() []AVChannelLayout {
 ////////////////////////////////////////////////////////////////////////////////
 // AVCodecContext
 
+func (ctx *AVCodecContext) Codec() *AVCodec {
+	return (*AVCodec)(ctx.codec)
+}
+
 func (ctx *AVCodecContext) BitRate() int64 {
 	return int64(ctx.bit_rate)
 }
