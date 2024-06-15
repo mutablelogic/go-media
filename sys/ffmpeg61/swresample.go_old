@@ -1,0 +1,10 @@
+
+// Set/reset common parameters.
+func SWR_alloc_set_opts2(ctx *SWRContext, out_ch_layout *AVChannelLayout, out_sample_fmt AVSampleFormat, out_sample_rate int, in_ch_layout *AVChannelLayout, in_sample_fmt AVSampleFormat, in_sample_rate int, log_offset AVLogLevel, log_context *AVClass) error {
+	ctx_ := (*C.struct_SwrContext)(ctx)
+	if err := AVError(C.swr_alloc_set_opts2(&ctx_, (*C.struct_AVChannelLayout)(out_ch_layout), C.enum_AVSampleFormat(out_sample_fmt), C.int(out_sample_rate), (*C.struct_AVChannelLayout)(in_ch_layout), C.enum_AVSampleFormat(in_sample_fmt), C.int(in_sample_rate), C.int(log_offset), unsafe.Pointer(log_context))); err == 0 {
+		return nil
+	} else {
+		return err
+	}
+}
