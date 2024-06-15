@@ -16,7 +16,7 @@ func Test_avutil_samples_000(t *testing.T) {
 	num_channels := 6
 	num_samples := 1
 	format := AV_SAMPLE_FMT_U8P
-	data, err := AVUtil_samples_alloc(num_samples, num_channels, format, 1)
+	data, err := AVUtil_samples_alloc(num_samples, num_channels, format, true)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}

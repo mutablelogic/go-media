@@ -18,7 +18,7 @@ func Test_swresample_opts_000(t *testing.T) {
 	assert := assert.New(t)
 	ctx := SWResample_alloc()
 	assert.NotNil(ctx)
-	assert.NoError(SWResample_set_opts(ctx, &in_chlayout, in_format, 44100, &out_chlayout, out_format, 48000))
+	assert.NoError(SWResample_set_opts(ctx, in_chlayout, in_format, 44100, out_chlayout, out_format, 48000))
 	assert.NoError(SWResample_init(ctx))
 	assert.True(SWResample_is_initialized(ctx))
 	SWResample_free(ctx)
