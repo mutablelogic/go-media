@@ -58,6 +58,18 @@ func AVUtil_get_bytes_per_sample(sample_fmt AVSampleFormat) int {
 	return int(C.av_get_bytes_per_sample(C.enum_AVSampleFormat(sample_fmt)))
 }
 
+// Get the required buffer size for the given audio parameters.
+// Returns the calculated buffer size and stride
+func AVUtil_get_buffer_size(nb_channels int, nb_samples int, sample_fmt AVSampleFormat) (int, int, error) {
+	var linesize C.int
+	ret := int(C.av_samples_get_buffer_size(&linesize, C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), 0))
+	if ret < 0 {
+		return 0, 0, AVError(ret)
+	} else {
+		return ret, int(linesize), nil
+	}
+}
+
 // Check if the sample format is planar.
 func AVUtil_sample_fmt_is_planar(sample_fmt AVSampleFormat) bool {
 	return C.av_sample_fmt_is_planar(C.enum_AVSampleFormat(sample_fmt)) != 0
@@ -67,4 +79,16 @@ func AVUtil_sample_fmt_is_planar(sample_fmt AVSampleFormat) bool {
 // include the number of samples in a single channel.
 func AVUtil_samples_get_buffer_size(sample_fmt AVSampleFormat, nb_channels int, nb_samples int, align bool) int {
 	return int(C.av_samples_get_buffer_size(nil, C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), boolToInt(align)))
+}
+
+// Get the packed alternative form of the given sample format.
+// If the passed sample_fmt is already in packed format, the format returned is the same as the input.
+func AVUtil_get_packed_sample_fmt(sample_fmt AVSampleFormat) AVSampleFormat {
+	return AVSampleFormat(C.av_get_packed_sample_fmt(C.enum_AVSampleFormat(sample_fmt)))
+}
+
+// Get the planar alternative form of the given sample format.
+// If the passed sample_fmt is already in planar format, the format returned is the same as the input.
+func AVUtil_get_planar_sample_fmt(sample_fmt AVSampleFormat) AVSampleFormat {
+	return AVSampleFormat(C.av_get_planar_sample_fmt(C.enum_AVSampleFormat(sample_fmt)))
 }
