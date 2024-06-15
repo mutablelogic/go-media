@@ -1,13 +1,16 @@
 package main
 
 import (
+	"encoding/binary"
+	"errors"
 	"flag"
-	"fmt"
 	"log"
+	"math"
 	"os"
+	"unsafe"
 
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 	// Packages
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
 func main() {
@@ -26,18 +29,20 @@ func main() {
 	}
 	defer ff.SWResample_free(ctx)
 
-	// Set common parameters for resampling
-	src_ch_layout := ff.AV_CHANNEL_LAYOUT_STEREO
-	src_format := ff.AV_SAMPLE_FMT_DBL
+	// Source needs to be non-planar
+	src_ch_layout := ff.AV_CHANNEL_LAYOUT_MONO
+	src_format := ff.AV_SAMPLE_FMT_S16
 	src_nb_samples := 1024
 	src_rate := 44100
-	dest_ch_layout := ff.AV_CHANNEL_LAYOUT_SURROUND
-	dest_format := ff.AV_SAMPLE_FMT_S16
+
+	// Destination needs to be non-planar
+	dest_ch_layout := ff.AV_CHANNEL_LAYOUT_MONO
+	dest_format := ff.AV_SAMPLE_FMT_U8
 	dest_rate := 48000
 
 	if err := ff.SWResample_set_opts(ctx,
-		src_ch_layout, src_format, src_rate,
 		dest_ch_layout, dest_format, dest_rate,
+		src_ch_layout, src_format, src_rate,
 	); err != nil {
 		log.Fatal(err)
 	}
@@ -61,20 +66,22 @@ func main() {
 	}
 	defer w.Close()
 
-	dest_nb_samples := src_nb_samples * dest_rate / src_rate
+	dest_nb_samples := int(float64(src_nb_samples) * float64(dest_rate) / float64(src_rate))
 	max_dest_nb_samples := dest_nb_samples
 	dest, err := ff.AVUtil_samples_alloc(dest_nb_samples, dest_ch_layout.NumChannels(), dest_format, false)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for t := 0; t < 10; t++ {
-		// Generate input data
-		// TODO
+	t := float64(0)
+	for t < 10 {
 		ff.AVUtil_samples_set_silence(src, 0, src_nb_samples)
 
+		// Generate synthetic audio
+		t = fill_samples(src, src_rate, t)
+
 		// Calculate destination number of samples
-		dest_nb_samples = int(ff.SWResample_get_delay(ctx, int64(src_rate))) + src_nb_samples*dest_rate/src_rate
+		dest_nb_samples = int(ff.SWResample_get_delay(ctx, int64(src_rate))) + int(float64(src_nb_samples)*float64(dest_rate)/float64(src_rate))
 		if dest_nb_samples > max_dest_nb_samples {
 			ff.AVUtil_samples_free(dest)
 			dest, err = ff.AVUtil_samples_alloc(dest_nb_samples, dest_ch_layout.NumChannels(), dest_format, true)
@@ -85,24 +92,93 @@ func main() {
 		}
 
 		// convert to destination format
-		n, err := ff.SWResample_convert(ctx, dest, src, dest_nb_samples, src_nb_samples)
+		n, err := ff.SWResample_convert(ctx, dest, dest_nb_samples, src, src_nb_samples)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		// Calulate the number of samples converted
-		dest_bufsize, _, err := ff.AVUtil_samples_get_buffer_size(n, dest_ch_layout.NumChannels(), dest_format, true)
+		_, dest_planesize, err := ff.AVUtil_samples_get_buffer_size(n, dest_ch_layout.NumChannels(), dest_format, true)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Println("TODO: write samples to file (buffer size: ", dest_bufsize, ")")
-		for i := 0; i < dest.NumPlanes(); i++ {
-			fmt.Println("  Plane", i, ":", len(dest.Bytes(i)))
+		// We only write the first plane - non-planar format
+		if _, err := w.Write(dest.Bytes(0)[:dest_planesize]); err != nil {
+			log.Fatal(err)
 		}
 	}
 
 	ff.AVUtil_samples_free(dest)
+
+	if fmt, err := get_format_from_sample_fmt(dest_format); err != nil {
+		log.Fatal(err)
+	} else if desc, err := ff.AVUtil_channel_layout_describe(&dest_ch_layout); err != nil {
+		log.Fatal(err)
+	} else {
+		log.Printf("Resampling succeeded. Play the output file with the command:")
+		log.Printf("  ffplay -f %s -channel_layout %s -ar %d %s\n", fmt, desc, dest_rate, *out)
+	}
+}
+
+/**
+ * Fill buffer with nb_samples, generated starting from time t.
+ */
+func fill_samples(data *ff.AVSamples, sample_rate int, t float64) float64 {
+	tincr := 1.0 / float64(sample_rate)
+	buf := data.Int16(0)
+	c := 2.0 * math.Pi * 440.0
+
+	// Generate sin tone with 440Hz frequency and duplicated channels
+	for i := 0; i < data.NumSamples(); i += data.NumChannels() {
+		sample := math.Sin(c * t)
+		for j := 0; j < data.NumChannels(); j++ {
+			buf[i+j] = int16(sample * 0.5 * math.MaxInt16)
+		}
+		t = t + tincr
+	}
+	return t
+}
+
+// NativeEndian is the ByteOrder of the current system.
+var NativeEndian binary.ByteOrder
+
+func init() {
+	// Examine the memory layout of an int16 to determine system
+	// endianness.
+	var one int16 = 1
+	b := (*byte)(unsafe.Pointer(&one))
+	if *b == 0 {
+		NativeEndian = binary.BigEndian
+	} else {
+		NativeEndian = binary.LittleEndian
+	}
+}
+
+func get_format_from_sample_fmt(sample_fmt ff.AVSampleFormat) (string, error) {
+	type sample_fmt_entry struct {
+		sample_fmt ff.AVSampleFormat
+		fmt_be     string
+		fmt_le     string
+	}
+	sample_fmt_entries := []sample_fmt_entry{
+		{ff.AV_SAMPLE_FMT_U8, "u8", "u8"},
+		{ff.AV_SAMPLE_FMT_S16, "s16be", "s16le"},
+		{ff.AV_SAMPLE_FMT_S32, "s32be", "s32le"},
+		{ff.AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
+		{ff.AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
+	}
+
+	for _, entry := range sample_fmt_entries {
+		if sample_fmt == entry.sample_fmt {
+			if NativeEndian == binary.LittleEndian {
+				return entry.fmt_le, nil
+			} else {
+				return entry.fmt_be, nil
+			}
+		}
+	}
+	return "", errors.New("sample format is not supported as output format")
 }
 
 /*

@@ -23,8 +23,8 @@ type AVSamples struct {
 	nb_samples  C.int
 	nb_channels C.int
 	sample_fmt  C.enum_AVSampleFormat
-	stride      C.int
-	size        C.int
+	plane_size  C.int
+	buffer_size C.int
 	planes      [AV_NUM_PLANES]*C.uint8_t
 }
 
@@ -38,7 +38,29 @@ func (data *AVSamples) Bytes(plane int) []byte {
 	if ptr := data.planes[plane]; ptr == nil {
 		return nil
 	} else {
-		return C.GoBytes(unsafe.Pointer(ptr), data.stride)
+		return cByteSlice(unsafe.Pointer(ptr), data.plane_size)
+	}
+}
+
+func (data *AVSamples) Int16(plane int) []int16 {
+	if plane < 0 || plane >= AV_NUM_PLANES {
+		return nil
+	}
+	if ptr := data.planes[plane]; ptr == nil {
+		return nil
+	} else {
+		return cInt16Slice(unsafe.Pointer(ptr), data.plane_size>>1)
+	}
+}
+
+func (data *AVSamples) Float64(plane int) []float64 {
+	if plane < 0 || plane >= AV_NUM_PLANES {
+		return nil
+	}
+	if ptr := data.planes[plane]; ptr == nil {
+		return nil
+	} else {
+		return cFloat64Slice(unsafe.Pointer(ptr), data.plane_size>>3)
 	}
 }
 
@@ -48,6 +70,14 @@ func (data *AVSamples) NumPlanes() int {
 	} else {
 		return 1
 	}
+}
+
+func (data *AVSamples) NumChannels() int {
+	return int(data.nb_channels)
+}
+
+func (data *AVSamples) NumSamples() int {
+	return int(data.nb_samples)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,11 +97,11 @@ func AVUtil_samples_alloc(nb_samples, nb_channels int, sample_fmt AVSampleFormat
 	if size := C.av_samples_get_buffer_size(nil, data.nb_channels, data.nb_samples, data.sample_fmt, boolToInt(align)); size < 0 {
 		return nil, AVError(size)
 	} else {
-		data.size = size
+		data.buffer_size = size
 	}
 
 	// Allocate the buffer
-	if err := AVError(C.av_samples_alloc(&data.planes[0], &data.stride, data.nb_channels, data.nb_samples, data.sample_fmt, boolToInt(align))); err < 0 {
+	if err := AVError(C.av_samples_alloc(&data.planes[0], &data.plane_size, data.nb_channels, data.nb_samples, data.sample_fmt, boolToInt(align))); err < 0 {
 		return nil, err
 	}
 
@@ -84,15 +114,14 @@ func AVUtil_samples_free(samples *AVSamples) {
 	C.av_freep(unsafe.Pointer(&samples.planes[0]))
 }
 
-// Get the required buffer size for the given audio parameters.
-// Returns the calculated buffer size and stride
+// Get the required buffer size for the given audio parameters. Returns the calculated buffer size and plane size.
 func AVUtil_samples_get_buffer_size(nb_samples, nb_channels int, sample_fmt AVSampleFormat, align bool) (int, int, error) {
-	var linesize C.int
-	ret := int(C.av_samples_get_buffer_size(&linesize, C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), boolToInt(align)))
+	var plane_size C.int
+	ret := int(C.av_samples_get_buffer_size(&plane_size, C.int(nb_channels), C.int(nb_samples), C.enum_AVSampleFormat(sample_fmt), boolToInt(align)))
 	if ret < 0 {
 		return 0, 0, AVError(ret)
 	} else {
-		return ret, int(linesize), nil
+		return ret, int(plane_size), nil
 	}
 }
 

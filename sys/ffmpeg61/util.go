@@ -38,3 +38,7 @@ func cUint16Slice(p unsafe.Pointer, sz C.int) []uint16 {
 func cInt16Slice(p unsafe.Pointer, sz C.int) []int16 {
 	return (*[1 << 30]int16)(p)[:int(sz)]
 }
+
+func cFloat64Slice(p unsafe.Pointer, sz C.int) []float64 {
+	return (*[1 << 30]float64)(p)[:int(sz)]
+}

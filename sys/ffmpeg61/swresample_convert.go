@@ -14,7 +14,7 @@ import "C"
 
 // Core conversion function. Returns number of samples output per channel.
 // in and in_count can be set to 0 to flush the last few samples out at the end.
-func SWResample_convert(ctx *SWRContext, dst, src *AVSamples, dst_nb_samples, src_nb_samples int) (int, error) {
+func SWResample_convert(ctx *SWRContext, dst *AVSamples, dst_nb_samples int, src *AVSamples, src_nb_samples int) (int, error) {
 	n := int(C.swr_convert(
 		(*C.struct_SwrContext)(ctx),
 		&dst.planes[0],

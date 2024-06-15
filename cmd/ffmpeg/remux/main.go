@@ -21,11 +21,11 @@ func main() {
 	}
 
 	// Allocate a packet
-	pkt := ff.AVCodec_av_packet_alloc()
+	pkt := ff.AVCodec_packet_alloc()
 	if pkt == nil {
 		log.Fatal("failed to allocate packet")
 	}
-	defer ff.AVCodec_av_packet_free(pkt)
+	defer ff.AVCodec_packet_free(pkt)
 
 	// Open input file
 	input, err := ff.AVFormat_open_url(*in, nil, nil)
@@ -104,7 +104,7 @@ func main() {
 		// Rescale the time stamp for the packet
 		in_stream := input.Stream(pkt.StreamIndex())
 		out_stream := output.Stream(out_stream_index)
-		ff.AVCodec_av_packet_rescale_ts(pkt, in_stream.TimeBase(), out_stream.TimeBase())
+		ff.AVCodec_packet_rescale_ts(pkt, in_stream.TimeBase(), out_stream.TimeBase())
 
 		// Write the packet
 		pkt.SetPos(-1)
