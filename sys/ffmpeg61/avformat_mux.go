@@ -85,7 +85,7 @@ func AVFormat_init_output(ctx *AVFormatContext, options *AVDictionary) error {
 }
 
 // Allocate the stream private data and write the stream header to an output media file.
-func AVFormat_write_header(ctx *AVFormatContext, options **AVDictionary) error {
+func AVFormat_write_header(ctx *AVFormatContext, options *AVDictionary) error {
 	var opts **C.struct_AVDictionary
 	if options != nil {
 		opts = &options.ctx
@@ -128,22 +128,4 @@ func AVFormat_write_trailer(ctx *AVFormatContext) error {
 	} else {
 		return nil
 	}
-}
-
-// Return the output format in the list of registered output formats which best matches the provided parameters, or return NULL if there is no match.
-func AVFormat_guess_format(format, filename, mimetype string) *AVOutputFormat {
-	var cFilename, cFormat, cMimeType *C.char
-	if format != "" {
-		cFormat = C.CString(format)
-	}
-	if filename != "" {
-		cFilename = C.CString(filename)
-	}
-	if mimetype != "" {
-		cMimeType = C.CString(mimetype)
-	}
-	defer C.free(unsafe.Pointer(cFormat))
-	defer C.free(unsafe.Pointer(cFilename))
-	defer C.free(unsafe.Pointer(cMimeType))
-	return (*AVOutputFormat)(C.av_guess_format(cFormat, cFilename, cMimeType))
 }

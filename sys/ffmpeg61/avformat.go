@@ -29,22 +29,6 @@ type (
 	AVTimestamp     C.int64_t
 )
 
-type jsonAVInputFormat struct {
-	Name       string   `json:"name,omitempty"`
-	LongName   string   `json:"long_name,omitempty"`
-	Flags      AVFormat `json:"flags,omitempty"`
-	Extensions string   `json:"extensions,omitempty"`
-	MimeTypes  string   `json:"mime_types,omitempty"`
-}
-
-type jsonAVOutputFormat struct {
-	Name       string   `json:"name,omitempty"`
-	LongName   string   `json:"long_name,omitempty"`
-	Flags      AVFormat `json:"flags,omitempty"`
-	Extensions string   `json:"extensions,omitempty"`
-	MimeTypes  string   `json:"mime_types,omitempty"`
-}
-
 type jsonAVIOContext struct {
 	IsEOF        bool   `json:"is_eof,omitempty"`
 	IsWriteable  bool   `json:"is_writeable,omitempty"`
@@ -169,26 +153,6 @@ func (ctx *AVFormatContext) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx *AVInputFormat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVInputFormat{
-		Name:       C.GoString(ctx.name),
-		LongName:   C.GoString(ctx.long_name),
-		MimeTypes:  C.GoString(ctx.mime_type),
-		Extensions: C.GoString(ctx.extensions),
-		Flags:      AVFormat(ctx.flags),
-	})
-}
-
-func (ctx *AVOutputFormat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVOutputFormat{
-		Name:       C.GoString(ctx.name),
-		LongName:   C.GoString(ctx.long_name),
-		MimeTypes:  C.GoString(ctx.mime_type),
-		Extensions: C.GoString(ctx.extensions),
-		Flags:      AVFormat(ctx.flags),
-	})
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -205,22 +169,6 @@ func (ctx *AVFormatContext) String() string {
 	return string(data)
 }
 
-func (ctx *AVInputFormat) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
-}
-
-func (ctx *AVOutputFormat) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // AVTimestamp
 
@@ -230,25 +178,6 @@ func (v AVTimestamp) MarshalJSON() ([]byte, error) {
 	} else {
 		return json.Marshal(int64(v))
 	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AVOutputFormat
-
-func (ctx *AVOutputFormat) VideoCodec() AVCodecID {
-	return AVCodecID(ctx.video_codec)
-}
-
-func (ctx *AVOutputFormat) AudioCodec() AVCodecID {
-	return AVCodecID(ctx.audio_codec)
-}
-
-func (ctx *AVOutputFormat) SubtitleCodec() AVCodecID {
-	return AVCodecID(ctx.subtitle_codec)
-}
-
-func (ctx *AVOutputFormat) Flags() AVFormat {
-	return AVFormat(ctx.flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

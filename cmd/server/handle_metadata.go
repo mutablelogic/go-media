@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	// Packages
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
@@ -21,7 +22,7 @@ func handle_metadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read input stream
-	reader, err := NewReader(r.Body, r.Header.Get("Content-Type"))
+	reader, err := ffmpeg.NewReader(r.Body, r.Header.Get("Content-Type"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

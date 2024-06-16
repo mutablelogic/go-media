@@ -67,11 +67,6 @@ func AVFormat_open_url(url string, format *AVInputFormat, options *AVDictionary)
 	return ctx, nil
 }
 
-// Iterate over all AVInputFormats
-func AVFormat_demuxer_iterate(opaque *uintptr) *AVInputFormat {
-	return (*AVInputFormat)(C.av_demuxer_iterate((*unsafe.Pointer)(unsafe.Pointer(opaque))))
-}
-
 // Open an input stream from a device.
 func AVFormat_open_device(format *AVInputFormat, options *AVDictionary) (*AVFormatContext, error) {
 	return AVFormat_open_url("", format, options)

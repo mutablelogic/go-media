@@ -1,90 +1,191 @@
 package ffmpeg
 
 import (
+	"errors"
 	"io"
+	"syscall"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Reader struct {
-	r   io.Reader
-	ctx *ffmpeg.AVIOContextEx
+type reader struct {
+	*ff.AVFormatContext
+	avio     *ff.AVIOContextEx
+	decoders map[int]*decoder
+	frame    *ff.AVFrame
 }
 
-var _ io.ReadCloser = (*Reader)(nil)
-var _ io.Seeker = (*Reader)(nil)
+type reader_callback struct {
+	r io.Reader
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	bufSize = 1024 * 64
+	bufSize = 4096
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// NewReader creates a new reader from an io.Reader
-// You should call Close() on the reader when you are done with it
-// The reader will not close the underlying io.Reader
-func NewReader(r io.Reader) *Reader {
-	reader := new(Reader)
-	reader.r = r
-	reader.ctx = ffmpeg.AVFormat_avio_alloc_context(bufSize, false, reader)
-	if reader.ctx == nil {
-		return nil
+func NewReader(r io.Reader, mimetype string) (*reader, error) {
+	reader := new(reader)
+	reader.decoders = make(map[int]*decoder)
+
+	// TODO: mimetype input is currently ignored, format is always guessed
+
+	// Allocate the AVIO context
+	reader.avio = ff.AVFormat_avio_alloc_context(bufSize, false, &reader_callback{r})
+	if reader.avio == nil {
+		return nil, errors.New("failed to allocate avio context")
 	}
-	return reader
+
+	// Open the stream
+	if ctx, err := ff.AVFormat_open_reader(reader.avio, nil, nil); err != nil {
+		ff.AVFormat_avio_context_free(reader.avio)
+		return nil, err
+	} else {
+		reader.AVFormatContext = ctx
+	}
+
+	// Find stream information
+	if err := ff.AVFormat_find_stream_info(reader.AVFormatContext, nil); err != nil {
+		ff.AVFormat_free_context(reader.AVFormatContext)
+		ff.AVFormat_avio_context_free(reader.avio)
+		return nil, err
+	}
+
+	// Create a frame for decoding
+	if frame := ff.AVUtil_frame_alloc(); frame == nil {
+		ff.AVFormat_free_context(reader.AVFormatContext)
+		ff.AVFormat_avio_context_free(reader.avio)
+		return nil, errors.New("failed to allocate frame")
+	} else {
+		reader.frame = frame
+	}
+
+	// Return success
+	return reader, nil
 }
 
-// Close closes the reader
-func (r *Reader) Close() error {
-	ffmpeg.AVFormat_avio_context_free(r.ctx)
+func (r *reader) Close() {
+	for _, decoder := range r.decoders {
+		decoder.Close()
+	}
+	ff.AVUtil_frame_free(r.frame)
+	ff.AVFormat_free_context(r.AVFormatContext)
+	ff.AVFormat_avio_context_free(r.avio)
+	r.AVFormatContext = nil
+	r.avio = nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+type Decoder interface{}
+type Packet interface{}
+type Frame interface{}
+type DecoderFunc func(Decoder, Packet) error
+type FrameFunc func(Frame) error
+
+// Demultiplex streams from the reader
+func (r *reader) Demux(fn DecoderFunc) error {
+	// Allocate a packet
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return errors.New("failed to allocate packet")
+	}
+	defer ff.AVCodec_packet_free(packet)
+
+	// Read packets
+	for {
+		if err := ff.AVFormat_read_frame(r.AVFormatContext, packet); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return err
+		}
+		stream := packet.StreamIndex()
+		if decoder := r.decoders[stream]; decoder != nil {
+			if err := fn(decoder.AVCodecContext, packet); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return err
+			}
+		}
+		// Unreference the packet
+		ff.AVCodec_packet_unref(packet)
+	}
+
+	// Flush the decoders
+	for _, decoder := range r.decoders {
+		if err := fn(decoder.AVCodecContext, nil); err != nil {
+			return err
+		}
+	}
+
+	// Return success
 	return nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// READ
+// Decode packets from the streams into frames
+func (r *reader) Decode(fn FrameFunc) DecoderFunc {
+	return func(decoder Decoder, packet Packet) error {
+		if packet != nil {
+			// Submit the packet to the decoder
+			if err := ff.AVCodec_send_packet(decoder.(*ff.AVCodecContext), packet.(*ff.AVPacket)); err != nil {
+				return err
+			}
+		} else {
+			// Flush remaining frames
+			if err := ff.AVCodec_send_packet(decoder.(*ff.AVCodecContext), nil); err != nil {
+				return err
+			}
+		}
 
-// Read reads data from the reader
-func (r *Reader) Read(buf []byte) (int, error) {
-	// Read data
-	n := ffmpeg.AVFormat_avio_read(r.ctx, buf)
-	if n == ffmpeg.AVERROR_EOF {
-		return 0, io.EOF
-	} else if n < 0 {
-		return 0, io.EOF
+		// get all the available frames from the decoder
+		for {
+			if err := ff.AVCodec_receive_frame(decoder.(*ff.AVCodecContext), r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
+				// Finished decoding packet or EOF
+				return nil
+			} else if err != nil {
+				return err
+			}
+
+			// send the frame to the next stage of the pipeline
+			if err := fn(r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
+				return nil
+			} else if err != nil {
+				return err
+			}
+		}
 	}
-	return n, nil
 }
 
-// Seek seeks to a position in the reader
-func (r *Reader) Seek(offset int64, whence int) (int64, error) {
-	n := ffmpeg.AVFormat_avio_seek(r.ctx, offset, whence)
-	if n < 0 {
-		return 0, io.EOF
-	}
-	return n, nil
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-// CALLBACKS
+// PRIVATE METHODS
 
-func (r *Reader) Reader(buf []byte) int {
+func (r *reader_callback) Reader(buf []byte) int {
 	n, err := r.r.Read(buf)
 	if err != nil {
-		return ffmpeg.AVERROR_EOF
+		return ff.AVERROR_EOF
 	}
 	return n
 }
 
-func (r *Reader) Seeker(offset int64, whence int) int64 {
-	if _, ok := r.r.(io.ReadSeeker); ok {
-		n, err := r.r.(io.ReadSeeker).Seek(offset, whence)
+func (r *reader_callback) Seeker(offset int64, whence int) int64 {
+	whence = whence & ^ff.AVSEEK_FORCE
+	seeker, ok := r.r.(io.ReadSeeker)
+	if !ok {
+		return -1
+	}
+	switch whence {
+	case io.SeekStart, io.SeekCurrent, io.SeekEnd:
+		n, err := seeker.Seek(offset, whence)
 		if err != nil {
 			return -1
 		}
@@ -93,6 +194,6 @@ func (r *Reader) Seeker(offset int64, whence int) int64 {
 	return -1
 }
 
-func (r *Reader) Writer([]byte) int {
-	return ffmpeg.AVERROR_EOF
+func (r *reader_callback) Writer([]byte) int {
+	return ff.AVERROR_EOF
 }

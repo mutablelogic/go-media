@@ -17,6 +17,9 @@ func main() {
 	// Output the metadata of a media file as JSON
 	mux.HandleFunc("/metadata", handle_metadata)
 
+	// Decode the audio or video data of a media file
+	mux.HandleFunc("/decode", handle_decode)
+
 	// Create the server, and listen
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%v", *port),

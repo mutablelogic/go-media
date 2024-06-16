@@ -10,8 +10,9 @@ package ffmpeg
 import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// BINDINGS
 
+// Allocate an AVFormatContext.
 func AVFormat_alloc_context() *AVFormatContext {
 	return (*AVFormatContext)(C.avformat_alloc_context())
 }
