@@ -65,6 +65,7 @@ type (
 	AVRational         C.AVRational
 	AVPixelFormat      C.enum_AVPixelFormat
 	AVPixFmtDescriptor C.AVPixFmtDescriptor
+	AVRounding         C.enum_AVRounding
 	AVSampleFormat     C.enum_AVSampleFormat
 )
 
@@ -152,6 +153,15 @@ var (
 
 const (
 	AV_NOPTS_VALUE = C.AV_NOPTS_VALUE ///< Undefined timestamp value
+)
+
+const (
+	AV_ROUND_ZERO        AVRounding = C.AV_ROUND_ZERO        // Round toward zero.
+	AV_ROUND_INF         AVRounding = C.AV_ROUND_INF         // Round away from zero.
+	AV_ROUND_DOWN        AVRounding = C.AV_ROUND_DOWN        // Round toward -infinity.
+	AV_ROUND_UP          AVRounding = C.AV_ROUND_UP          // Round toward +infinity.
+	AV_ROUND_NEAR_INF    AVRounding = C.AV_ROUND_NEAR_INF    // Round to nearest and halfway cases away from zero.
+	AV_ROUND_PASS_MINMAX AVRounding = C.AV_ROUND_PASS_MINMAX // Flag to pass INT64_MIN/MAX through instead of rescaling, this avoids special cases for AV_NOPTS_VALUE
 )
 
 ////////////////////////////////////////////////////////////////////////////////

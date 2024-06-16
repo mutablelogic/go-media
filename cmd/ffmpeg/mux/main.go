@@ -9,6 +9,10 @@ import (
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
+const (
+	STREAM_DURATION = 10.0
+)
+
 func main() {
 	out := flag.String("out", "", "output file")
 	flag.Parse()

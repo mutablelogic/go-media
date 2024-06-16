@@ -19,14 +19,22 @@ import "C"
 // PUBLIC METHODS
 
 // Open an input stream and read the header.
-func AVFormat_open_reader(reader *AVIOContextEx, format *AVInputFormat, options **AVDictionary) (*AVFormatContext, error) {
+func AVFormat_open_reader(reader *AVIOContextEx, format *AVInputFormat, options *AVDictionary) (*AVFormatContext, error) {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+
+	// Allocate a context
 	ctx := AVFormat_alloc_context()
 	if ctx == nil {
 		return nil, AVError(syscall.ENOMEM)
 	} else {
 		ctx.pb = (*C.struct_AVIOContext)(unsafe.Pointer(reader.AVIOContext))
 	}
-	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), nil, (*C.struct_AVInputFormat)(format), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+
+	// Open the stream
+	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), nil, (*C.struct_AVInputFormat)(format), opts)); err != 0 {
 		return nil, err
 	} else {
 		return ctx, nil
@@ -34,7 +42,12 @@ func AVFormat_open_reader(reader *AVIOContextEx, format *AVInputFormat, options 
 }
 
 // Open an input stream from a URL and read the header.
-func AVFormat_open_url(url string, format *AVInputFormat, options **AVDictionary) (*AVFormatContext, error) {
+func AVFormat_open_url(url string, format *AVInputFormat, options *AVDictionary) (*AVFormatContext, error) {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+
 	// Create a C string for the URL
 	cUrl := C.CString(url)
 	defer C.free(unsafe.Pointer(cUrl))
@@ -46,7 +59,7 @@ func AVFormat_open_url(url string, format *AVInputFormat, options **AVDictionary
 	}
 
 	// Open the URL
-	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), cUrl, (*C.struct_AVInputFormat)(format), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), cUrl, (*C.struct_AVInputFormat)(format), opts)); err != 0 {
 		return nil, err
 	}
 
@@ -54,8 +67,13 @@ func AVFormat_open_url(url string, format *AVInputFormat, options **AVDictionary
 	return ctx, nil
 }
 
+// Iterate over all AVInputFormats
+func AVFormat_demuxer_iterate(opaque *uintptr) *AVInputFormat {
+	return (*AVInputFormat)(C.av_demuxer_iterate((*unsafe.Pointer)(unsafe.Pointer(opaque))))
+}
+
 // Open an input stream from a device.
-func AVFormat_open_device(format *AVInputFormat, options **AVDictionary) (*AVFormatContext, error) {
+func AVFormat_open_device(format *AVInputFormat, options *AVDictionary) (*AVFormatContext, error) {
 	return AVFormat_open_url("", format, options)
 }
 
@@ -65,8 +83,12 @@ func AVFormat_close_input(ctx *AVFormatContext) {
 }
 
 // Read packets of a media file to get stream information.
-func AVFormat_find_stream_info(ctx *AVFormatContext, options **AVDictionary) error {
-	if err := AVError(C.avformat_find_stream_info((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+func AVFormat_find_stream_info(ctx *AVFormatContext, options *AVDictionary) error {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+	if err := AVError(C.avformat_find_stream_info((*C.struct_AVFormatContext)(ctx), opts)); err != 0 {
 		return err
 	}
 	// Return success

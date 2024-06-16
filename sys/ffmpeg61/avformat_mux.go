@@ -72,8 +72,12 @@ func AVFormat_alloc_output_context2(ctx **AVFormatContext, format *AVOutputForma
 
 // Allocate the stream private data and initialize the codec, but do not write the header.
 // May optionally be used before avformat_write_header() to initialize stream parameters before actually writing the header.
-func AVFormat_init_output(ctx *AVFormatContext, options **AVDictionary) error {
-	if err := AVError(C.avformat_init_output((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+func AVFormat_init_output(ctx *AVFormatContext, options *AVDictionary) error {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+	if err := AVError(C.avformat_init_output((*C.struct_AVFormatContext)(ctx), opts)); err != 0 {
 		return err
 	} else {
 		return nil
@@ -82,7 +86,11 @@ func AVFormat_init_output(ctx *AVFormatContext, options **AVDictionary) error {
 
 // Allocate the stream private data and write the stream header to an output media file.
 func AVFormat_write_header(ctx *AVFormatContext, options **AVDictionary) error {
-	if err := AVError(C.avformat_write_header((*C.struct_AVFormatContext)(ctx), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+	if err := AVError(C.avformat_write_header((*C.struct_AVFormatContext)(ctx), opts)); err != 0 {
 		return err
 	} else {
 		return nil
@@ -123,7 +131,7 @@ func AVFormat_write_trailer(ctx *AVFormatContext) error {
 }
 
 // Return the output format in the list of registered output formats which best matches the provided parameters, or return NULL if there is no match.
-func AVFormat_guess_format(format, filename, mime_type string) *AVOutputFormat {
+func AVFormat_guess_format(format, filename, mimetype string) *AVOutputFormat {
 	var cFilename, cFormat, cMimeType *C.char
 	if format != "" {
 		cFormat = C.CString(format)
@@ -131,8 +139,8 @@ func AVFormat_guess_format(format, filename, mime_type string) *AVOutputFormat {
 	if filename != "" {
 		cFilename = C.CString(filename)
 	}
-	if mime_type != "" {
-		cMimeType = C.CString(mime_type)
+	if mimetype != "" {
+		cMimeType = C.CString(mimetype)
 	}
 	defer C.free(unsafe.Pointer(cFormat))
 	defer C.free(unsafe.Pointer(cFilename))
