@@ -15,6 +15,8 @@ using the low-level golang bindings.
     Generate a synthetic audio signal and encode it to an output MP2 file.
 * [encode_video](encode_video) - libavcodec encoding video API usage example.
     Generate synthetic video data and encode it to an output file.
+* [mux](mux) - Muxing - libavformat/libavcodec muxing API usage example.
+    Generate a synthetic audio signal and mux it into a container format.
 * [remux](remux) - Remuxing - libavformat/libavcodec demuxing and muxing API usage example.
     Remux streams from one container format to another. Data is copied from the input to the output
     without transcoding.

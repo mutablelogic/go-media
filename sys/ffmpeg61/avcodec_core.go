@@ -33,17 +33,29 @@ func AVCodec_parameters_copy(ctx *AVCodecParameters, codecpar *AVCodecParameters
 	}
 }
 
-// Fill the codec context based on the values from the supplied codec parameters.
+// Fill the parameters struct based on the values from the supplied codec context (encoding)
+func AVCodec_parameters_from_context(codecpar *AVCodecParameters, ctx *AVCodecContext) error {
+	if err := AVError(C.avcodec_parameters_from_context((*C.AVCodecParameters)(codecpar), (*C.struct_AVCodecContext)(ctx))); err < 0 {
+		return err
+	}
+	return nil
+}
+
+// Fill the codec context based on the values from the supplied codec parameters (decoding)
 func AVCodec_parameters_to_context(ctx *AVCodecContext, codecpar *AVCodecParameters) error {
-	if err := AVError(C.avcodec_parameters_to_context((*C.struct_AVCodecContext)(ctx), (*C.AVCodecParameters)(codecpar))); err != 0 {
+	if err := AVError(C.avcodec_parameters_to_context((*C.struct_AVCodecContext)(ctx), (*C.AVCodecParameters)(codecpar))); err < 0 {
 		return err
 	}
 	return nil
 }
 
 // Initialize the AVCodecContext to use the given AVCodec.
-func AVCodec_open(ctx *AVCodecContext, codec *AVCodec, options **AVDictionary) error {
-	if err := AVError(C.avcodec_open2((*C.struct_AVCodecContext)(ctx), (*C.struct_AVCodec)(codec), (**C.struct_AVDictionary)(unsafe.Pointer(options)))); err != 0 {
+func AVCodec_open(ctx *AVCodecContext, codec *AVCodec, options *AVDictionary) error {
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+	if err := AVError(C.avcodec_open2((*C.struct_AVCodecContext)(ctx), (*C.struct_AVCodec)(codec), opts)); err != 0 {
 		return err
 	}
 	return nil

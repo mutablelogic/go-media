@@ -1,5 +1,7 @@
 package ffmpeg
 
+import "encoding/json"
+
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -8,6 +10,66 @@ package ffmpeg
 #include <libavformat/avformat.h>
 */
 import "C"
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type jsonAVStream struct {
+	Index     int                `json:"index"`
+	Id        int                `json:"id"`
+	CodecPar  *AVCodecParameters `json:"codec_par,omitempty"`
+	StartTime AVTimestamp        `json:"start_time"`
+	Duration  AVTimestamp        `json:"duration"`
+	NumFrames int64              `json:"num_frames,omitempty"`
+	TimeBase  AVRational         `json:"time_base,omitempty"`
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (ctx *AVStream) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonAVStream{
+		Index:     int(ctx.index),
+		Id:        int(ctx.id),
+		CodecPar:  (*AVCodecParameters)(ctx.codecpar),
+		StartTime: AVTimestamp(ctx.start_time),
+		Duration:  AVTimestamp(ctx.duration),
+		NumFrames: int64(ctx.nb_frames),
+		TimeBase:  AVRational(ctx.time_base),
+	})
+}
+
+func (ctx *AVStream) String() string {
+	data, _ := json.MarshalIndent(ctx, "", "  ")
+	return string(data)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+func (ctx *AVStream) Index() int {
+	return int(ctx.index)
+}
+
+func (ctx *AVStream) Id() int {
+	return int(ctx.id)
+}
+
+func (ctx *AVStream) SetId(id int) {
+	ctx.id = C.int(id)
+}
+
+func (ctx *AVStream) CodecPar() *AVCodecParameters {
+	return (*AVCodecParameters)(ctx.codecpar)
+}
+
+func (ctx *AVStream) TimeBase() AVRational {
+	return AVRational(ctx.time_base)
+}
+
+func (ctx *AVStream) SetTimeBase(time_base AVRational) {
+	ctx.time_base = C.AVRational(time_base)
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS

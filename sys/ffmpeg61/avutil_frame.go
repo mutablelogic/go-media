@@ -64,12 +64,21 @@ func (ctx *AVFrame) NumSamples() int {
 func (ctx *AVFrame) SetNumSamples(nb_samples int) {
 	ctx.nb_samples = C.int(nb_samples)
 }
+
 func (ctx *AVFrame) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(ctx.format)
 }
 
 func (ctx *AVFrame) SetSampleFormat(format AVSampleFormat) {
 	ctx.format = C.int(format)
+}
+
+func (ctx *AVFrame) SampleRate() int {
+	return int(ctx.sample_rate)
+}
+
+func (ctx *AVFrame) SetSampleRate(sample_rate int) {
+	ctx.sample_rate = C.int(sample_rate)
 }
 
 func (ctx *AVFrame) ChannelLayout() AVChannelLayout {

@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -16,12 +17,16 @@ import "C"
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (r AVRational) String() string {
-	if r.Num() == 0 {
-		return "0"
-	} else {
-		return fmt.Sprintf("<AVRational>{ num=%v den=%v }", r.Num(), r.Den())
+func (r AVRational) MarshalJSON() ([]byte, error) {
+	if r.num == 0 {
+		return json.Marshal(0)
 	}
+	return json.Marshal(fmt.Sprintf("%d/%d", r.num, r.den))
+}
+
+func (r AVRational) String() string {
+	data, _ := json.MarshalIndent(r, "", "  ")
+	return string(data)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

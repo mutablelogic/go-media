@@ -25,11 +25,31 @@ func AVUtil_dict_alloc() *AVDictionary {
 
 // Free a dictionary and all entries in the dictionary.
 func AVUtil_dict_free(dict *AVDictionary) {
+	if dict == nil {
+		return
+	}
 	C.av_dict_free(&dict.ctx)
+}
+
+// Copy entries from one dictionary into another.
+func AVUtil_dict_copy(dict *AVDictionary, flags AVDictionaryFlag) (*AVDictionary, error) {
+	if dict == nil {
+		return nil, nil
+	}
+	dest := new(AVDictionary)
+	if err := AVError(C.av_dict_copy(&dest.ctx, dict.ctx, C.int(flags))); err != 0 {
+		return nil, err
+	}
+
+	// Return success
+	return dest, nil
 }
 
 // Get the number of entries in the dictionary.
 func AVUtil_dict_count(dict *AVDictionary) int {
+	if dict == nil {
+		return 0
+	}
 	return int(C.av_dict_count(dict.ctx))
 }
 

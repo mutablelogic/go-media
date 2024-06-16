@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"fmt"
 	"unsafe"
 )
 
@@ -19,14 +20,18 @@ import "C"
 // TYPES
 
 type (
-	AVPacket             C.AVPacket
-	AVCodec              C.AVCodec
-	AVCodecContext       C.AVCodecContext
-	AVCodecParameters    C.AVCodecParameters
-	AVCodecParser        C.AVCodecParser
-	AVCodecParserContext C.AVCodecParserContext
-	AVProfile            C.AVProfile
-	AVCodecID            C.enum_AVCodecID
+	AVPacket                      C.AVPacket
+	AVCodec                       C.AVCodec
+	AVCodecCap                    C.uint32_t
+	AVCodecContext                C.AVCodecContext
+	AVCodecFlag                   C.uint32_t
+	AVCodecFlag2                  C.uint32_t
+	AVCodecMacroblockDecisionMode C.int
+	AVCodecParameters             C.AVCodecParameters
+	AVCodecParser                 C.AVCodecParser
+	AVCodecParserContext          C.AVCodecParserContext
+	AVProfile                     C.AVProfile
+	AVCodecID                     C.enum_AVCodecID
 )
 
 type jsonAVPacket struct {
@@ -40,20 +45,18 @@ type jsonAVPacket struct {
 	Pos           int64 `json:"pos,omitempty"`
 }
 
-type jsonAVCodecParameters struct {
-	CodecType AVMediaType `json:"codec_type,omitempty"`
-	CodecID   AVCodecID   `json:"codec_id,omitempty"`
-	CodecTag  uint32      `json:"codec_tag,omitempty"`
-	Format    int         `json:"format,omitempty"`
-	BitRate   int64       `json:"bit_rate,omitempty"`
-}
-
 type jsonAVCodec struct {
-	Name         string      `json:"name,omitempty"`
-	LongName     string      `json:"long_name,omitempty"`
-	Type         AVMediaType `json:"type,omitempty"`
-	ID           AVCodecID   `json:"id,omitempty"`
-	Capabilities int         `json:"capabilities,omitempty"`
+	Type           AVMediaType       `json:"type"`
+	Name           string            `json:"name,omitempty"`
+	LongName       string            `json:"long_name,omitempty"`
+	ID             AVCodecID         `json:"id,omitempty"`
+	Capabilities   AVCodecCap        `json:"capabilities,omitempty"`
+	Framerates     []AVRational      `json:"supported_framerates,omitempty"`
+	SampleFormats  []AVSampleFormat  `json:"sample_formats,omitempty"`
+	PixelFormats   []AVPixelFormat   `json:"pixel_formats,omitempty"`
+	Samplerates    []int             `json:"samplerates,omitempty"`
+	Profiles       []AVProfile       `json:"profiles,omitempty"`
+	ChannelLayouts []AVChannelLayout `json:"channel_layouts,omitempty"`
 }
 
 type jsonAVCodecContext struct {
@@ -90,7 +93,74 @@ const (
  * MPEG bitstreams could cause overread and segfault.
  */
 const (
-	AV_INPUT_BUFFER_PADDING_SIZE = 64
+	AV_INPUT_BUFFER_PADDING_SIZE int = C.AV_INPUT_BUFFER_PADDING_SIZE
+)
+
+/**
+ * macroblock decision mode
+ * - encoding: Set by user.
+ * - decoding: unused
+ */
+const (
+	FF_MB_DECISION_SIMPLE AVCodecMacroblockDecisionMode = C.FF_MB_DECISION_SIMPLE ///< uses mb_cmp
+	FF_MB_DECISION_BITS   AVCodecMacroblockDecisionMode = C.FF_MB_DECISION_BITS   ///< chooses the one which needs the fewest bits
+	FF_MB_DECISION_RD     AVCodecMacroblockDecisionMode = C.FF_MB_DECISION_RD     ///< rate distortion
+)
+
+const (
+	AV_CODEC_FLAG_UNALIGNED      AVCodecFlag  = C.AV_CODEC_FLAG_UNALIGNED      // Allow decoders to produce frames with data planes that are not aligned to CPU requirements
+	AV_CODEC_FLAG_QSCALE         AVCodecFlag  = C.AV_CODEC_FLAG_QSCALE         // Use fixed qscale
+	AV_CODEC_FLAG_4MV            AVCodecFlag  = C.AV_CODEC_FLAG_4MV            // 4 MV per MB allowed / advanced prediction for H.263.
+	AV_CODEC_FLAG_OUTPUT_CORRUPT AVCodecFlag  = C.AV_CODEC_FLAG_OUTPUT_CORRUPT // Output even those frames that might be corrupted.
+	AV_CODEC_FLAG_QPEL           AVCodecFlag  = C.AV_CODEC_FLAG_QPEL           // Use qpel MC.
+	AV_CODEC_FLAG_RECON_FRAME    AVCodecFlag  = C.AV_CODEC_FLAG_RECON_FRAME    // Request the encoder to output reconstructed frames
+	AV_CODEC_FLAG_COPY_OPAQUE    AVCodecFlag  = C.AV_CODEC_FLAG_COPY_OPAQUE    // Request the decoder to propagate each packet's AVPacket.opaque and AVPacket.opaque_ref to its corresponding output AVFrame.
+	AV_CODEC_FLAG_FRAME_DURATION AVCodecFlag  = C.AV_CODEC_FLAG_FRAME_DURATION // Signal to the encoder that the values of AVFrame.duration are valid and should be used
+	AV_CODEC_FLAG_PASS1          AVCodecFlag  = C.AV_CODEC_FLAG_PASS1          // Use internal 2pass ratecontrol in first pass mode.
+	AV_CODEC_FLAG_PASS2          AVCodecFlag  = C.AV_CODEC_FLAG_PASS2          // Use internal 2pass ratecontrol in second pass mode.
+	AV_CODEC_FLAG_LOOP_FILTER    AVCodecFlag  = C.AV_CODEC_FLAG_LOOP_FILTER    // loop filter.
+	AV_CODEC_FLAG_GRAY           AVCodecFlag  = C.AV_CODEC_FLAG_GRAY           // Only decode/encode grayscale.
+	AV_CODEC_FLAG_PSNR           AVCodecFlag  = C.AV_CODEC_FLAG_PSNR           // error[?] variables will be set during encoding.
+	AV_CODEC_FLAG_INTERLACED_DCT AVCodecFlag  = C.AV_CODEC_FLAG_INTERLACED_DCT // Use interlaced DCT.
+	AV_CODEC_FLAG_LOW_DELAY      AVCodecFlag  = C.AV_CODEC_FLAG_LOW_DELAY      // Force low delay.
+	AV_CODEC_FLAG_GLOBAL_HEADER  AVCodecFlag  = C.AV_CODEC_FLAG_GLOBAL_HEADER  // Place global headers in extradata instead of every keyframe.
+	AV_CODEC_FLAG_BITEXACT       AVCodecFlag  = C.AV_CODEC_FLAG_BITEXACT       // Use only bitexact stuff (except (I)DCT).
+	AV_CODEC_FLAG_AC_PRED        AVCodecFlag  = C.AV_CODEC_FLAG_AC_PRED        // H.263 advanced intra coding / MPEG-4 AC prediction
+	AV_CODEC_FLAG_INTERLACED_ME  AVCodecFlag  = C.AV_CODEC_FLAG_INTERLACED_ME  // interlaced motion estimation
+	AV_CODEC_FLAG_CLOSED_GOP     AVCodecFlag  = C.AV_CODEC_FLAG_CLOSED_GOP
+	AV_CODEC_FLAG2_FAST          AVCodecFlag2 = C.AV_CODEC_FLAG2_FAST          // Allow non spec compliant speedup tricks.
+	AV_CODEC_FLAG2_NO_OUTPUT     AVCodecFlag2 = C.AV_CODEC_FLAG2_NO_OUTPUT     // Skip bitstream encoding.
+	AV_CODEC_FLAG2_LOCAL_HEADER  AVCodecFlag2 = C.AV_CODEC_FLAG2_LOCAL_HEADER  // Place global headers at every keyframe instead of in extradata.
+	AV_CODEC_FLAG2_CHUNKS        AVCodecFlag2 = C.AV_CODEC_FLAG2_CHUNKS        // Input bitstream might be truncated at a packet boundaries instead of only at frame boundaries.
+	AV_CODEC_FLAG2_IGNORE_CROP   AVCodecFlag2 = C.AV_CODEC_FLAG2_IGNORE_CROP   // Discard cropping information from SPS.
+	AV_CODEC_FLAG2_SHOW_ALL      AVCodecFlag2 = C.AV_CODEC_FLAG2_SHOW_ALL      // Show all frames before the first keyframe
+	AV_CODEC_FLAG2_EXPORT_MVS    AVCodecFlag2 = C.AV_CODEC_FLAG2_EXPORT_MVS    // Export motion vectors through frame side data
+	AV_CODEC_FLAG2_SKIP_MANUAL   AVCodecFlag2 = C.AV_CODEC_FLAG2_SKIP_MANUAL   // Do not skip samples and export skip information as frame side data
+	AV_CODEC_FLAG2_RO_FLUSH_NOOP AVCodecFlag2 = C.AV_CODEC_FLAG2_RO_FLUSH_NOOP // Do not reset ASS ReadOrder field on flush (subtitles decoding)
+	AV_CODEC_FLAG2_ICC_PROFILES  AVCodecFlag2 = C.AV_CODEC_FLAG2_ICC_PROFILES  // Generate/parse ICC profiles on encode/decode, as appropriate for the type of file
+)
+
+const (
+	AV_CODEC_CAP_NONE                     AVCodecCap = 0
+	AV_CODEC_CAP_DRAW_HORIZ_BAND          AVCodecCap = C.AV_CODEC_CAP_DRAW_HORIZ_BAND          // Decoder can use draw_horiz_band callback
+	AV_CODEC_CAP_DR1                      AVCodecCap = C.AV_CODEC_CAP_DR1                      // Codec uses get_buffer() for allocating buffers and supports custom allocators
+	AV_CODEC_CAP_DELAY                    AVCodecCap = C.AV_CODEC_CAP_DELAY                    // Encoder or decoder requires flushing with NULL input at the end in order to give the complete and correct output
+	AV_CODEC_CAP_SMALL_LAST_FRAME         AVCodecCap = C.AV_CODEC_CAP_SMALL_LAST_FRAME         // Codec can be fed a final frame with a smaller size
+	AV_CODEC_CAP_SUBFRAMES                AVCodecCap = C.AV_CODEC_CAP_SUBFRAMES                // Codec can output multiple frames per AVPacket Normally demuxers return one frame at a time, demuxers which do not do are connected to a parser to split what they return into proper frames
+	AV_CODEC_CAP_EXPERIMENTAL             AVCodecCap = C.AV_CODEC_CAP_EXPERIMENTAL             // Codec is experimental and is thus avoided in favor of non experimental encoders
+	AV_CODEC_CAP_CHANNEL_CONF             AVCodecCap = C.AV_CODEC_CAP_CHANNEL_CONF             // Codec should fill in channel configuration and samplerate instead of container
+	AV_CODEC_CAP_FRAME_THREADS            AVCodecCap = C.AV_CODEC_CAP_FRAME_THREADS            // Codec supports frame-level multithreading
+	AV_CODEC_CAP_SLICE_THREADS            AVCodecCap = C.AV_CODEC_CAP_SLICE_THREADS            // Codec supports slice-based (or partition-based) multithreading
+	AV_CODEC_CAP_PARAM_CHANGE             AVCodecCap = C.AV_CODEC_CAP_PARAM_CHANGE             // Codec supports changed parameters at any point
+	AV_CODEC_CAP_OTHER_THREADS            AVCodecCap = C.AV_CODEC_CAP_OTHER_THREADS            // Codec supports multithreading through a method other than slice
+	AV_CODEC_CAP_VARIABLE_FRAME_SIZE      AVCodecCap = C.AV_CODEC_CAP_VARIABLE_FRAME_SIZE      // Audio encoder supports receiving a different number of samples in each call
+	AV_CODEC_CAP_AVOID_PROBING            AVCodecCap = C.AV_CODEC_CAP_AVOID_PROBING            // Decoder is not a preferred choice for probing
+	AV_CODEC_CAP_HARDWARE                 AVCodecCap = C.AV_CODEC_CAP_HARDWARE                 // Codec is backed by a hardware implementation
+	AV_CODEC_CAP_HYBRID                   AVCodecCap = C.AV_CODEC_CAP_HYBRID                   // Codec is potentially backed by a hardware implementation, but not necessarily
+	AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE AVCodecCap = C.AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE // This encoder can reorder user opaque values from input AVFrames and return them with corresponding output packets.
+	AV_CODEC_CAP_ENCODER_FLUSH            AVCodecCap = C.AV_CODEC_CAP_ENCODER_FLUSH            //  This encoder can be flushed using avcodec_flush_buffers()
+	AV_CODEC_CAP_ENCODER_RECON_FRAME      AVCodecCap = C.AV_CODEC_CAP_ENCODER_RECON_FRAME      // The encoder is able to output reconstructed frame data
+	AV_CODEC_CAP_MAX                                 = AV_CODEC_CAP_ENCODER_RECON_FRAME
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,23 +179,19 @@ func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVCodecParameters{
-		CodecType: AVMediaType(ctx.codec_type),
-		CodecID:   AVCodecID(ctx.codec_id),
-		CodecTag:  uint32(ctx.codec_tag),
-		Format:    int(ctx.format),
-		BitRate:   int64(ctx.bit_rate),
-	})
-}
-
 func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVCodec{
-		Name:         C.GoString(ctx.name),
-		LongName:     C.GoString(ctx.long_name),
-		Type:         AVMediaType(ctx._type),
-		ID:           AVCodecID(ctx.id),
-		Capabilities: int(ctx.capabilities),
+		Name:           C.GoString(ctx.name),
+		LongName:       C.GoString(ctx.long_name),
+		Type:           AVMediaType(ctx._type),
+		ID:             AVCodecID(ctx.id),
+		Capabilities:   AVCodecCap(ctx.capabilities),
+		Framerates:     ctx.SupportedFramerates(),
+		SampleFormats:  ctx.SampleFormats(),
+		PixelFormats:   ctx.PixelFormats(),
+		Samplerates:    ctx.SupportedSamplerates(),
+		Profiles:       ctx.Profiles(),
+		ChannelLayouts: ctx.ChannelLayouts(),
 	})
 }
 
@@ -152,6 +218,10 @@ func (ctx AVProfile) MarshalJSON() ([]byte, error) {
 
 func (ctx AVMediaType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ctx.String())
+}
+
+func (v AVCodecCap) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +270,40 @@ func (ctx AVProfile) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // AVCodecParameters
 
+type jsonAVCodecParameters struct {
+	CodecType         AVMediaType `json:"codec_type"`
+	CodecID           AVCodecID   `json:"codec_id,omitempty"`
+	CodecTag          uint32      `json:"codec_tag,omitempty"`
+	Format            int         `json:"format,omitempty"`
+	BitRate           int64       `json:"bit_rate,omitempty"`
+	Width             int         `json:"width,omitempty"`
+	Height            int         `json:"height,omitempty"`
+	SampleAspectRatio AVRational  `json:"sample_aspect_ratio,omitempty"`
+	SampleRate        int         `json:"sample_rate,omitempty"`
+	FrameSize         int         `json:"frame_size,omitempty"`
+	Framerate         AVRational  `json:"framerate,omitempty"`
+}
+
+func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonAVCodecParameters{
+		CodecType:         AVMediaType(ctx.codec_type),
+		CodecID:           AVCodecID(ctx.codec_id),
+		CodecTag:          uint32(ctx.codec_tag),
+		Format:            int(ctx.format),
+		BitRate:           int64(ctx.bit_rate),
+		Width:             int(ctx.width),
+		Height:            int(ctx.height),
+		SampleAspectRatio: (AVRational)(ctx.sample_aspect_ratio),
+		SampleRate:        int(ctx.sample_rate),
+		FrameSize:         int(ctx.frame_size),
+		Framerate:         (AVRational)(ctx.framerate),
+	})
+}
+
+func (ctx *AVCodecParameters) Format() int {
+	return int(ctx.format)
+}
+
 func (ctx *AVCodecParameters) CodecType() AVMediaType {
 	return AVMediaType(ctx.codec_type)
 }
@@ -233,6 +337,10 @@ func (c *AVCodec) Type() AVMediaType {
 
 func (c *AVCodec) ID() AVCodecID {
 	return AVCodecID(c.id)
+}
+
+func (c *AVCodec) Capabilities() AVCodecCap {
+	return AVCodecCap(c.capabilities)
 }
 
 func (c *AVCodec) SupportedFramerates() []AVRational {
@@ -468,8 +576,39 @@ func (ctx *AVCodecContext) SetPrivDataKV(name, value string) error {
 	return nil
 }
 
+// Set Macroblock decision mode.
+func (ctx *AVCodecContext) SetMbDecision(mode AVCodecMacroblockDecisionMode) {
+	ctx.mb_decision = C.int(mode)
+}
+
+// Get Macroblock decision mode.
+func (ctx *AVCodecContext) MbDecision() AVCodecMacroblockDecisionMode {
+	return AVCodecMacroblockDecisionMode(ctx.mb_decision)
+}
+
+// Get flags
+func (ctx *AVCodecContext) Flags() AVCodecFlag {
+	return AVCodecFlag(ctx.flags)
+
+}
+
+// Set flags
+func (ctx *AVCodecContext) SetFlags(flags AVCodecFlag) {
+	ctx.flags = C.int(flags)
+}
+
+// Get flags2
+func (ctx *AVCodecContext) Flags2() AVCodecFlag2 {
+	return AVCodecFlag2(ctx.flags2)
+}
+
+// Set flags2
+func (ctx *AVCodecContext) SetFlags2(flags2 AVCodecFlag2) {
+	ctx.flags2 = C.int(flags2)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - PROFILE
+// AVProfile
 
 func (c *AVProfile) ID() int {
 	return int(c.profile)
@@ -477,4 +616,69 @@ func (c *AVProfile) ID() int {
 
 func (c *AVProfile) Name() string {
 	return C.GoString(c.name)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVCodecCap
+
+func (v AVCodecCap) Is(cap AVCodecCap) bool {
+	return v&cap == cap
+}
+
+func (v AVCodecCap) String() string {
+	if v == AV_CODEC_CAP_NONE {
+		return v.FlagString()
+	}
+	str := ""
+	for i := AVCodecCap(C.int(1)); i <= AV_CODEC_CAP_MAX; i <<= 1 {
+		if v&i == i {
+			str += "|" + i.FlagString()
+		}
+	}
+	return str[1:]
+}
+
+func (v AVCodecCap) FlagString() string {
+	switch v {
+	case AV_CODEC_CAP_NONE:
+		return "AV_CODEC_CAP_NONE"
+	case AV_CODEC_CAP_DRAW_HORIZ_BAND:
+		return "AV_CODEC_CAP_DRAW_HORIZ_BAND"
+	case AV_CODEC_CAP_DR1:
+		return "AV_CODEC_CAP_DR1"
+	case AV_CODEC_CAP_DELAY:
+		return "AV_CODEC_CAP_DELAY"
+	case AV_CODEC_CAP_SMALL_LAST_FRAME:
+		return "AV_CODEC_CAP_SMALL_LAST_FRAME"
+	case AV_CODEC_CAP_SUBFRAMES:
+		return "AV_CODEC_CAP_SUBFRAMES"
+	case AV_CODEC_CAP_EXPERIMENTAL:
+		return "AV_CODEC_CAP_EXPERIMENTAL"
+	case AV_CODEC_CAP_CHANNEL_CONF:
+		return "AV_CODEC_CAP_CHANNEL_CONF"
+	case AV_CODEC_CAP_FRAME_THREADS:
+		return "AV_CODEC_CAP_FRAME_THREADS"
+	case AV_CODEC_CAP_SLICE_THREADS:
+		return "AV_CODEC_CAP_SLICE_THREADS"
+	case AV_CODEC_CAP_PARAM_CHANGE:
+		return "AV_CODEC_CAP_PARAM_CHANGE"
+	case AV_CODEC_CAP_OTHER_THREADS:
+		return "AV_CODEC_CAP_OTHER_THREADS"
+	case AV_CODEC_CAP_VARIABLE_FRAME_SIZE:
+		return "AV_CODEC_CAP_VARIABLE_FRAME_SIZE"
+	case AV_CODEC_CAP_AVOID_PROBING:
+		return "AV_CODEC_CAP_AVOID_PROBING"
+	case AV_CODEC_CAP_HARDWARE:
+		return "AV_CODEC_CAP_HARDWARE"
+	case AV_CODEC_CAP_HYBRID:
+		return "AV_CODEC_CAP_HYBRID"
+	case AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE:
+		return "AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE"
+	case AV_CODEC_CAP_ENCODER_FLUSH:
+		return "AV_CODEC_CAP_ENCODER_FLUSH"
+	case AV_CODEC_CAP_ENCODER_RECON_FRAME:
+		return "AV_CODEC_CAP_ENCODER_RECON_FRAME"
+	default:
+		return fmt.Sprintf("AVCodecCap(0x%08X)", uint32(v))
+	}
 }
