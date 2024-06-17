@@ -25,7 +25,7 @@ type jsonAVFrame struct {
 	NumSamples    int             `json:"num_samples,omitempty"`
 	SampleRate    int             `json:"sample_rate,omitempty"`
 	ChannelLayout AVChannelLayout `json:"channel_layout,omitempty"`
-	PixelFormat   AVPixelFormat   `json:"pixel_format,omitempty"`
+	PixelFormat   AVPixelFormat   `json:"pixel_format"`
 	Width         int             `json:"width,omitempty"`
 	Height        int             `json:"height,omitempty"`
 	PictureType   AVPictureType   `json:"picture_type,omitempty"`

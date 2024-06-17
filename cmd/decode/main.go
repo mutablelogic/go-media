@@ -43,8 +43,10 @@ func main() {
 	}
 
 	// Create a decoder for video
-	_, err = input.NewDecoder(ffmpeg.VIDEO, *video_stream)
+	video, err := input.NewDecoder(ffmpeg.VIDEO, *video_stream)
 	if err != nil {
+		log.Fatal(err)
+	} else if err := video.Rescale(1024, 720); err != nil {
 		log.Fatal(err)
 	}
 

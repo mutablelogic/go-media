@@ -1,6 +1,9 @@
 package ffmpeg
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -245,6 +248,10 @@ const (
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (v AVPixelFormat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
+}
 
 func (v AVPixelFormat) String() string {
 	if f := AVUtil_get_pix_fmt_name(v); f != "" {

@@ -16,6 +16,7 @@ import (
 type decoder struct {
 	codec     *ff.AVCodecContext
 	resampler *ff.SWRContext
+	rescaler  *ff.SWSContext
 	frame     *ff.AVFrame
 }
 
@@ -84,6 +85,9 @@ func (d *decoder) Close() {
 	if d.resampler != nil {
 		ff.SWResample_free(d.resampler)
 	}
+	if d.rescaler != nil {
+		ff.SWScale_free_context(d.rescaler)
+	}
 	ff.AVUtil_frame_free(d.frame)
 	ff.AVCodec_free_context(d.codec)
 }
@@ -126,13 +130,43 @@ func (decoder *decoder) ResampleS16Mono(sample_rate int) error {
 		decoder.frame.ChannelLayout(), decoder.frame.SampleFormat(), decoder.frame.SampleRate(), // destination
 		decoder.codec.ChannelLayout(), decoder.codec.SampleFormat(), decoder.codec.SampleRate(), // source
 	); err != nil {
-		ff.SWResample_free(ctx)
 		return err
 	}
 
 	// Initialize the resampling context
 	if err := ff.SWResample_init(ctx); err != nil {
-		ff.SWResample_free(ctx)
+		return err
+	}
+
+	// Return success
+	return nil
+}
+
+// Rescale the video
+// TODO: This should be NewVideoDecoder(..., pixel_format, width, height)
+func (decoder *decoder) Rescale(width, height int) error {
+	// Check decoder type
+	if decoder.codec.Codec().Type() != ff.AVMEDIA_TYPE_VIDEO {
+		return fmt.Errorf("decoder is not an video decoder")
+	}
+
+	// TODO: Currently hard-coded
+	decoder.frame.SetPixFmt(ff.AV_PIX_FMT_GRAY8)
+	decoder.frame.SetWidth(width)
+	decoder.frame.SetHeight(height)
+
+	// Create scaling context
+	ctx := ff.SWScale_get_context(
+		decoder.codec.Width(), decoder.codec.Height(), decoder.codec.PixFmt(), // source
+		decoder.frame.Width(), decoder.frame.Height(), decoder.frame.PixFmt(), // destination
+		ff.SWS_BILINEAR, nil, nil, nil)
+	if ctx == nil {
+		return errors.New("failed to allocate swscale context")
+	} else {
+		decoder.rescaler = ctx
+	}
+
+	if err := ff.AVUtil_frame_get_buffer(decoder.frame, false); err != nil {
 		return err
 	}
 
@@ -146,21 +180,28 @@ func (decoder *decoder) ResampleS16Mono(sample_rate int) error {
 func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	switch decoder.codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		// Potentially resample the audio
+		// Resample the audio
 		if decoder.resampler != nil {
 			if err := decoder.resample(decoder.frame, src); err != nil {
 				return nil, err
 			}
 			return decoder.frame, nil
 		}
+	case ff.AVMEDIA_TYPE_VIDEO:
+		// Rescale the video
+		if decoder.rescaler != nil {
+			if err := decoder.rescale(decoder.frame, src); err != nil {
+				return nil, err
+			}
+			return decoder.frame, nil
+		}
 	}
-	// NO-OP
+
+	// NO-OP - just return the source frame
 	return src, nil
 }
 
 func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
-	//fmt.Println("resample src=>", src)
-
 	dest_samples, err := ff.SWResample_get_out_samples(decoder.resampler, src.NumSamples())
 	if err != nil {
 		return err
@@ -169,9 +210,7 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 	dest.SetPts(decoder.get_next_pts(src))
 
 	// Allocate frame buffer
-	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {
-		return err
-	} else if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
+	if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
 		return err
 	}
 
@@ -179,6 +218,15 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 	//fmt.Println("in_pts", src.Pts(), "out_pts", dest.Pts())
 	//fmt.Println("in_timebase", src.TimeBase(), "out_timebase", dest.TimeBase())
 
+	return nil
+}
+
+func (decoder *decoder) rescale(dest, src *ff.AVFrame) error {
+	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src); err != nil {
+		return fmt.Errorf("failed to scale frame: %w", err)
+	}
+
+	// Return success
 	return nil
 }
 

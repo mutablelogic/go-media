@@ -55,3 +55,12 @@ func SWScale_scale(ctx *SWSContext, src [][]byte, src_stride []int, src_slice_y,
 		&dest_[0], &dest_stride_[0],
 	))
 }
+
+// Scale source data from src and write the output to dst.
+func SWScale_scale_frame(ctx *SWSContext, dest, src *AVFrame) error {
+	if ret := C.sws_scale_frame((*C.struct_SwsContext)(ctx), (*C.struct_AVFrame)(dest), (*C.struct_AVFrame)(src)); ret != 0 {
+		return AVError(ret)
+	} else {
+		return nil
+	}
+}
