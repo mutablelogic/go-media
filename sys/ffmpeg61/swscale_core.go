@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"fmt"
 	"unsafe"
 )
 
@@ -56,9 +57,56 @@ func SWScale_scale(ctx *SWSContext, src [][]byte, src_stride []int, src_slice_y,
 	))
 }
 
-// Scale source data from src and write the output to dst.
-func SWScale_scale_frame(ctx *SWSContext, dest, src *AVFrame) error {
-	if ret := C.sws_scale_frame((*C.struct_SwsContext)(ctx), (*C.struct_AVFrame)(dest), (*C.struct_AVFrame)(src)); ret != 0 {
+// Scale source data from src and write the output to dst. Need to find out
+// why the native version is returning -22 error TODO
+func SWScale_scale_frame(ctx *SWSContext, dest, src *AVFrame, native bool) error {
+	if native {
+		if ret := C.sws_scale_frame((*C.struct_SwsContext)(ctx), (*C.struct_AVFrame)(dest), (*C.struct_AVFrame)(src)); ret != 0 {
+			return AVError(ret)
+		}
+	} else {
+		if err := SWScale_frame_start(ctx, dest, src); err != nil {
+			return fmt.Errorf("SWScale_frame_start: %w", err)
+		}
+		if err := SWScale_send_slice(ctx, 0, uint(src.Height())); err != nil {
+			return fmt.Errorf("SWScale_send_slice: %w", err)
+		}
+		if err := SWScale_receive_slice(ctx, 0, uint(dest.Height())); err != nil {
+			return fmt.Errorf("SWScale_receive_slice: %w", err)
+		}
+		SWScale_frame_end(ctx)
+	}
+
+	// Return success
+	return nil
+}
+
+// Initialize the scaling process for a given pair of source/destination frames.
+func SWScale_frame_start(ctx *SWSContext, dest, src *AVFrame) error {
+	if ret := C.sws_frame_start((*C.struct_SwsContext)(ctx), (*C.struct_AVFrame)(dest), (*C.struct_AVFrame)(src)); ret != 0 {
+		return AVError(ret)
+	} else {
+		return nil
+	}
+}
+
+// Finish the scaling process for a pair of source/destination frames.
+func SWScale_frame_end(ctx *SWSContext) {
+	C.sws_frame_end((*C.struct_SwsContext)(ctx))
+}
+
+// Indicate that a horizontal slice of input data is available in the source frame
+func SWScale_send_slice(ctx *SWSContext, slice_start, slice_height uint) error {
+	if ret := C.sws_send_slice((*C.struct_SwsContext)(ctx), C.uint(slice_start), C.uint(slice_height)); ret < 0 {
+		return AVError(ret)
+	} else {
+		return nil
+	}
+}
+
+// Request a horizontal slice of the output data to be written into the frame
+func SWScale_receive_slice(ctx *SWSContext, slice_start, slice_height uint) error {
+	if ret := C.sws_receive_slice((*C.struct_SwsContext)(ctx), C.uint(slice_start), C.uint(slice_height)); ret < 0 {
 		return AVError(ret)
 	} else {
 		return nil

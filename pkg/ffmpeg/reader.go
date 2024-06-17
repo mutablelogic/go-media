@@ -200,9 +200,6 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 			} else if err != nil {
 				return err
 			}
-
-			// Unreference the frame
-			ff.AVUtil_frame_unref(r.frame)
 		}
 	}
 }

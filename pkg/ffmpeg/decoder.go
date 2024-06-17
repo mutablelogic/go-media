@@ -130,14 +130,12 @@ func (decoder *decoder) ResampleS16Mono(sample_rate int) error {
 		decoder.frame.ChannelLayout(), decoder.frame.SampleFormat(), decoder.frame.SampleRate(), // destination
 		decoder.codec.ChannelLayout(), decoder.codec.SampleFormat(), decoder.codec.SampleRate(), // source
 	); err != nil {
-		return err
+		return fmt.Errorf("SWResample_set_opts: %w", err)
 	}
 
 	// Initialize the resampling context
 	if err := ff.SWResample_init(ctx); err != nil {
-		return err
-	} else if err := ff.AVUtil_frame_get_buffer(decoder.frame, false); err != nil {
-		return err
+		return fmt.Errorf("SWResample_init: %w", err)
 	}
 
 	// Return success
@@ -166,11 +164,6 @@ func (decoder *decoder) Rescale(width, height int) error {
 		return errors.New("failed to allocate swscale context")
 	} else {
 		decoder.rescaler = ctx
-	}
-
-	// Allocate frame buffer
-	if err := ff.AVUtil_frame_get_buffer(decoder.frame, false); err != nil {
-		return err
 	}
 
 	// Return success
@@ -207,7 +200,7 @@ func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 	dest_samples, err := ff.SWResample_get_out_samples(decoder.resampler, src.NumSamples())
 	if err != nil {
-		return err
+		return fmt.Errorf("SWResample_get_out_samples: %w", err)
 	}
 
 	dest.SetNumSamples(dest_samples)
@@ -215,7 +208,7 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 
 	// Perform resampling
 	if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
-		return err
+		return fmt.Errorf("SWResample_convert_frame: %w", err)
 	}
 
 	//fmt.Println("in_samples", src.NumSamples(), "out_samples", dest.NumSamples())
@@ -227,13 +220,13 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 
 func (decoder *decoder) rescale(dest, src *ff.AVFrame) error {
 	// Copy properties from source
-	if err := AVUtil_frame_copy_props(dest, src); err != nil {
-		return err
-	}
+	//if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
+	//	return fmt.Errorf("failed to copy props: %w", err)
+	//}
 
 	// Perform resizing
-	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src); err != nil {
-		return fmt.Errorf("failed to scale frame: %w", err)
+	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src, false); err != nil {
+		return fmt.Errorf("SWScale_scale_frame: %w", err)
 	}
 
 	// Return success
