@@ -7,13 +7,13 @@ import (
 ////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Media Types: Audio, Video, Subtitle or Data
 type MediaType int
 
 ////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-// Media Types
 const (
-	AUDIO = MediaType(ff.AVMEDIA_TYPE_AUDIO)
-	VIDEO = MediaType(ff.AVMEDIA_TYPE_VIDEO)
+	AUDIO = MediaType(ff.AVMEDIA_TYPE_AUDIO) // Audio media type
+	VIDEO = MediaType(ff.AVMEDIA_TYPE_VIDEO) // Video media type
 )

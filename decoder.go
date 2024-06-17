@@ -172,7 +172,6 @@ func (decoder *decoder) Rescale(width, height int) error {
 
 // Ref:
 // https://github.com/romatthe/alephone/blob/b1f7af38b14f74585f0442f1dd757d1238bfcef4/Source_Files/FFmpeg/SDL_ffmpeg.c#L2048
-
 func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	switch decoder.codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:

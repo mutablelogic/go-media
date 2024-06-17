@@ -126,6 +126,7 @@ func (r *reader) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+// Display the reader as a string
 func (r *reader) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.input)
 }
@@ -175,7 +176,7 @@ func (r *reader) Demux(fn DecoderFunc) error {
 	return nil
 }
 
-// Decode packets from the streams into frames
+// Return a function to decode packets from the streams into frames
 func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 	return func(codec Decoder, packet Packet) error {
 		if packet != nil {
@@ -231,7 +232,7 @@ type jsonMetadata struct {
 	Value string `json:"value"`
 }
 
-// Metadata returns the metadata for the media stream
+// Return the metadata for the media stream
 func (r *reader) Metadata() []Metadata {
 	entries := ff.AVUtil_dict_entries(r.input.Metadata())
 	result := make([]Metadata, len(entries))
