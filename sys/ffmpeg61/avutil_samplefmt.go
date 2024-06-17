@@ -1,6 +1,9 @@
 package ffmpeg
 
-import "unsafe"
+import (
+	"encoding/json"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -37,6 +40,10 @@ const (
 
 func (v AVSampleFormat) String() string {
 	return AVUtil_get_sample_fmt_name(v)
+}
+
+func (v AVSampleFormat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
 }
 
 ////////////////////////////////////////////////////////////////////////////////

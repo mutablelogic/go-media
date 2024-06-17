@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"unsafe"
 )
 
@@ -17,7 +18,56 @@ import (
 import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// STRINGIFY
+
+type jsonAVFrame struct {
+	SampleFormat  AVSampleFormat  `json:"sample_format,omitempty"`
+	NumSamples    int             `json:"num_samples,omitempty"`
+	SampleRate    int             `json:"sample_rate,omitempty"`
+	ChannelLayout AVChannelLayout `json:"channel_layout,omitempty"`
+	PixelFormat   AVPixelFormat   `json:"pixel_format,omitempty"`
+	Width         int             `json:"width,omitempty"`
+	Height        int             `json:"height,omitempty"`
+	PictureType   AVPictureType   `json:"picture_type,omitempty"`
+	Pts           AVTimestamp     `json:"pts,omitempty"`
+	BestEffortTs  AVTimestamp     `json:"best_effort_timestamp,omitempty"`
+	TimeBase      AVRational      `json:"time_base,omitempty"`
+	NumPlanes     int             `json:"num_planes,omitempty"`
+}
+
+func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
+	if ctx.nb_samples > 0 {
+		// Audio
+		return json.Marshal(jsonAVFrame{
+			NumSamples:    int(ctx.nb_samples),
+			SampleFormat:  AVSampleFormat(ctx.format),
+			SampleRate:    int(ctx.sample_rate),
+			ChannelLayout: AVChannelLayout(ctx.ch_layout),
+			Pts:           AVTimestamp(ctx.pts),
+			BestEffortTs:  AVTimestamp(ctx.best_effort_timestamp),
+			TimeBase:      AVRational(ctx.time_base),
+			NumPlanes:     AVUtil_frame_get_num_planes(ctx),
+		})
+	} else {
+		// Video
+		return json.Marshal(jsonAVFrame{
+			PixelFormat: AVPixelFormat(ctx.format),
+			Width:       int(ctx.width),
+			Height:      int(ctx.height),
+			Pts:         AVTimestamp(ctx.pts),
+			TimeBase:    AVRational(ctx.time_base),
+			NumPlanes:   AVUtil_frame_get_num_planes(ctx),
+		})
+	}
+}
+
+func (ctx *AVFrame) String() string {
+	data, _ := json.MarshalIndent(ctx, "", "  ")
+	return string(data)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BINDINGS
 
 // Allocate an AVFrame and set its fields to default values.
 func AVUtil_frame_alloc() *AVFrame {
@@ -36,9 +86,10 @@ func AVUtil_frame_unref(frame *AVFrame) {
 
 // Allocate new buffer(s) for audio or video data.
 // The following fields must be set on frame before calling this function:
-// format (pixel format for video, sample format for audio), width and height for video, nb_samples and ch_layout for audio
-func AVUtil_frame_get_buffer(frame *AVFrame, align int) error {
-	if ret := AVError(C.av_frame_get_buffer((*C.struct_AVFrame)(frame), C.int(align))); ret != 0 {
+// format, width and height for video,
+// format, nb_samples and ch_layout for audio
+func AVUtil_frame_get_buffer(frame *AVFrame, align bool) error {
+	if ret := AVError(C.av_frame_get_buffer((*C.struct_AVFrame)(frame), boolToInt(align))); ret != 0 {
 		return ret
 	}
 	return nil
@@ -54,8 +105,24 @@ func AVUtil_frame_make_writable(frame *AVFrame) error {
 	return nil
 }
 
+// Return the number of planes in the frame data.
+func AVUtil_frame_get_num_planes(frame *AVFrame) int {
+	if frame.nb_samples > 0 {
+		// Audio
+		if AVUtil_sample_fmt_is_planar(AVSampleFormat(frame.format)) {
+			return int(frame.ch_layout.nb_channels)
+		} else {
+			return 1
+		}
+	} else {
+		// Video
+		desc := AVUtil_get_pix_fmt_desc(AVPixelFormat(frame.format))
+		return int(desc.nb_components)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PROPERTIES
 
 func (ctx *AVFrame) NumSamples() int {
 	return int(ctx.nb_samples)
@@ -116,6 +183,23 @@ func (ctx *AVFrame) SetPixFmt(format AVPixelFormat) {
 	ctx.format = C.int(format)
 }
 
+func (ctx *AVFrame) Pts() int64 {
+	return int64(ctx.pts)
+}
+
+func (ctx *AVFrame) BestEffortTs() int64 {
+	return int64(ctx.best_effort_timestamp)
+}
+
+func (ctx *AVFrame) SetPts(pts int64) {
+	ctx.pts = C.int64_t(pts)
+}
+
+func (ctx *AVFrame) TimeBase() AVRational {
+	return AVRational(ctx.time_base)
+}
+
+// Return stride of a plane for images, or plane size for audio.
 func (ctx *AVFrame) Linesize(plane int) int {
 	if plane < 0 || plane >= int(C.AV_NUM_DATA_POINTERS) {
 		return 0
@@ -126,14 +210,6 @@ func (ctx *AVFrame) Linesize(plane int) int {
 // Return a buffer reference to the data for a plane.
 func (ctx *AVFrame) BufferRef(plane int) *AVBufferRef {
 	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
-}
-
-func (ctx *AVFrame) Pts() int64 {
-	return int64(ctx.pts)
-}
-
-func (ctx *AVFrame) SetPts(pts int64) {
-	ctx.pts = C.int64_t(pts)
 }
 
 // Returns a plane as a uint8 array.

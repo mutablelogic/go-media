@@ -60,18 +60,17 @@ type jsonAVCodec struct {
 }
 
 type jsonAVCodecContext struct {
-	Class            *AVClass        `json:"class,omitempty"`
 	CodecType        AVMediaType     `json:"codec_type,omitempty"`
 	Codec            *AVCodec        `json:"codec,omitempty"`
 	BitRate          int64           `json:"bit_rate,omitempty"`
 	BitRateTolerance int             `json:"bit_rate_tolerance,omitempty"`
-	TimeBase         AVRational      `json:"time_base,omitempty"`
+	PixelFormat      AVPixelFormat   `json:"pix_fmt,omitempty"`
 	Width            int             `json:"width,omitempty"`
 	Height           int             `json:"height,omitempty"`
-	PixelFormat      AVPixelFormat   `json:"pix_fmt,omitempty"`
 	SampleFormat     AVSampleFormat  `json:"sample_fmt,omitempty"`
 	SampleRate       int             `json:"sample_rate,omitempty"`
 	ChannelLayout    AVChannelLayout `json:"channel_layout,omitempty"`
+	TimeBase         AVRational      `json:"time_base,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,20 +195,37 @@ func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVCodecContext{
-		Class:            (*AVClass)(ctx.av_class),
-		CodecType:        AVMediaType(ctx.codec_type),
-		Codec:            (*AVCodec)(ctx.codec),
-		BitRate:          int64(ctx.bit_rate),
-		BitRateTolerance: int(ctx.bit_rate_tolerance),
-		TimeBase:         (AVRational)(ctx.time_base),
-		Width:            int(ctx.width),
-		Height:           int(ctx.height),
-		PixelFormat:      AVPixelFormat(ctx.pix_fmt),
-		SampleFormat:     AVSampleFormat(ctx.sample_fmt),
-		SampleRate:       int(ctx.sample_rate),
-		ChannelLayout:    AVChannelLayout(ctx.ch_layout),
-	})
+	switch ctx.codec_type {
+	case C.AVMEDIA_TYPE_VIDEO:
+		return json.Marshal(jsonAVCodecContext{
+			CodecType:        AVMediaType(ctx.codec_type),
+			Codec:            (*AVCodec)(ctx.codec),
+			BitRate:          int64(ctx.bit_rate),
+			BitRateTolerance: int(ctx.bit_rate_tolerance),
+			PixelFormat:      AVPixelFormat(ctx.pix_fmt),
+			Width:            int(ctx.width),
+			Height:           int(ctx.height),
+		})
+	case C.AVMEDIA_TYPE_AUDIO:
+		return json.Marshal(jsonAVCodecContext{
+			CodecType:        AVMediaType(ctx.codec_type),
+			Codec:            (*AVCodec)(ctx.codec),
+			BitRate:          int64(ctx.bit_rate),
+			BitRateTolerance: int(ctx.bit_rate_tolerance),
+			TimeBase:         (AVRational)(ctx.time_base),
+			SampleFormat:     AVSampleFormat(ctx.sample_fmt),
+			SampleRate:       int(ctx.sample_rate),
+			ChannelLayout:    AVChannelLayout(ctx.ch_layout),
+		})
+	default:
+		return json.Marshal(jsonAVCodecContext{
+			CodecType:        AVMediaType(ctx.codec_type),
+			Codec:            (*AVCodec)(ctx.codec),
+			BitRate:          int64(ctx.bit_rate),
+			BitRateTolerance: int(ctx.bit_rate_tolerance),
+			TimeBase:         (AVRational)(ctx.time_base),
+		})
+	}
 }
 
 func (ctx AVProfile) MarshalJSON() ([]byte, error) {

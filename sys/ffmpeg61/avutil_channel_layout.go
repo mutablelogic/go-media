@@ -1,6 +1,9 @@
 package ffmpeg
 
-import "unsafe"
+import (
+	"encoding/json"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -24,7 +27,20 @@ var (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// STRINGIFY
+
+func (ch AVChannelLayout) MarshalJSON() ([]byte, error) {
+	if ch.NumChannels() == 0 {
+		return json.Marshal(nil)
+	} else if str, err := AVUtil_channel_layout_describe(&ch); err != nil {
+		return nil, err
+	} else {
+		return json.Marshal(str)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// BINDINGS
 
 // Get the name of a given channel.
 func AVUtil_channel_name(channel AVChannel) (string, error) {
@@ -107,7 +123,7 @@ func AVUtil_channel_layout_check(ch_layout *AVChannelLayout) bool {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PROPERTIES
 
 func (ctx AVChannelLayout) NumChannels() int {
 	return int(ctx.nb_channels)

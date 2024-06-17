@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	in     = flag.String("in", "", "input file to decode")
-	stream = flag.Int("stream", -1, "stream to decode")
+	in           = flag.String("in", "", "input file to decode")
+	audio_stream = flag.Int("audio", -1, "audio stream to decode")
+	video_stream = flag.Int("video", -1, "video stream to decode")
 )
 
 func main() {
@@ -34,16 +35,27 @@ func main() {
 	defer input.Close()
 
 	// Create a decoder for audio
-	_, err = input.NewDecoder(ffmpeg.AUDIO, *stream)
+	audio, err := input.NewDecoder(ffmpeg.AUDIO, *audio_stream)
+	if err != nil {
+		log.Fatal(err)
+	} else if err := audio.ResampleS16Mono(22000); err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a decoder for video
+	_, err = input.NewDecoder(ffmpeg.VIDEO, *video_stream)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Demux and decode
+	// Demux and decode the audio and video
+	n := 0
 	if err := input.Demux(input.Decode(func(frame ffmpeg.Frame) error {
-		log.Printf("frame: %v", frame)
+		log.Print("frame: ", n, "=>", frame)
+		n++
 		return nil
 	})); err != nil {
+
 		log.Fatal(err)
 	}
 }
