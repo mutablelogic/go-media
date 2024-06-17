@@ -218,13 +218,13 @@ func (ctx *AVFrame) Linesize(plane int) int {
 }
 
 // Return a buffer reference to the data for a plane.
-func (ctx *AVFrame) BufferRef(plane int) *AVBufferRef {
+func (ctx *AVFrame) bufferRef(plane int) *AVBufferRef {
 	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
 }
 
 // Returns a plane as a uint8 array.
 func (ctx *AVFrame) Uint8(plane int) []uint8 {
-	if buf := ctx.BufferRef(plane); buf == nil {
+	if buf := ctx.bufferRef(plane); buf == nil {
 		return nil
 	} else {
 		return cUint8Slice(unsafe.Pointer(buf.data), C.int(buf.size))
@@ -233,20 +233,9 @@ func (ctx *AVFrame) Uint8(plane int) []uint8 {
 
 // Returns a plane as a int16 array.
 func (ctx *AVFrame) Int16(plane int) []int16 {
-	if buf := ctx.BufferRef(plane); buf == nil {
+	if buf := ctx.bufferRef(plane); buf == nil {
 		return nil
 	} else {
 		return cInt16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
 	}
-}
-
-// Returns the data as a set of planes and strides
-func (ctx *AVFrame) Data() ([][]byte, []int) {
-	planes := make([][]byte, int(C.AV_NUM_DATA_POINTERS))
-	strides := make([]int, int(C.AV_NUM_DATA_POINTERS))
-	for i := 0; i < int(C.AV_NUM_DATA_POINTERS); i++ {
-		planes[i] = ctx.Uint8(i)
-		strides[i] = ctx.Linesize(i)
-	}
-	return planes, strides
 }

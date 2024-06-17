@@ -176,7 +176,7 @@ func (decoder *decoder) Rescale(width, height int) error {
 func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	switch decoder.codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		// Resample the audio
+		// Resample the audio - can flush if src is nil
 		if decoder.resampler != nil {
 			if err := decoder.resample(decoder.frame, src); err != nil {
 				return nil, err
@@ -185,7 +185,7 @@ func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 		}
 	case ff.AVMEDIA_TYPE_VIDEO:
 		// Rescale the video
-		if decoder.rescaler != nil {
+		if decoder.rescaler != nil && src != nil {
 			if err := decoder.rescale(decoder.frame, src); err != nil {
 				return nil, err
 			}
@@ -198,13 +198,19 @@ func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 }
 
 func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
-	dest_samples, err := ff.SWResample_get_out_samples(decoder.resampler, src.NumSamples())
+	num_samples := 0
+	if src != nil {
+		num_samples = src.NumSamples()
+	}
+	dest_samples, err := ff.SWResample_get_out_samples(decoder.resampler, num_samples)
 	if err != nil {
 		return fmt.Errorf("SWResample_get_out_samples: %w", err)
 	}
 
 	dest.SetNumSamples(dest_samples)
-	dest.SetPts(decoder.get_next_pts(src))
+	if src != nil {
+		dest.SetPts(decoder.get_next_pts(src))
+	}
 
 	// Perform resampling
 	if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
@@ -223,7 +229,6 @@ func (decoder *decoder) rescale(dest, src *ff.AVFrame) error {
 	//if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
 	//	return fmt.Errorf("failed to copy props: %w", err)
 	//}
-
 	// Perform resizing
 	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src, false); err != nil {
 		return fmt.Errorf("SWScale_scale_frame: %w", err)

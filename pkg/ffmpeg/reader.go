@@ -186,7 +186,7 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 		for {
 			if err := ff.AVCodec_receive_frame(codec.(*decoder).codec, r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
 				// Finished decoding packet or EOF
-				return nil
+				break
 			} else if err != nil {
 				return err
 			}
@@ -196,11 +196,25 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 				return err
 			} else if err := fn(frame); errors.Is(err, io.EOF) {
 				// End early
-				return nil
+				break
 			} else if err != nil {
 				return err
 			}
 		}
+
+		// Flush
+		if frame, err := codec.(*decoder).re(nil); err != nil {
+			return err
+		} else if frame == nil {
+			// NOOP
+		} else if err := fn(frame); errors.Is(err, io.EOF) {
+			// NOOP
+		} else if err != nil {
+			return err
+		}
+
+		// Success
+		return nil
 	}
 }
 
