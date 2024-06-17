@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 

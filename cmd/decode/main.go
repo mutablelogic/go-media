@@ -6,7 +6,7 @@ import (
 	"os"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media"
 )
 
 var (
