@@ -75,7 +75,7 @@ func AVUtil_image_free(data [][]byte) {
 func AVUtil_image_copy(dst [][]byte, dst_stride []int, src [][]byte, src_stride []int, pixfmt AVPixelFormat, width, height int) {
 	dst_ptrs, dst_strides := avutil_image_ptr(dst, dst_stride)
 	src_ptrs, src_strides := avutil_image_ptr(src, src_stride)
-	C.av_image_copy2(&dst_ptrs[0], &dst_strides[0], &src_ptrs[0], &src_strides[0], C.enum_AVPixelFormat(pixfmt), C.int(width), C.int(height))
+	C.av_image_copy(&dst_ptrs[0], &dst_strides[0], &src_ptrs[0], &src_strides[0], C.enum_AVPixelFormat(pixfmt), C.int(width), C.int(height))
 }
 
 // Return the image as a byte buffer

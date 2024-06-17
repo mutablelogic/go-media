@@ -136,6 +136,8 @@ func (decoder *decoder) ResampleS16Mono(sample_rate int) error {
 	// Initialize the resampling context
 	if err := ff.SWResample_init(ctx); err != nil {
 		return err
+	} else if err := ff.AVUtil_frame_get_buffer(decoder.frame, false); err != nil {
+		return err
 	}
 
 	// Return success
@@ -166,6 +168,7 @@ func (decoder *decoder) Rescale(width, height int) error {
 		decoder.rescaler = ctx
 	}
 
+	// Allocate frame buffer
 	if err := ff.AVUtil_frame_get_buffer(decoder.frame, false); err != nil {
 		return err
 	}
@@ -206,10 +209,11 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 	if err != nil {
 		return err
 	}
+
 	dest.SetNumSamples(dest_samples)
 	dest.SetPts(decoder.get_next_pts(src))
 
-	// Allocate frame buffer
+	// Perform resampling
 	if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
 		return err
 	}
@@ -222,6 +226,12 @@ func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
 }
 
 func (decoder *decoder) rescale(dest, src *ff.AVFrame) error {
+	// Copy properties from source
+	if err := AVUtil_frame_copy_props(dest, src); err != nil {
+		return err
+	}
+
+	// Perform resizing
 	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src); err != nil {
 		return fmt.Errorf("failed to scale frame: %w", err)
 	}
