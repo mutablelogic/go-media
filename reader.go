@@ -1,6 +1,7 @@
-package ffmpeg
+package media
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"syscall"
@@ -23,6 +24,8 @@ type reader_callback struct {
 	r io.Reader
 }
 
+var _ Media = (*reader)(nil)
+
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -33,8 +36,9 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Open a reader from a url
-func OpenReader(url string, mimetype string) (*reader, error) {
+// Open a reader from a url or file path, and either use the mimetype or guess
+// the format otherwise. Returns a media object.
+func Open(url string, mimetype string) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
 
@@ -98,7 +102,7 @@ func (r *reader) open() (*reader, error) {
 }
 
 // Close the reader
-func (r *reader) Close() {
+func (r *reader) Close() error {
 	// Free resources
 	for _, decoder := range r.decoders {
 		decoder.Close()
@@ -114,16 +118,20 @@ func (r *reader) Close() {
 	r.frame = nil
 	r.input = nil
 	r.avio = nil
+
+	// Return success
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (r *reader) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.input)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // METHODS
-
-type Decoder interface{}
-type Packet interface{}
-type Frame interface{}
-type DecoderFunc func(Decoder, Packet) error
-type FrameFunc func(Frame) error
 
 // TODO: Frame should be a struct to access plane data and other properties
 // TODO: Frame output may not include pts and time_base
@@ -216,6 +224,24 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 		// Success
 		return nil
 	}
+}
+
+type jsonMetadata struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// Metadata returns the metadata for the media stream
+func (r *reader) Metadata() []Metadata {
+	entries := ff.AVUtil_dict_entries(r.input.Metadata())
+	result := make([]Metadata, len(entries))
+	for i, entry := range entries {
+		result[i] = Metadata(&jsonMetadata{
+			Key:   entry.Key(),
+			Value: entry.Value(),
+		})
+	}
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////

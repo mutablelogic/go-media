@@ -1,4 +1,4 @@
-package ffmpeg
+package media
 
 import (
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
