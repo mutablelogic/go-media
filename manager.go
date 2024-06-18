@@ -2,12 +2,15 @@ package media
 
 import (
 	"encoding/json"
+	"io"
 	"slices"
 	"strings"
 
 	// Package imports
-
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////
@@ -36,7 +39,7 @@ type outputformat struct {
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewManager() *manager {
+func NewManager() Manager {
 	return new(manager)
 }
 
@@ -124,6 +127,26 @@ func (manager *manager) OutputFormats(filter ...string) []Format {
 
 	// Return success
 	return result
+}
+
+// Open a media file for reading
+func (manager *manager) Open(url string, format Format) (Media, error) {
+	return Open(url, format)
+}
+
+// Open a media stream for reading.
+func (manager *manager) Read(r io.Reader, format Format) (Media, error) {
+	return NewReader(r, format)
+}
+
+// Create a media file for writing, from a path.
+func (manager *manager) Create(string, Format) (Media, error) {
+	return nil, ErrNotImplemented
+}
+
+// Create a media stream for writing.
+func (manager *manager) Write(io.Writer, Format) (Media, error) {
+	return nil, ErrNotImplemented
 }
 
 func (v *inputformat) Name() []string {

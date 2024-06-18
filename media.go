@@ -3,6 +3,40 @@ package media
 
 import "io"
 
+// Manager represents a manager for media formats. Create a new manager
+// object using the NewManager function.
+type Manager interface {
+	// Return supported input formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype.
+	InputFormats(...string) []Format
+
+	// Return supported output formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype.
+	OutputFormats(...string) []Format
+
+	// Open a media file for reading, from a path or url. If a format is
+	// specified, then the format will be used to open the file. Close the
+	// media object when done.
+	Open(string, Format) (Media, error)
+
+	// Open a media stream for reading.  If a format is
+	// specified, then the format will be used to open the file. Close the
+	// media object when done. It is the responsibility of the caller to
+	// also close the reader when done.
+	Read(io.Reader, Format) (Media, error)
+
+	// Create a media file for writing, from a path. If a format is
+	// specified, then the format will be used to create the file. Close
+	// the media object when done.
+	Create(string, Format) (Media, error)
+
+	// Create a media stream for writing. If a format is
+	// specified, then the format will be used to create the file.
+	// Close the media object when done. It is the responsibility of the caller to
+	// also close the writer when done.
+	Write(io.Writer, Format) (Media, error)
+}
+
 // Format represents a container format for input or output of media streams.
 type Format interface {
 	// Name(s) of the format
@@ -11,7 +45,7 @@ type Format interface {
 	// Description of the format
 	Description() string
 
-	// Extensions associated with the format
+	// Extensions associated with the format, if a stream
 	Extensions() []string
 
 	// MimeTypes associated with the format

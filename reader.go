@@ -38,14 +38,20 @@ const (
 
 // Open a reader from a url or file path, and either use the mimetype or guess
 // the format otherwise. Returns a media object.
-func Open(url string, mimetype string) (*reader, error) {
+func Open(url string, format Format) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
 
-	// TODO: mimetype input is currently ignored, format is always guessed
+	// Set the input format
+	var fmt *ff.AVInputFormat
+	if format != nil {
+		if inputfmt, ok := format.(*inputformat); ok {
+			fmt = inputfmt.ctx
+		}
+	}
 
 	// Open the stream
-	if ctx, err := ff.AVFormat_open_url(url, nil, nil); err != nil {
+	if ctx, err := ff.AVFormat_open_url(url, fmt, nil); err != nil {
 		return nil, err
 	} else {
 		reader.input = ctx
@@ -56,11 +62,17 @@ func Open(url string, mimetype string) (*reader, error) {
 }
 
 // Create a new reader from an io.Reader
-func NewReader(r io.Reader, mimetype string) (*reader, error) {
+func NewReader(r io.Reader, format Format) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
 
-	// TODO: mimetype input is currently ignored, format is always guessed
+	// Set the input format
+	var fmt *ff.AVInputFormat
+	if format != nil {
+		if inputfmt, ok := format.(*inputformat); ok {
+			fmt = inputfmt.ctx
+		}
+	}
 
 	// Allocate the AVIO context
 	reader.avio = ff.AVFormat_avio_alloc_context(bufSize, false, &reader_callback{r})
@@ -69,7 +81,7 @@ func NewReader(r io.Reader, mimetype string) (*reader, error) {
 	}
 
 	// Open the stream
-	if ctx, err := ff.AVFormat_open_reader(reader.avio, nil, nil); err != nil {
+	if ctx, err := ff.AVFormat_open_reader(reader.avio, fmt, nil); err != nil {
 		ff.AVFormat_avio_context_free(reader.avio)
 		return nil, err
 	} else {
