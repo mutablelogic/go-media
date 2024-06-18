@@ -52,6 +52,26 @@ func (ctx *AVOutputFormat) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+func (ctx *AVOutputFormat) Name() string {
+	return C.GoString(ctx.name)
+}
+
+func (ctx *AVOutputFormat) LongName() string {
+	return C.GoString(ctx.long_name)
+}
+
+func (ctx *AVOutputFormat) Flags() AVFormat {
+	return AVFormat(ctx.flags)
+}
+
+func (ctx *AVOutputFormat) MimeTypes() string {
+	return C.GoString(ctx.mime_type)
+}
+
+func (ctx *AVOutputFormat) Extensions() string {
+	return C.GoString(ctx.extensions)
+}
+
 func (ctx *AVOutputFormat) VideoCodec() AVCodecID {
 	return AVCodecID(ctx.video_codec)
 }
@@ -62,10 +82,6 @@ func (ctx *AVOutputFormat) AudioCodec() AVCodecID {
 
 func (ctx *AVOutputFormat) SubtitleCodec() AVCodecID {
 	return AVCodecID(ctx.subtitle_codec)
-}
-
-func (ctx *AVOutputFormat) Flags() AVFormat {
-	return AVFormat(ctx.flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

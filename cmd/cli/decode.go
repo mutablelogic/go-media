@@ -1,12 +1,10 @@
 package main
 
 import (
-
-	// Packages
-
 	"encoding/json"
 	"fmt"
 
+	// Packages
 	"github.com/mutablelogic/go-media"
 )
 
