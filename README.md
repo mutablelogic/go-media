@@ -73,5 +73,4 @@ repository for more information:
 
 ## References
 
-  * https://ffmpeg.org/doxygen/6.1/index.html
-
+* https://ffmpeg.org/doxygen/6.1/index.html
