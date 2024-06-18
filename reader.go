@@ -227,7 +227,7 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 	}
 }
 
-type jsonMetadata struct {
+type metadata struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
@@ -237,10 +237,10 @@ func (r *reader) Metadata() []Metadata {
 	entries := ff.AVUtil_dict_entries(r.input.Metadata())
 	result := make([]Metadata, len(entries))
 	for i, entry := range entries {
-		result[i] = Metadata(&jsonMetadata{
+		result[i] = &metadata{
 			Key:   entry.Key(),
 			Value: entry.Value(),
-		})
+		}
 	}
 	return result
 }

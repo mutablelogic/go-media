@@ -1,17 +1,15 @@
 package main
 
 import (
-
-	// Packages
-
 	"encoding/json"
 	"fmt"
 
+	// Packages
 	"github.com/mutablelogic/go-media"
 )
 
 type DecodeCmd struct {
-	Path string `arg required help:"Media file" type:"path"`
+	Path string `arg:"" required:"" help:"Media file" type:"path"`
 }
 
 func (cmd *DecodeCmd) Run(globals *Globals) error {

@@ -67,7 +67,7 @@ func write_video_frame(ctx *ff.AVFormatContext, stream *Stream) bool {
 
 
 
-
+/*
  static int write_audio_frame(AVFormatContext *oc, OutputStream *ost)
  {
 	 AVCodecContext *c;
@@ -80,8 +80,8 @@ func write_video_frame(ctx *ff.AVFormatContext, stream *Stream) bool {
 	 frame = get_audio_frame(ost);
   
 	 if (frame) {
-		 /* convert samples from native format to destination codec format, using the resampler */
-		 /* compute destination number of samples */
+		 /* convert samples from native format to destination codec format, using the resampler
+		 /* compute destination number of samples 
 		 dst_nb_samples = av_rescale_rnd(swr_get_delay(ost->swr_ctx, c->sample_rate) + frame->nb_samples,
 										 c->sample_rate, c->sample_rate, AV_ROUND_UP);
 		 av_assert0(dst_nb_samples == frame->nb_samples);
@@ -94,7 +94,7 @@ func write_video_frame(ctx *ff.AVFormatContext, stream *Stream) bool {
 		 if (ret < 0)
 			 exit(1);
   
-		 /* convert to destination format */
+		 /* convert to destination format 
 		 ret = swr_convert(ost->swr_ctx,
 						   ost->frame->data, dst_nb_samples,
 						   (const uint8_t **)frame->data, frame->nb_samples);
@@ -110,3 +110,4 @@ func write_video_frame(ctx *ff.AVFormatContext, stream *Stream) bool {
   
 	 return write_frame(oc, c, ost->st, frame, ost->tmp_pkt);
  }
+ */

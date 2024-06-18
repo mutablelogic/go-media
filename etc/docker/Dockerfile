@@ -12,7 +12,7 @@ COPY . .
 RUN set -x \
   && apt update -y \
   && apt install -y ca-certificates lsb-release \
-  && echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main non-free" >> /etc/apt/sources.list \
+  && echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main" >> /etc/apt/sources.list \
   && apt update -y -oAcquire::AllowInsecureRepositories=true \
   && apt install -y --force-yes deb-multimedia-keyring \
   && apt install -y --allow-unauthenticated libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev
@@ -29,7 +29,7 @@ ARG SOURCE
 RUN set -x \
   && apt update -y \
   && apt install -y ca-certificates lsb-release \
-  && echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main non-free" >> /etc/apt/sources.list \
+  && echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main" >> /etc/apt/sources.list \
   && apt update -y -oAcquire::AllowInsecureRepositories=true \
   && apt install -y --force-yes deb-multimedia-keyring \
   && apt install -y --allow-unauthenticated ffmpeg

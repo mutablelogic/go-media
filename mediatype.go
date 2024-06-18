@@ -1,19 +1,19 @@
 package media
 
-import (
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
-)
-
 ////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Media Types: Audio, Video, Subtitle or Data
-type MediaType int
+// Media type flags
+type MediaType uint32
 
 ////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	AUDIO = MediaType(ff.AVMEDIA_TYPE_AUDIO) // Audio media type
-	VIDEO = MediaType(ff.AVMEDIA_TYPE_VIDEO) // Video media type
+	UNKNOWN  MediaType = (1 << iota) // Usually treated as DATA
+	VIDEO                            // Video stream
+	AUDIO                            // Audio stream
+	DATA                             // Opaque data information usually continuous
+	SUBTITLE                         // Subtitle stream
+	ATTACHMENT
 )

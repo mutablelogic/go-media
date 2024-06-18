@@ -7,9 +7,11 @@ import (
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_avformat_input_001(t *testing.T) {
+	assert := assert.New(t)
 	// Iterate over all input formats
 	var opaque uintptr
 	for {
@@ -17,7 +19,7 @@ func Test_avformat_input_001(t *testing.T) {
 		if demuxer == nil {
 			break
 		}
-
-		t.Log(demuxer)
+		demuxer2 := AVFormat_find_input_format(demuxer.Name())
+		assert.Equal(demuxer, demuxer2)
 	}
 }

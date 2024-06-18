@@ -297,7 +297,6 @@ type jsonAVCodecParameters struct {
 	SampleAspectRatio AVRational  `json:"sample_aspect_ratio,omitempty"`
 	SampleRate        int         `json:"sample_rate,omitempty"`
 	FrameSize         int         `json:"frame_size,omitempty"`
-	Framerate         AVRational  `json:"framerate,omitempty"`
 }
 
 func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
@@ -312,12 +311,7 @@ func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
 		SampleAspectRatio: (AVRational)(ctx.sample_aspect_ratio),
 		SampleRate:        int(ctx.sample_rate),
 		FrameSize:         int(ctx.frame_size),
-		Framerate:         (AVRational)(ctx.framerate),
 	})
-}
-
-func (ctx *AVCodecParameters) Format() int {
-	return int(ctx.format)
 }
 
 func (ctx *AVCodecParameters) CodecType() AVMediaType {
@@ -334,6 +328,10 @@ func (ctx *AVCodecParameters) CodecTag() uint32 {
 
 func (ctx *AVCodecParameters) SetCodecTag(tag uint32) {
 	ctx.codec_tag = C.uint32_t(tag)
+}
+
+func (ctx *AVCodecParameters) Format() int {
+	return int(ctx.format)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

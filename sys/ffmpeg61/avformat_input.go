@@ -20,9 +20,9 @@ import "C"
 type jsonAVInputFormat struct {
 	Name       string   `json:"name,omitempty"`
 	LongName   string   `json:"long_name,omitempty"`
-	Flags      AVFormat `json:"flags,omitempty"`
-	Extensions string   `json:"extensions,omitempty"`
 	MimeTypes  string   `json:"mime_types,omitempty"`
+	Extensions string   `json:"extensions,omitempty"`
+	Flags      AVFormat `json:"flags,omitempty"`
 }
 
 func (ctx *AVInputFormat) MarshalJSON() ([]byte, error) {
@@ -46,7 +46,37 @@ func (ctx *AVInputFormat) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
 
+// Find AVInputFormat based on the short name of the input format.
+func AVFormat_find_input_format(name string) *AVInputFormat {
+	cString := C.CString(name)
+	defer C.free(unsafe.Pointer(cString))
+	return (*AVInputFormat)(C.av_find_input_format(cString))
+}
+
 // Iterate over all AVInputFormats
 func AVFormat_demuxer_iterate(opaque *uintptr) *AVInputFormat {
 	return (*AVInputFormat)(C.av_demuxer_iterate((*unsafe.Pointer)(unsafe.Pointer(opaque))))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+func (ctx *AVInputFormat) Name() string {
+	return C.GoString(ctx.name)
+}
+
+func (ctx *AVInputFormat) LongName() string {
+	return C.GoString(ctx.long_name)
+}
+
+func (ctx *AVInputFormat) Flags() AVFormat {
+	return AVFormat(ctx.flags)
+}
+
+func (ctx *AVInputFormat) MimeTypes() string {
+	return C.GoString(ctx.mime_type)
+}
+
+func (ctx *AVInputFormat) Extensions() string {
+	return C.GoString(ctx.extensions)
 }

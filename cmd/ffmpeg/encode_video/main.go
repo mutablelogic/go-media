@@ -92,7 +92,7 @@ func main() {
 	frame.SetHeight(ctx.Height())
 
 	// Allocate the data buffers
-	if err := ff.AVUtil_frame_get_buffer(frame, 0); err != nil {
+	if err := ff.AVUtil_frame_get_buffer(frame, false); err != nil {
 		log.Fatal(err)
 	}
 

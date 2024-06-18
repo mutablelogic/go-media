@@ -3,6 +3,14 @@ package media
 
 import "io"
 
+// InputFormat represents a container format for input
+// of media streams.
+type InputFormat interface{}
+
+// OuputFormat represents a container format for output
+// of media streams.
+type OutputFormat interface{}
+
 // Media represents a media stream, which can
 // be input or output. A new media object is created
 // using NewReader, Open, NewWriter or Create.

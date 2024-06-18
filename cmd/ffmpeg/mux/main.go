@@ -90,9 +90,13 @@ func main() {
 	for encode_audio || encode_video {
 		// Choose video if both are available, and video is earlier than audio
 		if (encode_video && !encode_audio) || (encode_video && ff.AVUtil_compare_ts(video.next_pts, video.Encoder.TimeBase(), audio.next_pts, audio.Encoder.TimeBase()) <= 0) {
-			encode_video = !write_video_frame(ctx, video)
+			fmt.Println("TODO: Write video frame")
+			encode_video = false
+			//	encode_video = !write_video_frame(ctx, video)
 		} else {
-			encode_audio = !write_audio_frame(ctx, audio)
+			fmt.Println("TODO: Write audio frame")
+			encode_audio = false
+			//			encode_audio = !write_audio_frame(ctx, audio)
 		}
 	}
 
