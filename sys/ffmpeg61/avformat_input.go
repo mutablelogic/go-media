@@ -20,7 +20,7 @@ import "C"
 type jsonAVInputFormat struct {
 	Name       string   `json:"name,omitempty"`
 	LongName   string   `json:"long_name,omitempty"`
-	MimeTypes  string   `json:"mime_types,omitempty"`
+	MimeTypes  string   `json:"mime_type,omitempty"`
 	Extensions string   `json:"extensions,omitempty"`
 	Flags      AVFormat `json:"flags,omitempty"`
 }
@@ -36,11 +36,8 @@ func (ctx *AVInputFormat) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVInputFormat) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	str, _ := json.MarshalIndent(ctx, "", "  ")
+	return string(str)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

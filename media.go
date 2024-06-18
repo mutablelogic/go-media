@@ -3,13 +3,23 @@ package media
 
 import "io"
 
-// InputFormat represents a container format for input
-// of media streams.
-type InputFormat interface{}
+// Format represents a container format for input or output of media streams.
+type Format interface {
+	// Name(s) of the format
+	Name() []string
 
-// OuputFormat represents a container format for output
-// of media streams.
-type OutputFormat interface{}
+	// Description of the format
+	Description() string
+
+	// Extensions associated with the format
+	Extensions() []string
+
+	// MimeTypes associated with the format
+	MimeTypes() []string
+
+	// INPUT for a demuxer, OUTPUT for a muxer
+	Type() MediaType
+}
 
 // Media represents a media stream, which can
 // be input or output. A new media object is created

@@ -15,5 +15,7 @@ const (
 	AUDIO                            // Audio stream
 	DATA                             // Opaque data information usually continuous
 	SUBTITLE                         // Subtitle stream
-	ATTACHMENT
+	INPUT                            // Demuxer
+	OUTPUT                           // Muxer
+	DEVICE                           // Device rather than byte stream or file
 )

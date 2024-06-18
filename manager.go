@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	// Package imports
+
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
@@ -19,7 +20,7 @@ type formatmeta struct {
 	Name        string `json:"name" writer:",width:25"`
 	Description string `json:"description" writer:",wrap,width:40"`
 	Extensions  string `json:"extensions,omitempty"`
-	MimeTypes   string `json:"mimetypes,omitempty"`
+	MimeTypes   string `json:"mimetypes,omitempty" writer:",wrap,width:40"`
 }
 
 type inputformat struct {
@@ -40,46 +41,40 @@ func NewManager() *manager {
 }
 
 func newInputFormat(ctx *ff.AVInputFormat) *inputformat {
-	return &inputformat{
-		ctx: ctx,
-		formatmeta: formatmeta{
-			Name:        ctx.Name(),
-			Description: ctx.LongName(),
-			Extensions:  ctx.Extensions(),
-			MimeTypes:   ctx.MimeTypes(),
-		},
-	}
+	v := &inputformat{ctx: ctx}
+	v.formatmeta.Name = strings.Join(v.Name(), " ")
+	v.formatmeta.Description = v.Description()
+	v.formatmeta.Extensions = strings.Join(v.Extensions(), " ")
+	v.formatmeta.MimeTypes = strings.Join(v.MimeTypes(), " ")
+	return v
 }
 
 func newOutputFormat(ctx *ff.AVOutputFormat) *outputformat {
-	return &outputformat{
-		ctx: ctx,
-		formatmeta: formatmeta{
-			Name:        ctx.Name(),
-			Description: ctx.LongName(),
-			Extensions:  ctx.Extensions(),
-			MimeTypes:   ctx.MimeTypes(),
-		},
-	}
+	v := &outputformat{ctx: ctx}
+	v.formatmeta.Name = strings.Join(v.Name(), " ")
+	v.formatmeta.Description = v.Description()
+	v.formatmeta.Extensions = strings.Join(v.Extensions(), " ")
+	v.formatmeta.MimeTypes = strings.Join(v.MimeTypes(), " ")
+	return v
 }
 
 ////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (v inputformat) MarshalJSON() ([]byte, error) {
+func (v *inputformat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.ctx)
 }
 
-func (v outputformat) MarshalJSON() ([]byte, error) {
+func (v *outputformat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.ctx)
 }
 
-func (v inputformat) String() string {
+func (v *inputformat) String() string {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	return string(data)
 }
 
-func (v outputformat) String() string {
+func (v *outputformat) String() string {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	return string(data)
 }
@@ -90,8 +85,8 @@ func (v outputformat) String() string {
 // Return the list of matching input formats, optionally filtering by name,
 // extension or mimetype File extensions should be prefixed with a dot,
 // e.g. ".mp4"
-func (manager *manager) InputFormats(filter ...string) []InputFormat {
-	var result []InputFormat
+func (manager *manager) InputFormats(filter ...string) []Format {
+	var result []Format
 
 	// Iterate over all input formats
 	var opaque uintptr
@@ -100,9 +95,7 @@ func (manager *manager) InputFormats(filter ...string) []InputFormat {
 		if demuxer == nil {
 			break
 		}
-		if len(filter) == 0 {
-			result = append(result, newInputFormat(demuxer))
-		} else if manager.matchesInput(demuxer, filter...) {
+		if matchesInput(demuxer, filter...) {
 			result = append(result, newInputFormat(demuxer))
 		}
 	}
@@ -114,8 +107,8 @@ func (manager *manager) InputFormats(filter ...string) []InputFormat {
 // Return the list of matching output formats, optionally filtering by name,
 // extension or mimetype File extensions should be prefixed with a dot,
 // e.g. ".mp4"
-func (manager *manager) OutputFormats(filter ...string) []OutputFormat {
-	var result []OutputFormat
+func (manager *manager) OutputFormats(filter ...string) []Format {
+	var result []Format
 
 	// Iterate over all output formats
 	var opaque uintptr
@@ -124,9 +117,7 @@ func (manager *manager) OutputFormats(filter ...string) []OutputFormat {
 		if muxer == nil {
 			break
 		}
-		if len(filter) == 0 {
-			result = append(result, newOutputFormat(muxer))
-		} else if manager.matchesOutput(muxer, filter...) {
+		if matchesOutput(muxer, filter...) {
 			result = append(result, newOutputFormat(muxer))
 		}
 	}
@@ -135,10 +126,76 @@ func (manager *manager) OutputFormats(filter ...string) []OutputFormat {
 	return result
 }
 
+func (v *inputformat) Name() []string {
+	return strings.Split(v.ctx.Name(), ",")
+}
+
+func (v *inputformat) Description() string {
+	return v.ctx.LongName()
+}
+
+func (v *inputformat) Extensions() []string {
+	result := []string{}
+	for _, ext := range strings.Split(v.ctx.Extensions(), ",") {
+		ext = strings.TrimSpace(ext)
+		if ext != "" {
+			result = append(result, "."+ext)
+		}
+	}
+	return result
+}
+
+func (v *inputformat) MimeTypes() []string {
+	result := []string{}
+	for _, mimetype := range strings.Split(v.ctx.MimeTypes(), ",") {
+		if mimetype != "" {
+			result = append(result, mimetype)
+		}
+	}
+	return result
+}
+
+func (v *inputformat) Type() MediaType {
+	return INPUT
+}
+
+func (v *outputformat) Name() []string {
+	return strings.Split(v.ctx.Name(), ",")
+}
+
+func (v *outputformat) Description() string {
+	return v.ctx.LongName()
+}
+
+func (v *outputformat) Extensions() []string {
+	result := []string{}
+	for _, ext := range strings.Split(v.ctx.Extensions(), ",") {
+		ext = strings.TrimSpace(ext)
+		if ext != "" {
+			result = append(result, "."+ext)
+		}
+	}
+	return result
+}
+
+func (v *outputformat) MimeTypes() []string {
+	result := []string{}
+	for _, mimetype := range strings.Split(v.ctx.MimeTypes(), ",") {
+		if mimetype != "" {
+			result = append(result, mimetype)
+		}
+	}
+	return result
+}
+
+func (v *outputformat) Type() MediaType {
+	return OUTPUT
+}
+
 ////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (this *manager) matchesInput(demuxer *ff.AVInputFormat, mimetype ...string) bool {
+func matchesInput(demuxer *ff.AVInputFormat, mimetype ...string) bool {
 	// Match any
 	if len(mimetype) == 0 {
 		return true
@@ -163,24 +220,27 @@ func (this *manager) matchesInput(demuxer *ff.AVInputFormat, mimetype ...string)
 	return false
 }
 
-func (this *manager) matchesOutput(muxer *ff.AVOutputFormat, mimetype ...string) bool {
+func matchesOutput(muxer *ff.AVOutputFormat, filter ...string) bool {
 	// Match any
-	if len(mimetype) == 0 {
+	if len(filter) == 0 {
 		return true
 	}
 	// Match mimetype
-	for _, mimetype := range mimetype {
-		mimetype = strings.ToLower(strings.TrimSpace(mimetype))
-		if slices.Contains(strings.Split(muxer.Name(), ","), mimetype) {
+	for _, filter := range filter {
+		if filter == "" {
+			continue
+		}
+		filter = strings.ToLower(strings.TrimSpace(filter))
+		if slices.Contains(strings.Split(muxer.Name(), ","), filter) {
 			return true
 		}
-		if strings.HasPrefix(mimetype, ".") {
-			ext := strings.TrimPrefix(mimetype, ".")
-			if slices.Contains(strings.Split(muxer.Extensions(), ","), ext) {
+		if strings.HasPrefix(filter, ".") {
+			if slices.Contains(strings.Split(muxer.Extensions(), ","), filter[1:]) {
 				return true
 			}
 		}
-		if slices.Contains(strings.Split(muxer.MimeTypes(), ","), mimetype) {
+		mt := strings.Split(muxer.MimeTypes(), ",")
+		if slices.Contains(mt, filter) {
 			return true
 		}
 	}
