@@ -44,6 +44,8 @@ test: go-dep
 	@echo Test
 	@${GO} mod tidy
 	@${GO} test ./sys/ffmpeg61
+	@${GO} test ./pkg/...
+	@${GO} test .
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build cmd $(notdir $@)
