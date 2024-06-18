@@ -239,3 +239,14 @@ func (ctx *AVFrame) Int16(plane int) []int16 {
 		return cInt16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
 	}
 }
+
+// Returns the data as a set of planes and strides
+func (ctx *AVFrame) Data() ([][]byte, []int) {
+	planes := make([][]byte, int(C.AV_NUM_DATA_POINTERS))
+	strides := make([]int, int(C.AV_NUM_DATA_POINTERS))
+	for i := 0; i < int(C.AV_NUM_DATA_POINTERS); i++ {
+		planes[i] = ctx.Uint8(i)
+		strides[i] = ctx.Linesize(i)
+	}
+	return planes, strides
+}

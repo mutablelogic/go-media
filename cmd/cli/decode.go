@@ -9,7 +9,7 @@ import (
 )
 
 type DecodeCmd struct {
-	Path string `arg required help:"Media file" type:"path"`
+	Path string `arg:"" required:"" help:"Media file" type:"path"`
 }
 
 func (cmd *DecodeCmd) Run(globals *Globals) error {

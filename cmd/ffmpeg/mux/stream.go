@@ -223,7 +223,7 @@ func alloc_video_frame(pix_fmt ff.AVPixelFormat, width, height int) (*ff.AVFrame
 	frame.SetPixFmt(pix_fmt)
 
 	// allocate the buffers for the frame data
-	if err := ff.AVUtil_frame_get_buffer(frame, 0); err != nil {
+	if err := ff.AVUtil_frame_get_buffer(frame, false); err != nil {
 		ff.AVUtil_frame_free(frame)
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func alloc_audio_frame(sample_fmt ff.AVSampleFormat, channel_layout ff.AVChannel
 	}
 
 	// allocate the buffers for the frame data
-	if err := ff.AVUtil_frame_get_buffer(frame, 0); err != nil {
+	if err := ff.AVUtil_frame_get_buffer(frame, false); err != nil {
 		ff.AVUtil_frame_free(frame)
 		return nil, err
 	}

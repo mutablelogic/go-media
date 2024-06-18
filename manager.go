@@ -15,20 +15,21 @@ import (
 type manager struct {
 }
 
-type inputformat struct {
-	ctx         *ff.AVInputFormat
-	Name        string `json:"name"`
+type formatmeta struct {
+	Name        string `json:"name" writer:",width:25"`
 	Description string `json:"description" writer:",wrap,width:40"`
 	Extensions  string `json:"extensions,omitempty"`
 	MimeTypes   string `json:"mimetypes,omitempty"`
 }
 
+type inputformat struct {
+	formatmeta
+	ctx *ff.AVInputFormat
+}
+
 type outputformat struct {
-	ctx         *ff.AVOutputFormat
-	Name        string `json:"name"`
-	Description string `json:"description" writer:",wrap,width:40"`
-	Extensions  string `json:"extensions,omitempty"`
-	MimeTypes   string `json:"mimetypes,omitempty"`
+	formatmeta
+	ctx *ff.AVOutputFormat
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -40,21 +41,25 @@ func NewManager() *manager {
 
 func newInputFormat(ctx *ff.AVInputFormat) *inputformat {
 	return &inputformat{
-		ctx:         ctx,
-		Name:        ctx.Name(),
-		Description: ctx.LongName(),
-		Extensions:  ctx.Extensions(),
-		MimeTypes:   ctx.MimeTypes(),
+		ctx: ctx,
+		formatmeta: formatmeta{
+			Name:        ctx.Name(),
+			Description: ctx.LongName(),
+			Extensions:  ctx.Extensions(),
+			MimeTypes:   ctx.MimeTypes(),
+		},
 	}
 }
 
 func newOutputFormat(ctx *ff.AVOutputFormat) *outputformat {
 	return &outputformat{
-		ctx:         ctx,
-		Name:        ctx.Name(),
-		Description: ctx.LongName(),
-		Extensions:  ctx.Extensions(),
-		MimeTypes:   ctx.MimeTypes(),
+		ctx: ctx,
+		formatmeta: formatmeta{
+			Name:        ctx.Name(),
+			Description: ctx.LongName(),
+			Extensions:  ctx.Extensions(),
+			MimeTypes:   ctx.MimeTypes(),
+		},
 	}
 }
 
