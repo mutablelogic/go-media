@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"syscall"
 
 	// Packages
@@ -37,20 +38,29 @@ const (
 // LIFECYCLE
 
 // Open a reader from a url, file path or device
-func Open(url string, format Format) (*reader, error) {
+func Open(url string, format Format, opts ...string) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
 
 	// Set the input format
-	var fmt *ff.AVInputFormat
+	var f *ff.AVInputFormat
 	if format != nil {
 		if inputfmt, ok := format.(*inputformat); ok {
-			fmt = inputfmt.ctx
+			f = inputfmt.ctx
+		}
+	}
+
+	// Get the options
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	if len(opts) > 0 {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", 0); err != nil {
+			return nil, err
 		}
 	}
 
 	// Open the device or stream
-	if ctx, err := ff.AVFormat_open_url(url, fmt, nil); err != nil {
+	if ctx, err := ff.AVFormat_open_url(url, f, dict); err != nil {
 		return nil, err
 	} else {
 		reader.input = ctx
@@ -61,7 +71,7 @@ func Open(url string, format Format) (*reader, error) {
 }
 
 // Create a new reader from an io.Reader
-func NewReader(r io.Reader, format Format) (*reader, error) {
+func NewReader(r io.Reader, format Format, opts ...string) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
 
@@ -73,6 +83,15 @@ func NewReader(r io.Reader, format Format) (*reader, error) {
 		}
 	}
 
+	// Get the options
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	if len(opts) > 0 {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", 0); err != nil {
+			return nil, err
+		}
+	}
+
 	// Allocate the AVIO context
 	reader.avio = ff.AVFormat_avio_alloc_context(bufSize, false, &reader_callback{r})
 	if reader.avio == nil {
@@ -80,7 +99,7 @@ func NewReader(r io.Reader, format Format) (*reader, error) {
 	}
 
 	// Open the stream
-	if ctx, err := ff.AVFormat_open_reader(reader.avio, fmt, nil); err != nil {
+	if ctx, err := ff.AVFormat_open_reader(reader.avio, fmt, dict); err != nil {
 		ff.AVFormat_avio_context_free(reader.avio)
 		return nil, err
 	} else {

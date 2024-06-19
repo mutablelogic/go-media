@@ -10,9 +10,8 @@ import (
 )
 
 type ProbeCmd struct {
-	Path  string `arg:"" required:"" help:"Media file or device name" type:"string"`
-	Audio bool   `name:"audio" short:"a" help:"Probe audio stream" type:"bool"`
-	Video bool   `name:"video" short:"v" help:"Probe video stream" type:"bool"`
+	Path string `arg:"" required:"" help:"Media file or device name" type:"string"`
+	Opts string `name:"opts" short:"o" help:"Options for opening the media file or device, (ie, \"framerate=30 video_size=176x144\")"`
 }
 
 var (
@@ -24,26 +23,18 @@ func (cmd *ProbeCmd) Run(globals *Globals) error {
 
 	manager := media.NewManager()
 	filter := media.NONE
-	if cmd.Audio {
-		filter |= media.AUDIO
-	}
-	if cmd.Video {
-		filter |= media.VIDEO
-	}
 
 	// Try device first
 	if m := reDevice.FindStringSubmatch(cmd.Path); m != nil {
 		cmd.Path = m[2]
 		fmts := manager.InputFormats(filter|media.DEVICE, m[1])
-		if len(fmts) == 1 {
+		if len(fmts) > 0 {
 			format = fmts[0]
-		} else if len(fmts) > 1 {
-			return fmt.Errorf("ambigious device name %q, use -audio or -video", m[1])
 		}
 	}
 
 	// Open the media file or device
-	reader, err := manager.Open(cmd.Path, format)
+	reader, err := manager.Open(cmd.Path, format, cmd.Opts)
 	if err != nil {
 		return err
 	}

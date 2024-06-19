@@ -110,6 +110,23 @@ func AVUtil_dict_entries(dict *AVDictionary) []*AVDictionaryEntry {
 	return result
 }
 
+// Parse the key/value pairs list and add the parsed entries to a dictionary.
+func AVUtil_dict_parse_string(dict *AVDictionary, opts, key_value_sep, pairs_sep string, flags AVDictionaryFlag) error {
+	if dict == nil {
+		return nil
+	}
+	cOpts, cTupleSep, cKeyValueSep := C.CString(opts), C.CString(pairs_sep), C.CString(key_value_sep)
+	defer C.free(unsafe.Pointer(cOpts))
+	defer C.free(unsafe.Pointer(cTupleSep))
+	defer C.free(unsafe.Pointer(cKeyValueSep))
+	if err := AVError(C.av_dict_parse_string(&dict.ctx, cOpts, cKeyValueSep, cTupleSep, C.int(flags))); err != 0 {
+		return err
+	}
+
+	// Success
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // DICTIONARY ENTRY
 

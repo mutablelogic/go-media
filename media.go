@@ -25,13 +25,13 @@ type Manager interface {
 	// Open a media file for reading, from a path or url. If a format is
 	// specified, then the format will be used to open the file. Close the
 	// media object when done.
-	Open(string, Format) (Media, error)
+	Open(string, Format, ...string) (Media, error)
 
 	// Open a media stream for reading.  If a format is
 	// specified, then the format will be used to open the file. Close the
 	// media object when done. It is the responsibility of the caller to
 	// also close the reader when done.
-	Read(io.Reader, Format) (Media, error)
+	Read(io.Reader, Format, ...string) (Media, error)
 
 	// Create a media file for writing, from a path. If a format is
 	// specified, then the format will be used to create the file. Close

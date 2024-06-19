@@ -248,13 +248,13 @@ func (manager *manager) OutputDevices(format string) []Device {
 }
 
 // Open a media file or device for reading, from a path or url.
-func (manager *manager) Open(url string, format Format) (Media, error) {
-	return Open(url, format)
+func (manager *manager) Open(url string, format Format, opts ...string) (Media, error) {
+	return Open(url, format, opts...)
 }
 
 // Open a media stream for reading.
-func (manager *manager) Read(r io.Reader, format Format) (Media, error) {
-	return NewReader(r, format)
+func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media, error) {
+	return NewReader(r, format, opts...)
 }
 
 // Create a media file for writing, from a path.
