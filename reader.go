@@ -78,6 +78,9 @@ func NewReader(r io.Reader, format Format, opts ...string) (*reader, error) {
 	// Set the input format
 	var fmt *ff.AVInputFormat
 	if format != nil {
+		if format.Type().Is(DEVICE) {
+			return nil, errors.New("cannot create a reader from a device")
+		}
 		if inputfmt, ok := format.(*inputformat); ok {
 			fmt = inputfmt.ctx
 		}
