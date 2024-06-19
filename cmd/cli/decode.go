@@ -20,7 +20,7 @@ func (cmd *DecodeCmd) Run(globals *Globals) error {
 
 	manager := media.NewManager()
 	if cmd.Format != "" {
-		if formats := manager.InputFormats(cmd.Format); len(formats) == 0 {
+		if formats := manager.InputFormats(media.NONE, cmd.Format); len(formats) == 0 {
 			return fmt.Errorf("unknown format %q", cmd.Format)
 		} else if len(formats) > 1 {
 			return fmt.Errorf("ambiguous format %q", cmd.Format)

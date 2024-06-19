@@ -36,8 +36,7 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Open a reader from a url or file path, and either use the mimetype or guess
-// the format otherwise. Returns a media object.
+// Open a reader from a url, file path or device
 func Open(url string, format Format) (*reader, error) {
 	reader := new(reader)
 	reader.decoders = make(map[int]*decoder)
@@ -50,7 +49,7 @@ func Open(url string, format Format) (*reader, error) {
 		}
 	}
 
-	// Open the stream
+	// Open the device or stream
 	if ctx, err := ff.AVFormat_open_url(url, fmt, nil); err != nil {
 		return nil, err
 	} else {

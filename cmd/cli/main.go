@@ -18,6 +18,7 @@ type CLI struct {
 	Demuxers DemuxersCmd `cmd:"demuxers" help:"List media demultiplex (input) formats"`
 	Muxers   MuxersCmd   `cmd:"muxers" help:"List media multiplex (output) formats"`
 	Metadata MetadataCmd `cmd:"metadata" help:"Display media metadata information"`
+	Probe    ProbeCmd    `cmd:"probe" help:"Probe media file or device"`
 	Decode   DecodeCmd   `cmd:"decode" help:"Decode media"`
 }
 

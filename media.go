@@ -7,12 +7,20 @@ import "io"
 // object using the NewManager function.
 type Manager interface {
 	// Return supported input formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype.
-	InputFormats(...string) []Format
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	InputFormats(MediaType, ...string) []Format
 
 	// Return supported output formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype.
-	OutputFormats(...string) []Format
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	OutputFormats(MediaType, ...string) []Format
+
+	// Return supported input devices for a given name
+	InputDevices(string) []Device
+
+	// Return supported output devices for a given name
+	OutputDevices(string) []Device
 
 	// Open a media file for reading, from a path or url. If a format is
 	// specified, then the format will be used to open the file. Close the
@@ -37,6 +45,21 @@ type Manager interface {
 	Write(io.Writer, Format) (Media, error)
 }
 
+// Device represents a device for input or output of media streams.
+type Device interface {
+	// Device name, format depends on the device
+	Name() string
+
+	// Description of the device
+	Description() string
+
+	// Flags indicating the type
+	Type() MediaType
+
+	// Whether this is the default device
+	Default() bool
+}
+
 // Format represents a container format for input or output of media streams.
 type Format interface {
 	// Name(s) of the format
@@ -51,7 +74,7 @@ type Format interface {
 	// MimeTypes associated with the format
 	MimeTypes() []string
 
-	// INPUT for a demuxer, OUTPUT for a muxer
+	// Flags indicating the type. INPUT for a demuxer or source, OUTPUT for a muxer or sink, DEVICE for a device, FILE for a file.
 	Type() MediaType
 }
 

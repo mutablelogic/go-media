@@ -8,7 +8,10 @@ package ffmpeg
 #include <libavdevice/avdevice.h>
 */
 import "C"
-import "unsafe"
+import (
+	"fmt"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
@@ -33,22 +36,33 @@ func AVDevice_input_video_device_next(d *AVInputFormat) *AVInputFormat {
 	return (*AVInputFormat)(C.av_input_video_device_next((*C.struct_AVInputFormat)(d)))
 }
 
-// List devices. Returns available device names and their parameters.
-// device format may be nil if device name is set.
+// List devices. Returns available device names and their parameters, or nil if the
+// enumeration of devices is not supported.
+// Device format may be nil if device name is set. Call AVDevice_free_list_devices
+// to free resources afterwards.
 func AVDevice_list_input_sources(device *AVInputFormat, device_name string, device_options *AVDictionary) (*AVDeviceInfoList, error) {
+	// Return nil if the devices does not implement the get_device_list function
+	if device != nil && device.get_device_list == nil {
+		return nil, nil
+	}
+
+	// Prepare name
 	cName := C.CString(device_name)
 	defer C.free(unsafe.Pointer(cName))
 
+	// Prepare dictionary
 	var dict *C.struct_AVDictionary
 	if device_options != nil {
 		dict = device_options.ctx
 	}
+
+	// Get list
 	var list *C.struct_AVDeviceInfoList
 	if ret := int(C.avdevice_list_input_sources((*C.struct_AVInputFormat)(device), cName, dict, &list)); ret < 0 {
+		fmt.Println("C list", device, cName, dict, list, ret)
 		return nil, AVError(ret)
-	} else if ret == 0 {
-		return nil, nil
-	} else {
-		return (*AVDeviceInfoList)(list), nil
 	}
+
+	// Return success
+	return (*AVDeviceInfoList)(list), nil
 }

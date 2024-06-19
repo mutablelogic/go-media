@@ -21,9 +21,9 @@ func (cmd *MuxersCmd) Run(globals *Globals) error {
 	manager := media.NewManager()
 	var formats []media.Format
 	if cmd.Filter == "" {
-		formats = manager.InputFormats()
+		formats = manager.OutputFormats(media.ANY)
 	} else {
-		formats = manager.InputFormats(cmd.Filter)
+		formats = manager.OutputFormats(media.ANY, cmd.Filter)
 	}
 	return Run(cmd.Filter, formats)
 }
@@ -32,9 +32,9 @@ func (cmd *DemuxersCmd) Run(globals *Globals) error {
 	manager := media.NewManager()
 	var formats []media.Format
 	if cmd.Filter == "" {
-		formats = manager.InputFormats()
+		formats = manager.InputFormats(media.ANY)
 	} else {
-		formats = manager.InputFormats(cmd.Filter)
+		formats = manager.InputFormats(media.ANY, cmd.Filter)
 	}
 	return Run(cmd.Filter, formats)
 }

@@ -2,6 +2,7 @@ package media
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -20,10 +21,11 @@ type manager struct {
 }
 
 type formatmeta struct {
-	Name        string `json:"name" writer:",width:25"`
-	Description string `json:"description" writer:",wrap,width:40"`
-	Extensions  string `json:"extensions,omitempty"`
-	MimeTypes   string `json:"mimetypes,omitempty" writer:",wrap,width:40"`
+	Name        string    `json:"name" writer:",width:25"`
+	Description string    `json:"description" writer:",wrap,width:40"`
+	Extensions  string    `json:"extensions,omitempty"`
+	MimeTypes   string    `json:"mimetypes,omitempty" writer:",wrap,width:40"`
+	MediaType   MediaType `json:"type,omitempty" writer:",wrap,width:21"`
 }
 
 type inputformat struct {
@@ -36,6 +38,14 @@ type outputformat struct {
 	ctx *ff.AVOutputFormat
 }
 
+type device struct {
+	Format      string    `json:"format"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Default     bool      `json:"default,omitempty"`
+	MediaType   MediaType `json:"type,omitempty" writer:",wrap,width:21"`
+}
+
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -43,21 +53,43 @@ func NewManager() Manager {
 	return new(manager)
 }
 
-func newInputFormat(ctx *ff.AVInputFormat) *inputformat {
+func newInputFormat(ctx *ff.AVInputFormat, t MediaType) *inputformat {
 	v := &inputformat{ctx: ctx}
 	v.formatmeta.Name = strings.Join(v.Name(), " ")
 	v.formatmeta.Description = v.Description()
 	v.formatmeta.Extensions = strings.Join(v.Extensions(), " ")
 	v.formatmeta.MimeTypes = strings.Join(v.MimeTypes(), " ")
+	v.formatmeta.MediaType = INPUT | t
 	return v
 }
 
-func newOutputFormat(ctx *ff.AVOutputFormat) *outputformat {
+func newOutputFormat(ctx *ff.AVOutputFormat, t MediaType) *outputformat {
 	v := &outputformat{ctx: ctx}
 	v.formatmeta.Name = strings.Join(v.Name(), " ")
 	v.formatmeta.Description = v.Description()
 	v.formatmeta.Extensions = strings.Join(v.Extensions(), " ")
 	v.formatmeta.MimeTypes = strings.Join(v.MimeTypes(), " ")
+	v.formatmeta.MediaType = OUTPUT | t
+	return v
+}
+
+func newInputDevice(ctx *ff.AVInputFormat, d *ff.AVDeviceInfo, t MediaType, def bool) *device {
+	v := &device{}
+	v.Format = ctx.Name()
+	v.Name = d.Name()
+	v.Description = d.Description()
+	v.Default = def
+	v.MediaType = INPUT | t
+	return v
+}
+
+func newOutputDevice(ctx *ff.AVOutputFormat, d *ff.AVDeviceInfo, t MediaType, def bool) *device {
+	v := &device{}
+	v.Format = ctx.Name()
+	v.Name = d.Name()
+	v.Description = d.Description()
+	v.Default = def
+	v.MediaType = OUTPUT | t
 	return v
 }
 
@@ -87,19 +119,47 @@ func (v *outputformat) String() string {
 
 // Return the list of matching input formats, optionally filtering by name,
 // extension or mimetype File extensions should be prefixed with a dot,
-// e.g. ".mp4"
-func (manager *manager) InputFormats(filter ...string) []Format {
+// e.g. ".mp4". The media type can be NONE (for any) or combinations of
+// STREAM, DEVICE.
+func (manager *manager) InputFormats(t MediaType, filter ...string) []Format {
 	var result []Format
 
 	// Iterate over all input formats
-	var opaque uintptr
-	for {
-		demuxer := ff.AVFormat_demuxer_iterate(&opaque)
-		if demuxer == nil {
-			break
+	if t == NONE || t.Is(FILE) {
+		var opaque uintptr
+		for {
+			demuxer := ff.AVFormat_demuxer_iterate(&opaque)
+			if demuxer == nil {
+				break
+			}
+			if matchesInput(demuxer, t, filter...) {
+				result = append(result, newInputFormat(demuxer, FILE))
+			}
 		}
-		if matchesInput(demuxer, filter...) {
-			result = append(result, newInputFormat(demuxer))
+	}
+
+	if t == NONE || t.Is(DEVICE) {
+		// Iterate over all device inputs
+		audio := ff.AVDevice_input_audio_device_first()
+		for {
+			if audio == nil {
+				break
+			}
+			if matchesInput(audio, t, filter...) {
+				result = append(result, newInputFormat(audio, AUDIO|DEVICE))
+			}
+			audio = ff.AVDevice_input_audio_device_next(audio)
+		}
+
+		video := ff.AVDevice_input_video_device_first()
+		for {
+			if video == nil {
+				break
+			}
+			if matchesInput(video, t, filter...) {
+				result = append(result, newInputFormat(video, VIDEO|DEVICE))
+			}
+			video = ff.AVDevice_input_video_device_next(video)
 		}
 	}
 
@@ -109,19 +169,47 @@ func (manager *manager) InputFormats(filter ...string) []Format {
 
 // Return the list of matching output formats, optionally filtering by name,
 // extension or mimetype File extensions should be prefixed with a dot,
-// e.g. ".mp4"
-func (manager *manager) OutputFormats(filter ...string) []Format {
+// e.g. ".mp4". The media type can be NONE (for any) or combinations of
+// STREAM, DEVICE.
+func (manager *manager) OutputFormats(t MediaType, filter ...string) []Format {
 	var result []Format
 
 	// Iterate over all output formats
-	var opaque uintptr
-	for {
-		muxer := ff.AVFormat_muxer_iterate(&opaque)
-		if muxer == nil {
-			break
+	if t == NONE || t.Is(FILE) {
+		var opaque uintptr
+		for {
+			muxer := ff.AVFormat_muxer_iterate(&opaque)
+			if muxer == nil {
+				break
+			}
+			if matchesOutput(muxer, t, filter...) {
+				result = append(result, newOutputFormat(muxer, FILE))
+			}
 		}
-		if matchesOutput(muxer, filter...) {
-			result = append(result, newOutputFormat(muxer))
+	}
+
+	// Iterate over all device outputs
+	if t == NONE || t.Is(DEVICE) {
+		audio := ff.AVDevice_output_audio_device_first()
+		for {
+			if audio == nil {
+				break
+			}
+			if matchesOutput(audio, t, filter...) {
+				result = append(result, newOutputFormat(audio, AUDIO|DEVICE))
+			}
+			audio = ff.AVDevice_output_audio_device_next(audio)
+		}
+
+		video := ff.AVDevice_output_video_device_first()
+		for {
+			if video == nil {
+				break
+			}
+			if matchesOutput(video, t, filter...) {
+				result = append(result, newOutputFormat(video, VIDEO|DEVICE))
+			}
+			video = ff.AVDevice_output_video_device_next(video)
 		}
 	}
 
@@ -129,7 +217,37 @@ func (manager *manager) OutputFormats(filter ...string) []Format {
 	return result
 }
 
-// Open a media file for reading
+// Return supported input devices for a given input format
+func (manager *manager) InputDevices(format string) []Device {
+	input := ff.AVFormat_find_input_format(format)
+	if input == nil {
+		return nil
+	}
+
+	device_list, err := ff.AVDevice_list_input_sources(input, format, nil)
+	if err != nil {
+		panic(err)
+	}
+	if device_list == nil {
+		return nil
+	}
+	defer ff.AVDevice_free_list_devices(device_list)
+
+	// Iterate over devices
+	result := make([]Device, 0, device_list.NumDevices())
+	for i, device := range device_list.Devices() {
+		fmt.Println(i, device)
+	}
+
+	return result
+}
+
+// Return supported output devices for a given name
+func (manager *manager) OutputDevices(format string) []Device {
+	panic("TODO")
+}
+
+// Open a media file or device for reading, from a path or url.
 func (manager *manager) Open(url string, format Format) (Media, error) {
 	return Open(url, format)
 }
@@ -218,9 +336,11 @@ func (v *outputformat) Type() MediaType {
 ////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func matchesInput(demuxer *ff.AVInputFormat, mimetype ...string) bool {
+func matchesInput(demuxer *ff.AVInputFormat, media_type MediaType, mimetype ...string) bool {
+	// TODO: media_type
+
 	// Match any
-	if len(mimetype) == 0 {
+	if len(mimetype) == 0 && media_type == ANY {
 		return true
 	}
 	// Match mimetype
@@ -243,9 +363,11 @@ func matchesInput(demuxer *ff.AVInputFormat, mimetype ...string) bool {
 	return false
 }
 
-func matchesOutput(muxer *ff.AVOutputFormat, filter ...string) bool {
+func matchesOutput(muxer *ff.AVOutputFormat, media_type MediaType, filter ...string) bool {
+	// TODO: media_type
+
 	// Match any
-	if len(filter) == 0 {
+	if len(filter) == 0 && media_type == ANY {
 		return true
 	}
 	// Match mimetype

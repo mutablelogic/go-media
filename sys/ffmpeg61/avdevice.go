@@ -75,6 +75,18 @@ func (ctx *AVDeviceInfoList) Devices() []*AVDeviceInfo {
 	return cAVDeviceInfoSlice(unsafe.Pointer(ctx.devices), ctx.nb_devices)
 }
 
+func (ctx *AVDeviceInfoList) NumDevices() int {
+	return int(ctx.nb_devices)
+}
+
+func (ctx *AVDeviceInfo) Name() string {
+	return C.GoString(ctx.device_name)
+}
+
+func (ctx *AVDeviceInfo) Description() string {
+	return C.GoString(ctx.device_description)
+}
+
 func (ctx *AVDeviceInfo) MediaTypes() []AVMediaType {
 	return cAVMediaTypeSlice(unsafe.Pointer(ctx.media_types), ctx.nb_media_types)
 }

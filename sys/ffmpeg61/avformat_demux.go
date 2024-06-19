@@ -69,7 +69,24 @@ func AVFormat_open_url(url string, format *AVInputFormat, options *AVDictionary)
 
 // Open an input stream from a device.
 func AVFormat_open_device(format *AVInputFormat, options *AVDictionary) (*AVFormatContext, error) {
-	return AVFormat_open_url("", format, options)
+	var opts **C.struct_AVDictionary
+	if options != nil {
+		opts = &options.ctx
+	}
+
+	// Allocate a context
+	ctx := AVFormat_alloc_context()
+	if ctx == nil {
+		return nil, AVError(syscall.ENOMEM)
+	}
+
+	// Open the device
+	if err := AVError(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), nil, (*C.struct_AVInputFormat)(format), opts)); err != 0 {
+		return nil, err
+	}
+
+	// Return success
+	return ctx, nil
 }
 
 // Close an opened input AVFormatContext, free it and all its contents.
