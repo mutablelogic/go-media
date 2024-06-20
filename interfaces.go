@@ -23,10 +23,14 @@ type Manager interface {
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
 	OutputFormats(MediaType, ...string) []Format
 
-	// Return supported input devices for a given name
+	// Return supported input devices for a given format name
+	// Not all devices may be supported on all platforms or listed
+	// if the device does not support enumeration.
 	InputDevices(string) []Device
 
-	// Return supported output devices for a given name
+	// Return supported output devices for a given format name
+	// Not all devices may be supported on all platforms or listed
+	// if the device does not support enumeration.
 	OutputDevices(string) []Device
 
 	// Open a media file or device for reading, from a path or url.
@@ -43,17 +47,36 @@ type Manager interface {
 	// Create a media file or device for writing, from a path. If a format is
 	// specified, then the format will be used to create the file. Close
 	// the media object when done.
+	// TODO
 	Create(string, Format) (Media, error)
 
 	// Create a media stream for writing. If a format is
 	// specified, then the format will be used to create the file.
 	// Close the media object when done. It is the responsibility of the caller to
 	// also close the writer when done.
+	// TODO
 	Write(io.Writer, Format) (Media, error)
 
 	// Return version information for the media manager as a set of
 	// metadata
 	Version() []Metadata
+
+	// Return all supported channel layouts
+	ChannelLayouts() []Metadata
+
+	// Return all supported sample formats
+	SampleFormats() []Metadata
+
+	// Return all supported  pixel formats
+	PixelFormats() []Metadata
+
+	// Return audio parameters for encoding
+	// ChannelLayout, SampleFormat, SampleRate
+	AudioParameters(string, string, int) (AudioParameters, error)
+
+	// Return video parameters for encoding
+	// Width, Height, PixelFormat, FrameRate
+	VideoParameters(int, int, string, int) (VideoParameters, error)
 }
 
 // Device represents a device for input or output of media streams.
@@ -73,6 +96,7 @@ type Device interface {
 }
 
 // Format represents a container format for input or output of media streams.
+// Use the manager object to get a list of supported formats.
 type Format interface {
 	// Name(s) of the format
 	Name() []string
@@ -93,7 +117,7 @@ type Format interface {
 }
 
 // Media represents a media stream, which can be input or output. A new media
-// object is created using Open, Read, Write or Create.
+// object is created using the Manager object
 type Media interface {
 	io.Closer
 
@@ -110,8 +134,9 @@ type Media interface {
 	Metadata() []Metadata
 }
 
-// Return true if a the stream should be decoded
-type DecoderMapFunc func(Stream) bool
+// Return encoding parameters if a the stream should be decoded
+// and either resampled or resized
+type DecoderMapFunc func(Stream) Parameters
 
 // Decoder represents a decoder for a media stream.
 type Decoder interface {
@@ -129,6 +154,42 @@ type Decoder interface {
 	*/
 }
 
+// Parameters represents a set of parameters for encoding
+type Parameters interface {
+	AudioParameters
+	VideoParameters
+
+	// Return the media type (AUDIO, VIDEO, SUBTITLE, DATA)
+	Type() MediaType
+}
+
+// Audio parameters for encoding or decoding audio data.
+type AudioParameters interface {
+	// Return the channel layout
+	ChannelLayout() string
+
+	// Return the sample format
+	SampleFormat() string
+
+	// Return the sample rate (Hz)
+	SampleRate() int
+}
+
+// Video parameters for encoding or decoding video data.
+type VideoParameters interface {
+	// Return the width of the video frame
+	Width() int
+
+	// Return the height of the video frame
+	Height() int
+
+	// Return the pixel format
+	PixelFormat() string
+
+	// Return the frame rate (fps)
+	FrameRate() int
+}
+
 // DecoderFunc is a function that decodes a packet
 type DecoderFunc func(Packet) error
 
@@ -137,11 +198,18 @@ type DecoderFunc func(Packet) error
 type FrameFunc func(Frame) error
 
 // Packet represents a packet of demultiplexed data.
+// Currently this is quite opaque!
 type Packet interface{}
 
 // Stream represents a audio, video, subtitle or data stream
 // within a media file
-type Stream interface{}
+type Stream interface {
+	// Return AUDIO, VIDEO, SUBTITLE or DATA
+	Type() MediaType
+
+	// Return the stream parameters
+	Parameters() Parameters
+}
 
 // Frame represents a frame of audio or picture data.
 type Frame interface{}
