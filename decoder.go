@@ -1,13 +1,12 @@
 package media
 
 import (
-	// Packages
-
 	"context"
 	"errors"
 	"fmt"
 	"io"
 
+	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 

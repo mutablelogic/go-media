@@ -134,14 +134,14 @@ type Media interface {
 	Metadata() []Metadata
 }
 
-// Return encoding parameters if a the stream should be decoded
-// and either resampled or resized
-type DecoderMapFunc func(Stream) Parameters
+// Return parameters if a the stream should be decoded
+// and either resampled or resized. Return nil if you
+// don't want to resample or resize the stream.
+type DecoderMapFunc func(Stream) (Parameters, error)
 
 // Decoder represents a decoder for a media stream.
 type Decoder interface {
 	// Demultiplex media into packets. Pass a packet to a decoder function.
-	// TODO
 	// Stop when the context is cancelled or the end of the media stream is
 	// reached.
 	Demux(context.Context, DecoderFunc) error
