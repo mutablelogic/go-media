@@ -136,22 +136,34 @@ type Media interface {
 
 // Return parameters if a the stream should be decoded
 // and either resampled or resized. Return nil if you
-// don't want to resample or resize the stream.
+// want to ignore the stream, or pass identical stream
+// parameters (stream.Parameters()) if you want to copy
+// the stream without any changes.
 type DecoderMapFunc func(Stream) (Parameters, error)
 
-// Decoder represents a decoder for a media stream.
+// Stream represents a audio, video, subtitle or data stream
+// within a media file
+type Stream interface {
+	// Return AUDIO, VIDEO, SUBTITLE or DATA
+	Type() MediaType
+
+	// Return the stream parameters
+	Parameters() Parameters
+}
+
+// Decoder represents a demuliplexer and decoder for a media stream.
+// You can call either Demux or Decode to process the media stream,
+// but not both.
 type Decoder interface {
 	// Demultiplex media into packets. Pass a packet to a decoder function.
 	// Stop when the context is cancelled or the end of the media stream is
 	// reached.
 	Demux(context.Context, DecoderFunc) error
 
-	/*
-	   // Return a decode function, which can rescale or
-	   // resample a frame and then call a frame processing
-	   // function for encoding and multiplexing.
-	   Decode(FrameFunc) DecoderFunc
-	*/
+	// Decode media into frames, and resample or resize the frame.
+	// Stop when the context is cancelled or the end of the media stream is
+	// reached.
+	Decode(context.Context, FrameFunc) error
 }
 
 // Parameters represents a set of parameters for encoding
@@ -173,6 +185,9 @@ type AudioParameters interface {
 
 	// Return the sample rate (Hz)
 	SampleRate() int
+
+	// TODO:
+	// Planar, number of planes, bits and bytes per sample
 }
 
 // Video parameters for encoding or decoding video data.
@@ -188,31 +203,29 @@ type VideoParameters interface {
 
 	// Return the frame rate (fps)
 	FrameRate() int
+
+	// TODO:
+	// Planar, number of planes, names of the planes, bits and bytes per pixel
 }
 
-// DecoderFunc is a function that decodes a packet
+// DecoderFunc is a function that decodes a packet. Return
+// io.EOF if you want to stop processing the packets early.
 type DecoderFunc func(Packet) error
 
 // FrameFunc is a function that processes a frame of audio
-// or video data.
+// or video data.  Return io.EOF if you want to stop
+// processing the frames early.
 type FrameFunc func(Frame) error
 
 // Packet represents a packet of demultiplexed data.
 // Currently this is quite opaque!
 type Packet interface{}
 
-// Stream represents a audio, video, subtitle or data stream
-// within a media file
-type Stream interface {
-	// Return AUDIO, VIDEO, SUBTITLE or DATA
-	Type() MediaType
-
-	// Return the stream parameters
-	Parameters() Parameters
-}
-
 // Frame represents a frame of audio or picture data.
+// Currently this is quite opaque - should allow access to
+// the audio sample data, or the individual pixel data!
 type Frame interface{}
 
 // Metadata represents a metadata entry for a media stream.
+// Currently this is quite opaque!
 type Metadata interface{}
