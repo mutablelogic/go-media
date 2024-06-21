@@ -225,7 +225,7 @@ func (d *demuxer) Decode(context.Context, FrameFunc) error {
 func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
 	// Send the packet to the user defined packet function or
 	// to the default version
-	return fn(packet)
+	return fn(newPacket(packet))
 }
 
 /*

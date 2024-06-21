@@ -39,5 +39,5 @@ func (stream *stream) Type() MediaType {
 
 func (stream *stream) Parameters() Parameters {
 	// TODO
-	return nil
+	return new(par)
 }

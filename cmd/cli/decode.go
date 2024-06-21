@@ -1,10 +1,12 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
+	"os"
 
 	// Packages
+	"github.com/djthorpe/go-tablewriter"
 	"github.com/mutablelogic/go-media"
 )
 
@@ -29,14 +31,31 @@ func (cmd *DecodeCmd) Run(globals *Globals) error {
 		}
 	}
 
+	// Open media file
 	reader, err := manager.Open(cmd.Path, format)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
 
-	data, _ := json.MarshalIndent(reader, "", "  ")
-	fmt.Println(string(data))
+	// Create a decoder - copy streams
+	decoder, err := reader.Decoder(nil)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	// Demultiplex the stream
+	header := []tablewriter.TableOpt{tablewriter.OptHeader()}
+	tablewriter := tablewriter.New(os.Stdout, tablewriter.OptOutputText())
+	return decoder.Demux(context.Background(), func(packet media.Packet) error {
+		if packet == nil {
+			return nil
+		}
+		if err := tablewriter.Write(packet, header...); err != nil {
+			return err
+		}
+		// Reset the header
+		header = header[:0]
+		return nil
+	})
 }
