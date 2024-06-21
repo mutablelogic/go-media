@@ -49,6 +49,24 @@ func (v AVSampleFormat) MarshalJSON() ([]byte, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 
+// Enumerate sample formats
+func AVUtil_next_sample_fmt(iterator *uintptr) AVSampleFormat {
+	if iterator == nil {
+		return AV_SAMPLE_FMT_NONE
+	}
+
+	// Increment the iterator
+	*iterator += 1
+
+	// Check for end of enumeration
+	if AVSampleFormat(*iterator) == AV_SAMPLE_FMT_NB {
+		return AV_SAMPLE_FMT_NONE
+	}
+
+	// Return the sample format
+	return AVSampleFormat(*iterator)
+}
+
 // Return the name of sample_fmt, or empty string if sample_fmt is not recognized
 func AVUtil_get_sample_fmt_name(sample_fmt AVSampleFormat) string {
 	return C.GoString(C.av_get_sample_fmt_name(C.enum_AVSampleFormat(sample_fmt)))

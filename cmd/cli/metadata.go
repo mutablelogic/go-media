@@ -14,7 +14,8 @@ type MetadataCmd struct {
 }
 
 func (cmd *MetadataCmd) Run(globals *Globals) error {
-	reader, err := media.Open(cmd.Path, "")
+	manager := media.NewManager()
+	reader, err := manager.Open(cmd.Path, nil)
 	if err != nil {
 		return err
 	}

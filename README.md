@@ -46,9 +46,79 @@ DOCKER_REGISTRY=ghcr.io/mutablelogic make docker
 
 ## Examples
 
-## Media Transcoding
+There are a variety of types of object needed as part of media processing.
+All examples require a `Manager` to be created, which is used to enumerate all supported formats
+and open media files and byte streams.
 
-## Audio Fingerprinting
+* `Manager` is the main entry point for the package. It is used to open media files and byte streams,
+  and enumerate supported formats, codecs, pixel formats, etc.
+* `Media` is a hardware device, file or byte stream. It contains metadata, artwork, and streams.
+* `Decoder` is used to demultiplex media streams. Create a decoder and enumerate the streams which
+  you'd like to demultiplex. Provide the audio and video parameters if you want to resample or
+  reformat the streams.
+* `Encoder` is used to multiplex media streams. Create an encoder and send the output of the
+  decoder to reencode the streams.
+
+### Demultiplexing
+
+```go
+import (
+  media "github.com/mutablelogic/go-media"
+)
+
+func main() {
+  manager := media.NewManager()
+
+  // Open a media file for reading. The format of the file is guessed.
+  // Alteratively, you can pass a format as the second argument. Further optional
+  // arguments can be used to set the format options.
+  file, err := manager.Open(os.Args[1], nil)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer file.Close()
+
+  // Choose which streams to demultiplex - pass the stream parameters
+  // to the decoder. If you don't want to resample or reformat the streams,
+  // then you can pass nil as the function and all streams will be demultiplexed.
+  decoder, err := file.Decoder(func (stream media.Stream) (media.Parameters, error) {
+    return stream.Parameters(), nil
+  }
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  // Demuliplex the stream and receive the packets. If you don't want to
+  // process the packets yourself, then you can pass nil as the function
+  if err := decoder.Demux(context.Background(), func(_ media.Packet) error {
+    // Each packet is specific to a stream. It can be processed here
+    // to receive audio or video frames, then resize or resample them,
+    // for example. Alternatively, you can pass the packet to an encoder
+    // to remultiplex the streams without processing them.
+    return nil
+  }); err != nil {
+    log.Fatal(err)  
+  })
+}
+```
+
+### Decoding
+
+TODO
+
+### Encoding
+
+TODO
+
+### Multiplexing
+
+TODO
+
+### Retrieving Metadata and Artwork from a media file
+
+TODO
+
+### Audio Fingerprinting
 
 You can programmatically fingerprint audio files, compare fingerprints and identify music using the following packages:
 
@@ -73,5 +143,4 @@ repository for more information:
 
 ## References
 
-  * https://ffmpeg.org/doxygen/6.1/index.html
-
+* https://ffmpeg.org/doxygen/6.1/index.html

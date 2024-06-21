@@ -3,6 +3,6 @@ package version
 var (
 	GitSource   string
 	GitTag      string
-	GetBranch   string
+	GitBranch   string
 	GoBuildTime string
 )

@@ -32,3 +32,14 @@ func Test_avutil_samplefmt_001(t *testing.T) {
 		t.Logf("  bytes_per_sample=%v", AVUtil_get_bytes_per_sample(fmt))
 	}
 }
+
+func Test_avutil_samplefmt_002(t *testing.T) {
+	var opaque uintptr
+	for {
+		fmt := AVUtil_next_sample_fmt(&opaque)
+		if fmt == AV_SAMPLE_FMT_NONE {
+			break
+		}
+		t.Logf("sample_fmt[%d]=%v", fmt, AVUtil_get_sample_fmt_name(fmt))
+	}
+}

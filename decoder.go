@@ -1,8 +1,10 @@
 package media
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -11,30 +13,227 @@ import (
 ////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// decoder for a single stream includes an audio resampler and output
-// frame
-type decoder struct {
-	codec     *ff.AVCodecContext
-	resampler *ff.SWRContext
-	rescaler  *ff.SWSContext
-	frame     *ff.AVFrame
+// demuxer context - deconstructs media into packets
+type demuxer struct {
+	input    *ff.AVFormatContext
+	decoders map[int]*decoder
+	frame    *ff.AVFrame // Source frame
 }
+
+// decoder context - decodes packets into frames
+type decoder struct {
+	stream int
+	codec  *ff.AVCodecContext
+	frame  *ff.AVFrame // Destination frame
+}
+
+var _ Decoder = (*demuxer)(nil)
 
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a decoder for a stream
-func (r *reader) NewDecoder(media_type MediaType, stream_num int) (*decoder, error) {
-	decoder := new(decoder)
+func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, error) {
+	demuxer := new(demuxer)
+	demuxer.input = input
+	demuxer.decoders = make(map[int]*decoder)
 
-	// Find the best stream
-	stream_num, codec, err := ff.AVFormat_find_best_stream(r.input, ff.AVMediaType(media_type), stream_num, -1)
-	if err != nil {
-		return nil, err
+	// Get all the streams
+	streams := input.Streams()
+
+	// Use standard map function if none provided
+	if mapfn == nil {
+		mapfn = func(stream Stream) (Parameters, error) {
+			return stream.Parameters(), nil
+		}
 	}
 
-	// Find the decoder for the stream
-	dec := ff.AVCodec_find_decoder(codec.ID())
+	// Create a decoder for each stream
+	// The decoder map function should be returning the parameters for the
+	// destination frame. If it's nil then it's mostly a copy.
+	var result error
+	for _, stream := range streams {
+		// Get decoder parameters
+		parameters, err := mapfn(newStream(stream))
+		if err != nil {
+			result = errors.Join(result, err)
+		} else if parameters == nil {
+			continue
+		}
+
+		// Create the decoder with the parameters
+		if decoder, err := demuxer.newDecoder(stream, parameters); err != nil {
+			result = errors.Join(result, err)
+		} else {
+			streamNum := stream.Index()
+			demuxer.decoders[streamNum] = decoder
+		}
+	}
+
+	// Return any errors
+	if result != nil {
+		return nil, errors.Join(result, demuxer.close())
+	}
+
+	// Create a frame for encoding - after resampling and resizing
+	if frame := ff.AVUtil_frame_alloc(); frame == nil {
+		return nil, errors.Join(demuxer.close(), errors.New("failed to allocate frame"))
+	} else {
+		demuxer.frame = frame
+	}
+
+	// Return success
+	return demuxer, nil
+}
+
+func (d *demuxer) newDecoder(stream *ff.AVStream, parameters Parameters) (*decoder, error) {
+	decoder := new(decoder)
+	decoder.stream = stream.Id()
+
+	// TODO: Use parameters to create the decoder
+
+	// Create a codec context for the decoder
+	codec := ff.AVCodec_find_decoder(stream.CodecPar().CodecID())
+	if codec == nil {
+		return nil, fmt.Errorf("failed to find decoder for codec %q", stream.CodecPar().CodecID())
+	} else if ctx := ff.AVCodec_alloc_context(codec); ctx == nil {
+		return nil, fmt.Errorf("failed to allocate codec context for codec %q", codec.Name())
+	} else {
+		decoder.codec = ctx
+	}
+
+	// Copy codec parameters from input stream to output codec context
+	if err := ff.AVCodec_parameters_to_context(decoder.codec, stream.CodecPar()); err != nil {
+		return nil, errors.Join(decoder.close(), fmt.Errorf("failed to copy codec parameters to decoder context for codec %q", codec.Name()))
+	}
+
+	// Init the decoder
+	if err := ff.AVCodec_open(decoder.codec, codec, nil); err != nil {
+		return nil, errors.Join(decoder.close(), err)
+	}
+
+	// Create a frame for decoder output - after resize/resample
+	if frame := ff.AVUtil_frame_alloc(); frame == nil {
+		return nil, errors.Join(decoder.close(), errors.New("failed to allocate frame"))
+	} else {
+		decoder.frame = frame
+	}
+
+	// Return success
+	return decoder, nil
+}
+
+func (d *demuxer) close() error {
+	var result error
+
+	// Free decoded frame
+	if d.frame != nil {
+		ff.AVUtil_frame_free(d.frame)
+	}
+
+	// Free resources
+	for _, decoder := range d.decoders {
+		result = errors.Join(result, decoder.close())
+	}
+	d.decoders = nil
+
+	// Return any errors
+	return result
+}
+
+func (d *decoder) close() error {
+	var result error
+
+	// Free the codec context
+	if d.codec != nil {
+		ff.AVCodec_free_context(d.codec)
+	}
+
+	// Free destination frame
+	if d.frame != nil {
+		ff.AVUtil_frame_free(d.frame)
+	}
+
+	// Return any errors
+	return result
+}
+
+////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (d *demuxer) Demux(ctx context.Context, fn DecoderFunc) error {
+	// If the decoder is nil then set it to default - which is to send the
+	// packet to the appropriate decoder
+	if fn == nil {
+		fn = func(packet Packet) error {
+			fmt.Println("TODO", packet)
+			return nil
+		}
+	}
+
+	// Allocate a packet
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return errors.New("failed to allocate packet")
+	}
+	defer ff.AVCodec_packet_free(packet)
+
+	// Read packets
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break FOR_LOOP
+		default:
+			if err := ff.AVFormat_read_frame(d.input, packet); errors.Is(err, io.EOF) {
+				break FOR_LOOP
+			} else if err != nil {
+				return err
+			}
+			stream := packet.StreamIndex()
+			if decoder := d.decoders[stream]; decoder != nil {
+				if err := decoder.decode(fn, packet); errors.Is(err, io.EOF) {
+					break FOR_LOOP
+				} else if err != nil {
+					return err
+				}
+			}
+			// Unreference the packet
+			ff.AVCodec_packet_unref(packet)
+		}
+	}
+
+	// Flush the decoders
+	for _, decoder := range d.decoders {
+		if err := decoder.decode(fn, nil); err != nil {
+			return err
+		}
+	}
+
+	// Return the context error - will be cancelled, perhaps, or nil if the
+	// demuxer finished successfully without cancellation
+	return ctx.Err()
+}
+
+func (d *demuxer) Decode(context.Context, FrameFunc) error {
+	// TODO
+	return errors.New("not implemented")
+}
+
+////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
+	// Send the packet to the user defined packet function or
+	// to the default version
+	return fn(newPacket(packet))
+}
+
+/*
+	// Get the codec
+	stream.
+
+		// Find the decoder for the stream
+		dec := ff.AVCodec_find_decoder(codec.ID())
 	if dec == nil {
 		return nil, fmt.Errorf("failed to find decoder for codec %q", codec.Name())
 	}
@@ -45,32 +244,8 @@ func (r *reader) NewDecoder(media_type MediaType, stream_num int) (*decoder, err
 		return nil, fmt.Errorf("failed to allocate codec context for codec %q", codec.Name())
 	}
 
-	// Copy codec parameters from input stream to output codec context
-	stream := r.input.Stream(stream_num)
-	if err := ff.AVCodec_parameters_to_context(dec_ctx, stream.CodecPar()); err != nil {
-		ff.AVCodec_free_context(dec_ctx)
-		return nil, fmt.Errorf("failed to copy codec parameters to decoder context for codec %q", codec.Name())
-	}
-
-	// Init the decoder
-	if err := ff.AVCodec_open(dec_ctx, dec, nil); err != nil {
-		ff.AVCodec_free_context(dec_ctx)
-		return nil, err
-	} else {
-		decoder.codec = dec_ctx
-	}
-
-	// Map the decoder
-	if _, exists := r.decoders[stream_num]; exists {
-		ff.AVCodec_free_context(dec_ctx)
-		return nil, fmt.Errorf("decoder for stream %d already exists", stream_num)
-	} else {
-		r.decoders[stream_num] = decoder
-	}
-
-	// Create a frame for decoder output
+	// Create a frame for encoding - after resampling and resizing
 	if frame := ff.AVUtil_frame_alloc(); frame == nil {
-		ff.AVCodec_free_context(dec_ctx)
 		return nil, errors.New("failed to allocate frame")
 	} else {
 		decoder.frame = frame
@@ -80,170 +255,171 @@ func (r *reader) NewDecoder(media_type MediaType, stream_num int) (*decoder, err
 	return decoder, nil
 }
 
+// Close the demuxer
+func (d *demuxer) close() error {
+
+}
+
 // Close the decoder
-func (d *decoder) Close() {
-	if d.resampler != nil {
-		ff.SWResample_free(d.resampler)
-	}
-	if d.rescaler != nil {
-		ff.SWScale_free_context(d.rescaler)
-	}
-	ff.AVUtil_frame_free(d.frame)
-	ff.AVCodec_free_context(d.codec)
+func (d *decoder) close() error {
+
 }
 
-////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (d *decoder) String() string {
-	return d.codec.String()
-}
-
-////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-// Resample the audio as int16 non-planar samples
-// TODO: This should be NewAudioDecoder(..., sample_rate, sample_format, channel_layout)
-func (decoder *decoder) ResampleS16Mono(sample_rate int) error {
-	// Check decoder type
-	if decoder.codec.Codec().Type() != ff.AVMEDIA_TYPE_AUDIO {
-		return fmt.Errorf("decoder is not an audio decoder")
+// Demultiplex streams from the reader
+func (d *demuxer) Demux(ctx context.Context, fn DecoderFunc) error {
+	// If the decoder is nil then set it to default
+	if fn == nil {
+		fn = func(packet Packet) error {
+			if packet == nil {
+				return d.decodePacket(nil)
+			}
+			return d.decodePacket(packet.(*ff.AVPacket))
+		}
 	}
 
-	// TODO: Currently hard-coded to 16-bit mono at 44.1kHz
-	decoder.frame.SetSampleRate(sample_rate)
-	decoder.frame.SetSampleFormat(ff.AV_SAMPLE_FMT_S16)
-	if err := decoder.frame.SetChannelLayout(ff.AV_CHANNEL_LAYOUT_STEREO); err != nil {
+	// Allocate a packet
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return errors.New("failed to allocate packet")
+	}
+	defer ff.AVCodec_packet_free(packet)
+
+	// Read packets
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break FOR_LOOP
+		default:
+			if err := ff.AVFormat_read_frame(d.input, packet); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return err
+			}
+			stream := packet.StreamIndex()
+			if decoder := d.decoders[stream]; decoder != nil {
+				if err := decoder.decode(fn, packet); errors.Is(err, io.EOF) {
+					break FOR_LOOP
+				} else if err != nil {
+					return err
+				}
+			}
+			// Unreference the packet
+			ff.AVCodec_packet_unref(packet)
+		}
+	}
+
+	// Flush the decoders
+	for _, decoder := range d.decoders {
+		if err := decoder.decode(fn, nil); err != nil {
+			return err
+		}
+	}
+
+	// Return success
+	return nil
+}
+
+func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
+	// Send the packet to the user defined packet function or
+	// to the default version
+	return fn(packet)
+}
+
+func (d *demuxer) decodePacket(packet *ff.AVPacket) error {
+	// Submit the packet to the decoder. If nil then flush
+	if err := ff.AVCodec_send_packet(d.codec, packet); err != nil {
 		return err
 	}
 
-	// Create a new resampler
-	ctx := ff.SWResample_alloc()
-	if ctx == nil {
-		return errors.New("failed to allocate resampler")
-	} else {
-		decoder.resampler = ctx
-	}
-
-	// Set options to covert from the codec frame to the decoder frame
-	if err := ff.SWResample_set_opts(ctx,
-		decoder.frame.ChannelLayout(), decoder.frame.SampleFormat(), decoder.frame.SampleRate(), // destination
-		decoder.codec.ChannelLayout(), decoder.codec.SampleFormat(), decoder.codec.SampleRate(), // source
-	); err != nil {
-		return fmt.Errorf("SWResample_set_opts: %w", err)
-	}
-
-	// Initialize the resampling context
-	if err := ff.SWResample_init(ctx); err != nil {
-		return fmt.Errorf("SWResample_init: %w", err)
-	}
-
-	// Return success
-	return nil
-}
-
-// Rescale the video
-// TODO: This should be NewVideoDecoder(..., pixel_format, width, height)
-func (decoder *decoder) Rescale(width, height int) error {
-	// Check decoder type
-	if decoder.codec.Codec().Type() != ff.AVMEDIA_TYPE_VIDEO {
-		return fmt.Errorf("decoder is not an video decoder")
-	}
-
-	// TODO: Currently hard-coded
-	decoder.frame.SetPixFmt(ff.AV_PIX_FMT_GRAY8)
-	decoder.frame.SetWidth(width)
-	decoder.frame.SetHeight(height)
-
-	// Create scaling context
-	ctx := ff.SWScale_get_context(
-		decoder.codec.Width(), decoder.codec.Height(), decoder.codec.PixFmt(), // source
-		decoder.frame.Width(), decoder.frame.Height(), decoder.frame.PixFmt(), // destination
-		ff.SWS_BILINEAR, nil, nil, nil)
-	if ctx == nil {
-		return errors.New("failed to allocate swscale context")
-	} else {
-		decoder.rescaler = ctx
-	}
-
-	// Return success
-	return nil
-}
-
-// Ref:
-// https://github.com/romatthe/alephone/blob/b1f7af38b14f74585f0442f1dd757d1238bfcef4/Source_Files/FFmpeg/SDL_ffmpeg.c#L2048
-func (decoder *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
-	switch decoder.codec.Codec().Type() {
-	case ff.AVMEDIA_TYPE_AUDIO:
-		// Resample the audio - can flush if src is nil
-		if decoder.resampler != nil {
-			if err := decoder.resample(decoder.frame, src); err != nil {
-				return nil, err
-			}
-			return decoder.frame, nil
+	// get all the available frames from the decoder
+	for {
+		if err := ff.AVCodec_receive_frame(d.codec, d.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
+			// Finished decoding packet or EOF
+			break
+		} else if err != nil {
+			return err
 		}
-	case ff.AVMEDIA_TYPE_VIDEO:
-		// Rescale the video
-		if decoder.rescaler != nil && src != nil {
-			if err := decoder.rescale(decoder.frame, src); err != nil {
-				return nil, err
+
+		fmt.Println("TODO", d.frame)
+	}
+	return nil
+}
+
+// Resample or resize the frame, then pass back
+/*
+	if frame, err := d.re(d.frame); err != nil {
+		return err
+	} else if err := fn(frame); errors.Is(err, io.EOF) {
+		// End early
+		break
+	} else if err != nil {
+		return err
+	}*/
+
+// Flush
+/*
+	if frame, err := d.re(nil); err != nil {
+		return err
+	} else if frame == nil {
+		// NOOP
+	} else if err := fn(frame); errors.Is(err, io.EOF) {
+		// NOOP
+	} else if err != nil {
+		return err
+	}
+*/
+
+/*
+
+// Return a function to decode packets from the streams into frames
+func (r *reader) Decode(fn FrameFunc) DecoderFunc {
+	return func(codec Decoder, packet Packet) error {
+		if packet != nil {
+			// Submit the packet to the decoder
+			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, packet.(*ff.AVPacket)); err != nil {
+				return err
 			}
-			return decoder.frame, nil
+		} else {
+			// Flush remaining frames
+			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, nil); err != nil {
+				return err
+			}
 		}
-	}
 
-	// NO-OP - just return the source frame
-	return src, nil
+		// get all the available frames from the decoder
+		for {
+			if err := ff.AVCodec_receive_frame(codec.(*decoder).codec, r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
+				// Finished decoding packet or EOF
+				break
+			} else if err != nil {
+				return err
+			}
+
+			// Resample or resize the frame, then pass back
+			if frame, err := codec.(*decoder).re(r.frame); err != nil {
+				return err
+			} else if err := fn(frame); errors.Is(err, io.EOF) {
+				// End early
+				break
+			} else if err != nil {
+				return err
+			}
+		}
+
+		// Flush
+		if frame, err := codec.(*decoder).re(nil); err != nil {
+			return err
+		} else if frame == nil {
+			// NOOP
+		} else if err := fn(frame); errors.Is(err, io.EOF) {
+			// NOOP
+		} else if err != nil {
+			return err
+		}
+
+		// Success
+		return nil
+	}
 }
-
-func (decoder *decoder) resample(dest, src *ff.AVFrame) error {
-	num_samples := 0
-	if src != nil {
-		num_samples = src.NumSamples()
-	}
-	dest_samples, err := ff.SWResample_get_out_samples(decoder.resampler, num_samples)
-	if err != nil {
-		return fmt.Errorf("SWResample_get_out_samples: %w", err)
-	}
-
-	dest.SetNumSamples(dest_samples)
-	if src != nil {
-		dest.SetPts(decoder.get_next_pts(src))
-	}
-
-	// Perform resampling
-	if err := ff.SWResample_convert_frame(decoder.resampler, src, dest); err != nil {
-		return fmt.Errorf("SWResample_convert_frame: %w", err)
-	}
-
-	//fmt.Println("in_samples", src.NumSamples(), "out_samples", dest.NumSamples())
-	//fmt.Println("in_pts", src.Pts(), "out_pts", dest.Pts())
-	//fmt.Println("in_timebase", src.TimeBase(), "out_timebase", dest.TimeBase())
-
-	return nil
-}
-
-func (decoder *decoder) rescale(dest, src *ff.AVFrame) error {
-	// Copy properties from source
-	//if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
-	//	return fmt.Errorf("failed to copy props: %w", err)
-	//}
-	// Perform resizing
-	if err := ff.SWScale_scale_frame(decoder.rescaler, dest, src, false); err != nil {
-		return fmt.Errorf("SWScale_scale_frame: %w", err)
-	}
-
-	// Return success
-	return nil
-}
-
-func (decoder *decoder) get_next_pts(src *ff.AVFrame) int64 {
-	ts := src.BestEffortTs()
-	if ts == ff.AV_NOPTS_VALUE {
-		ts = src.Pts()
-	}
-	if ts == ff.AV_NOPTS_VALUE {
-		return ff.AV_NOPTS_VALUE
-	}
-	return ff.SWResample_next_pts(decoder.resampler, ts)
-}
+*/

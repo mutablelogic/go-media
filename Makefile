@@ -22,7 +22,7 @@ BUILD_DIR := "build"
 CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 
-all: clean cmds
+all: clean cli cmds
 
 cmds: $(CMD_DIR)
 
@@ -46,6 +46,11 @@ test: go-dep
 	@${GO} test ./sys/ffmpeg61
 	@${GO} test ./pkg/...
 	@${GO} test .
+
+
+cli: go-dep mkdir
+	@echo Build media tool
+	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/cli
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build cmd $(notdir $@)

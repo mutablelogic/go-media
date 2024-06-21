@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"syscall"
+	"strings"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -14,10 +14,10 @@ import (
 // TYPES
 
 type reader struct {
-	input    *ff.AVFormatContext
-	avio     *ff.AVIOContextEx
-	decoders map[int]*decoder
-	frame    *ff.AVFrame
+	t       MediaType
+	input   *ff.AVFormatContext
+	avio    *ff.AVIOContextEx
+	demuxer *demuxer
 }
 
 type reader_callback struct {
@@ -36,16 +36,31 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Open a reader from a url or file path, and either use the mimetype or guess
-// the format otherwise. Returns a media object.
-func Open(url string, mimetype string) (*reader, error) {
+// Open media from a url, file path or device
+func newMedia(url string, format Format, opts ...string) (*reader, error) {
 	reader := new(reader)
-	reader.decoders = make(map[int]*decoder)
+	reader.t = INPUT
 
-	// TODO: mimetype input is currently ignored, format is always guessed
+	// Set the input format
+	var f *ff.AVInputFormat
+	if format != nil {
+		reader.t |= format.Type()
+		if inputfmt, ok := format.(*inputformat); ok {
+			f = inputfmt.ctx
+		}
+	}
 
-	// Open the stream
-	if ctx, err := ff.AVFormat_open_url(url, nil, nil); err != nil {
+	// Get the options
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	if len(opts) > 0 {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", 0); err != nil {
+			return nil, err
+		}
+	}
+
+	// Open the device or stream
+	if ctx, err := ff.AVFormat_open_url(url, f, dict); err != nil {
 		return nil, err
 	} else {
 		reader.input = ctx
@@ -56,11 +71,30 @@ func Open(url string, mimetype string) (*reader, error) {
 }
 
 // Create a new reader from an io.Reader
-func NewReader(r io.Reader, mimetype string) (*reader, error) {
+func newReader(r io.Reader, format Format, opts ...string) (*reader, error) {
 	reader := new(reader)
-	reader.decoders = make(map[int]*decoder)
+	reader.t = INPUT | FILE
 
-	// TODO: mimetype input is currently ignored, format is always guessed
+	// Set the input format
+	var fmt *ff.AVInputFormat
+	if format != nil {
+		reader.t |= format.Type()
+		if format.Type().Is(DEVICE) {
+			return nil, errors.New("cannot create a reader from a device")
+		}
+		if inputfmt, ok := format.(*inputformat); ok {
+			fmt = inputfmt.ctx
+		}
+	}
+
+	// Get the options
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	if len(opts) > 0 {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", 0); err != nil {
+			return nil, err
+		}
+	}
 
 	// Allocate the AVIO context
 	reader.avio = ff.AVFormat_avio_alloc_context(bufSize, false, &reader_callback{r})
@@ -69,7 +103,7 @@ func NewReader(r io.Reader, mimetype string) (*reader, error) {
 	}
 
 	// Open the stream
-	if ctx, err := ff.AVFormat_open_reader(reader.avio, nil, nil); err != nil {
+	if ctx, err := ff.AVFormat_open_reader(reader.avio, fmt, dict); err != nil {
 		ff.AVFormat_avio_context_free(reader.avio)
 		return nil, err
 	} else {
@@ -88,39 +122,32 @@ func (r *reader) open() (*reader, error) {
 		return nil, err
 	}
 
-	// Create a frame for decoding
-	if frame := ff.AVUtil_frame_alloc(); frame == nil {
-		ff.AVFormat_free_context(r.input)
-		ff.AVFormat_avio_context_free(r.avio)
-		return nil, errors.New("failed to allocate frame")
-	} else {
-		r.frame = frame
-	}
-
 	// Return success
 	return r, nil
 }
 
 // Close the reader
 func (r *reader) Close() error {
-	// Free resources
-	for _, decoder := range r.decoders {
-		decoder.Close()
+	var result error
+
+	// Free demuxer
+	if r.demuxer != nil {
+		result = errors.Join(result, r.demuxer.close())
 	}
-	ff.AVUtil_frame_free(r.frame)
+
+	// Free resources
 	ff.AVFormat_free_context(r.input)
 	if r.avio != nil {
 		ff.AVFormat_avio_context_free(r.avio)
 	}
 
 	// Release resources
-	r.decoders = nil
-	r.frame = nil
+	r.demuxer = nil
 	r.input = nil
 	r.avio = nil
 
-	// Return success
-	return nil
+	// Return any errors
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,105 +158,40 @@ func (r *reader) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.input)
 }
 
+// Display the reader as a string
+func (r *reader) String() string {
+	data, _ := json.MarshalIndent(r, "", "  ")
+	return string(data)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-// TODO: Frame should be a struct to access plane data and other properties
-// TODO: Frame output may not include pts and time_base
+func (r *reader) Type() MediaType {
+	return r.t
+}
 
-// Demultiplex streams from the reader
-func (r *reader) Demux(fn DecoderFunc) error {
-	// Allocate a packet
-	packet := ff.AVCodec_packet_alloc()
-	if packet == nil {
-		return errors.New("failed to allocate packet")
-	}
-	defer ff.AVCodec_packet_free(packet)
-
-	// Read packets
-	for {
-		if err := ff.AVFormat_read_frame(r.input, packet); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
-		stream := packet.StreamIndex()
-		if decoder := r.decoders[stream]; decoder != nil {
-			if err := fn(decoder, packet); errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				return err
-			}
-		}
-		// Unreference the packet
-		ff.AVCodec_packet_unref(packet)
+func (r *reader) Decoder(fn DecoderMapFunc) (Decoder, error) {
+	// Check if this is actually an input
+	if !r.Type().Is(INPUT) {
+		return nil, errors.New("not an input stream")
 	}
 
-	// Flush the decoders
-	for _, decoder := range r.decoders {
-		if err := fn(decoder, nil); err != nil {
-			return err
-		}
+	// Return existing decoder
+	if r.demuxer != nil {
+		return r.demuxer, nil
+	}
+
+	// Create a decoding context
+	decoder, err := newDemuxer(r.input, fn)
+	if err != nil {
+		return nil, err
+	} else {
+		r.demuxer = decoder
 	}
 
 	// Return success
-	return nil
-}
-
-// Return a function to decode packets from the streams into frames
-func (r *reader) Decode(fn FrameFunc) DecoderFunc {
-	return func(codec Decoder, packet Packet) error {
-		if packet != nil {
-			// Submit the packet to the decoder
-			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, packet.(*ff.AVPacket)); err != nil {
-				return err
-			}
-		} else {
-			// Flush remaining frames
-			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, nil); err != nil {
-				return err
-			}
-		}
-
-		// get all the available frames from the decoder
-		for {
-			if err := ff.AVCodec_receive_frame(codec.(*decoder).codec, r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
-				// Finished decoding packet or EOF
-				break
-			} else if err != nil {
-				return err
-			}
-
-			// Resample or resize the frame, then pass back
-			if frame, err := codec.(*decoder).re(r.frame); err != nil {
-				return err
-			} else if err := fn(frame); errors.Is(err, io.EOF) {
-				// End early
-				break
-			} else if err != nil {
-				return err
-			}
-		}
-
-		// Flush
-		if frame, err := codec.(*decoder).re(nil); err != nil {
-			return err
-		} else if frame == nil {
-			// NOOP
-		} else if err := fn(frame); errors.Is(err, io.EOF) {
-			// NOOP
-		} else if err != nil {
-			return err
-		}
-
-		// Success
-		return nil
-	}
-}
-
-type metadata struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	return decoder, nil
 }
 
 // Return the metadata for the media stream
@@ -237,10 +199,7 @@ func (r *reader) Metadata() []Metadata {
 	entries := ff.AVUtil_dict_entries(r.input.Metadata())
 	result := make([]Metadata, len(entries))
 	for i, entry := range entries {
-		result[i] = &metadata{
-			Key:   entry.Key(),
-			Value: entry.Value(),
-		}
+		result[i] = newMetadata(entry.Key(), entry.Value())
 	}
 	return result
 }

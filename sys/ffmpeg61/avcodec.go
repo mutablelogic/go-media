@@ -240,6 +240,10 @@ func (v AVCodecCap) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.String())
 }
 
+func (v AVCodecID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -695,4 +699,19 @@ func (v AVCodecCap) FlagString() string {
 	default:
 		return fmt.Sprintf("AVCodecCap(0x%08X)", uint32(v))
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVCodecID
+
+func (v AVCodecID) String() string {
+	return v.Name()
+}
+
+func (v AVCodecID) Name() string {
+	return C.GoString(C.avcodec_get_name(C.enum_AVCodecID(v)))
+}
+
+func (v AVCodecID) Type() AVMediaType {
+	return AVMediaType(C.avcodec_get_type(C.enum_AVCodecID(v)))
 }

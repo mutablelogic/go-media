@@ -14,11 +14,15 @@ type Globals struct {
 
 type CLI struct {
 	Globals
-	Version  VersionCmd  `cmd:"version" help:"Print version information"`
-	Demuxers DemuxersCmd `cmd:"demuxers" help:"List media demultiplex (input) formats"`
-	Muxers   MuxersCmd   `cmd:"muxers" help:"List media multiplex (output) formats"`
-	Metadata MetadataCmd `cmd:"metadata" help:"Display media metadata information"`
-	Decode   DecodeCmd   `cmd:"decode" help:"Decode media"`
+	Version        VersionCmd        `cmd:"version" help:"Print version information"`
+	Demuxers       DemuxersCmd       `cmd:"demuxers" help:"List media demultiplex (input) formats"`
+	Muxers         MuxersCmd         `cmd:"muxers" help:"List media multiplex (output) formats"`
+	SampleFormats  SampleFormatsCmd  `cmd:"samplefmts" help:"List audio sample formats"`
+	ChannelLayouts ChannelLayoutsCmd `cmd:"channellayouts" help:"List audio channel layouts"`
+	PixelFormats   PixelFormatsCmd   `cmd:"pixelfmts" help:"List video pixel formats"`
+	Metadata       MetadataCmd       `cmd:"metadata" help:"Display media metadata information"`
+	Probe          ProbeCmd          `cmd:"probe" help:"Probe media file or device"`
+	Decode         DecodeCmd         `cmd:"decode" help:"Decode media"`
 }
 
 func main() {
