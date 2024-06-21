@@ -15,7 +15,7 @@ type ProbeCmd struct {
 }
 
 var (
-	reDevice = regexp.MustCompile(`^([a-zA-Z0-9]+):([^\/].*)$`)
+	reDevice = regexp.MustCompile(`^([a-zA-Z0-9]+):([^\/].*|)$`)
 )
 
 func (cmd *ProbeCmd) Run(globals *Globals) error {
