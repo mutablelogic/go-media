@@ -296,3 +296,8 @@ func AVUtil_get_pix_fmt(name string) AVPixelFormat {
 func AVUtil_get_pix_fmt_desc(pixfmt AVPixelFormat) *AVPixFmtDescriptor {
 	return (*AVPixFmtDescriptor)(C.av_pix_fmt_desc_get(C.enum_AVPixelFormat(pixfmt)))
 }
+
+// Return the number of planes in pix_fmt
+func AVUtil_pix_fmt_count_planes(pixfmt AVPixelFormat) int {
+	return int(C.av_pix_fmt_count_planes(C.enum_AVPixelFormat(pixfmt)))
+}

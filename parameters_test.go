@@ -24,7 +24,7 @@ func Test_parameters_002(t *testing.T) {
 	assert := assert.New(t)
 
 	for ch := 1; ch < 8; ch++ {
-		params, err := newVideoParameters("100x100", "rgba", 25)
+		params, err := newVideoParameters("100x100", "rgba")
 		if !assert.NoError(err) {
 			t.FailNow()
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"syscall"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -161,15 +162,23 @@ func (d *decoder) close() error {
 // PUBLIC METHODS
 
 func (d *demuxer) Demux(ctx context.Context, fn DecoderFunc) error {
-	// If the decoder is nil then set it to default - which is to send the
-	// packet to the appropriate decoder
 	if fn == nil {
-		fn = func(packet Packet) error {
-			fmt.Println("TODO", packet)
-			return nil
-		}
+		return errors.New("no decoder function provided")
 	}
+	return d.demux(ctx, fn, nil)
+}
 
+func (d *demuxer) Decode(ctx context.Context, fn FrameFunc) error {
+	if fn == nil {
+		return errors.New("no decoder function provided")
+	}
+	return d.demux(ctx, nil, fn)
+}
+
+////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (d *demuxer) demux(ctx context.Context, demuxfn DecoderFunc, framefn FrameFunc) error {
 	// Allocate a packet
 	packet := ff.AVCodec_packet_alloc()
 	if packet == nil {
@@ -191,7 +200,7 @@ FOR_LOOP:
 			}
 			stream := packet.StreamIndex()
 			if decoder := d.decoders[stream]; decoder != nil {
-				if err := decoder.decode(fn, packet); errors.Is(err, io.EOF) {
+				if err := decoder.decode(packet, demuxfn, framefn); errors.Is(err, io.EOF) {
 					break FOR_LOOP
 				} else if err != nil {
 					return err
@@ -204,7 +213,7 @@ FOR_LOOP:
 
 	// Flush the decoders
 	for _, decoder := range d.decoders {
-		if err := decoder.decode(fn, nil); err != nil {
+		if err := decoder.decode(nil, demuxfn, framefn); err != nil {
 			return err
 		}
 	}
@@ -214,120 +223,13 @@ FOR_LOOP:
 	return ctx.Err()
 }
 
-func (d *demuxer) Decode(context.Context, FrameFunc) error {
-	// TODO
-	return errors.New("not implemented")
-}
-
-////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
-	// Send the packet to the user defined packet function or
-	// to the default version
-	return fn(newPacket(packet))
-}
-
-/*
-	// Get the codec
-	stream.
-
-		// Find the decoder for the stream
-		dec := ff.AVCodec_find_decoder(codec.ID())
-	if dec == nil {
-		return nil, fmt.Errorf("failed to find decoder for codec %q", codec.Name())
+func (d *decoder) decode(packet *ff.AVPacket, demuxfn DecoderFunc, framefn FrameFunc) error {
+	if demuxfn != nil {
+		// Send the packet to the user defined packet function
+		return demuxfn(newPacket(packet))
 	}
 
-	// Allocate a codec context for the decoder
-	dec_ctx := ff.AVCodec_alloc_context(dec)
-	if dec_ctx == nil {
-		return nil, fmt.Errorf("failed to allocate codec context for codec %q", codec.Name())
-	}
-
-	// Create a frame for encoding - after resampling and resizing
-	if frame := ff.AVUtil_frame_alloc(); frame == nil {
-		return nil, errors.New("failed to allocate frame")
-	} else {
-		decoder.frame = frame
-	}
-
-	// Return success
-	return decoder, nil
-}
-
-// Close the demuxer
-func (d *demuxer) close() error {
-
-}
-
-// Close the decoder
-func (d *decoder) close() error {
-
-}
-
-// Demultiplex streams from the reader
-func (d *demuxer) Demux(ctx context.Context, fn DecoderFunc) error {
-	// If the decoder is nil then set it to default
-	if fn == nil {
-		fn = func(packet Packet) error {
-			if packet == nil {
-				return d.decodePacket(nil)
-			}
-			return d.decodePacket(packet.(*ff.AVPacket))
-		}
-	}
-
-	// Allocate a packet
-	packet := ff.AVCodec_packet_alloc()
-	if packet == nil {
-		return errors.New("failed to allocate packet")
-	}
-	defer ff.AVCodec_packet_free(packet)
-
-	// Read packets
-FOR_LOOP:
-	for {
-		select {
-		case <-ctx.Done():
-			break FOR_LOOP
-		default:
-			if err := ff.AVFormat_read_frame(d.input, packet); errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				return err
-			}
-			stream := packet.StreamIndex()
-			if decoder := d.decoders[stream]; decoder != nil {
-				if err := decoder.decode(fn, packet); errors.Is(err, io.EOF) {
-					break FOR_LOOP
-				} else if err != nil {
-					return err
-				}
-			}
-			// Unreference the packet
-			ff.AVCodec_packet_unref(packet)
-		}
-	}
-
-	// Flush the decoders
-	for _, decoder := range d.decoders {
-		if err := decoder.decode(fn, nil); err != nil {
-			return err
-		}
-	}
-
-	// Return success
-	return nil
-}
-
-func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
-	// Send the packet to the user defined packet function or
-	// to the default version
-	return fn(packet)
-}
-
-func (d *demuxer) decodePacket(packet *ff.AVPacket) error {
-	// Submit the packet to the decoder. If nil then flush
+	// Submit the packet to the decoder (nil packet will flush the decoder)
 	if err := ff.AVCodec_send_packet(d.codec, packet); err != nil {
 		return err
 	}
@@ -341,62 +243,16 @@ func (d *demuxer) decodePacket(packet *ff.AVPacket) error {
 			return err
 		}
 
-		fmt.Println("TODO", d.frame)
-	}
-	return nil
-}
-
-// Resample or resize the frame, then pass back
-/*
-	if frame, err := d.re(d.frame); err != nil {
-		return err
-	} else if err := fn(frame); errors.Is(err, io.EOF) {
-		// End early
-		break
-	} else if err != nil {
-		return err
-	}*/
-
-// Flush
-/*
-	if frame, err := d.re(nil); err != nil {
-		return err
-	} else if frame == nil {
-		// NOOP
-	} else if err := fn(frame); errors.Is(err, io.EOF) {
-		// NOOP
-	} else if err != nil {
-		return err
-	}
-*/
-
-/*
-
-// Return a function to decode packets from the streams into frames
-func (r *reader) Decode(fn FrameFunc) DecoderFunc {
-	return func(codec Decoder, packet Packet) error {
-		if packet != nil {
-			// Submit the packet to the decoder
-			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, packet.(*ff.AVPacket)); err != nil {
-				return err
-			}
-		} else {
-			// Flush remaining frames
-			if err := ff.AVCodec_send_packet(codec.(*decoder).codec, nil); err != nil {
-				return err
-			}
+		// Pass the frame
+		if err := framefn(newFrame(d.frame)); errors.Is(err, io.EOF) {
+			// End early
+			break
+		} else if err != nil {
+			return err
 		}
 
-		// get all the available frames from the decoder
-		for {
-			if err := ff.AVCodec_receive_frame(codec.(*decoder).codec, r.frame); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
-				// Finished decoding packet or EOF
-				break
-			} else if err != nil {
-				return err
-			}
-
-			// Resample or resize the frame, then pass back
+		// Resample or resize the frame, then pass back
+		/*
 			if frame, err := codec.(*decoder).re(r.frame); err != nil {
 				return err
 			} else if err := fn(frame); errors.Is(err, io.EOF) {
@@ -405,9 +261,11 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 			} else if err != nil {
 				return err
 			}
-		}
+		*/
+	}
 
-		// Flush
+	// TODO: Flush
+	/*
 		if frame, err := codec.(*decoder).re(nil); err != nil {
 			return err
 		} else if frame == nil {
@@ -416,10 +274,8 @@ func (r *reader) Decode(fn FrameFunc) DecoderFunc {
 			// NOOP
 		} else if err != nil {
 			return err
-		}
+		}*/
 
-		// Success
-		return nil
-	}
+	// Return success
+	return nil
 }
-*/

@@ -7,7 +7,7 @@ import "encoding/json"
 
 type metadata struct {
 	Key   string `json:"key" writer:",width:30"`
-	Value any    `json:"value" writer:",width:50"`
+	Value any    `json:"value" writer:",wrap,width:50"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
