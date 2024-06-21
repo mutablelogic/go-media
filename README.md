@@ -135,13 +135,11 @@ func main() {
 
   // The frame function is called for each frame in the stream
   framefn := func(frame Frame) error {
-    if frame.Type() != VIDEO {
-       return nil
-    } else if image, err := frame.Image(); err != nil {
+    image, err := frame.Image()
+    if err != nil {
       return err
-    } else {
-        // Do something with the image here....
     }
+    // TODO: Do something with the image here....
     return nil
   }
 
