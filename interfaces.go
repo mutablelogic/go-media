@@ -26,17 +26,17 @@ type Manager interface {
 	Read(io.Reader, Format, ...string) (Media, error)
 
 	// Create a media file or device for writing, from a path. If a format is
-	// specified, then the format will be used to create the file. Close
-	// the media object when done.
-	// TODO
-	Create(string, Format) (Media, error)
+	// specified, then the format will be used to create the file or else
+	// the format is guessed from the path. If no parameters are provided,
+	// then the default parameters for the format are used.
+	Create(string, Format, ...Parameters) (Media, error)
 
-	// Create a media stream for writing. If a format is
-	// specified, then the format will be used to create the file.
-	// Close the media object when done. It is the responsibility of the caller to
-	// also close the writer when done.
-	// TODO
-	Write(io.Writer, Format) (Media, error)
+	// Create a media stream for writing. The format will be used to
+	// determine the formar type and one or more CodecParameters used to
+	// create the streams. If no parameters are provided, then the
+	// default parameters for the format are used. It is the responsibility
+	// of the caller to also close the writer when done.
+	Write(io.Writer, Format, ...Parameters) (Media, error)
 
 	// Return supported input formats which match any filter, which can be
 	// a name, extension (with preceeding period) or mimetype. The MediaType
@@ -73,10 +73,13 @@ type Manager interface {
 	// Width, Height, PixelFormat
 	VideoParameters(int, int, string) (VideoParameters, error)
 
-	// Return codec parameters for encoding
-	// Codec name, profile, audio or video parameters
-	// If the profile is empty, then the default profile is used.
-	//CodecParameters(string, string, Parameters) (Parameters, error)
+	// Return codec parameters for audio encoding
+	// Codec name and AudioParameters
+	AudioCodecParameters(string, AudioParameters) (Parameters, error)
+
+	// Return codec parameters for video encoding
+	// Codec name, Profile name, Framerate (fps) and VideoParameters
+	VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
 
 	// Return version information for the media manager as a set of
 	// metadata
