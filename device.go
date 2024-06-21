@@ -16,33 +16,22 @@ type device struct {
 
 type devicemeta struct {
 	Format      string    `json:"format"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
+	Name        string    `json:"name" writer:",wrap,width:50"`
+	Description string    `json:"description" writer:",wrap,width:40"`
 	Default     bool      `json:"default,omitempty"`
-	MediaType   MediaType `json:"type,omitempty" writer:",wrap,width:21"`
+	Type        MediaType `json:"type,omitempty" writer:",wrap,width:21"`
 }
 
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func newInputDevice(ctx *ff.AVInputFormat, d *ff.AVDeviceInfo, t MediaType, def bool) *device {
+func newDevice(name string, d *ff.AVDeviceInfo, t MediaType, def bool) *device {
 	meta := &devicemeta{
-		Format:      ctx.Name(),
+		Format:      name,
 		Name:        d.Name(),
 		Description: d.Description(),
 		Default:     def,
-		MediaType:   INPUT | t,
-	}
-	return &device{devicemeta: *meta}
-}
-
-func newOutputDevice(ctx *ff.AVOutputFormat, d *ff.AVDeviceInfo, t MediaType, def bool) *device {
-	meta := &devicemeta{
-		Format:      ctx.Name(),
-		Name:        d.Name(),
-		Description: d.Description(),
-		Default:     def,
-		MediaType:   OUTPUT | t,
+		Type:        DEVICE | t,
 	}
 	return &device{devicemeta: *meta}
 }
@@ -70,7 +59,7 @@ func (v *device) Description() string {
 
 // Flags indicating the type INPUT or OUTPUT, AUDIO or VIDEO
 func (v *device) Type() MediaType {
-	return v.devicemeta.MediaType
+	return v.devicemeta.Type
 }
 
 // Whether this is the default device

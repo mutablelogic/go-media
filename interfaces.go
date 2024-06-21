@@ -48,15 +48,10 @@ type Manager interface {
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
 	OutputFormats(MediaType, ...string) []Format
 
-	// Return supported input devices for a given format name
+	// Return supported devices for a given format name
 	// Not all devices may be supported on all platforms or listed
 	// if the device does not support enumeration.
-	InputDevices(string) []Device
-
-	// Return supported output devices for a given format name
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	OutputDevices(string) []Device
+	Devices(Format) []Device
 
 	// Return all supported channel layouts
 	ChannelLayouts() []Metadata

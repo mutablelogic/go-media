@@ -94,3 +94,20 @@ func Test_manager_007(t *testing.T) {
 
 	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(codecs)
 }
+
+func Test_manager_008(t *testing.T) {
+	assert := assert.New(t)
+
+	manager := NewManager()
+	assert.NotNil(manager)
+
+	formats := manager.InputFormats(ANY)
+	assert.NotNil(formats)
+	for _, format := range formats {
+		if format.Type().Is(DEVICE) {
+			devices := manager.Devices(format)
+			assert.NotNil(devices)
+			t.Log(format, devices)
+		}
+	}
+}

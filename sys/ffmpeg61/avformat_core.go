@@ -20,3 +20,12 @@ func AVFormat_alloc_context() *AVFormatContext {
 func AVFormat_free_context(ctx *AVFormatContext) {
 	C.avformat_free_context((*C.struct_AVFormatContext)(ctx))
 }
+
+// Initialise network
+func AVFormat_network_init() error {
+	if ret := C.avformat_network_init(); ret != 0 {
+		return AVError(ret)
+	} else {
+		return nil
+	}
+}
