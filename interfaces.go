@@ -7,6 +7,7 @@ package media
 
 import (
 	"context"
+	"image"
 	"io"
 )
 
@@ -66,13 +67,21 @@ type Manager interface {
 	// Return all supported  pixel formats
 	PixelFormats() []Metadata
 
+	// Return all supported codecs
+	Codecs() []Metadata
+
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
 	AudioParameters(string, string, int) (AudioParameters, error)
 
 	// Return video parameters for encoding
-	// Width, Height, PixelFormat, Framerate
-	VideoParameters(int, int, string, float64) (VideoParameters, error)
+	// Width, Height, PixelFormat
+	VideoParameters(int, int, string) (VideoParameters, error)
+
+	// Return codec parameters for encoding
+	// Codec name, profile, audio or video parameters
+	// If the profile is empty, then the default profile is used.
+	//CodecParameters(string, string, Parameters) (Parameters, error)
 
 	// Return version information for the media manager as a set of
 	// metadata
@@ -173,6 +182,10 @@ type Parameters interface {
 
 	// Return the media type (AUDIO, VIDEO, SUBTITLE, DATA)
 	Type() MediaType
+
+	// Return number of planes for a specific PixelFormat
+	// or SampleFormat and ChannelLayout combination
+	NumPlanes() int
 }
 
 // Audio parameters for encoding or decoding audio data.
@@ -185,9 +198,6 @@ type AudioParameters interface {
 
 	// Return the sample rate (Hz)
 	Samplerate() int
-
-	// TODO:
-	// Planar, number of planes, bits and bytes per sample
 }
 
 // Video parameters for encoding or decoding video data.
@@ -200,12 +210,6 @@ type VideoParameters interface {
 
 	// Return the pixel format
 	PixelFormat() string
-
-	// Return the frame rate (fps)
-	Framerate() float64
-
-	// TODO:
-	// Planar, number of planes, names of the planes, bits and bytes per pixel
 }
 
 // DecoderFunc is a function that decodes a packet. Return
@@ -217,14 +221,40 @@ type DecoderFunc func(Packet) error
 // processing the frames early.
 type FrameFunc func(Frame) error
 
+// Codec represents a codec for encoding or decoding media streams.
+type Codec interface {
+	// Return the codec name
+	Name() string
+
+	// Return the codec description
+	Description() string
+
+	// Return the codec type (AUDIO, VIDEO, SUBTITLE, DATA, INPUT, OUTPUT)
+	Type() MediaType
+}
+
 // Packet represents a packet of demultiplexed data.
 // Currently this is quite opaque!
 type Packet interface{}
 
-// Frame represents a frame of audio or picture data.
-// Currently this is quite opaque - should allow access to
-// the audio sample data, or the individual pixel data!
-type Frame interface{}
+// Frame represents a frame of audio or video data.
+type Frame interface {
+	Parameters
+
+	// Number of samples in the frame, for an audio frame.
+	NumSamples() int
+
+	// Return stride for each plane, for a video frame.
+	Stride(int) int
+
+	// Return a frame plane as a byte slice.
+	Bytes(int) []byte
+
+	// Return a frame as an image, which supports the following
+	// pixel formats: AV_PIX_FMT_GRAY8, AV_PIX_FMT_RGBA,
+	// AV_PIX_FMT_RGB24, AV_PIX_FMT_YUV420P (4:2:0)
+	Image() (image.Image, error)
+}
 
 // Metadata represents a metadata entry for a media stream.
 // Currently this is quite opaque!

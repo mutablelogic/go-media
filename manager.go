@@ -213,6 +213,22 @@ func (manager *manager) PixelFormats() []Metadata {
 	return result
 }
 
+// Return all supported codecs
+func (manager *manager) Codecs() []Metadata {
+	var result []Metadata
+	var iter uintptr
+	for {
+		codec := ff.AVCodec_iterate(&iter)
+		if codec == nil {
+			break
+		}
+		if name := codec.Name(); name != "" {
+			result = append(result, newMetadata(name, newCodec(codec)))
+		}
+	}
+	return result
+}
+
 // Return audio parameters for encoding
 // ChannelLayout, SampleFormat, Samplerate
 func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (AudioParameters, error) {
@@ -221,8 +237,8 @@ func (manager *manager) AudioParameters(channels string, samplefmt string, sampl
 
 // Return video parameters for encoding
 // Width, Height, PixelFormat, Framerate
-func (manager *manager) VideoParameters(width int, height int, pixelfmt string, framerate float64) (VideoParameters, error) {
-	return newVideoParametersEx(width, height, pixelfmt, framerate)
+func (manager *manager) VideoParameters(width int, height int, pixelfmt string) (VideoParameters, error) {
+	return newVideoParametersEx(width, height, pixelfmt)
 }
 
 // Open a media file or device for reading, from a path or url.

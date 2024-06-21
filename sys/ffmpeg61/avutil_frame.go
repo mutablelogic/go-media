@@ -222,6 +222,11 @@ func (ctx *AVFrame) bufferRef(plane int) *AVBufferRef {
 	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
 }
 
+// Returns a plane as a byte array.
+func (ctx *AVFrame) Bytes(plane int) []byte {
+	return ctx.Uint8(plane)
+}
+
 // Returns a plane as a uint8 array.
 func (ctx *AVFrame) Uint8(plane int) []uint8 {
 	if buf := ctx.bufferRef(plane); buf == nil {
@@ -231,12 +236,66 @@ func (ctx *AVFrame) Uint8(plane int) []uint8 {
 	}
 }
 
+// Returns a plane as a int8 array.
+func (ctx *AVFrame) Int8(plane int) []int8 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cInt8Slice(unsafe.Pointer(buf.data), C.int(buf.size))
+	}
+}
+
+// Returns a plane as a uint16 array.
+func (ctx *AVFrame) Uint16(plane int) []uint16 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cUint16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
+	}
+}
+
 // Returns a plane as a int16 array.
 func (ctx *AVFrame) Int16(plane int) []int16 {
 	if buf := ctx.bufferRef(plane); buf == nil {
 		return nil
 	} else {
 		return cInt16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
+	}
+}
+
+// Returns a plane as a uint32 array.
+func (ctx *AVFrame) Uint32(plane int) []uint32 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cUint32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
+	}
+}
+
+// Returns a plane as a int32 array.
+func (ctx *AVFrame) Int32(plane int) []int32 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cInt32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
+	}
+}
+
+// Returns a plane as a float32 array.
+func (ctx *AVFrame) Float32(plane int) []float32 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cFloat32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
+	}
+}
+
+// Returns a plane as a float64 array.
+func (ctx *AVFrame) Float64(plane int) []float64 {
+	if buf := ctx.bufferRef(plane); buf == nil {
+		return nil
+	} else {
+		return cFloat64Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>3)
 	}
 }
 

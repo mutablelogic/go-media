@@ -2,7 +2,6 @@ package media
 
 import (
 	"encoding/json"
-	"math"
 
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
@@ -17,19 +16,33 @@ type par struct {
 	t MediaType
 	audiopar
 	videopar
+	planepar
+}
+
+type codecpar struct {
+	Framerate ff.AVRational
 }
 
 type audiopar struct {
-	Ch           ff.AVChannelLayout
-	SampleFormat ff.AVSampleFormat
-	Samplerate   int
+	Ch           ff.AVChannelLayout `json:"channel_layout,omitempty"`
+	SampleFormat ff.AVSampleFormat  `json:"sample_format,omitempty"`
+	Samplerate   int                `json:"samplerate,omitempty"`
 }
 
 type videopar struct {
-	PixelFormat ff.AVPixelFormat
-	Width       int
-	Height      int
-	Framerate   ff.AVRational
+	PixelFormat ff.AVPixelFormat `json:"pixel_format,omitempty"`
+	Width       int              `json:"width,omitempty"`
+	Height      int              `json:"height,omitempty"`
+}
+
+type planepar struct {
+	NumPlanes int `json:"num_video_planes,omitempty"`
+}
+
+type timingpar struct {
+	Framerate ff.AVRational `json:"framerate,omitempty"`
+	Pts       int64         `json:"pts,omitempty"`
+	TimeBase  ff.AVRational `json:"time_base,omitempty"`
 }
 
 var _ Parameters = (*par)(nil)
@@ -68,13 +81,14 @@ func newAudioParametersEx(channels string, samplefmt string, samplerate int) (*p
 	} else {
 		par.audiopar.Samplerate = samplerate
 	}
+	par.planepar.NumPlanes = par.NumPlanes()
 
 	// Return success
 	return par, nil
 }
 
-// Create new parameters for video from a width, height, pixel format and framerate in fps
-func newVideoParametersEx(width int, height int, pixelfmt string, framerate float64) (*par, error) {
+// Create new parameters for video from a width, height and pixel format
+func newVideoParametersEx(width int, height int, pixelfmt string) (*par, error) {
 	par := new(par)
 	par.t = VIDEO
 
@@ -96,24 +110,20 @@ func newVideoParametersEx(width int, height int, pixelfmt string, framerate floa
 	} else {
 		par.videopar.PixelFormat = fmt
 	}
-	if framerate <= 0 {
-		return nil, ErrBadParameter.Withf("framerate %v", framerate)
-	} else {
-		par.videopar.Framerate = ff.AVUtil_rational_d2q(1/framerate, 0)
-	}
+	par.planepar.NumPlanes = par.NumPlanes()
 
 	// Return success
 	return par, nil
 }
 
-// Create new parameters for video from a frame size, pixel format and framerate in fps
-func newVideoParameters(frame string, pixelfmt string, framerate float64) (*par, error) {
+// Create new parameters for video from a frame size, pixel format
+func newVideoParameters(frame string, pixelfmt string) (*par, error) {
 	// Parse the frame size
 	w, h, err := ff.AVUtil_parse_video_size(frame)
 	if err != nil {
 		return nil, err
 	}
-	return newVideoParametersEx(w, h, pixelfmt, framerate)
+	return newVideoParametersEx(w, h, pixelfmt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +148,22 @@ func (par *par) String() string {
 // Return type
 func (par *par) Type() MediaType {
 	return par.t
+}
+
+// Return number of planes for a specific PixelFormat
+// or SampleFormat and ChannelLayout combination
+func (par *par) NumPlanes() int {
+	switch par.t {
+	case AUDIO:
+		if ff.AVUtil_sample_fmt_is_planar(par.audiopar.SampleFormat) {
+			return par.audiopar.Ch.NumChannels()
+		} else {
+			return 1
+		}
+	case VIDEO:
+		return ff.AVUtil_pix_fmt_count_planes(par.videopar.PixelFormat)
+	}
+	return 0
 }
 
 // Return the channel layout
@@ -174,13 +200,4 @@ func (par *par) Height() int {
 // Return the pixel format
 func (par *par) PixelFormat() string {
 	return ff.AVUtil_get_pix_fmt_name(par.videopar.PixelFormat)
-}
-
-// Return the frame rate (fps)
-func (par *par) Framerate() float64 {
-	if v := par.videopar.Framerate.Float(1); v == 0 {
-		return math.Inf(1)
-	} else {
-		return 1 / v
-	}
 }

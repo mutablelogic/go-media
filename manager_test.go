@@ -82,3 +82,15 @@ func Test_manager_006(t *testing.T) {
 
 	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(pixel_formats)
 }
+
+func Test_manager_007(t *testing.T) {
+	assert := assert.New(t)
+
+	manager := NewManager()
+	assert.NotNil(manager)
+
+	codecs := manager.Codecs()
+	assert.NotNil(codecs)
+
+	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(codecs)
+}
