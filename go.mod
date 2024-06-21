@@ -9,7 +9,6 @@ require (
 	github.com/djthorpe/go-errors v1.0.3
 	github.com/djthorpe/go-tablewriter v0.0.8
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/mutablelogic/go-client v1.0.8
 	github.com/stretchr/testify v1.9.0
 )
 

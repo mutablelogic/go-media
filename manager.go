@@ -249,7 +249,7 @@ func (manager *manager) Write(io.Writer, Format) (Media, error) {
 func (manager *manager) Version() []Metadata {
 	metadata := []Metadata{
 		newMetadata("libavcodec_version", ff.AVCodec_version()),
-		newMetadata("libavformat_versionn", ff.AVFormat_version()),
+		newMetadata("libavformat_version", ff.AVFormat_version()),
 		newMetadata("libavutil_version", ff.AVUtil_version()),
 		newMetadata("libavdevice_version", ff.AVDevice_version()),
 		//		newMetadata("libavfilter_version", ff.AVFilter_version()),
