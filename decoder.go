@@ -40,18 +40,38 @@ func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, erro
 	// Get all the streams
 	streams := input.Streams()
 
+	// Use standard map function if none provided
+	if mapfn == nil {
+		mapfn = func(stream Stream) (Parameters, error) {
+			return stream.Parameters(), nil
+		}
+	}
+
 	// Create a decoder for each stream
 	// The decoder map function should be returning the parameters for the
 	// destination frame. If it's nil then it's mostly a copy.
+	var result error
 	for _, stream := range streams {
-		if mapfn == nil || mapfn(stream) {
-			if decoder, err := demuxer.newDecoder(stream); err != nil {
-				return nil, errors.Join(err, demuxer.close())
-			} else {
-				streamNum := stream.Index()
-				demuxer.decoders[streamNum] = decoder
-			}
+		// Get decoder parameters
+		parameters, err := mapfn(newStream(stream))
+		if err != nil {
+			result = errors.Join(result, err)
+		} else if parameters == nil {
+			continue
 		}
+
+		// Create the decoder with the parameters
+		if decoder, err := demuxer.newDecoder(stream, parameters); err != nil {
+			result = errors.Join(result, err)
+		} else {
+			streamNum := stream.Index()
+			demuxer.decoders[streamNum] = decoder
+		}
+	}
+
+	// Return any errors
+	if result != nil {
+		return nil, errors.Join(result, demuxer.close())
 	}
 
 	// Create a frame for encoding - after resampling and resizing
@@ -65,9 +85,11 @@ func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, erro
 	return demuxer, nil
 }
 
-func (d *demuxer) newDecoder(stream *ff.AVStream) (*decoder, error) {
+func (d *demuxer) newDecoder(stream *ff.AVStream, parameters Parameters) (*decoder, error) {
 	decoder := new(decoder)
 	decoder.stream = stream.Id()
+
+	// TODO: Use parameters to create the decoder
 
 	// Create a codec context for the decoder
 	codec := ff.AVCodec_find_decoder(stream.CodecPar().CodecID())
@@ -191,6 +213,14 @@ FOR_LOOP:
 	// demuxer finished successfully without cancellation
 	return ctx.Err()
 }
+
+func (d *demuxer) Decode(context.Context, FrameFunc) error {
+	// TODO
+	return errors.New("not implemented")
+}
+
+////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
 func (d *decoder) decode(fn DecoderFunc, packet *ff.AVPacket) error {
 	// Send the packet to the user defined packet function or

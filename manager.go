@@ -163,6 +163,68 @@ func (manager *manager) OutputDevices(format string) []Device {
 	panic("TODO")
 }
 
+// Return all supported channel layouts
+func (manager *manager) ChannelLayouts() []Metadata {
+	var result []Metadata
+	var iter uintptr
+	for {
+		ch := ff.AVUtil_channel_layout_standard(&iter)
+		if ch == nil {
+			break
+		}
+		if name, err := ff.AVUtil_channel_layout_describe(ch); err != nil {
+			continue
+		} else {
+			result = append(result, newMetadata(name, ch))
+		}
+	}
+	return result
+}
+
+// Return all supported sample formats
+func (manager *manager) SampleFormats() []Metadata {
+	var result []Metadata
+	var opaque uintptr
+	for {
+		samplefmt := ff.AVUtil_next_sample_fmt(&opaque)
+		if samplefmt == ff.AV_SAMPLE_FMT_NONE {
+			break
+		}
+		if name := ff.AVUtil_get_sample_fmt_name(samplefmt); name != "" {
+			result = append(result, newMetadata(name, samplefmt))
+		}
+	}
+	return result
+}
+
+// Return all supported  pixel formats
+func (manager *manager) PixelFormats() []Metadata {
+	var result []Metadata
+	var opaque uintptr
+	for {
+		pixfmt := ff.AVUtil_next_pixel_fmt(&opaque)
+		if pixfmt == ff.AV_PIX_FMT_NONE {
+			break
+		}
+		if name := ff.AVUtil_get_pix_fmt_name(pixfmt); name != "" {
+			result = append(result, newMetadata(name, pixfmt))
+		}
+	}
+	return result
+}
+
+// Return audio parameters for encoding
+// ChannelLayout, SampleFormat, Samplerate
+func (manager *manager) AudioParameters(string, string, int) (AudioParameters, error) {
+	return nil, ErrNotImplemented
+}
+
+// Return video parameters for encoding
+// Width, Height, PixelFormat, Framerate
+func (manager *manager) VideoParameters(int, int, string, float32) (VideoParameters, error) {
+	return nil, ErrNotImplemented
+}
+
 // Open a media file or device for reading, from a path or url.
 func (manager *manager) Open(url string, format Format, opts ...string) (Media, error) {
 	return newMedia(url, format, opts...)

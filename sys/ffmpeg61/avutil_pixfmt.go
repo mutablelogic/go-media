@@ -263,6 +263,23 @@ func (v AVPixelFormat) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 
+// Enumerate pixel formats
+func AVUtil_next_pixel_fmt(iterator *uintptr) AVPixelFormat {
+	if iterator == nil {
+		return AV_PIX_FMT_NONE
+	}
+
+	// Increment the iterator
+	*iterator += 1
+
+	desc := AVUtil_get_pix_fmt_desc(AVPixelFormat(*iterator))
+	if desc == nil {
+		return AV_PIX_FMT_NONE
+	} else {
+		return AVPixelFormat(*iterator)
+	}
+}
+
 func AVUtil_get_pix_fmt_name(pixfmt AVPixelFormat) string {
 	return C.GoString(C.av_get_pix_fmt_name((C.enum_AVPixelFormat)(pixfmt)))
 }

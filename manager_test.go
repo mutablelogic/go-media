@@ -46,3 +46,39 @@ func Test_manager_003(t *testing.T) {
 
 	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(version)
 }
+
+func Test_manager_004(t *testing.T) {
+	assert := assert.New(t)
+
+	manager := NewManager()
+	assert.NotNil(manager)
+
+	channel_layouts := manager.ChannelLayouts()
+	assert.NotNil(channel_layouts)
+
+	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(channel_layouts)
+}
+
+func Test_manager_005(t *testing.T) {
+	assert := assert.New(t)
+
+	manager := NewManager()
+	assert.NotNil(manager)
+
+	sample_formats := manager.SampleFormats()
+	assert.NotNil(sample_formats)
+
+	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(sample_formats)
+}
+
+func Test_manager_006(t *testing.T) {
+	assert := assert.New(t)
+
+	manager := NewManager()
+	assert.NotNil(manager)
+
+	pixel_formats := manager.PixelFormats()
+	assert.NotNil(pixel_formats)
+
+	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(pixel_formats)
+}

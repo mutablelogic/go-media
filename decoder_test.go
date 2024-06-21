@@ -22,10 +22,10 @@ func Test_decoder_001(t *testing.T) {
 	}
 	defer media.Close()
 
-	decoder, err := media.Decoder(func (stream Stream) Parameters {
+	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Copy parameters from the stream
-		return stream.Parameters()
-	}
+		return stream.Parameters(), nil
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}

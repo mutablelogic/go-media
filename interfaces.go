@@ -13,26 +13,6 @@ import (
 // Manager represents a manager for media formats and devices.
 // Create a new manager object using the NewManager function.
 type Manager interface {
-	// Return supported input formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	InputFormats(MediaType, ...string) []Format
-
-	// Return supported output formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	OutputFormats(MediaType, ...string) []Format
-
-	// Return supported input devices for a given format name
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	InputDevices(string) []Device
-
-	// Return supported output devices for a given format name
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	OutputDevices(string) []Device
-
 	// Open a media file or device for reading, from a path or url.
 	// If a format is specified, then the format will be used to open
 	// the file. Close the media object when done.
@@ -57,9 +37,25 @@ type Manager interface {
 	// TODO
 	Write(io.Writer, Format) (Media, error)
 
-	// Return version information for the media manager as a set of
-	// metadata
-	Version() []Metadata
+	// Return supported input formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	InputFormats(MediaType, ...string) []Format
+
+	// Return supported output formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	OutputFormats(MediaType, ...string) []Format
+
+	// Return supported input devices for a given format name
+	// Not all devices may be supported on all platforms or listed
+	// if the device does not support enumeration.
+	InputDevices(string) []Device
+
+	// Return supported output devices for a given format name
+	// Not all devices may be supported on all platforms or listed
+	// if the device does not support enumeration.
+	OutputDevices(string) []Device
 
 	// Return all supported channel layouts
 	ChannelLayouts() []Metadata
@@ -71,12 +67,16 @@ type Manager interface {
 	PixelFormats() []Metadata
 
 	// Return audio parameters for encoding
-	// ChannelLayout, SampleFormat, SampleRate
+	// ChannelLayout, SampleFormat, Samplerate
 	AudioParameters(string, string, int) (AudioParameters, error)
 
 	// Return video parameters for encoding
-	// Width, Height, PixelFormat, FrameRate
-	VideoParameters(int, int, string, int) (VideoParameters, error)
+	// Width, Height, PixelFormat, Framerate
+	VideoParameters(int, int, string, float32) (VideoParameters, error)
+
+	// Return version information for the media manager as a set of
+	// metadata
+	Version() []Metadata
 }
 
 // Device represents a device for input or output of media streams.
