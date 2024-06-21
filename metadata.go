@@ -6,8 +6,8 @@ import "encoding/json"
 // TYPES
 
 type metadata struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Key   string `json:"key" writer:",width:30"`
+	Value any    `json:"value" writer:",width:50"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
