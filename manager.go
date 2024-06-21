@@ -215,14 +215,14 @@ func (manager *manager) PixelFormats() []Metadata {
 
 // Return audio parameters for encoding
 // ChannelLayout, SampleFormat, Samplerate
-func (manager *manager) AudioParameters(string, string, int) (AudioParameters, error) {
-	return nil, ErrNotImplemented
+func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (AudioParameters, error) {
+	return newAudioParametersEx(channels, samplefmt, samplerate)
 }
 
 // Return video parameters for encoding
 // Width, Height, PixelFormat, Framerate
-func (manager *manager) VideoParameters(int, int, string, float32) (VideoParameters, error) {
-	return nil, ErrNotImplemented
+func (manager *manager) VideoParameters(width int, height int, pixelfmt string, framerate float64) (VideoParameters, error) {
+	return newVideoParametersEx(width, height, pixelfmt, framerate)
 }
 
 // Open a media file or device for reading, from a path or url.

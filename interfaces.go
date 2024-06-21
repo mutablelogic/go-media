@@ -72,7 +72,7 @@ type Manager interface {
 
 	// Return video parameters for encoding
 	// Width, Height, PixelFormat, Framerate
-	VideoParameters(int, int, string, float32) (VideoParameters, error)
+	VideoParameters(int, int, string, float64) (VideoParameters, error)
 
 	// Return version information for the media manager as a set of
 	// metadata
@@ -184,7 +184,7 @@ type AudioParameters interface {
 	SampleFormat() string
 
 	// Return the sample rate (Hz)
-	SampleRate() int
+	Samplerate() int
 
 	// TODO:
 	// Planar, number of planes, bits and bytes per sample
@@ -202,7 +202,7 @@ type VideoParameters interface {
 	PixelFormat() string
 
 	// Return the frame rate (fps)
-	FrameRate() int
+	Framerate() float64
 
 	// TODO:
 	// Planar, number of planes, names of the planes, bits and bytes per pixel

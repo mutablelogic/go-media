@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"fmt"
+	"unsafe"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,6 +283,14 @@ func AVUtil_next_pixel_fmt(iterator *uintptr) AVPixelFormat {
 
 func AVUtil_get_pix_fmt_name(pixfmt AVPixelFormat) string {
 	return C.GoString(C.av_get_pix_fmt_name((C.enum_AVPixelFormat)(pixfmt)))
+}
+
+// Return the pixel format corresponding to name.
+// If no pixel format has been found, returns AV_PIX_FMT_NONE
+func AVUtil_get_pix_fmt(name string) AVPixelFormat {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	return AVPixelFormat(C.av_get_pix_fmt(cName))
 }
 
 func AVUtil_get_pix_fmt_desc(pixfmt AVPixelFormat) *AVPixFmtDescriptor {

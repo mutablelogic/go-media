@@ -56,3 +56,13 @@ func (r AVRational) IsZero() bool {
 func (r AVRational) Float(multiplier int64) float64 {
 	return float64(int64(r.num)*multiplier) / float64(r.den)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// BINDINGS
+
+func AVUtil_rational_d2q(d float64, max int) AVRational {
+	if max == 0 {
+		max = C.INT_MAX
+	}
+	return AVRational(C.av_d2q(C.double(d), C.int(max)))
+}
