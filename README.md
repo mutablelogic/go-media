@@ -102,9 +102,55 @@ func main() {
 }
 ```
 
-### Decoding
+### Decoding - Video Frames
 
-TODO
+This example shows you how to decode video frames from a media file into images.
+
+```go
+import (
+  media "github.com/mutablelogic/go-media"
+)
+
+func main() {
+  manager := NewManager()
+  media, err := manager.Open("etc/test/sample.mp4", nil)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer media.Close()
+
+  // Create a decoder for the media file. Only video streams are decoded
+  decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
+    if stream.Type() == VIDEO {
+      // Copy video
+      return stream.Parameters(), nil
+    } else {
+      // Ignore other stream types
+      return nil, nil
+    }
+  })
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  // The frame function is called for each frame in the stream
+  framefn := func(frame Frame) error {
+    if frame.Type() != VIDEO {
+       return nil
+    } else if image, err := frame.Image(); err != nil {
+      return err
+    } else {
+        // Do something with the image here....
+    }
+    return nil
+  }
+
+  // decode frames from the stream
+  if err := decoder.Decode(context.Background(), framefn); err != nil {
+    log.Fatal(err)
+  }
+}
+```
 
 ### Encoding
 
