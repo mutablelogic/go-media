@@ -40,7 +40,7 @@ func (v MediaType) MarshalJSON() ([]byte, error) {
 
 func (v MediaType) String() string {
 	if v == NONE {
-		return v.String()
+		return v.FlagString()
 	}
 	str := ""
 	for f := MIN; f <= MAX; f <<= 1 {

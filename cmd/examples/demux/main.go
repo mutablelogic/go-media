@@ -24,20 +24,20 @@ func main() {
 	// to the decoder. If you don't want to resample or reformat the streams,
 	// then you can pass nil as the function and all streams will be demultiplexed.
 	decoder, err := file.Decoder(func(stream media.Stream) (media.Parameters, error) {
-		// Copy streams, don't resample or resize
 		return stream.Parameters(), nil
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Demuliplex the stream and receive the frames of audio and video.
-	if err := decoder.Decode(context.Background(), func(frame media.Frame) error {
+	// Demuliplex the stream and receive the packets from the stream
+	if err := decoder.Demux(context.Background(), func(packet media.Packet) error {
 		// Each packet is specific to a stream. It can be processed here
-		// to receive audio or video frames, then resize or resample them,
+		// to decode audio or video frames, then resize or resample them,
 		// for example. Alternatively, you can pass the packet to an encoder
 		// to remultiplex the streams without processing them.
-		log.Print(frame)
+		// You may get 'nil' packets when the stream is flushed.
+		log.Print(packet)
 
 		// Return io.EOF to stop processing, nil to continue
 		return nil

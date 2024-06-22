@@ -365,13 +365,13 @@ func equalsStream(dest Parameters, src *ff.AVCodecParameters) (bool, error) {
 	switch src.CodecType() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		if !dest.Type().Is(AUDIO) {
-			return false, fmt.Errorf("source is audio, but destination is %v", dest.Type())
+			return false, fmt.Errorf("source is AUDIO, but destination is %v", dest.Type())
 		} else {
 			return equalsAudioPar(dest, src), nil
 		}
 	case ff.AVMEDIA_TYPE_VIDEO:
 		if !dest.Type().Is(VIDEO) {
-			return false, fmt.Errorf("source is video, but destination are %v", dest.Type())
+			return false, fmt.Errorf("source is VIDEO, but destination is %v", dest.Type())
 		} else {
 			return equalsVideoPar(dest, src), nil
 		}
