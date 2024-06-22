@@ -16,8 +16,7 @@ you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
-In order to build the examples, you'll need the library and header files for [ffmpeg 6](https://ffmpeg.org/download.html) installed. 
-The `chromaprint` library is also required for fingerprinting audio files. On Macintosh with [homebrew](http://bew.sh/), for example:
+In order to build the examples, you'll need the library and header files for [FFmpeg 6](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also required for fingerprinting audio files. On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
 brew install ffmpeg@6 chromaprint make
@@ -184,6 +183,9 @@ code or binary form must reproduce the copyright notice, and please link back to
 repository for more information:
 
 > Copyright (c) 2021-2024 David Thorpe, All rights reserved.
+
+This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under
+the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
 
 ## References
 
