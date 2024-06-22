@@ -268,12 +268,12 @@ func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media,
 }
 
 // Create a media file for writing, from a path.
-func (manager *manager) Create(string, Format) (Media, error) {
+func (manager *manager) Create(string, Format, ...Parameters) (Media, error) {
 	return nil, ErrNotImplemented
 }
 
 // Create a media stream for writing.
-func (manager *manager) Write(io.Writer, Format) (Media, error) {
+func (manager *manager) Write(io.Writer, Format, ...Parameters) (Media, error) {
 	return nil, ErrNotImplemented
 }
 

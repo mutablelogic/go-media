@@ -75,11 +75,11 @@ type Manager interface {
 
 	// Return codec parameters for audio encoding
 	// Codec name and AudioParameters
-	AudioCodecParameters(string, AudioParameters) (Parameters, error)
+	//AudioCodecParameters(string, AudioParameters) (Parameters, error)
 
 	// Return codec parameters for video encoding
 	// Codec name, Profile name, Framerate (fps) and VideoParameters
-	VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
+	//VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
 
 	// Return version information for the media manager as a set of
 	// metadata

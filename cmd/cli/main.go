@@ -18,6 +18,7 @@ type CLI struct {
 	Demuxers       DemuxersCmd       `cmd:"demuxers" help:"List media demultiplex (input) formats"`
 	Muxers         MuxersCmd         `cmd:"muxers" help:"List media multiplex (output) formats"`
 	Devices        DevicesCmd        `cmd:"devices" help:"List inout and output devices"`
+	Codecs         CodecsCmd         `cmd:"codecs" help:"List audio and video codecs"`
 	SampleFormats  SampleFormatsCmd  `cmd:"samplefmts" help:"List audio sample formats"`
 	ChannelLayouts ChannelLayoutsCmd `cmd:"channellayouts" help:"List audio channel layouts"`
 	PixelFormats   PixelFormatsCmd   `cmd:"pixelfmts" help:"List video pixel formats"`
