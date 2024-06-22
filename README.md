@@ -182,6 +182,8 @@ The license is Apache 2 so feel free to redistribute. Redistributions in either 
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
 
+> go-media
+> https://github.com/mutablelogic/go-media/
 > Copyright (c) 2021-2024 David Thorpe, All rights reserved.
 
 This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under
@@ -190,3 +192,4 @@ the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
 ## References
 
 * https://ffmpeg.org/doxygen/6.1/index.html
+* https://pkg.go.dev/github.com/mutablelogic/go-media
