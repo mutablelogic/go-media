@@ -67,11 +67,11 @@ type Manager interface {
 
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
-	AudioParameters(string, string, int) (AudioParameters, error)
+	AudioParameters(string, string, int) (Parameters, error)
 
 	// Return video parameters for encoding
 	// Width, Height, PixelFormat
-	VideoParameters(int, int, string) (VideoParameters, error)
+	VideoParameters(int, int, string) (Parameters, error)
 
 	// Return codec parameters for audio encoding
 	// Codec name and AudioParameters

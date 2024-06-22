@@ -263,14 +263,6 @@ func (ctx *AVCodec) String() string {
 	}
 }
 
-func (ctx *AVCodecParameters) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
-}
-
 func (ctx *AVCodecContext) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
 		return err.Error()
@@ -285,57 +277,6 @@ func (ctx AVProfile) String() string {
 	} else {
 		return string(str)
 	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AVCodecParameters
-
-type jsonAVCodecParameters struct {
-	CodecType         AVMediaType `json:"codec_type"`
-	CodecID           AVCodecID   `json:"codec_id,omitempty"`
-	CodecTag          uint32      `json:"codec_tag,omitempty"`
-	Format            int         `json:"format,omitempty"`
-	BitRate           int64       `json:"bit_rate,omitempty"`
-	Width             int         `json:"width,omitempty"`
-	Height            int         `json:"height,omitempty"`
-	SampleAspectRatio AVRational  `json:"sample_aspect_ratio,omitempty"`
-	SampleRate        int         `json:"sample_rate,omitempty"`
-	FrameSize         int         `json:"frame_size,omitempty"`
-}
-
-func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVCodecParameters{
-		CodecType:         AVMediaType(ctx.codec_type),
-		CodecID:           AVCodecID(ctx.codec_id),
-		CodecTag:          uint32(ctx.codec_tag),
-		Format:            int(ctx.format),
-		BitRate:           int64(ctx.bit_rate),
-		Width:             int(ctx.width),
-		Height:            int(ctx.height),
-		SampleAspectRatio: (AVRational)(ctx.sample_aspect_ratio),
-		SampleRate:        int(ctx.sample_rate),
-		FrameSize:         int(ctx.frame_size),
-	})
-}
-
-func (ctx *AVCodecParameters) CodecType() AVMediaType {
-	return AVMediaType(ctx.codec_type)
-}
-
-func (ctx *AVCodecParameters) CodecID() AVCodecID {
-	return AVCodecID(ctx.codec_id)
-}
-
-func (ctx *AVCodecParameters) CodecTag() uint32 {
-	return uint32(ctx.codec_tag)
-}
-
-func (ctx *AVCodecParameters) SetCodecTag(tag uint32) {
-	ctx.codec_tag = C.uint32_t(tag)
-}
-
-func (ctx *AVCodecParameters) Format() int {
-	return int(ctx.format)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

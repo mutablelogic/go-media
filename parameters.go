@@ -72,12 +72,12 @@ func newAudioParametersEx(channels string, samplefmt string, samplerate int) (*p
 		return nil, err
 	}
 	if fmt := ff.AVUtil_get_sample_fmt(samplefmt); fmt == ff.AV_SAMPLE_FMT_NONE {
-		return nil, ErrBadParameter.Withf("sample format %q", samplefmt)
+		return nil, ErrBadParameter.Withf("unknown sample format %q", samplefmt)
 	} else {
 		par.audiopar.SampleFormat = fmt
 	}
 	if samplerate <= 0 {
-		return nil, ErrBadParameter.Withf("samplerate %v", samplerate)
+		return nil, ErrBadParameter.Withf("negative or zero samplerate %v", samplerate)
 	} else {
 		par.audiopar.Samplerate = samplerate
 	}
@@ -95,18 +95,18 @@ func newVideoParametersEx(width int, height int, pixelfmt string) (*par, error) 
 	// Set the  parameters
 	if width <= 0 {
 		// Negative widths might mean "flip" but not tested yet
-		return nil, ErrBadParameter.Withf("width %v", width)
+		return nil, ErrBadParameter.Withf("negative or zero width %v", width)
 	} else {
 		par.videopar.Width = width
 	}
 	if height <= 0 {
 		// Negative heights might mean "flip" but not tested yet
-		return nil, ErrBadParameter.Withf("height %v", height)
+		return nil, ErrBadParameter.Withf("negative or zero height %v", height)
 	} else {
 		par.videopar.Height = height
 	}
 	if fmt := ff.AVUtil_get_pix_fmt(pixelfmt); fmt == ff.AV_PIX_FMT_NONE {
-		return nil, ErrBadParameter.Withf("pixel format %q", pixelfmt)
+		return nil, ErrBadParameter.Withf("unknown pixel format %q", pixelfmt)
 	} else {
 		par.videopar.PixelFormat = fmt
 	}

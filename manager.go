@@ -247,13 +247,13 @@ func (manager *manager) Codecs() []Metadata {
 
 // Return audio parameters for encoding
 // ChannelLayout, SampleFormat, Samplerate
-func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (AudioParameters, error) {
+func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (Parameters, error) {
 	return newAudioParametersEx(channels, samplefmt, samplerate)
 }
 
 // Return video parameters for encoding
 // Width, Height, PixelFormat, Framerate
-func (manager *manager) VideoParameters(width int, height int, pixelfmt string) (VideoParameters, error) {
+func (manager *manager) VideoParameters(width int, height int, pixelfmt string) (Parameters, error) {
 	return newVideoParametersEx(width, height, pixelfmt)
 }
 
