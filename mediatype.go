@@ -22,10 +22,11 @@ const (
 	OUTPUT                           // Muxer
 	FILE                             // File or byte stream
 	DEVICE                           // Device rather than stream
+	CODEC                            // Codec
 
 	// Set minimum and maximum values
 	MIN = UNKNOWN
-	MAX = DEVICE
+	MAX = CODEC
 
 	// Convenience values
 	ANY = NONE
@@ -71,6 +72,8 @@ func (v MediaType) FlagString() string {
 		return "FILE"
 	case DEVICE:
 		return "DEVICE"
+	case CODEC:
+		return "CODEC"
 	}
 	return ""
 }

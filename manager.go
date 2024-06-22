@@ -267,14 +267,14 @@ func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media,
 	return newReader(r, format, opts...)
 }
 
-// Create a media file for writing, from a path.
-func (manager *manager) Create(string, Format, ...Parameters) (Media, error) {
-	return nil, ErrNotImplemented
+// Create a media file for writing, from a url, path, or device.
+func (manager *manager) Create(url string, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
+	return createMedia(url, format, metadata, params...)
 }
 
 // Create a media stream for writing.
-func (manager *manager) Write(io.Writer, Format, ...Parameters) (Media, error) {
-	return nil, ErrNotImplemented
+func (manager *manager) Write(w io.Writer, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
+	return createWriter(w, format, metadata, params...)
 }
 
 // Return version information for the media manager as a set of metadata

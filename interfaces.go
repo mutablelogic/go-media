@@ -29,14 +29,14 @@ type Manager interface {
 	// specified, then the format will be used to create the file or else
 	// the format is guessed from the path. If no parameters are provided,
 	// then the default parameters for the format are used.
-	Create(string, Format, ...Parameters) (Media, error)
+	Create(string, Format, []Metadata, ...Parameters) (Media, error)
 
 	// Create a media stream for writing. The format will be used to
 	// determine the formar type and one or more CodecParameters used to
 	// create the streams. If no parameters are provided, then the
 	// default parameters for the format are used. It is the responsibility
 	// of the caller to also close the writer when done.
-	Write(io.Writer, Format, ...Parameters) (Media, error)
+	Write(io.Writer, Format, []Metadata, ...Parameters) (Media, error)
 
 	// Return supported input formats which match any filter, which can be
 	// a name, extension (with preceeding period) or mimetype. The MediaType
@@ -48,7 +48,7 @@ type Manager interface {
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
 	OutputFormats(MediaType, ...string) []Format
 
-	// Return supported devices for a given format name
+	// Return supported devices for a given format.
 	// Not all devices may be supported on all platforms or listed
 	// if the device does not support enumeration.
 	Devices(Format) []Device
@@ -87,7 +87,6 @@ type Manager interface {
 }
 
 // Device represents a device for input or output of media streams.
-// TODO
 type Device interface {
 	// Device name, format depends on the device
 	Name() string
