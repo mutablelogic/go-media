@@ -2,7 +2,6 @@ package media
 
 import (
 	"errors"
-	"fmt"
 	"io"
 
 	// Packages
@@ -55,15 +54,16 @@ func createMedia(url string, format Format, metadata []Metadata, params ...Param
 	}
 
 	// Add streams
-	for _, param := range params {
-		stream, err := newWriterStream(ctx, param)
-		if err != nil {
-			return nil, errors.Join(err, writer.Close())
-		} else {
-			fmt.Println("TODO: STREAM", stream)
+	/*
+		for _, param := range params {
+			stream, err := newWriterStream(ctx, param)
+			if err != nil {
+				return nil, errors.Join(err, writer.Close())
+			} else {
+				fmt.Println("TODO: STREAM", stream)
+			}
 		}
-	}
-
+	*/
 	// Open the output file, if needed
 	if !ctx.Flags().Is(ff.AVFMT_NOFILE) {
 		w, err := ff.AVFormat_avio_open(url, ff.AVIO_FLAG_WRITE)

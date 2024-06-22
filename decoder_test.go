@@ -168,7 +168,7 @@ func Test_decoder_004(t *testing.T) {
 
 	// Open the file
 	manager := NewManager()
-	media, err := manager.Open("./etc/test/sample.mp4", nil)
+	media, err := manager.Open("./etc/test/audio_22050_1ch_5m35.s16le.sw", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -188,8 +188,81 @@ func Test_decoder_004(t *testing.T) {
 	}
 
 	// This is the function which processes the audio frames
+	tmp, err := os.MkdirTemp("", "media_test_")
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	filename := filepath.Join(tmp, "audio.sw")
+	f, err := os.Create(filename)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	defer f.Close()
+
+	bytes_written := 0
 	framefn := func(frame Frame) error {
-		t.Log(frame)
+		n, err := f.Write(frame.Bytes(0))
+		if err != nil {
+			return err
+		} else {
+			bytes_written += n
+			t.Logf("Written %d bytes to %v", bytes_written, filename)
+		}
+		return nil
+	}
+
+	// Finally, this is where we actually decode frames from the stream
+	assert.NoError(decoder.Decode(context.Background(), framefn))
+}
+
+func Test_decoder_005(t *testing.T) {
+	// Decode audio frames
+	assert := assert.New(t)
+
+	// Open the file
+	manager := NewManager()
+	media, err := manager.Open("./test.mp3", nil)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	defer media.Close()
+
+	// Create a decoder to decompress the audio
+	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
+		// Audio - downsample to stereo, s16
+		if stream.Type() == AUDIO {
+			return manager.AudioParameters("mono", "s16", 44100)
+		}
+		// Ignore other streams
+		return nil, nil
+	})
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
+	// This is the function which processes the audio frames
+	tmp, err := os.MkdirTemp("", "media_test_")
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
+	// TODO: Endian might be le or be depending on the native endianness
+	filename := filepath.Join(tmp, "audio.s16le.sw")
+	f, err := os.Create(filename)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	defer f.Close()
+
+	bytes_written := 0
+	framefn := func(frame Frame) error {
+		n, err := f.Write(frame.Bytes(0))
+		if err != nil {
+			return err
+		} else {
+			bytes_written += n
+			t.Logf("Written %d bytes to %v", bytes_written, filename)
+		}
 		return nil
 	}
 

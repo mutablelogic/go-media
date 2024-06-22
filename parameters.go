@@ -87,6 +87,26 @@ func newAudioParametersEx(channels string, samplefmt string, samplerate int) (*p
 	return par, nil
 }
 
+func newCodecAudioParameters(codec *ff.AVCodecParameters) *par {
+	par := new(par)
+	par.t = AUDIO
+	par.audiopar.Ch = codec.ChannelLayout()
+	par.audiopar.SampleFormat = codec.SampleFormat()
+	par.audiopar.Samplerate = codec.Samplerate()
+	par.planepar.NumPlanes = par.NumPlanes()
+	return par
+}
+
+func newCodecVideoParameters(codec *ff.AVCodecParameters) *par {
+	par := new(par)
+	par.t = VIDEO
+	par.videopar.Width = codec.Width()
+	par.videopar.Height = codec.Height()
+	par.videopar.PixelFormat = codec.PixelFormat()
+	par.planepar.NumPlanes = par.NumPlanes()
+	return par
+}
+
 // Create new parameters for video from a width, height and pixel format
 func newVideoParametersEx(width int, height int, pixelfmt string) (*par, error) {
 	par := new(par)

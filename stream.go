@@ -17,7 +17,8 @@ type writerstream struct {
 }
 
 var _ Stream = (*stream)(nil)
-var _ Stream = (*writerstream)(nil)
+
+//var _ Stream = (*writerstream)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -27,6 +28,7 @@ func newStream(ctx *ff.AVStream) *stream {
 	return &stream{ctx}
 }
 
+/*
 // Stream wrapper for encoding
 func newWriterStream(ctx *ff.AVFormatContext, param Parameters) (*writerstream, error) {
 	// Parameters - Codec
@@ -44,7 +46,7 @@ func newWriterStream(ctx *ff.AVFormatContext, param Parameters) (*writerstream, 
 
 	return nil, ErrNotImplemented
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -61,6 +63,13 @@ func (stream *stream) Type() MediaType {
 }
 
 func (stream *stream) Parameters() Parameters {
-	// TODO
-	return new(par)
+	switch stream.Type() {
+	case AUDIO:
+		return newCodecAudioParameters(stream.CodecPar())
+	case VIDEO:
+		return newCodecVideoParameters(stream.CodecPar())
+	}
+
+	// Other types not yet supported
+	return nil
 }

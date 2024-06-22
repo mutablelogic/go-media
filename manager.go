@@ -7,9 +7,6 @@ import (
 	// Package imports
 	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////

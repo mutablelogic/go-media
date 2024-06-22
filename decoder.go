@@ -97,7 +97,12 @@ func (d *demuxer) newDecoder(stream *ff.AVStream, dest Parameters) (*decoder, er
 	} else if !equals {
 		switch src.CodecType() {
 		case ff.AVMEDIA_TYPE_AUDIO:
-			fmt.Println("TODO: set up resampler", dest)
+			if resampler, frame, err := newResampler(dest, src); err != nil {
+				return nil, err
+			} else {
+				decoder.resampler = resampler
+				decoder.reframe = frame
+			}
 		case ff.AVMEDIA_TYPE_VIDEO:
 			if rescaler, frame, err := newResizer(dest, src); err != nil {
 				return nil, err
@@ -155,8 +160,59 @@ func newResizer(dest Parameters, src *ff.AVCodecParameters) (*ff.SWSContext, *ff
 		ff.SWScale_free_context(ctx)
 		return nil, nil, errors.New("failed to allocate frame")
 	} else {
+		// Set frame parameters
+		frame.SetPixFmt(dest_pixel_format)
+		frame.SetWidth(dest.Width())
+		frame.SetHeight(dest.Height())
+
+		// Return success
 		return ctx, frame, nil
 	}
+}
+
+func newResampler(dest Parameters, src *ff.AVCodecParameters) (*ff.SWRContext, *ff.AVFrame, error) {
+	// Get native sample format and channel layout
+	var dest_channel_layout ff.AVChannelLayout
+	dest_sample_format := ff.AVUtil_get_sample_fmt(dest.SampleFormat())
+	if err := ff.AVUtil_channel_layout_from_string(&dest_channel_layout, dest.ChannelLayout()); err != nil {
+		return nil, nil, fmt.Errorf("failed to get channel layout: %w", err)
+	}
+
+	// Create a new resampler
+	ctx := ff.SWResample_alloc()
+	if ctx == nil {
+		return nil, nil, errors.New("failed to allocate resampler")
+	}
+
+	// Set options to covert from the codec frame to the decoder frame
+	if err := ff.SWResample_set_opts(ctx,
+		dest_channel_layout, dest_sample_format, dest.Samplerate(), // destination
+		src.ChannelLayout(), src.SampleFormat(), src.Samplerate(), // source
+	); err != nil {
+		ff.SWResample_free(ctx)
+		return nil, nil, fmt.Errorf("SWResample_set_opts: %w", err)
+	}
+
+	// Initialize the resampling context
+	if err := ff.SWResample_init(ctx); err != nil {
+		ff.SWResample_free(ctx)
+		return nil, nil, fmt.Errorf("SWResample_init: %w", err)
+	}
+
+	// Create a new frame for the resampled audio
+	frame := ff.AVUtil_frame_alloc()
+	if frame == nil {
+		ff.SWResample_free(ctx)
+		return nil, nil, errors.New("failed to allocate frame")
+	}
+
+	// Set frame parameters
+	frame.SetSampleRate(dest.Samplerate())
+	frame.SetSampleFormat(dest_sample_format)
+	frame.SetChannelLayout(dest_channel_layout)
+
+	// Return success
+	return ctx, frame, nil
 }
 
 func (d *demuxer) close() error {
@@ -327,7 +383,14 @@ func (d *decoder) decode(packet *ff.AVPacket, demuxfn DecoderFunc, framefn Frame
 func (d *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	switch d.codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		fmt.Println("TODO: resample audio", src)
+		if d.resampler != nil && src != nil {
+			// Resample the audio
+			if err := resample(d.resampler, d.reframe, src); err != nil {
+				return nil, err
+			} else {
+				return d.reframe, nil
+			}
+		}
 	case ff.AVMEDIA_TYPE_VIDEO:
 		if d.rescaler != nil && src != nil {
 			// Rescale the video
@@ -338,10 +401,6 @@ func (d *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 			}
 		}
 	}
-
-	//	if err := decoder.rescale(decoder.frame, src); err != nil {
-	//		return nil, err
-	//	}
 
 	// NO-OP - just return the source frame
 	return src, nil
@@ -356,6 +415,27 @@ func rescale(ctx *ff.SWSContext, dest, src *ff.AVFrame) error {
 	if err := ff.SWScale_scale_frame(ctx, dest, src, false); err != nil {
 		return fmt.Errorf("SWScale_scale_frame: %w", err)
 	}
+	return nil
+}
+
+func resample(ctx *ff.SWRContext, dest, src *ff.AVFrame) error {
+	// Copy properties from source
+	//if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
+	//	return fmt.Errorf("failed to copy props: %w", err)
+	//}
+
+	dest_samples, err := ff.SWResample_get_out_samples(ctx, src.NumSamples())
+	if err != nil {
+		return fmt.Errorf("SWResample_get_out_samples: %w", err)
+	}
+	dest.SetNumSamples(dest_samples)
+	fmt.Println("dest frame=", dest)
+
+	// Perform resampling
+	if err := ff.SWResample_convert_frame(ctx, src, dest); err != nil {
+		return fmt.Errorf("SWResample_convert_frame: %w", err)
+	}
+
 	return nil
 }
 

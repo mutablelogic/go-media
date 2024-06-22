@@ -249,7 +249,7 @@ type Frame interface {
 
 	// Return a frame as an image, which supports the following
 	// pixel formats: AV_PIX_FMT_GRAY8, AV_PIX_FMT_RGBA,
-	// AV_PIX_FMT_RGB24, AV_PIX_FMT_YUV420P (4:2:0)
+	// AV_PIX_FMT_RGB24, AV_PIX_FMT_YUV420P
 	Image() (image.Image, error)
 }
 
