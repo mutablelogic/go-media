@@ -208,6 +208,14 @@ func (r *reader) Metadata(keys ...string) []Metadata {
 		}
 	}
 
+	// Add duration
+	if len(keys) == 0 || slices.Contains(keys, MetaDuration) {
+		duration := r.input.Duration()
+		if duration > 0 {
+			result = append(result, newMetadata(MetaDuration, float64(duration)/float64(ff.AV_TIME_BASE)))
+		}
+	}
+
 	// Obtain any artwork from the streams
 	if slices.Contains(keys, MetaArtwork) {
 		for _, stream := range r.input.Streams() {

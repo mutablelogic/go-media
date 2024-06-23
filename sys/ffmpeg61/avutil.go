@@ -157,6 +157,10 @@ const (
 	AV_ROUND_PASS_MINMAX AVRounding = C.AV_ROUND_PASS_MINMAX // Flag to pass INT64_MIN/MAX through instead of rescaling, this avoids special cases for AV_NOPTS_VALUE
 )
 
+const (
+	AV_TIME_BASE = C.AV_TIME_BASE ///< Internal time base
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 

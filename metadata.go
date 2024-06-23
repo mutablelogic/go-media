@@ -15,7 +15,8 @@ type metadata struct {
 }
 
 const (
-	MetaArtwork = "artwork"
+	MetaArtwork  = "artwork"  // Metadata key for artwork, sets the value as []byte
+	MetaDuration = "duration" // Metadata key for duration, sets the value as float64 (seconds)
 )
 
 ////////////////////////////////////////////////////////////////////////////////
