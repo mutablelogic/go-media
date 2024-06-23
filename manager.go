@@ -1,6 +1,7 @@
 package media
 
 import (
+	"fmt"
 	"io"
 	"runtime"
 
@@ -311,13 +312,13 @@ func (manager *manager) Write(w io.Writer, format Format, metadata []Metadata, p
 // Return version information for the media manager as a set of metadata
 func (manager *manager) Version() []Metadata {
 	metadata := []Metadata{
-		newMetadata("libavcodec_version", ff.AVCodec_version()),
-		newMetadata("libavformat_version", ff.AVFormat_version()),
-		newMetadata("libavutil_version", ff.AVUtil_version()),
-		newMetadata("libavdevice_version", ff.AVDevice_version()),
+		newMetadata("libavcodec_version", ffVersionAsString(ff.AVCodec_version())),
+		newMetadata("libavformat_version", ffVersionAsString(ff.AVFormat_version())),
+		newMetadata("libavutil_version", ffVersionAsString(ff.AVUtil_version())),
+		newMetadata("libavdevice_version", ffVersionAsString(ff.AVDevice_version())),
 		//		newMetadata("libavfilter_version", ff.AVFilter_version()),
-		newMetadata("libswscale_version", ff.SWScale_version()),
-		newMetadata("libswresample_version", ff.SWResample_version()),
+		newMetadata("libswscale_version", ffVersionAsString(ff.SWScale_version())),
+		newMetadata("libswresample_version", ffVersionAsString(ff.SWResample_version())),
 	}
 	if version.GitSource != "" {
 		metadata = append(metadata, newMetadata("git_source", version.GitSource))
@@ -351,4 +352,11 @@ func (manager *manager) Warningf(f string, args ...any) {
 // Log info messages
 func (manager *manager) Infof(f string, args ...any) {
 	ff.AVUtil_log(nil, ff.AV_LOG_INFO, f, args...)
+}
+
+////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func ffVersionAsString(version uint) string {
+	return fmt.Sprintf("%d.%d.%d", version&0xFF0000>>16, version&0xFF00>>8, version&0xFF)
 }

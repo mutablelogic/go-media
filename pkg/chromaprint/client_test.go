@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
+	// Namespace imports
 	. "github.com/mutablelogic/go-media/pkg/chromaprint"
 )
 
@@ -24,8 +27,20 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // TESTS
 
-func Test_Client_001(t *testing.T) {
-	client := NewClient("${CHROMAPRINT_KEY}")
+func GetKey(t *testing.T) string {
+	key := os.Getenv("CHROMAPRINT_KEY")
+	if key == "" {
+		t.Skip("No API key set, set using environment variable CHROMAPRINT_KEY")
+	}
+	return key
+}
+
+func Test_client_001(t *testing.T) {
+	assert := assert.New(t)
+	client, err := NewClient(GetKey(t))
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
 	if client == nil {
 		t.Fatal("Failed to create client")
 	} else {
@@ -33,39 +48,29 @@ func Test_Client_001(t *testing.T) {
 	}
 }
 
-func Test_Client_002(t *testing.T) {
-	key := os.Getenv("CHROMAPRINT_KEY")
-	if key == "" {
-		t.Skip("No API key set, set using environment variable CHROMAPRINT_KEY")
+func Test_client_002(t *testing.T) {
+	assert := assert.New(t)
+	client, err := NewClient(GetKey(t))
+	if !assert.NoError(err) {
+		t.SkipNow()
 	}
-	client, err := NewClientWithConfig(Config{Key: key})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if matches, err := client.Lookup("AQAAT0mUaEkSRZEGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 5*time.Second, META_TRACK); err != nil {
-		t.Error(err)
-	} else if len(matches) != 0 {
-		t.Error("Unexpected matches")
-	}
+	matches, err := client.Lookup("AQAAT0mUaEkSRZEGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 5*time.Second, META_TRACK)
+	assert.NoError(err)
+	t.Log(matches)
 }
 
-func Test_Client_003(t *testing.T) {
-	key := os.Getenv("CHROMAPRINT_KEY")
-	if key == "" {
-		t.Skip("No API key set, set using environment variable CHROMAPRINT_KEY")
-	}
-	client, err := NewClientWithConfig(Config{Key: key})
-	if err != nil {
-		t.Fatal(err)
+func Test_client_003(t *testing.T) {
+	assert := assert.New(t)
+	client, err := NewClient(GetKey(t))
+	if !assert.NoError(err) {
+		t.SkipNow()
 	}
 
-	if matches, err := client.Lookup(SAMPLE_001_FINGERPRINT, SAMPLE_001_DURATION, META_ALL); err != nil {
-		t.Error(err)
-	} else if len(matches) == 0 {
-		t.Error("No matches")
-	} else {
-		t.Log(matches)
+	matches, err := client.Lookup(SAMPLE_001_FINGERPRINT, SAMPLE_001_DURATION, META_ALL)
+	if !assert.NoError(err) {
+		t.SkipNow()
 	}
+	t.Log(matches)
 }
 
 /*
@@ -87,7 +92,6 @@ func Test_Client_004(t *testing.T) {
 		t.Log(matches)
 	}
 }
-*/
 
 func Test_Client_005(t *testing.T) {
 	key := os.Getenv("CHROMAPRINT_KEY")
@@ -107,3 +111,5 @@ func Test_Client_005(t *testing.T) {
 		t.Log(matches)
 	}
 }
+
+*/

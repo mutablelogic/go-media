@@ -256,6 +256,10 @@ func (ctx *AVFormatContext) Flags() AVFormat {
 	return AVFormat(ctx.flags)
 }
 
+func (ctx *AVFormatContext) Duration() int64 {
+	return int64(ctx.duration)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // AVFormatFlag
 
