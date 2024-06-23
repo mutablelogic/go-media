@@ -24,14 +24,14 @@ type ArtworkCmd struct {
 
 func (cmd *MetadataCmd) Run(globals *Globals) error {
 	// Create the walker with the processor callback
-	walker := file.NewWalker(func(ctx context.Context, abspath, relpath string, info fs.FileInfo) error {
+	walker := file.NewWalker(func(ctx context.Context, root, relpath string, info fs.FileInfo) error {
 		// Ignore directories
 		if info.IsDir() {
 			return nil
 		}
 
 		// Open the file
-		reader, err := globals.manager.Open(filepath.Join(abspath, relpath), nil)
+		reader, err := globals.manager.Open(filepath.Join(root, relpath), nil)
 		if err != nil {
 			globals.manager.Errorf("Error opening %q: %v\n", relpath, err)
 			return nil
