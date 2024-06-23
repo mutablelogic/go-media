@@ -77,6 +77,11 @@ func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc, force bool) (*d
 		return nil, errors.Join(result, demuxer.close())
 	}
 
+	// If no streams were selected, return an error
+	if len(demuxer.decoders) == 0 {
+		return nil, errors.Join(demuxer.close(), errors.New("no streams to decode"))
+	}
+
 	// Create a frame for encoding - after resampling and resizing
 	if frame := ff.AVUtil_frame_alloc(); frame == nil {
 		return nil, errors.Join(demuxer.close(), errors.New("failed to allocate frame"))

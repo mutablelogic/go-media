@@ -9,6 +9,7 @@ import (
 	"context"
 	"image"
 	"io"
+	"time"
 )
 
 // Manager represents a manager for media formats and devices.
@@ -256,6 +257,10 @@ type Frame interface {
 
 	// Return a frame plane as a byte slice.
 	Bytes(int) []byte
+
+	// Return the presentation timestamp for the frame or
+	// a negative number if not set
+	Time() time.Duration
 
 	// Return a frame as an image, which supports the following
 	// pixel formats: AV_PIX_FMT_GRAY8, AV_PIX_FMT_RGBA,

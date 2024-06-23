@@ -35,6 +35,7 @@ type CLI struct {
 	Artwork        ArtworkCmd        `cmd:"artwork" help:"Save artwork from media file"`
 	Probe          ProbeCmd          `cmd:"probe" help:"Probe media file or device"`
 	Decode         DecodeCmd         `cmd:"decode" help:"Decode media"`
+	Thumbnails     ThumbnailsCmd     `cmd:"thumbnails" help:"Generate thumbnails from media file"`
 }
 
 func main() {

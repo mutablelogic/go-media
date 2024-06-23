@@ -3,6 +3,7 @@ package media
 import (
 	"encoding/json"
 	"image"
+	"time"
 
 	// Packages
 	imagex "github.com/mutablelogic/go-media/pkg/image"
@@ -68,6 +69,15 @@ func (frame *frame) Type() MediaType {
 		return VIDEO
 	}
 	return NONE
+}
+
+// Return the timestamp as a duration, or minus one if not set
+func (frame *frame) Time() time.Duration {
+	pts := frame.ctx.Pts()
+	if pts == ff.AV_NOPTS_VALUE {
+		return -1
+	}
+	return secondsToDuration(float64(pts) * ff.AVUtil_q2d(frame.ctx.TimeBase()))
 }
 
 // Return the number of planes for a specific PixelFormat
@@ -212,4 +222,11 @@ func (frame *frame) PixelFormat() string {
 		return ""
 	}
 	return ff.AVUtil_get_pix_fmt_name(frame.ctx.PixFmt())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func secondsToDuration(seconds float64) time.Duration {
+	return time.Duration(seconds * float64(time.Second))
 }
