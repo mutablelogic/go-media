@@ -201,9 +201,9 @@ func (r *reader) Decoder(fn DecoderMapFunc, force bool) (Decoder, error) {
 func (r *reader) Metadata(keys ...string) []Metadata {
 	entries := ff.AVUtil_dict_entries(r.input.Metadata())
 	result := make([]Metadata, 0, len(entries))
-	for i, entry := range entries {
+	for _, entry := range entries {
 		if len(keys) == 0 || slices.Contains(keys, entry.Key()) {
-			result[i] = newMetadata(entry.Key(), entry.Value())
+			result = append(result, newMetadata(entry.Key(), entry.Value()))
 		}
 	}
 

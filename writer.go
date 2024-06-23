@@ -117,7 +117,7 @@ func (w *writer) Type() MediaType {
 }
 
 // Return the metadata for the media.
-func (w *writer) Metadata() []Metadata {
+func (w *writer) Metadata(...string) []Metadata {
 	// Not yet implemented
 	return nil
 }
