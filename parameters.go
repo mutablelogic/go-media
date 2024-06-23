@@ -24,25 +24,25 @@ type codecpar struct {
 }
 
 type audiopar struct {
-	Ch           ff.AVChannelLayout `json:"channel_layout,omitempty"`
-	SampleFormat ff.AVSampleFormat  `json:"sample_format,omitempty"`
-	Samplerate   int                `json:"samplerate,omitempty"`
+	Ch           ff.AVChannelLayout `json:"channel_layout"`
+	SampleFormat ff.AVSampleFormat  `json:"sample_format"`
+	Samplerate   int                `json:"samplerate"`
 }
 
 type videopar struct {
-	PixelFormat ff.AVPixelFormat `json:"pixel_format,omitempty"`
-	Width       int              `json:"width,omitempty"`
-	Height      int              `json:"height,omitempty"`
+	PixelFormat ff.AVPixelFormat `json:"pixel_format"`
+	Width       int              `json:"width"`
+	Height      int              `json:"height"`
 }
 
 type planepar struct {
-	NumPlanes int `json:"num_video_planes,omitempty"`
+	NumPlanes int `json:"num_video_planes"`
 }
 
 type timingpar struct {
-	Framerate ff.AVRational `json:"framerate,omitempty"`
-	Pts       int64         `json:"pts,omitempty"`
-	TimeBase  ff.AVRational `json:"time_base,omitempty"`
+	Framerate ff.AVRational `json:"framerate"`
+	Pts       int64         `json:"pts"`
+	TimeBase  ff.AVRational `json:"time_base"`
 }
 
 var _ Parameters = (*par)(nil)

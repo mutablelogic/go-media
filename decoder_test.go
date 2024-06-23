@@ -31,7 +31,7 @@ func Test_decoder_001(t *testing.T) {
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Copy parameters from the stream
 		return stream.Parameters(), nil
-	})
+	}, false)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -61,7 +61,7 @@ func Test_decoder_002(t *testing.T) {
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Copy parameters from the stream
 		return stream.Parameters(), nil
-	})
+	}, false)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -76,6 +76,7 @@ func Test_decoder_002(t *testing.T) {
 		if frame.Type() != VIDEO {
 			return nil
 		}
+		t.Log(frame)
 		filename := filepath.Join(tmpdir, fmt.Sprintf("frame%03d.jpg", n))
 		w, err := os.Create(filename)
 		if err != nil {
@@ -89,6 +90,9 @@ func Test_decoder_002(t *testing.T) {
 		} else {
 			t.Logf("Frame %d: %dx%d => %s", n, frame.Width(), frame.Height(), filename)
 			n++
+		}
+		if n >= 10 {
+			return io.EOF
 		}
 		return nil
 	}
@@ -121,17 +125,19 @@ func Test_decoder_003(t *testing.T) {
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Rescale the video
 		if stream.Type() == VIDEO {
-			return manager.VideoParameters(640, 480, "yuv420p")
+			return manager.VideoParameters(80, 45, "yuv420p")
 		}
 		// Ignore other streams
 		return nil, nil
-	})
+	}, true)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
 
 	// This is the function which processes the frames
 	framefn := func(frame Frame) error {
+		t.Log(frame)
+
 		// Create an output file
 		filename := filepath.Join(tmpdir, fmt.Sprintf("frame%03d.jpg", n))
 		w, err := os.Create(filename)
@@ -146,7 +152,7 @@ func Test_decoder_003(t *testing.T) {
 		} else if err := jpeg.Encode(w, image, nil); err != nil {
 			return err
 		} else {
-			t.Logf("Frame %d: %dx%d (%q) => %s", n, frame.Width(), frame.Height(), frame.PixelFormat(), filename)
+			t.Logf("Frame %d => %s", n, filename)
 			n++
 		}
 
@@ -168,7 +174,7 @@ func Test_decoder_004(t *testing.T) {
 
 	// Open the file
 	manager := NewManager()
-	media, err := manager.Open("./etc/test/audio_22050_1ch_5m35.s16le.sw", nil)
+	media, err := manager.Open("etc/test/sample.mp3", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -176,13 +182,13 @@ func Test_decoder_004(t *testing.T) {
 
 	// Create a decoder to decompress the audio
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
-		// Audio - pass through
+		// Audio
 		if stream.Type() == AUDIO {
-			return stream.Parameters(), nil
+			return manager.AudioParameters("mono", "s16", 44100)
 		}
 		// Ignore other streams
 		return nil, nil
-	})
+	}, true)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -199,15 +205,12 @@ func Test_decoder_004(t *testing.T) {
 	}
 	defer f.Close()
 
-	bytes_written := 0
 	framefn := func(frame Frame) error {
 		n, err := f.Write(frame.Bytes(0))
 		if err != nil {
 			return err
-		} else {
-			bytes_written += n
-			t.Logf("Written %d bytes to %v", bytes_written, filename)
 		}
+		t.Logf("Written %d bytes to %v", n, filename)
 		return nil
 	}
 
@@ -216,12 +219,12 @@ func Test_decoder_004(t *testing.T) {
 }
 
 func Test_decoder_005(t *testing.T) {
-	// Decode audio frames
+	// Decode audio frames to mono s16 (with native byte order)
 	assert := assert.New(t)
 
 	// Open the file
 	manager := NewManager()
-	media, err := manager.Open("./test.mp3", nil)
+	media, err := manager.Open("etc/test/sample.mp3", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -235,7 +238,7 @@ func Test_decoder_005(t *testing.T) {
 		}
 		// Ignore other streams
 		return nil, nil
-	})
+	}, true)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}

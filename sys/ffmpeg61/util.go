@@ -23,6 +23,13 @@ func cByteSlice(p unsafe.Pointer, sz C.int) []byte {
 	return cUint8Slice(p, sz)
 }
 
+func cIntSlice(p unsafe.Pointer, sz C.int) []int {
+	if p == nil {
+		return nil
+	}
+	return (*[1 << 30]int)(p)[:int(sz)]
+}
+
 func cUint8Slice(p unsafe.Pointer, sz C.int) []uint8 {
 	if p == nil {
 		return nil

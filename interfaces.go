@@ -130,14 +130,17 @@ type Media interface {
 	// Return a decoding context for the media stream, and
 	// map the streams to decoders. If no function is provided
 	// (ie, the argument is nil) then all streams are demultiplexed.
-	Decoder(DecoderMapFunc) (Decoder, error)
+	// Pass true as the second argument to indicate resampling or
+	// resizing should always be done, even if the parameters are the same.
+	Decoder(DecoderMapFunc, bool) (Decoder, error)
 
 	// Return INPUT for a demuxer or source, OUTPUT for a muxer or
 	// sink, DEVICE for a device, FILE for a file or stream.
 	Type() MediaType
 
-	// Return the metadata for the media.
-	Metadata() []Metadata
+	// Return the metadata for the media, filtering by keys if any
+	// are included. Use the "artwork" key to return only artwork.
+	Metadata(...string) []Metadata
 }
 
 // Return parameters if a the stream should be decoded
@@ -254,5 +257,10 @@ type Frame interface {
 }
 
 // Metadata represents a metadata entry for a media stream.
-// Currently this is quite opaque!
-type Metadata interface{}
+type Metadata interface {
+	// Return the metadata key for the entry
+	Key() string
+
+	// Return the metadata value for the entry
+	Value() any
+}

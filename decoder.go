@@ -25,6 +25,8 @@ type demuxer struct {
 type decoder struct {
 	stream    int
 	codec     *ff.AVCodecContext
+	dest      *par           // Destination parameters
+	timeBase  ff.AVRational  // Timebase for the stream
 	frame     *ff.AVFrame    // Destination frame
 	reframe   *ff.AVFrame    // Destination frame after resample or resize
 	resampler *ff.SWRContext // Resampler for audio
@@ -36,7 +38,7 @@ var _ Decoder = (*demuxer)(nil)
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, error) {
+func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc, force bool) (*demuxer, error) {
 	demuxer := new(demuxer)
 	demuxer.input = input
 	demuxer.decoders = make(map[int]*decoder)
@@ -62,7 +64,7 @@ func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, erro
 			result = errors.Join(result, err)
 		} else if parameters == nil {
 			continue
-		} else if decoder, err := demuxer.newDecoder(stream, parameters); err != nil {
+		} else if decoder, err := demuxer.newDecoder(stream, parameters.(*par), force); err != nil {
 			result = errors.Join(result, err)
 		} else {
 			streamNum := stream.Index()
@@ -86,15 +88,21 @@ func newDemuxer(input *ff.AVFormatContext, mapfn DecoderMapFunc) (*demuxer, erro
 	return demuxer, nil
 }
 
-func (d *demuxer) newDecoder(stream *ff.AVStream, dest Parameters) (*decoder, error) {
+func (d *demuxer) newDecoder(stream *ff.AVStream, dest *par, force bool) (*decoder, error) {
 	decoder := new(decoder)
 	decoder.stream = stream.Id()
+	decoder.dest = dest
+	decoder.timeBase = stream.TimeBase()
 
 	// Use parameters to create the decoder resampler or resizer
 	src := stream.CodecPar()
-	if equals, err := equalsStream(dest, src); err != nil {
+	equals, err := equalsStream(dest, src)
+	if err != nil {
 		return nil, err
-	} else if !equals {
+	}
+
+	// We resample or rescale if the parameters don't match, or if we're forced
+	if !equals || force {
 		switch src.CodecType() {
 		case ff.AVMEDIA_TYPE_AUDIO:
 			if resampler, frame, err := newResampler(dest, src); err != nil {
@@ -135,7 +143,7 @@ func (d *demuxer) newDecoder(stream *ff.AVStream, dest Parameters) (*decoder, er
 		return nil, errors.Join(decoder.close(), err)
 	}
 
-	// Create a frame for decoder output - after resize/resample
+	// Create a frame for decoder output - before resize/resample
 	if frame := ff.AVUtil_frame_alloc(); frame == nil {
 		return nil, errors.Join(decoder.close(), errors.New("failed to allocate frame"))
 	} else {
@@ -146,38 +154,28 @@ func (d *demuxer) newDecoder(stream *ff.AVStream, dest Parameters) (*decoder, er
 	return decoder, nil
 }
 
-func newResizer(dest Parameters, src *ff.AVCodecParameters) (*ff.SWSContext, *ff.AVFrame, error) {
-	// Get native pixel format
-	dest_pixel_format := ff.AVUtil_get_pix_fmt(dest.PixelFormat())
-
+func newResizer(dest *par, src *ff.AVCodecParameters) (*ff.SWSContext, *ff.AVFrame, error) {
 	// Create scaling context and destination frame
-	if ctx := ff.SWScale_get_context(
+	ctx := ff.SWScale_get_context(
 		src.Width(), src.Height(), src.PixelFormat(), // source
-		dest.Width(), dest.Height(), dest_pixel_format, // destination
-		ff.SWS_BILINEAR, nil, nil, nil); ctx == nil {
+		dest.videopar.Width, dest.videopar.Height, dest.videopar.PixelFormat, // destination
+		ff.SWS_BILINEAR, nil, nil, nil)
+	if ctx == nil {
 		return nil, nil, errors.New("failed to allocate swscale context")
-	} else if frame := ff.AVUtil_frame_alloc(); frame == nil {
+	}
+
+	// Create a new frame for the resizing video
+	frame := ff.AVUtil_frame_alloc()
+	if frame == nil {
 		ff.SWScale_free_context(ctx)
 		return nil, nil, errors.New("failed to allocate frame")
-	} else {
-		// Set frame parameters
-		frame.SetPixFmt(dest_pixel_format)
-		frame.SetWidth(dest.Width())
-		frame.SetHeight(dest.Height())
-
-		// Return success
-		return ctx, frame, nil
 	}
+
+	// Return success
+	return ctx, frame, nil
 }
 
-func newResampler(dest Parameters, src *ff.AVCodecParameters) (*ff.SWRContext, *ff.AVFrame, error) {
-	// Get native sample format and channel layout
-	var dest_channel_layout ff.AVChannelLayout
-	dest_sample_format := ff.AVUtil_get_sample_fmt(dest.SampleFormat())
-	if err := ff.AVUtil_channel_layout_from_string(&dest_channel_layout, dest.ChannelLayout()); err != nil {
-		return nil, nil, fmt.Errorf("failed to get channel layout: %w", err)
-	}
-
+func newResampler(dest *par, src *ff.AVCodecParameters) (*ff.SWRContext, *ff.AVFrame, error) {
 	// Create a new resampler
 	ctx := ff.SWResample_alloc()
 	if ctx == nil {
@@ -186,7 +184,7 @@ func newResampler(dest Parameters, src *ff.AVCodecParameters) (*ff.SWRContext, *
 
 	// Set options to covert from the codec frame to the decoder frame
 	if err := ff.SWResample_set_opts(ctx,
-		dest_channel_layout, dest_sample_format, dest.Samplerate(), // destination
+		dest.audiopar.Ch, dest.audiopar.SampleFormat, dest.audiopar.Samplerate, // destination
 		src.ChannelLayout(), src.SampleFormat(), src.Samplerate(), // source
 	); err != nil {
 		ff.SWResample_free(ctx)
@@ -206,11 +204,6 @@ func newResampler(dest Parameters, src *ff.AVCodecParameters) (*ff.SWRContext, *
 		return nil, nil, errors.New("failed to allocate frame")
 	}
 
-	// Set frame parameters
-	frame.SetSampleRate(dest.Samplerate())
-	frame.SetSampleFormat(dest_sample_format)
-	frame.SetChannelLayout(dest_channel_layout)
-
 	// Return success
 	return ctx, frame, nil
 }
@@ -218,7 +211,7 @@ func newResampler(dest Parameters, src *ff.AVCodecParameters) (*ff.SWRContext, *
 func (d *demuxer) close() error {
 	var result error
 
-	// Free decoded frame
+	// Free source frame
 	if d.frame != nil {
 		ff.AVUtil_frame_free(d.frame)
 	}
@@ -251,14 +244,14 @@ func (d *decoder) close() error {
 		ff.SWScale_free_context(d.rescaler)
 	}
 
-	// Free rescaler frame
-	if d.reframe != nil {
-		ff.AVUtil_frame_free(d.reframe)
-	}
-
 	// Free destination frame
 	if d.frame != nil {
 		ff.AVUtil_frame_free(d.frame)
+	}
+
+	// Free rescaled/resized frame
+	if d.reframe != nil {
+		ff.AVUtil_frame_free(d.reframe)
 	}
 
 	// Return any errors
@@ -313,9 +306,10 @@ FOR_LOOP:
 					return err
 				}
 			}
-			// Unreference the packet
-			ff.AVCodec_packet_unref(packet)
 		}
+
+		// Unreference the packet
+		ff.AVCodec_packet_unref(packet)
 	}
 
 	// Flush the decoders
@@ -332,7 +326,7 @@ FOR_LOOP:
 
 func (d *decoder) decode(packet *ff.AVPacket, demuxfn DecoderFunc, framefn FrameFunc) error {
 	if demuxfn != nil {
-		// Send the packet to the user defined packet function
+		// Send the packet (or a nil to flush) to the user defined packet function
 		return demuxfn(newPacket(packet))
 	}
 
@@ -352,27 +346,49 @@ func (d *decoder) decode(packet *ff.AVPacket, demuxfn DecoderFunc, framefn Frame
 		}
 
 		// Resample or resize the frame, then pass to the frame function
-		if frame, err := d.re(d.frame); err != nil {
+		frame, err := d.re(d.frame)
+		if err != nil {
 			return err
-		} else if err := framefn(newFrame(frame)); errors.Is(err, io.EOF) {
+		}
+
+		// Copy over the timebase and ptr
+		frame.SetTimeBase(d.timeBase)
+		frame.SetPts(d.frame.Pts())
+
+		// Pass back to the caller
+		if err := framefn(newFrame(frame)); errors.Is(err, io.EOF) {
 			// End early, return EOF
 			result = io.EOF
 			break
 		} else if err != nil {
 			return err
 		}
+
+		// Re-allocate frames for next iteration
+		ff.AVUtil_frame_unref(d.frame)
+		ff.AVUtil_frame_unref(d.reframe)
 	}
 
 	// Flush the resizer or resampler if we haven't received an EOF
 	if result == nil {
-		if frame, err := d.re(nil); err != nil {
-			return err
-		} else if frame == nil {
-			// NOOP
-		} else if err := framefn(newFrame(d.frame)); errors.Is(err, io.EOF) {
-			// NOOP
-		} else if err != nil {
-			return err
+		finished := false
+		for {
+			if finished {
+				break
+			}
+			if frame, err := d.reflush(d.frame); err != nil {
+				return err
+			} else if frame == nil {
+				finished = true
+			} else if err := framefn(newFrame(frame)); errors.Is(err, io.EOF) {
+				finished = true
+			} else if err != nil {
+				return err
+			}
+
+			// Re-allocate frames for next iteration
+			ff.AVUtil_frame_unref(d.frame)
+			ff.AVUtil_frame_unref(d.reframe)
 		}
 	}
 
@@ -384,8 +400,8 @@ func (d *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	switch d.codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		if d.resampler != nil && src != nil {
-			// Resample the audio
-			if err := resample(d.resampler, d.reframe, src); err != nil {
+			// Resample the audio or flush if src is nil
+			if err := d.resample(d.reframe, src); err != nil {
 				return nil, err
 			} else {
 				return d.reframe, nil
@@ -394,7 +410,7 @@ func (d *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	case ff.AVMEDIA_TYPE_VIDEO:
 		if d.rescaler != nil && src != nil {
 			// Rescale the video
-			if err := rescale(d.rescaler, d.reframe, src); err != nil {
+			if err := d.rescale(d.reframe, src); err != nil {
 				return nil, err
 			} else {
 				return d.reframe, nil
@@ -406,36 +422,58 @@ func (d *decoder) re(src *ff.AVFrame) (*ff.AVFrame, error) {
 	return src, nil
 }
 
-func rescale(ctx *ff.SWSContext, dest, src *ff.AVFrame) error {
-	// Copy properties from source
-	if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
-		return fmt.Errorf("failed to copy props: %w", err)
+func (d *decoder) reflush(src *ff.AVFrame) (*ff.AVFrame, error) {
+	switch d.codec.Codec().Type() {
+	case ff.AVMEDIA_TYPE_AUDIO:
+		if d.resampler != nil {
+			if num_samples := ff.SWResample_get_delay(d.resampler, int64(src.SampleRate())); num_samples > 0 {
+				fmt.Println("TODO there are", num_samples, "samples left")
+			}
+		}
 	}
+
+	// No flush necessary
+	return nil, nil
+}
+
+func (d *decoder) rescale(dest, src *ff.AVFrame) error {
+	dest.SetPixFmt(d.dest.videopar.PixelFormat)
+	dest.SetWidth(d.dest.videopar.Width)
+	dest.SetHeight(d.dest.videopar.Height)
+
+	// Allocate rescaled frame
+	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {
+		return fmt.Errorf("AVUtil_frame_get_buffer: %w", err)
+	}
+
 	// Perform rescale
-	if err := ff.SWScale_scale_frame(ctx, dest, src, false); err != nil {
+	if err := ff.SWScale_scale_frame(d.rescaler, dest, src, false); err != nil {
 		return fmt.Errorf("SWScale_scale_frame: %w", err)
 	}
 	return nil
 }
 
-func resample(ctx *ff.SWRContext, dest, src *ff.AVFrame) error {
-	// Copy properties from source
-	//if err := ff.AVUtil_frame_copy_props(dest, src); err != nil {
-	//	return fmt.Errorf("failed to copy props: %w", err)
-	//}
+func (d *decoder) resample(dest, src *ff.AVFrame) error {
+	dest.SetChannelLayout(d.dest.audiopar.Ch)
+	dest.SetSampleFormat(d.dest.audiopar.SampleFormat)
+	dest.SetSampleRate(d.dest.audiopar.Samplerate)
 
-	dest_samples, err := ff.SWResample_get_out_samples(ctx, src.NumSamples())
-	if err != nil {
+	if dest_samples, err := ff.SWResample_get_out_samples(d.resampler, src.NumSamples()); err != nil {
 		return fmt.Errorf("SWResample_get_out_samples: %w", err)
+	} else {
+		dest.SetNumSamples(dest_samples)
+
 	}
-	dest.SetNumSamples(dest_samples)
-	fmt.Println("dest frame=", dest)
+
+	// Allocate resampled frame
+	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {
+		return fmt.Errorf("AVUtil_frame_get_buffer: %w", err)
+	}
 
 	// Perform resampling
-	if err := ff.SWResample_convert_frame(ctx, src, dest); err != nil {
+	if err := ff.SWResample_convert_frame(d.resampler, src, dest); err != nil {
 		return fmt.Errorf("SWResample_convert_frame: %w", err)
 	}
-
 	return nil
 }
 

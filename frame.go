@@ -5,6 +5,7 @@ import (
 	"image"
 
 	// Packages
+	imagex "github.com/mutablelogic/go-media/pkg/image"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -20,6 +21,22 @@ type frame struct {
 
 var _ Frame = (*frame)(nil)
 
+var (
+	yuvSubsampleRatio = map[ff.AVPixelFormat]image.YCbCrSubsampleRatio{
+		ff.AV_PIX_FMT_YUV410P: image.YCbCrSubsampleRatio410,
+		ff.AV_PIX_FMT_YUV411P: image.YCbCrSubsampleRatio410,
+		ff.AV_PIX_FMT_YUV420P: image.YCbCrSubsampleRatio420,
+		ff.AV_PIX_FMT_YUV422P: image.YCbCrSubsampleRatio422,
+		ff.AV_PIX_FMT_YUV440P: image.YCbCrSubsampleRatio420,
+		ff.AV_PIX_FMT_YUV444P: image.YCbCrSubsampleRatio444,
+	}
+	yuvaSubsampleRatio = map[ff.AVPixelFormat]image.YCbCrSubsampleRatio{
+		ff.AV_PIX_FMT_YUVA420P: image.YCbCrSubsampleRatio420,
+		ff.AV_PIX_FMT_YUVA422P: image.YCbCrSubsampleRatio422,
+		ff.AV_PIX_FMT_YUVA444P: image.YCbCrSubsampleRatio444,
+	}
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -31,46 +48,7 @@ func newFrame(ctx *ff.AVFrame) *frame {
 // STRINGIFY
 
 func (frame *frame) MarshalJSON() ([]byte, error) {
-	type jsonFrame struct {
-		Type MediaType `json:"type"`
-		*audiopar
-		*videopar
-		*planepar
-		*timingpar
-	}
-	if frame.Type() == AUDIO {
-		return json.Marshal(jsonFrame{
-			Type: frame.Type(),
-			audiopar: &audiopar{
-				Ch:           frame.ctx.ChannelLayout(),
-				SampleFormat: frame.ctx.SampleFormat(),
-				Samplerate:   frame.ctx.SampleRate(),
-			},
-			planepar: &planepar{
-				NumPlanes: ff.AVUtil_frame_get_num_planes(frame.ctx),
-			},
-			timingpar: &timingpar{
-				Pts:      frame.ctx.Pts(),
-				TimeBase: frame.ctx.TimeBase(),
-			},
-		})
-	} else if frame.Type() == VIDEO {
-		return json.Marshal(jsonFrame{
-			Type: frame.Type(),
-			videopar: &videopar{
-				PixelFormat: frame.ctx.PixFmt(),
-				Width:       frame.ctx.Width(),
-				Height:      frame.ctx.Height(),
-			},
-			planepar: &planepar{
-				NumPlanes: ff.AVUtil_frame_get_num_planes(frame.ctx),
-			},
-		})
-	} else {
-		return json.Marshal(jsonFrame{
-			Type: frame.Type(),
-		})
-	}
+	return json.Marshal(frame.ctx)
 }
 
 func (frame *frame) String() string {
@@ -100,54 +78,7 @@ func (frame *frame) NumPlanes() int {
 
 // Return the byte data for a plane
 func (frame *frame) Bytes(plane int) []byte {
-	return frame.ctx.Bytes(plane)
-}
-
-// Return the number of bytes in a single row of the video frame
-func (frame *frame) Stride(plane int) int {
-	if frame.Type() == VIDEO {
-		return frame.ctx.Linesize(plane)
-	} else {
-		return 0
-	}
-}
-
-// Convert a frame into an image
-func (frame *frame) Image() (image.Image, error) {
-	if t := frame.Type(); t != VIDEO {
-		return nil, ErrBadParameter.With("unsupported frame type", t)
-	}
-	switch frame.ctx.PixFmt() {
-	case ff.AV_PIX_FMT_YUV420P:
-		return &image.YCbCr{
-			Y:              frame.Bytes(0),
-			Cb:             frame.Bytes(1),
-			Cr:             frame.Bytes(2),
-			YStride:        frame.Stride(0),
-			CStride:        frame.Stride(1),
-			SubsampleRatio: image.YCbCrSubsampleRatio420,
-			Rect:           image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	case ff.AV_PIX_FMT_GRAY8:
-		return &image.Gray{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	case ff.AV_PIX_FMT_RGBA:
-		return &image.RGBA{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	case ff.AV_PIX_FMT_RGB24:
-		return &image.NRGBA{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	}
-	return nil, ErrNotImplemented.With("unsupported pixel format", frame.ctx.PixFmt())
+	return frame.ctx.Bytes(plane)[:frame.ctx.Planesize(plane)]
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +120,74 @@ func (frame *frame) Samplerate() int {
 	}
 	return frame.ctx.SampleRate()
 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// VIDEO PARAMETERS
+
+// Convert a frame into an image
+func (frame *frame) Image() (image.Image, error) {
+	if t := frame.Type(); t != VIDEO {
+		return nil, ErrBadParameter.With("unsupported frame type", t)
+	}
+	pixel_format := frame.ctx.PixFmt()
+	switch pixel_format {
+	case ff.AV_PIX_FMT_GRAY8:
+		return &image.Gray{
+			Pix:    frame.Bytes(0),
+			Stride: frame.Stride(0),
+			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
+		}, nil
+	case ff.AV_PIX_FMT_RGBA:
+		return &image.RGBA{
+			Pix:    frame.Bytes(0),
+			Stride: frame.Stride(0),
+			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
+		}, nil
+	case ff.AV_PIX_FMT_RGB24:
+		return &imagex.RGB24{
+			Pix:    frame.Bytes(0),
+			Stride: frame.Stride(0),
+			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
+		}, nil
+	default:
+		if ratio, exists := yuvSubsampleRatio[pixel_format]; exists {
+			return &image.YCbCr{
+				Y:              frame.Bytes(0),
+				Cb:             frame.Bytes(1),
+				Cr:             frame.Bytes(2),
+				YStride:        frame.Stride(0),
+				CStride:        frame.Stride(1),
+				SubsampleRatio: ratio,
+				Rect:           image.Rect(0, 0, frame.Width(), frame.Height()),
+			}, nil
+		}
+		if ratio, exists := yuvaSubsampleRatio[pixel_format]; exists {
+			return &image.NYCbCrA{
+				YCbCr: image.YCbCr{
+					Y:              frame.Bytes(0),
+					Cb:             frame.Bytes(1),
+					Cr:             frame.Bytes(2),
+					YStride:        frame.Stride(0),
+					CStride:        frame.Stride(1),
+					SubsampleRatio: ratio,
+					Rect:           image.Rect(0, 0, frame.Width(), frame.Height()),
+				},
+				A:       frame.Bytes(3),
+				AStride: frame.Stride(3),
+			}, nil
+		}
+	}
+	return nil, ErrNotImplemented.With("unsupported pixel format", frame.ctx.PixFmt())
+}
+
+// Return the number of bytes in a single row of the video frame
+func (frame *frame) Stride(plane int) int {
+	if frame.Type() == VIDEO {
+		return frame.ctx.Linesize(plane)
+	} else {
+		return 0
+	}
 }
 
 // Return the width of the video frame

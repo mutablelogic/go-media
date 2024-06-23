@@ -39,7 +39,7 @@ func (cmd *DecodeCmd) Run(globals *Globals) error {
 	defer reader.Close()
 
 	// Create a decoder - copy streams
-	decoder, err := reader.Decoder(nil)
+	decoder, err := reader.Decoder(nil, false)
 	if err != nil {
 		return err
 	}

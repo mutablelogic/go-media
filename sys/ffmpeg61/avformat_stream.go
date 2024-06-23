@@ -1,6 +1,8 @@
 package ffmpeg
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -15,13 +17,14 @@ import "C"
 // TYPES
 
 type jsonAVStream struct {
-	Index     int                `json:"index"`
-	Id        int                `json:"id"`
-	CodecPar  *AVCodecParameters `json:"codec_par,omitempty"`
-	StartTime AVTimestamp        `json:"start_time"`
-	Duration  AVTimestamp        `json:"duration"`
-	NumFrames int64              `json:"num_frames,omitempty"`
-	TimeBase  AVRational         `json:"time_base,omitempty"`
+	Index       int                `json:"index"`
+	Id          int                `json:"id"`
+	CodecPar    *AVCodecParameters `json:"codec_par,omitempty"`
+	StartTime   AVTimestamp        `json:"start_time"`
+	Duration    AVTimestamp        `json:"duration"`
+	NumFrames   int64              `json:"num_frames,omitempty"`
+	TimeBase    AVRational         `json:"time_base,omitempty"`
+	Disposition AVDisposition      `json:"disposition,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,13 +32,14 @@ type jsonAVStream struct {
 
 func (ctx *AVStream) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVStream{
-		Index:     int(ctx.index),
-		Id:        int(ctx.id),
-		CodecPar:  (*AVCodecParameters)(ctx.codecpar),
-		StartTime: AVTimestamp(ctx.start_time),
-		Duration:  AVTimestamp(ctx.duration),
-		NumFrames: int64(ctx.nb_frames),
-		TimeBase:  AVRational(ctx.time_base),
+		Index:       int(ctx.index),
+		Id:          int(ctx.id),
+		CodecPar:    (*AVCodecParameters)(ctx.codecpar),
+		StartTime:   AVTimestamp(ctx.start_time),
+		Duration:    AVTimestamp(ctx.duration),
+		NumFrames:   int64(ctx.nb_frames),
+		TimeBase:    AVRational(ctx.time_base),
+		Disposition: AVDisposition(ctx.disposition),
 	})
 }
 
@@ -69,6 +73,18 @@ func (ctx *AVStream) TimeBase() AVRational {
 
 func (ctx *AVStream) SetTimeBase(time_base AVRational) {
 	ctx.time_base = C.AVRational(time_base)
+}
+
+func (ctx *AVStream) Disposition() AVDisposition {
+	return AVDisposition(ctx.disposition)
+}
+
+func (ctx *AVStream) AttachedPic() *AVPacket {
+	if ctx.disposition&C.AV_DISPOSITION_ATTACHED_PIC == 0 {
+		return nil
+	} else {
+		return (*AVPacket)(&ctx.attached_pic)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
