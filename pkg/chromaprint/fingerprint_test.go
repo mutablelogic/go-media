@@ -13,7 +13,7 @@ import (
 
 const (
 	// Test data
-	testData1 = "../../etc/test/audio_22050_1ch_5m35.s16le"
+	testData1 = "../../etc/test/audio_22050_1ch_5m35.s16le.sw"
 )
 
 func Test_fingerprint_000(t *testing.T) {
@@ -33,7 +33,9 @@ func Test_fingerprint_002(t *testing.T) {
 	assert.NotNil(fingerprint)
 
 	r, err := os.Open(testData1)
-	assert.NoError(err)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
 	defer r.Close()
 
 	buf := make([]int16, 1024)

@@ -132,8 +132,3 @@ func (ctx *AVCodecParameters) Width() int {
 func (ctx *AVCodecParameters) Height() int {
 	return int(ctx.height)
 }
-
-// Video
-func (ctx *AVCodecParameters) Framerate() AVRational {
-	return AVRational(ctx.framerate)
-}
