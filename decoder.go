@@ -319,7 +319,9 @@ FOR_LOOP:
 
 	// Flush the decoders
 	for _, decoder := range d.decoders {
-		if err := decoder.decode(nil, demuxfn, framefn); err != nil {
+		if err := decoder.decode(nil, demuxfn, framefn); errors.Is(err, io.EOF) {
+			// no-op
+		} else if err != nil {
 			return err
 		}
 	}
