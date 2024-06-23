@@ -12,16 +12,41 @@ type stream struct {
 	*ff.AVStream
 }
 
+type writerstream struct {
+	*ff.AVStream
+}
+
 var _ Stream = (*stream)(nil)
+
+//var _ Stream = (*writerstream)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Open media from a url, file path or device
+// Stream wrapper for decoding
 func newStream(ctx *ff.AVStream) *stream {
 	return &stream{ctx}
 }
 
+/*
+// Stream wrapper for encoding
+func newWriterStream(ctx *ff.AVFormatContext, param Parameters) (*writerstream, error) {
+	// Parameters - Codec
+	var codec_id ff.AVCodecID
+	if param.Type().Is(CODEC) {
+		codec_id = param.Codec().ID()
+	} else if param.Type().Is(VIDEO) {
+		codec_id = ctx.Input().VideoCodec()
+	} else if param.Type().Is(AUDIO) {
+		codec_id = ctx.Input().AudioCodec()
+	} else {
+		return nil, ErrBadParameter.With("invalid stream parameters")
+
+	}
+
+	return nil, ErrNotImplemented
+}
+*/
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -38,6 +63,13 @@ func (stream *stream) Type() MediaType {
 }
 
 func (stream *stream) Parameters() Parameters {
-	// TODO
-	return new(par)
+	switch stream.Type() {
+	case AUDIO:
+		return newCodecAudioParameters(stream.CodecPar())
+	case VIDEO:
+		return newCodecVideoParameters(stream.CodecPar())
+	}
+
+	// Other types not yet supported
+	return nil
 }

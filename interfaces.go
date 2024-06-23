@@ -9,6 +9,7 @@ import (
 	"context"
 	"image"
 	"io"
+	"time"
 )
 
 // Manager represents a manager for media formats and devices.
@@ -26,17 +27,17 @@ type Manager interface {
 	Read(io.Reader, Format, ...string) (Media, error)
 
 	// Create a media file or device for writing, from a path. If a format is
-	// specified, then the format will be used to create the file. Close
-	// the media object when done.
-	// TODO
-	Create(string, Format) (Media, error)
+	// specified, then the format will be used to create the file or else
+	// the format is guessed from the path. If no parameters are provided,
+	// then the default parameters for the format are used.
+	Create(string, Format, []Metadata, ...Parameters) (Media, error)
 
-	// Create a media stream for writing. If a format is
-	// specified, then the format will be used to create the file.
-	// Close the media object when done. It is the responsibility of the caller to
-	// also close the writer when done.
-	// TODO
-	Write(io.Writer, Format) (Media, error)
+	// Create a media stream for writing. The format will be used to
+	// determine the formar type and one or more CodecParameters used to
+	// create the streams. If no parameters are provided, then the
+	// default parameters for the format are used. It is the responsibility
+	// of the caller to also close the writer when done.
+	Write(io.Writer, Format, []Metadata, ...Parameters) (Media, error)
 
 	// Return supported input formats which match any filter, which can be
 	// a name, extension (with preceeding period) or mimetype. The MediaType
@@ -48,15 +49,10 @@ type Manager interface {
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
 	OutputFormats(MediaType, ...string) []Format
 
-	// Return supported input devices for a given format name
+	// Return supported devices for a given format.
 	// Not all devices may be supported on all platforms or listed
 	// if the device does not support enumeration.
-	InputDevices(string) []Device
-
-	// Return supported output devices for a given format name
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	OutputDevices(string) []Device
+	Devices(Format) []Device
 
 	// Return all supported channel layouts
 	ChannelLayouts() []Metadata
@@ -72,24 +68,35 @@ type Manager interface {
 
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
-	AudioParameters(string, string, int) (AudioParameters, error)
+	AudioParameters(string, string, int) (Parameters, error)
 
 	// Return video parameters for encoding
 	// Width, Height, PixelFormat
-	VideoParameters(int, int, string) (VideoParameters, error)
+	VideoParameters(int, int, string) (Parameters, error)
 
-	// Return codec parameters for encoding
-	// Codec name, profile, audio or video parameters
-	// If the profile is empty, then the default profile is used.
-	//CodecParameters(string, string, Parameters) (Parameters, error)
+	// Return codec parameters for audio encoding
+	// Codec name and AudioParameters
+	//AudioCodecParameters(string, AudioParameters) (Parameters, error)
+
+	// Return codec parameters for video encoding
+	// Codec name, Profile name, Framerate (fps) and VideoParameters
+	//VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
 
 	// Return version information for the media manager as a set of
 	// metadata
 	Version() []Metadata
+
+	// Log error messages with arguments
+	Errorf(string, ...any)
+
+	// Log warning messages with arguments
+	Warningf(string, ...any)
+
+	// Log info messages  with arguments
+	Infof(string, ...any)
 }
 
 // Device represents a device for input or output of media streams.
-// TODO
 type Device interface {
 	// Device name, format depends on the device
 	Name() string
@@ -139,8 +146,9 @@ type Media interface {
 	// sink, DEVICE for a device, FILE for a file or stream.
 	Type() MediaType
 
-	// Return the metadata for the media.
-	Metadata() []Metadata
+	// Return the metadata for the media, filtering by keys if any
+	// are included. Use the "artwork" key to return only artwork.
+	Metadata(...string) []Metadata
 }
 
 // Return parameters if a the stream should be decoded
@@ -250,12 +258,24 @@ type Frame interface {
 	// Return a frame plane as a byte slice.
 	Bytes(int) []byte
 
+	// Return a frame plane as int16 slice
+	Int16(int) []int16
+
+	// Return the presentation timestamp for the frame or
+	// a negative number if not set
+	Time() time.Duration
+
 	// Return a frame as an image, which supports the following
 	// pixel formats: AV_PIX_FMT_GRAY8, AV_PIX_FMT_RGBA,
-	// AV_PIX_FMT_RGB24, AV_PIX_FMT_YUV420P (4:2:0)
+	// AV_PIX_FMT_RGB24, AV_PIX_FMT_YUV420P
 	Image() (image.Image, error)
 }
 
 // Metadata represents a metadata entry for a media stream.
-// Currently this is quite opaque!
-type Metadata interface{}
+type Metadata interface {
+	// Return the metadata key for the entry
+	Key() string
+
+	// Return the metadata value for the entry
+	Value() any
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	// Packages
@@ -18,6 +19,7 @@ type reader struct {
 	input   *ff.AVFormatContext
 	avio    *ff.AVIOContextEx
 	demuxer *demuxer
+	force   bool // passed my the manager object
 }
 
 type reader_callback struct {
@@ -183,7 +185,7 @@ func (r *reader) Decoder(fn DecoderMapFunc) (Decoder, error) {
 	}
 
 	// Create a decoding context
-	decoder, err := newDemuxer(r.input, fn)
+	decoder, err := newDemuxer(r.input, fn, r.force)
 	if err != nil {
 		return nil, err
 	} else {
@@ -194,13 +196,28 @@ func (r *reader) Decoder(fn DecoderMapFunc) (Decoder, error) {
 	return decoder, nil
 }
 
-// Return the metadata for the media stream
-func (r *reader) Metadata() []Metadata {
+// Return the metadata for the media stream, filtering
+// by the specified keys if there are any. Artwork
+// is returned by using the "artwork" key.
+func (r *reader) Metadata(keys ...string) []Metadata {
 	entries := ff.AVUtil_dict_entries(r.input.Metadata())
-	result := make([]Metadata, len(entries))
-	for i, entry := range entries {
-		result[i] = newMetadata(entry.Key(), entry.Value())
+	result := make([]Metadata, 0, len(entries))
+	for _, entry := range entries {
+		if len(keys) == 0 || slices.Contains(keys, entry.Key()) {
+			result = append(result, newMetadata(entry.Key(), entry.Value()))
+		}
 	}
+
+	// Obtain any artwork from the streams
+	if slices.Contains(keys, MetaArtwork) {
+		for _, stream := range r.input.Streams() {
+			if packet := stream.AttachedPic(); packet != nil {
+				result = append(result, newMetadata(MetaArtwork, packet.Bytes()))
+			}
+		}
+	}
+
+	// Return all the metadata
 	return result
 }
 

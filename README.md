@@ -16,8 +16,7 @@ you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
-In order to build the examples, you'll need the library and header files for [ffmpeg 6](https://ffmpeg.org/download.html) installed. 
-The `chromaprint` library is also required for fingerprinting audio files. On Macintosh with [homebrew](http://bew.sh/), for example:
+In order to build the examples, you'll need the library and header files for [FFmpeg 6](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also required for fingerprinting audio files. On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
 brew install ffmpeg@6 chromaprint make
@@ -67,7 +66,10 @@ import (
 )
 
 func main() {
-  manager := media.NewManager()
+  manager, err := media.NewManager()
+  if err != nil {
+    log.Fatal(err)
+  }
 
   // Open a media file for reading. The format of the file is guessed.
   // Alteratively, you can pass a format as the second argument. Further optional
@@ -102,9 +104,57 @@ func main() {
 }
 ```
 
-### Decoding
+### Decoding - Video Frames
 
-TODO
+This example shows you how to decode video frames from a media file into images.
+
+```go
+import (
+  media "github.com/mutablelogic/go-media"
+)
+
+func main() {
+  manager, err := media.NewManager()
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  media, err := manager.Open("etc/test/sample.mp4", nil)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer media.Close()
+
+  // Create a decoder for the media file. Only video streams are decoded
+  decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
+    if stream.Type() == VIDEO {
+      // Copy video
+      return stream.Parameters(), nil
+    } else {
+      // Ignore other stream types
+      return nil, nil
+    }
+  })
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  // The frame function is called for each frame in the stream
+  framefn := func(frame Frame) error {
+    image, err := frame.Image()
+    if err != nil {
+      return err
+    }
+    // TODO: Do something with the image here....
+    return nil
+  }
+
+  // decode frames from the stream
+  if err := decoder.Decode(context.Background(), framefn); err != nil {
+    log.Fatal(err)
+  }
+}
+```
 
 ### Encoding
 
@@ -116,7 +166,53 @@ TODO
 
 ### Retrieving Metadata and Artwork from a media file
 
-TODO
+Here is an example of opening a media file and retrieving metadata and artwork.
+
+```go
+package main
+
+import (
+  "log"
+  "os"
+
+  media "github.com/mutablelogic/go-media"
+  file "github.com/mutablelogic/go-media/pkg/file"
+)
+
+func main() {
+  manager, err := media.NewManager()
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  // Open a media file for reading. The format of the file is guessed.
+  // Alteratively, you can pass a format as the second argument. Further optional
+  // arguments can be used to set the format options.
+  reader, err := manager.Open(os.Args[1], nil)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer reader.Close()
+
+  // Retrieve all the metadata from the file, and display it. If you pass
+  // keys to the Metadata function, then only entries with those keys will be
+  // returned.
+  for _, metadata := range reader.Metadata() {
+    log.Print(metadata.Key(), " => ", metadata.Value())
+  }
+
+  // Retrieve artwork by using the MetaArtwork key. The value is of type []byte.
+  // which needs to be converted to an image. There is a utility method to
+  // detect the image type.
+  for _, artwork := range reader.Metadata(media.MetaArtwork) {
+    mimetype, ext, err := file.MimeType(artwork.Value().([]byte))
+    if err != nil {
+      log.Fatal(err)
+    }
+    log.Print("got artwork", mimetype, ext)
+  }
+}
+```
 
 ### Audio Fingerprinting
 
@@ -139,8 +235,14 @@ The license is Apache 2 so feel free to redistribute. Redistributions in either 
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
 
+> go-media
+> https://github.com/mutablelogic/go-media/
 > Copyright (c) 2021-2024 David Thorpe, All rights reserved.
+
+This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under
+the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
 
 ## References
 
 * https://ffmpeg.org/doxygen/6.1/index.html
+* https://pkg.go.dev/github.com/mutablelogic/go-media

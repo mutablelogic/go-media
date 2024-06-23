@@ -1,22 +1,19 @@
 package media
 
 import (
-	"fmt"
 	"io"
 	"runtime"
 
 	// Package imports
 	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type manager struct {
+	opts
 }
 
 var _ Manager = (*manager)(nil)
@@ -24,8 +21,32 @@ var _ Manager = (*manager)(nil)
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewManager() Manager {
-	return new(manager)
+func NewManager(opt ...Opt) (Manager, error) {
+	manager := new(manager)
+
+	// Set default options
+	manager.opts.level = ff.AV_LOG_WARNING
+
+	// Apply other options
+	for _, fn := range opt {
+		if err := fn(&manager.opts); err != nil {
+			return nil, err
+		}
+	}
+
+	// Initialise the network
+	ff.AVFormat_network_init()
+
+	// Set logging
+	ff.AVUtil_log_set_level(manager.level)
+	if manager.callback != nil {
+		ff.AVUtil_log_set_callback(func(level ff.AVLog, message string, userInfo any) {
+			manager.callback(message)
+		})
+	}
+
+	// Return success
+	return manager, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -39,27 +60,27 @@ func (manager *manager) InputFormats(t MediaType, filter ...string) []Format {
 	var result []Format
 
 	// Iterate over all input formats
-	if t == NONE || t.Is(FILE) {
+	if t == ANY || t.Is(FILE) {
 		var opaque uintptr
 		for {
 			demuxer := ff.AVFormat_demuxer_iterate(&opaque)
 			if demuxer == nil {
 				break
 			}
-			if matchesInput(demuxer, t, filter...) {
+			if matchesInput(demuxer, filter...) {
 				result = append(result, newInputFormat(demuxer, FILE))
 			}
 		}
 	}
 
-	if t == NONE || t.Is(DEVICE) {
+	if t == ANY || t.Is(DEVICE) {
 		// Iterate over all device inputs
 		audio := ff.AVDevice_input_audio_device_first()
 		for {
 			if audio == nil {
 				break
 			}
-			if matchesInput(audio, t, filter...) {
+			if matchesInput(audio, filter...) {
 				result = append(result, newInputFormat(audio, AUDIO|DEVICE))
 			}
 			audio = ff.AVDevice_input_audio_device_next(audio)
@@ -70,15 +91,27 @@ func (manager *manager) InputFormats(t MediaType, filter ...string) []Format {
 			if video == nil {
 				break
 			}
-			if matchesInput(video, t, filter...) {
+			if matchesInput(video, filter...) {
 				result = append(result, newInputFormat(video, VIDEO|DEVICE))
 			}
 			video = ff.AVDevice_input_video_device_next(video)
 		}
 	}
 
+	// If no media filter, return all results
+	if t == ANY {
+		return result
+	}
+
+	result2 := make([]Format, 0, len(result))
+	for _, format := range result {
+		if format.Type().Is(t) {
+			result2 = append(result2, format)
+		}
+	}
+
 	// Return success
-	return result
+	return result2
 }
 
 // Return the list of matching output formats, optionally filtering by name,
@@ -89,27 +122,27 @@ func (manager *manager) OutputFormats(t MediaType, filter ...string) []Format {
 	var result []Format
 
 	// Iterate over all output formats
-	if t == NONE || t.Is(FILE) {
+	if t == ANY || t.Is(FILE) {
 		var opaque uintptr
 		for {
 			muxer := ff.AVFormat_muxer_iterate(&opaque)
 			if muxer == nil {
 				break
 			}
-			if matchesOutput(muxer, t, filter...) {
+			if matchesOutput(muxer, filter...) {
 				result = append(result, newOutputFormat(muxer, FILE))
 			}
 		}
 	}
 
 	// Iterate over all device outputs
-	if t == NONE || t.Is(DEVICE) {
+	if t == ANY || t.Is(DEVICE) {
 		audio := ff.AVDevice_output_audio_device_first()
 		for {
 			if audio == nil {
 				break
 			}
-			if matchesOutput(audio, t, filter...) {
+			if matchesOutput(audio, filter...) {
 				result = append(result, newOutputFormat(audio, AUDIO|DEVICE))
 			}
 			audio = ff.AVDevice_output_audio_device_next(audio)
@@ -120,7 +153,7 @@ func (manager *manager) OutputFormats(t MediaType, filter ...string) []Format {
 			if video == nil {
 				break
 			}
-			if matchesOutput(video, t, filter...) {
+			if matchesOutput(video, filter...) {
 				result = append(result, newOutputFormat(video, VIDEO|DEVICE))
 			}
 			video = ff.AVDevice_output_video_device_next(video)
@@ -131,36 +164,40 @@ func (manager *manager) OutputFormats(t MediaType, filter ...string) []Format {
 	return result
 }
 
-// Return supported input devices for a given input format. Sometimes
+// Return supported devices for a given format. Sometimes
 // (ie, AVFoundation) there is a option which provides the input
 // devices and this function returns an empty string instead. Go figure!
-func (manager *manager) InputDevices(format string) []Device {
-	input := ff.AVFormat_find_input_format(format)
-	if input == nil {
+func (manager *manager) Devices(format Format) []Device {
+	var device_list *ff.AVDeviceInfoList
+	if format == nil {
 		return nil
-	}
-
-	device_list, err := ff.AVDevice_list_input_sources(input, format, nil)
-	if err != nil {
-		panic(err)
+	} else if !format.Type().Is(DEVICE) {
+		return nil
+	} else if format.Type().Is(INPUT) {
+		if devices, err := ff.AVDevice_list_input_sources(format.(*inputformat).ctx, "", nil); err != nil {
+			return nil
+		} else {
+			device_list = devices
+		}
+	} else if format.Type().Is(OUTPUT) {
+		if devices, err := ff.AVDevice_list_output_sinks(format.(*outputformat).ctx, "", nil); err != nil {
+			return nil
+		} else {
+			device_list = devices
+		}
 	}
 	if device_list == nil {
-		return nil
+		return []Device{}
 	}
 	defer ff.AVDevice_free_list_devices(device_list)
 
 	// Iterate over devices
 	result := make([]Device, 0, device_list.NumDevices())
-	for i, device := range device_list.Devices() {
-		fmt.Println(i, device)
+	for _, device := range device_list.Devices() {
+		// TODO: Default device
+		result = append(result, newDevice(format.Name()[0], device, format.Type(), false))
 	}
-
 	return result
-}
-
-// Return supported output devices for a given name
-func (manager *manager) OutputDevices(format string) []Device {
-	panic("TODO")
 }
 
 // Return all supported channel layouts
@@ -231,34 +268,44 @@ func (manager *manager) Codecs() []Metadata {
 
 // Return audio parameters for encoding
 // ChannelLayout, SampleFormat, Samplerate
-func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (AudioParameters, error) {
+func (manager *manager) AudioParameters(channels string, samplefmt string, samplerate int) (Parameters, error) {
 	return newAudioParametersEx(channels, samplefmt, samplerate)
 }
 
 // Return video parameters for encoding
 // Width, Height, PixelFormat, Framerate
-func (manager *manager) VideoParameters(width int, height int, pixelfmt string) (VideoParameters, error) {
+func (manager *manager) VideoParameters(width int, height int, pixelfmt string) (Parameters, error) {
 	return newVideoParametersEx(width, height, pixelfmt)
 }
 
 // Open a media file or device for reading, from a path or url.
 func (manager *manager) Open(url string, format Format, opts ...string) (Media, error) {
-	return newMedia(url, format, opts...)
+	reader, err := newMedia(url, format, opts...)
+	if err != nil {
+		return nil, err
+	}
+	reader.force = manager.opts.force
+	return reader, nil
 }
 
 // Open a media stream for reading.
 func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media, error) {
-	return newReader(r, format, opts...)
+	reader, err := newReader(r, format, opts...)
+	if err != nil {
+		return nil, err
+	}
+	reader.force = manager.opts.force
+	return reader, err
 }
 
-// Create a media file for writing, from a path.
-func (manager *manager) Create(string, Format) (Media, error) {
-	return nil, ErrNotImplemented
+// Create a media file for writing, from a url, path, or device.
+func (manager *manager) Create(url string, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
+	return createMedia(url, format, metadata, params...)
 }
 
 // Create a media stream for writing.
-func (manager *manager) Write(io.Writer, Format) (Media, error) {
-	return nil, ErrNotImplemented
+func (manager *manager) Write(w io.Writer, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
+	return createWriter(w, format, metadata, params...)
 }
 
 // Return version information for the media manager as a set of metadata
@@ -289,4 +336,19 @@ func (manager *manager) Version() []Metadata {
 		metadata = append(metadata, newMetadata("go_arch", runtime.GOOS+"/"+runtime.GOARCH))
 	}
 	return metadata
+}
+
+// Log error messages
+func (manager *manager) Errorf(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_ERROR, f, args...)
+}
+
+// Log warning messages
+func (manager *manager) Warningf(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_WARNING, f, args...)
+}
+
+// Log info messages
+func (manager *manager) Infof(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_INFO, f, args...)
 }

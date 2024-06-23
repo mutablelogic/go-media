@@ -24,25 +24,25 @@ type codecpar struct {
 }
 
 type audiopar struct {
-	Ch           ff.AVChannelLayout `json:"channel_layout,omitempty"`
-	SampleFormat ff.AVSampleFormat  `json:"sample_format,omitempty"`
-	Samplerate   int                `json:"samplerate,omitempty"`
+	Ch           ff.AVChannelLayout `json:"channel_layout"`
+	SampleFormat ff.AVSampleFormat  `json:"sample_format"`
+	Samplerate   int                `json:"samplerate"`
 }
 
 type videopar struct {
-	PixelFormat ff.AVPixelFormat `json:"pixel_format,omitempty"`
-	Width       int              `json:"width,omitempty"`
-	Height      int              `json:"height,omitempty"`
+	PixelFormat ff.AVPixelFormat `json:"pixel_format"`
+	Width       int              `json:"width"`
+	Height      int              `json:"height"`
 }
 
 type planepar struct {
-	NumPlanes int `json:"num_video_planes,omitempty"`
+	NumPlanes int `json:"num_video_planes"`
 }
 
 type timingpar struct {
-	Framerate ff.AVRational `json:"framerate,omitempty"`
-	Pts       int64         `json:"pts,omitempty"`
-	TimeBase  ff.AVRational `json:"time_base,omitempty"`
+	Framerate ff.AVRational `json:"framerate"`
+	Pts       int64         `json:"pts"`
+	TimeBase  ff.AVRational `json:"time_base"`
 }
 
 var _ Parameters = (*par)(nil)
@@ -72,12 +72,12 @@ func newAudioParametersEx(channels string, samplefmt string, samplerate int) (*p
 		return nil, err
 	}
 	if fmt := ff.AVUtil_get_sample_fmt(samplefmt); fmt == ff.AV_SAMPLE_FMT_NONE {
-		return nil, ErrBadParameter.Withf("sample format %q", samplefmt)
+		return nil, ErrBadParameter.Withf("unknown sample format %q", samplefmt)
 	} else {
 		par.audiopar.SampleFormat = fmt
 	}
 	if samplerate <= 0 {
-		return nil, ErrBadParameter.Withf("samplerate %v", samplerate)
+		return nil, ErrBadParameter.Withf("negative or zero samplerate %v", samplerate)
 	} else {
 		par.audiopar.Samplerate = samplerate
 	}
@@ -85,6 +85,26 @@ func newAudioParametersEx(channels string, samplefmt string, samplerate int) (*p
 
 	// Return success
 	return par, nil
+}
+
+func newCodecAudioParameters(codec *ff.AVCodecParameters) *par {
+	par := new(par)
+	par.t = AUDIO
+	par.audiopar.Ch = codec.ChannelLayout()
+	par.audiopar.SampleFormat = codec.SampleFormat()
+	par.audiopar.Samplerate = codec.Samplerate()
+	par.planepar.NumPlanes = par.NumPlanes()
+	return par
+}
+
+func newCodecVideoParameters(codec *ff.AVCodecParameters) *par {
+	par := new(par)
+	par.t = VIDEO
+	par.videopar.Width = codec.Width()
+	par.videopar.Height = codec.Height()
+	par.videopar.PixelFormat = codec.PixelFormat()
+	par.planepar.NumPlanes = par.NumPlanes()
+	return par
 }
 
 // Create new parameters for video from a width, height and pixel format
@@ -95,18 +115,18 @@ func newVideoParametersEx(width int, height int, pixelfmt string) (*par, error) 
 	// Set the  parameters
 	if width <= 0 {
 		// Negative widths might mean "flip" but not tested yet
-		return nil, ErrBadParameter.Withf("width %v", width)
+		return nil, ErrBadParameter.Withf("negative or zero width %v", width)
 	} else {
 		par.videopar.Width = width
 	}
 	if height <= 0 {
 		// Negative heights might mean "flip" but not tested yet
-		return nil, ErrBadParameter.Withf("height %v", height)
+		return nil, ErrBadParameter.Withf("negative or zero height %v", height)
 	} else {
 		par.videopar.Height = height
 	}
 	if fmt := ff.AVUtil_get_pix_fmt(pixelfmt); fmt == ff.AV_PIX_FMT_NONE {
-		return nil, ErrBadParameter.Withf("pixel format %q", pixelfmt)
+		return nil, ErrBadParameter.Withf("unknown pixel format %q", pixelfmt)
 	} else {
 		par.videopar.PixelFormat = fmt
 	}

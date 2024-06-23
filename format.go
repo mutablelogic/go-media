@@ -110,7 +110,7 @@ func (v *inputformat) MimeTypes() []string {
 }
 
 func (v *inputformat) Type() MediaType {
-	return INPUT
+	return v.MediaType
 }
 
 func (v *outputformat) Name() []string {
@@ -143,17 +143,17 @@ func (v *outputformat) MimeTypes() []string {
 }
 
 func (v *outputformat) Type() MediaType {
-	return OUTPUT
+	return v.MediaType
 }
 
 ////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func matchesInput(demuxer *ff.AVInputFormat, media_type MediaType, mimetype ...string) bool {
+func matchesInput(demuxer *ff.AVInputFormat, mimetype ...string) bool {
 	// TODO: media_type
 
 	// Match any
-	if len(mimetype) == 0 && media_type == ANY {
+	if len(mimetype) == 0 {
 		return true
 	}
 	// Match mimetype
@@ -176,11 +176,11 @@ func matchesInput(demuxer *ff.AVInputFormat, media_type MediaType, mimetype ...s
 	return false
 }
 
-func matchesOutput(muxer *ff.AVOutputFormat, media_type MediaType, filter ...string) bool {
+func matchesOutput(muxer *ff.AVOutputFormat, filter ...string) bool {
 	// TODO: media_type
 
 	// Match any
-	if len(filter) == 0 && media_type == ANY {
+	if len(filter) == 0 {
 		return true
 	}
 	// Match mimetype

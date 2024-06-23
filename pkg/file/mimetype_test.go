@@ -1,9 +1,10 @@
 package file_test
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
+	// Packages
 	"github.com/mutablelogic/go-media/pkg/file"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +15,7 @@ const (
 
 func Test_mimetype_000(t *testing.T) {
 	assert := assert.New(t)
-	bytes, err := ioutil.ReadFile(SAMPLE_MP4)
+	bytes, err := os.ReadFile(SAMPLE_MP4)
 	assert.NoError(err)
 	mimetype, ext, err := file.MimeType(bytes)
 	assert.NoError(err)

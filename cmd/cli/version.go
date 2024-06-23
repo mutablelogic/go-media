@@ -4,15 +4,16 @@ import (
 	"os"
 
 	"github.com/djthorpe/go-tablewriter"
-	"github.com/mutablelogic/go-media"
 )
 
 type VersionCmd struct{}
 
 func (v *VersionCmd) Run(globals *Globals) error {
+	manager := globals.manager
+
 	opts := []tablewriter.TableOpt{
 		tablewriter.OptOutputText(),
 		tablewriter.OptDelimiter(' '),
 	}
-	return tablewriter.New(os.Stdout, opts...).Write(media.NewManager().Version())
+	return tablewriter.New(os.Stdout, opts...).Write(manager.Version())
 }

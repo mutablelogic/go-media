@@ -60,9 +60,15 @@ func (r AVRational) Float(multiplier int64) float64 {
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
 
+// Convert a double precision floating point number to a rational.
 func AVUtil_rational_d2q(d float64, max int) AVRational {
 	if max == 0 {
 		max = C.INT_MAX
 	}
 	return AVRational(C.av_d2q(C.double(d), C.int(max)))
+}
+
+// Convert an AVRational to a double.
+func AVUtil_q2d(a AVRational) float64 {
+	return float64(C.av_q2d(C.AVRational(a)))
 }

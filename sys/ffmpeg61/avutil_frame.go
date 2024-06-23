@@ -20,43 +20,71 @@ import "C"
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+type jsonAVAudioFrame struct {
+	SampleFormat   AVSampleFormat  `json:"sample_format"`
+	NumSamples     int             `json:"num_samples"`
+	SampleRate     int             `json:"sample_rate"`
+	ChannelLayout  AVChannelLayout `json:"channel_layout,omitempty"`
+	BytesPerSample int             `json:"bytes_per_sample,omitempty"`
+}
+
+type jsonAVVideoFrame struct {
+	PixelFormat AVPixelFormat `json:"pixel_format"`
+	Width       int           `json:"width"`
+	Height      int           `json:"height"`
+	PictureType AVPictureType `json:"picture_type,omitempty"`
+	Stride      []int         `json:"plane_stride,omitempty"`
+}
+
 type jsonAVFrame struct {
-	SampleFormat  AVSampleFormat  `json:"sample_format,omitempty"`
-	NumSamples    int             `json:"num_samples,omitempty"`
-	SampleRate    int             `json:"sample_rate,omitempty"`
-	ChannelLayout AVChannelLayout `json:"channel_layout,omitempty"`
-	PixelFormat   AVPixelFormat   `json:"pixel_format"`
-	Width         int             `json:"width,omitempty"`
-	Height        int             `json:"height,omitempty"`
-	PictureType   AVPictureType   `json:"picture_type,omitempty"`
-	Pts           AVTimestamp     `json:"pts,omitempty"`
-	BestEffortTs  AVTimestamp     `json:"best_effort_timestamp,omitempty"`
-	TimeBase      AVRational      `json:"time_base,omitempty"`
-	NumPlanes     int             `json:"num_planes,omitempty"`
+	*jsonAVAudioFrame
+	*jsonAVVideoFrame
+	NumPlanes    int         `json:"num_planes,omitempty"`
+	PlaneBytes   []int       `json:"plane_bytes,omitempty"`
+	Pts          AVTimestamp `json:"pts,omitempty"`
+	BestEffortTs AVTimestamp `json:"best_effort_timestamp,omitempty"`
+	TimeBase     AVRational  `json:"time_base,omitempty"`
 }
 
 func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
 	if ctx.nb_samples > 0 {
 		// Audio
 		return json.Marshal(jsonAVFrame{
-			NumSamples:    int(ctx.nb_samples),
-			SampleFormat:  AVSampleFormat(ctx.format),
-			SampleRate:    int(ctx.sample_rate),
-			ChannelLayout: AVChannelLayout(ctx.ch_layout),
-			Pts:           AVTimestamp(ctx.pts),
-			BestEffortTs:  AVTimestamp(ctx.best_effort_timestamp),
-			TimeBase:      AVRational(ctx.time_base),
-			NumPlanes:     AVUtil_frame_get_num_planes(ctx),
+			jsonAVAudioFrame: &jsonAVAudioFrame{
+				NumSamples:     int(ctx.nb_samples),
+				SampleFormat:   AVSampleFormat(ctx.format),
+				SampleRate:     int(ctx.sample_rate),
+				ChannelLayout:  AVChannelLayout(ctx.ch_layout),
+				BytesPerSample: AVUtil_get_bytes_per_sample(AVSampleFormat(ctx.format)),
+			},
+			Pts:          AVTimestamp(ctx.pts),
+			BestEffortTs: AVTimestamp(ctx.best_effort_timestamp),
+			TimeBase:     AVRational(ctx.time_base),
+			NumPlanes:    AVUtil_frame_get_num_planes(ctx),
+			PlaneBytes:   ctx.planesizes(),
 		})
-	} else {
+	} else if ctx.width != 0 && ctx.height != 0 {
 		// Video
 		return json.Marshal(jsonAVFrame{
-			PixelFormat: AVPixelFormat(ctx.format),
-			Width:       int(ctx.width),
-			Height:      int(ctx.height),
-			Pts:         AVTimestamp(ctx.pts),
-			TimeBase:    AVRational(ctx.time_base),
-			NumPlanes:   AVUtil_frame_get_num_planes(ctx),
+			jsonAVVideoFrame: &jsonAVVideoFrame{
+				PixelFormat: AVPixelFormat(ctx.format),
+				Width:       int(ctx.width),
+				Height:      int(ctx.height),
+				PictureType: AVPictureType(ctx.pict_type),
+				Stride:      ctx.linesizes(),
+			},
+			Pts:        AVTimestamp(ctx.pts),
+			TimeBase:   AVRational(ctx.time_base),
+			NumPlanes:  AVUtil_frame_get_num_planes(ctx),
+			PlaneBytes: ctx.planesizes(),
+		})
+	} else {
+		// Other
+		return json.Marshal(jsonAVFrame{
+			Pts:        AVTimestamp(ctx.pts),
+			TimeBase:   AVRational(ctx.time_base),
+			NumPlanes:  AVUtil_frame_get_num_planes(ctx),
+			PlaneBytes: ctx.planesizes(),
 		})
 	}
 }
@@ -114,10 +142,11 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 		} else {
 			return 1
 		}
-	} else {
+	} else if frame.width != 0 && frame.height != 0 {
 		// Video
-		desc := AVUtil_get_pix_fmt_desc(AVPixelFormat(frame.format))
-		return int(desc.nb_components)
+		return AVUtil_pix_fmt_count_planes(AVPixelFormat(frame.format))
+	} else {
+		return 0
 	}
 }
 
@@ -197,16 +226,20 @@ func (ctx *AVFrame) Pts() int64 {
 	return int64(ctx.pts)
 }
 
-func (ctx *AVFrame) BestEffortTs() int64 {
-	return int64(ctx.best_effort_timestamp)
-}
-
 func (ctx *AVFrame) SetPts(pts int64) {
 	ctx.pts = C.int64_t(pts)
 }
 
+func (ctx *AVFrame) BestEffortTs() int64 {
+	return int64(ctx.best_effort_timestamp)
+}
+
 func (ctx *AVFrame) TimeBase() AVRational {
 	return AVRational(ctx.time_base)
+}
+
+func (ctx *AVFrame) SetTimeBase(timeBase AVRational) {
+	ctx.time_base = C.struct_AVRational(timeBase)
 }
 
 // Return stride of a plane for images, or plane size for audio.
@@ -217,12 +250,44 @@ func (ctx *AVFrame) Linesize(plane int) int {
 	return int(ctx.linesize[plane])
 }
 
+// Return size of a plane in bytes
+func (ctx *AVFrame) Planesize(plane int) int {
+	if plane < 0 || plane >= int(C.AV_NUM_DATA_POINTERS) {
+		return 0
+	}
+	if ctx.NumSamples() > 0 {
+		return AVUtil_get_bytes_per_sample(AVSampleFormat(ctx.format)) * ctx.NumSamples()
+	} else if ctx.Height() > 0 {
+		return ctx.Linesize(plane) * ctx.Height()
+	} else {
+		return 0
+	}
+}
+
+// Return all strides.
+func (ctx *AVFrame) linesizes() []int {
+	var linesizes []int
+	for i := 0; i < AVUtil_frame_get_num_planes(ctx); i++ {
+		linesizes = append(linesizes, ctx.Linesize(i))
+	}
+	return linesizes
+}
+
+// Return all planes sizes
+func (ctx *AVFrame) planesizes() []int {
+	var planesizes []int
+	for i := 0; i < AVUtil_frame_get_num_planes(ctx); i++ {
+		planesizes = append(planesizes, ctx.Planesize(i))
+	}
+	return planesizes
+}
+
 // Return a buffer reference to the data for a plane.
 func (ctx *AVFrame) bufferRef(plane int) *AVBufferRef {
 	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
 }
 
-// Returns a plane as a byte array.
+// Returns a plane as a byte array (same as uint8).
 func (ctx *AVFrame) Bytes(plane int) []byte {
 	return ctx.Uint8(plane)
 }
