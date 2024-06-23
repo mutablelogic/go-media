@@ -40,4 +40,6 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - name: Run tests
-        run: make test
+        run: |
+          apt install -y libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev libchromaprint-dev
+          make test
