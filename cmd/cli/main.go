@@ -33,6 +33,7 @@ type CLI struct {
 	PixelFormats   PixelFormatsCmd   `cmd:"pixelfmts" help:"List video pixel formats"`
 	Metadata       MetadataCmd       `cmd:"metadata" help:"Display media metadata information"`
 	Artwork        ArtworkCmd        `cmd:"artwork" help:"Save artwork from media file"`
+	Fingerprint    FimgerprintCmd    `cmd:"fingerprint" help:"Fingerprint an audio file"`
 	Probe          ProbeCmd          `cmd:"probe" help:"Probe media file or device"`
 	Decode         DecodeCmd         `cmd:"decode" help:"Decode media"`
 	Thumbnails     ThumbnailsCmd     `cmd:"thumbnails" help:"Generate thumbnails from media file"`

@@ -91,6 +91,12 @@ func (frame *frame) Bytes(plane int) []byte {
 	return frame.ctx.Bytes(plane)[:frame.ctx.Planesize(plane)]
 }
 
+// Return the int16 data for a plane
+func (frame *frame) Int16(plane int) []int16 {
+	sz := frame.ctx.Planesize(plane) >> 1
+	return frame.ctx.Int16(plane)[:sz]
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // AUDIO PARAMETERS
 

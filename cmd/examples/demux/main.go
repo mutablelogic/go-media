@@ -9,7 +9,10 @@ import (
 )
 
 func main() {
-	manager := media.NewManager()
+	manager, err := media.NewManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Open a media file for reading. The format of the file is guessed.
 	// Alteratively, you can pass a format as the second argument. Further optional

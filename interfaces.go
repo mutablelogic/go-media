@@ -258,6 +258,9 @@ type Frame interface {
 	// Return a frame plane as a byte slice.
 	Bytes(int) []byte
 
+	// Return a frame plane as int16 slice
+	Int16(int) []int16
+
 	// Return the presentation timestamp for the frame or
 	// a negative number if not set
 	Time() time.Duration
