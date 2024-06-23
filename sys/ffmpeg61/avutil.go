@@ -61,6 +61,7 @@ type (
 	AVDictionaryFlag   C.int
 	AVError            C.int
 	AVFrame            C.struct_AVFrame
+	AVLog              C.int
 	AVMediaType        C.enum_AVMediaType
 	AVRational         C.AVRational
 	AVPictureType      C.enum_AVPictureType

@@ -327,7 +327,7 @@ FOR_LOOP:
 func (d *decoder) decode(packet *ff.AVPacket, demuxfn DecoderFunc, framefn FrameFunc) error {
 	if demuxfn != nil {
 		// Send the packet (or a nil to flush) to the user defined packet function
-		return demuxfn(newPacket(packet))
+		return demuxfn(newPacket(packet, d.stream, d.codec.Codec().Type(), d.timeBase))
 	}
 
 	// Submit the packet to the decoder (nil packet will flush the decoder)

@@ -34,17 +34,6 @@ type (
 	AVCodecID                     C.enum_AVCodecID
 )
 
-type jsonAVPacket struct {
-	Pts           int64 `json:"pts,omitempty"`
-	Dts           int64 `json:"dts,omitempty"`
-	Size          int   `json:"size,omitempty"`
-	StreamIndex   int   `json:"stream_index"` // Stream index starts at 0
-	Flags         int   `json:"flags,omitempty"`
-	SideDataElems int   `json:"side_data_elems,omitempty"`
-	Duration      int64 `json:"duration,omitempty"`
-	Pos           int64 `json:"pos,omitempty"`
-}
-
 type jsonAVCodec struct {
 	Type           AVMediaType       `json:"type"`
 	Name           string            `json:"name,omitempty"`
@@ -165,19 +154,6 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
-func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVPacket{
-		Pts:           int64(ctx.pts),
-		Dts:           int64(ctx.dts),
-		Size:          int(ctx.size),
-		StreamIndex:   int(ctx.stream_index),
-		Flags:         int(ctx.flags),
-		SideDataElems: int(ctx.side_data_elems),
-		Duration:      int64(ctx.duration),
-		Pos:           int64(ctx.pos),
-	})
-}
-
 func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonAVCodec{
 		Name:           C.GoString(ctx.name),
@@ -246,14 +222,6 @@ func (v AVCodecID) MarshalJSON() ([]byte, error) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
-
-func (ctx *AVPacket) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
-}
 
 func (ctx *AVCodec) String() string {
 	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {

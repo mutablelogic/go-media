@@ -21,7 +21,11 @@ func Test_decoder_001(t *testing.T) {
 	// Decode packets
 	assert := assert.New(t)
 
-	manager := NewManager()
+	manager, err := NewManager()
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
 	media, err := manager.Open("./etc/test/sample.mp4", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -31,7 +35,7 @@ func Test_decoder_001(t *testing.T) {
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Copy parameters from the stream
 		return stream.Parameters(), nil
-	}, false)
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -51,7 +55,11 @@ func Test_decoder_002(t *testing.T) {
 	// Decode video frames
 	assert := assert.New(t)
 
-	manager := NewManager()
+	manager, err := NewManager()
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
 	media, err := manager.Open("./etc/test/sample.mp4", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -61,7 +69,7 @@ func Test_decoder_002(t *testing.T) {
 	decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
 		// Copy parameters from the stream
 		return stream.Parameters(), nil
-	}, false)
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -106,7 +114,11 @@ func Test_decoder_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// Open the file
-	manager := NewManager()
+	manager, err := NewManager()
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
 	media, err := manager.Open("./etc/test/sample.mp4", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -129,7 +141,7 @@ func Test_decoder_003(t *testing.T) {
 		}
 		// Ignore other streams
 		return nil, nil
-	}, true)
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -172,8 +184,12 @@ func Test_decoder_004(t *testing.T) {
 	// Decode audio frames
 	assert := assert.New(t)
 
+	manager, err := NewManager()
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
 	// Open the file
-	manager := NewManager()
 	media, err := manager.Open("etc/test/sample.mp3", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -188,7 +204,7 @@ func Test_decoder_004(t *testing.T) {
 		}
 		// Ignore other streams
 		return nil, nil
-	}, true)
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -222,8 +238,12 @@ func Test_decoder_005(t *testing.T) {
 	// Decode audio frames to mono s16 (with native byte order)
 	assert := assert.New(t)
 
+	manager, err := NewManager()
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+
 	// Open the file
-	manager := NewManager()
 	media, err := manager.Open("etc/test/sample.mp3", nil)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -238,7 +258,7 @@ func Test_decoder_005(t *testing.T) {
 		}
 		// Ignore other streams
 		return nil, nil
-	}, true)
+	})
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}

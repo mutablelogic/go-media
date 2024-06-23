@@ -1,15 +1,24 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
+	tablewriter "github.com/djthorpe/go-tablewriter"
+	media "github.com/mutablelogic/go-media"
 )
 
 type Globals struct {
+	manager media.Manager
+	writer  *tablewriter.Writer
+	ctx     context.Context
+
 	Debug bool `name:"debug" help:"Enable debug mode"`
+	Force bool `name:"force" help:"Force resampling and resizing on decode, even if the input and output parameters are the same"`
 }
 
 type CLI struct {
@@ -41,6 +50,23 @@ func main() {
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
 	)
+
+	// Create a manager object
+	// Only print out FATAL messages
+	manager, err := media.NewManager(media.OptLog(cli.Debug, nil))
+	if err != nil {
+		ctx.FatalIfErrorf(err)
+	}
+	cli.Globals.manager = manager
+
+	// Create a tablewriter object with text output
+	writer := tablewriter.New(os.Stdout, tablewriter.OptOutputText())
+	cli.Globals.writer = writer
+
+	// Create a context
+	cli.Globals.ctx = ContextForSignal(os.Interrupt, syscall.SIGQUIT)
+
+	// Run the command
 	if err := ctx.Run(&cli.Globals); err != nil {
 		ctx.FatalIfErrorf(err)
 	}

@@ -84,6 +84,15 @@ type Manager interface {
 	// Return version information for the media manager as a set of
 	// metadata
 	Version() []Metadata
+
+	// Log error messages with arguments
+	Errorf(string, ...any)
+
+	// Log warning messages with arguments
+	Warningf(string, ...any)
+
+	// Log info messages  with arguments
+	Infof(string, ...any)
 }
 
 // Device represents a device for input or output of media streams.
@@ -130,9 +139,7 @@ type Media interface {
 	// Return a decoding context for the media stream, and
 	// map the streams to decoders. If no function is provided
 	// (ie, the argument is nil) then all streams are demultiplexed.
-	// Pass true as the second argument to indicate resampling or
-	// resizing should always be done, even if the parameters are the same.
-	Decoder(DecoderMapFunc, bool) (Decoder, error)
+	Decoder(DecoderMapFunc) (Decoder, error)
 
 	// Return INPUT for a demuxer or source, OUTPUT for a muxer or
 	// sink, DEVICE for a device, FILE for a file or stream.

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	// Packages
 	"github.com/djthorpe/go-tablewriter"
@@ -20,7 +19,7 @@ type DecodeCmd struct {
 func (cmd *DecodeCmd) Run(globals *Globals) error {
 	var format media.Format
 
-	manager := media.NewManager()
+	manager := globals.manager
 	if cmd.Format != "" {
 		if formats := manager.InputFormats(media.NONE, cmd.Format); len(formats) == 0 {
 			return fmt.Errorf("unknown format %q", cmd.Format)
@@ -39,19 +38,19 @@ func (cmd *DecodeCmd) Run(globals *Globals) error {
 	defer reader.Close()
 
 	// Create a decoder - copy streams
-	decoder, err := reader.Decoder(nil, false)
+	decoder, err := reader.Decoder(nil)
 	if err != nil {
 		return err
 	}
 
 	// Demultiplex the stream
+	writer := globals.writer
 	header := []tablewriter.TableOpt{tablewriter.OptHeader()}
-	tablewriter := tablewriter.New(os.Stdout, tablewriter.OptOutputText())
 	return decoder.Demux(context.Background(), func(packet media.Packet) error {
 		if packet == nil {
 			return nil
 		}
-		if err := tablewriter.Write(packet, header...); err != nil {
+		if err := writer.Write(packet, header...); err != nil {
 			return err
 		}
 		// Reset the header

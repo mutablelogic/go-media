@@ -11,9 +11,6 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-
-	// Packages
-	multierror "github.com/hashicorp/go-multierror"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +172,7 @@ func (walkfs *WalkFS) walk(ctx context.Context, abspath string) error {
 					if errors.Is(filepath.SkipDir, err) {
 						return filepath.SkipDir
 					} else {
-						result = multierror.Append(result, err)
+						result = errors.Join(result, err)
 					}
 				}
 				return nil
@@ -189,7 +186,7 @@ func (walkfs *WalkFS) walk(ctx context.Context, abspath string) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return result
 	} else if err != nil {
-		return multierror.Append(result, err)
+		return errors.Join(result, err)
 	} else {
 		return nil
 	}

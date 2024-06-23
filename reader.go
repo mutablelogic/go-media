@@ -19,6 +19,7 @@ type reader struct {
 	input   *ff.AVFormatContext
 	avio    *ff.AVIOContextEx
 	demuxer *demuxer
+	force   bool // passed my the manager object
 }
 
 type reader_callback struct {
@@ -172,7 +173,7 @@ func (r *reader) Type() MediaType {
 	return r.t
 }
 
-func (r *reader) Decoder(fn DecoderMapFunc, force bool) (Decoder, error) {
+func (r *reader) Decoder(fn DecoderMapFunc) (Decoder, error) {
 	// Check if this is actually an input
 	if !r.Type().Is(INPUT) {
 		return nil, errors.New("not an input stream")
@@ -184,7 +185,7 @@ func (r *reader) Decoder(fn DecoderMapFunc, force bool) (Decoder, error) {
 	}
 
 	// Create a decoding context
-	decoder, err := newDemuxer(r.input, fn, force)
+	decoder, err := newDemuxer(r.input, fn, r.force)
 	if err != nil {
 		return nil, err
 	} else {

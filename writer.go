@@ -107,7 +107,7 @@ func (w *writer) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (w *writer) Decoder(DecoderMapFunc, bool) (Decoder, error) {
+func (w *writer) Decoder(DecoderMapFunc) (Decoder, error) {
 	return nil, ErrNotImplemented
 }
 

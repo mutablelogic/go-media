@@ -13,6 +13,7 @@ import (
 // TYPES
 
 type manager struct {
+	opts
 }
 
 var _ Manager = (*manager)(nil)
@@ -20,9 +21,32 @@ var _ Manager = (*manager)(nil)
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewManager() Manager {
+func NewManager(opt ...Opt) (Manager, error) {
+	manager := new(manager)
+
+	// Set default options
+	manager.opts.level = ff.AV_LOG_WARNING
+
+	// Apply other options
+	for _, fn := range opt {
+		if err := fn(&manager.opts); err != nil {
+			return nil, err
+		}
+	}
+
+	// Initialise the network
 	ff.AVFormat_network_init()
-	return new(manager)
+
+	// Set logging
+	ff.AVUtil_log_set_level(manager.level)
+	if manager.callback != nil {
+		ff.AVUtil_log_set_callback(func(level ff.AVLog, message string, userInfo any) {
+			manager.callback(message)
+		})
+	}
+
+	// Return success
+	return manager, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -256,12 +280,22 @@ func (manager *manager) VideoParameters(width int, height int, pixelfmt string) 
 
 // Open a media file or device for reading, from a path or url.
 func (manager *manager) Open(url string, format Format, opts ...string) (Media, error) {
-	return newMedia(url, format, opts...)
+	reader, err := newMedia(url, format, opts...)
+	if err != nil {
+		return nil, err
+	}
+	reader.force = manager.opts.force
+	return reader, nil
 }
 
 // Open a media stream for reading.
 func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media, error) {
-	return newReader(r, format, opts...)
+	reader, err := newReader(r, format, opts...)
+	if err != nil {
+		return nil, err
+	}
+	reader.force = manager.opts.force
+	return reader, err
 }
 
 // Create a media file for writing, from a url, path, or device.
@@ -302,4 +336,19 @@ func (manager *manager) Version() []Metadata {
 		metadata = append(metadata, newMetadata("go_arch", runtime.GOOS+"/"+runtime.GOARCH))
 	}
 	return metadata
+}
+
+// Log error messages
+func (manager *manager) Errorf(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_ERROR, f, args...)
+}
+
+// Log warning messages
+func (manager *manager) Warningf(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_WARNING, f, args...)
+}
+
+// Log info messages
+func (manager *manager) Infof(f string, args ...any) {
+	ff.AVUtil_log(nil, ff.AV_LOG_INFO, f, args...)
 }

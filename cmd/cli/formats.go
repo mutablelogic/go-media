@@ -1,11 +1,8 @@
 package main
 
 import (
-	"os"
-
 	// Packages
 	"github.com/djthorpe/go-tablewriter"
-	"github.com/mutablelogic/go-media"
 )
 
 type CodecsCmd struct{}
@@ -17,28 +14,29 @@ type ChannelLayoutsCmd struct{}
 type PixelFormatsCmd struct{}
 
 func (cmd *CodecsCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
-	writer := tablewriter.New(os.Stdout, tablewriter.OptHeader(), tablewriter.OptOutputText())
-
+	manager := globals.manager
+	writer := globals.writer
 	codecs := manager.Codecs()
-
-	return writer.Write(codecs)
+	return writer.Write(codecs, tablewriter.OptHeader())
 }
 
 func (cmd *SampleFormatsCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
-	writer := tablewriter.New(os.Stdout, tablewriter.OptHeader(), tablewriter.OptOutputText())
-	return writer.Write(manager.SampleFormats())
+	manager := globals.manager
+	writer := globals.writer
+	formats := manager.SampleFormats()
+	return writer.Write(formats, tablewriter.OptHeader())
 }
 
 func (cmd *ChannelLayoutsCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
-	writer := tablewriter.New(os.Stdout, tablewriter.OptHeader(), tablewriter.OptOutputText())
-	return writer.Write(manager.ChannelLayouts())
+	manager := globals.manager
+	writer := globals.writer
+	layouts := manager.ChannelLayouts()
+	return writer.Write(layouts, tablewriter.OptHeader())
 }
 
 func (cmd *PixelFormatsCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
-	writer := tablewriter.New(os.Stdout, tablewriter.OptHeader(), tablewriter.OptOutputText())
-	return writer.Write(manager.PixelFormats())
+	manager := globals.manager
+	writer := globals.writer
+	formats := manager.PixelFormats()
+	return writer.Write(formats, tablewriter.OptHeader())
 }

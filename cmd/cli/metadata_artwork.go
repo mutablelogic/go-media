@@ -1,21 +1,21 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"mime"
-	"net/http"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	// Packages
-	"github.com/djthorpe/go-tablewriter"
+
 	"github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media/pkg/file"
 )
 
 type MetadataCmd struct {
-	Path string `arg:"" required:"" help:"Media file" type:"path"`
+	Path string `arg:"" required:"" help:"Media file or directory of files" type:"path"`
 }
 
 type ArtworkCmd struct {
@@ -23,52 +23,63 @@ type ArtworkCmd struct {
 }
 
 func (cmd *MetadataCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
-	reader, err := manager.Open(cmd.Path, nil)
-	if err != nil {
+	// Create the walker with the processor callback
+	walker := file.NewWalker(func(ctx context.Context, abspath, relpath string, info fs.FileInfo) error {
+		// Ignore directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Open the file
+		reader, err := globals.manager.Open(filepath.Join(abspath, relpath), nil)
+		if err != nil {
+			globals.manager.Errorf("Error opening %q: %v\n", relpath, err)
+			return nil
+		}
+		defer reader.Close()
+
+		fmt.Println(info.Name())
+		for _, entry := range reader.Metadata() {
+			fmt.Println(entry)
+		}
+
+		return nil
+	})
+
+	if err := walker.Walk(globals.ctx, cmd.Path); err != nil {
 		return err
 	}
-	defer reader.Close()
 
-	// Print metadata
-	opts := []tablewriter.TableOpt{
-		tablewriter.OptHeader(),
-		tablewriter.OptOutputText(),
-	}
-	return tablewriter.New(os.Stdout, opts...).Write(reader.Metadata())
+	return nil
 }
 
 func (cmd *ArtworkCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
+	manager := globals.manager
 	reader, err := manager.Open(cmd.Path, nil)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
 
-	artwork := reader.Metadata(media.MetaArtwork)
-	if len(artwork) == 0 {
+	artworks := reader.Metadata(media.MetaArtwork)
+	if len(artworks) == 0 {
 		return errors.New("no artwork")
 	}
 
-	for i, a := range artwork {
-		data := a.Value().([]byte)
-		mimetype := http.DetectContentType(data)
-		if !strings.HasPrefix(mimetype, "image/") {
-			return fmt.Errorf("invalid mimetype %q for stream %d", mimetype, i)
-		}
-		ext, err := mime.ExtensionsByType(mimetype)
+	for i, artwork := range artworks {
+		data := artwork.Value().([]byte)
+		_, ext, err := file.MimeType(data)
 		if err != nil {
 			return err
-		}
-		if len(ext) == 0 {
-			return fmt.Errorf("no extension for mimetype %q", mimetype)
+		} else if ext == "" {
+			manager.Warningf("Artwork %d cannot be identified", i+1)
+			continue
 		}
 
-		// Use last extension
-		filename := filepath.Base(cmd.Path) + ext[len(ext)-1]
-		if len(artwork) > 1 {
-			filename = filepath.Base(cmd.Path) + fmt.Sprintf("%d.%s", i+1, ext[len(ext)-1])
+		// Modify the filename if there is more than one artwork
+		filename := filepath.Base(cmd.Path) + ext
+		if len(artworks) > 1 {
+			filename = filepath.Base(cmd.Path) + fmt.Sprintf("%d.%s", i+1, ext)
 		}
 
 		// Write the file

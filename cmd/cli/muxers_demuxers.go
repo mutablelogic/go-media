@@ -22,17 +22,20 @@ type DevicesCmd struct {
 }
 
 func (cmd *MuxersCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
+	manager := globals.manager
+
 	return Run(cmd.Filter, Outputs(manager, media.ANY, cmd.Filter))
 }
 
 func (cmd *DemuxersCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
+	manager := globals.manager
+
 	return Run(cmd.Filter, Inputs(manager, media.ANY, cmd.Filter))
 }
 
 func (cmd *DevicesCmd) Run(globals *Globals) error {
-	manager := media.NewManager()
+	manager := globals.manager
+
 	var formats []media.Format
 	formats = append(formats, Inputs(manager, media.DEVICE, cmd.Filter)...)
 	formats = append(formats, Outputs(manager, media.DEVICE, cmd.Filter)...)

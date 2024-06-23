@@ -21,7 +21,8 @@ var (
 func (cmd *ProbeCmd) Run(globals *Globals) error {
 	var format media.Format
 
-	manager := media.NewManager()
+	manager := globals.manager
+
 	filter := media.NONE
 
 	// Try device first
