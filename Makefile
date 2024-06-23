@@ -44,6 +44,7 @@ test: go-dep
 	@echo Test
 	@${GO} mod tidy
 	@${GO} test ./sys/ffmpeg61
+	@${GO} test ./sys/chromaprint
 	@${GO} test ./pkg/...
 	@${GO} test .
 
