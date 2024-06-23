@@ -23,6 +23,7 @@ type CLI struct {
 	ChannelLayouts ChannelLayoutsCmd `cmd:"channellayouts" help:"List audio channel layouts"`
 	PixelFormats   PixelFormatsCmd   `cmd:"pixelfmts" help:"List video pixel formats"`
 	Metadata       MetadataCmd       `cmd:"metadata" help:"Display media metadata information"`
+	Artwork        ArtworkCmd        `cmd:"artwork" help:"Save artwork from media file"`
 	Probe          ProbeCmd          `cmd:"probe" help:"Probe media file or device"`
 	Decode         DecodeCmd         `cmd:"decode" help:"Decode media"`
 }
