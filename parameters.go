@@ -16,11 +16,15 @@ type par struct {
 	t MediaType
 	audiopar
 	videopar
+	codecpar
 	planepar
 }
 
 type codecpar struct {
-	Framerate ff.AVRational
+	Codec ff.AVCodecID `json:"codec"`
+
+	// For video (in fps)
+	Framerate float64 `json:"framerate"`
 }
 
 type audiopar struct {
@@ -37,12 +41,6 @@ type videopar struct {
 
 type planepar struct {
 	NumPlanes int `json:"num_video_planes"`
-}
-
-type timingpar struct {
-	Framerate ff.AVRational `json:"framerate"`
-	Pts       int64         `json:"pts"`
-	TimeBase  ff.AVRational `json:"time_base"`
 }
 
 var _ Parameters = (*par)(nil)

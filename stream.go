@@ -13,7 +13,8 @@ type stream struct {
 }
 
 type writerstream struct {
-	*ff.AVStream
+	t     MediaType
+	codec *ff.AVCodec
 }
 
 var _ Stream = (*stream)(nil)
@@ -28,25 +29,6 @@ func newStream(ctx *ff.AVStream) *stream {
 	return &stream{ctx}
 }
 
-/*
-// Stream wrapper for encoding
-func newWriterStream(ctx *ff.AVFormatContext, param Parameters) (*writerstream, error) {
-	// Parameters - Codec
-	var codec_id ff.AVCodecID
-	if param.Type().Is(CODEC) {
-		codec_id = param.Codec().ID()
-	} else if param.Type().Is(VIDEO) {
-		codec_id = ctx.Input().VideoCodec()
-	} else if param.Type().Is(AUDIO) {
-		codec_id = ctx.Input().AudioCodec()
-	} else {
-		return nil, ErrBadParameter.With("invalid stream parameters")
-
-	}
-
-	return nil, ErrNotImplemented
-}
-*/
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
