@@ -22,7 +22,7 @@ func Test_writer_001(t *testing.T) {
 	}
 
 	// Write audio file
-	filename := filepath.Join(t.TempDir(), t.Name()+".sw")
+	filename := filepath.Join(t.TempDir(), t.Name()+".mp3")
 	stream, err := manager.AudioParameters("mono", "s16", 22050)
 	if !assert.NoError(err) {
 		t.SkipNow()
@@ -33,5 +33,5 @@ func Test_writer_001(t *testing.T) {
 		t.SkipNow()
 	}
 	defer writer.Close()
-	t.Log(writer)
+	t.Log(writer, "=>", filename)
 }

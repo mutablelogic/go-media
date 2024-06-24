@@ -140,7 +140,13 @@ type Media interface {
 	// Return a decoding context for the media stream, and
 	// map the streams to decoders. If no function is provided
 	// (ie, the argument is nil) then all streams are demultiplexed.
+	// Will return an error if called on a writer.
 	Decoder(DecoderMapFunc) (Decoder, error)
+
+	// Multiplex media into packets. Pass a packet to a muxer function.
+	// Stop when the context is cancelled or the end of the media stream is
+	// signalled. Will return an error if called on a reader.
+	Mux(context.Context, MuxFunc) error
 
 	// Return INPUT for a demuxer or source, OUTPUT for a muxer or
 	// sink, DEVICE for a device, FILE for a file or stream.
@@ -191,6 +197,9 @@ type Parameters interface {
 	// Return the media type (AUDIO, VIDEO, SUBTITLE, DATA)
 	Type() MediaType
 
+	// Return the stream id for encoding, or zero if not set
+	Id() int
+
 	// Return number of planes for a specific PixelFormat
 	// or SampleFormat and ChannelLayout combination
 	NumPlanes() int
@@ -223,6 +232,10 @@ type VideoParameters interface {
 // DecoderFunc is a function that decodes a packet. Return
 // io.EOF if you want to stop processing the packets early.
 type DecoderFunc func(Packet) error
+
+// MuxFunc is a function that multiplexes a packet. Return
+// io.EOF to stop multiplexing normally.
+type MuxFunc func(Packet) error
 
 // FrameFunc is a function that processes a frame of audio
 // or video data.  Return io.EOF if you want to stop

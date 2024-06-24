@@ -23,6 +23,9 @@ type par struct {
 type codecpar struct {
 	Codec ff.AVCodecID `json:"codec"`
 
+	// Stream Id
+	StreamId int `json:"stream_id"`
+
 	// For video (in fps)
 	Framerate float64 `json:"framerate"`
 }
@@ -166,6 +169,11 @@ func (par *par) String() string {
 // Return type
 func (par *par) Type() MediaType {
 	return par.t
+}
+
+// Return stream id
+func (par *par) Id() int {
+	return par.codecpar.StreamId
 }
 
 // Return number of planes for a specific PixelFormat

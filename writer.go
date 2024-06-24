@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,11 +68,18 @@ func createMedia(url string, format Format, metadata []Metadata, params ...Param
 	// Add encoders and streams
 	var result error
 	for i, param := range params {
-		encoder, err := newEncoder(ctx, i, param)
+		// Stream Id from codec parameters, or use the index
+		stream_id := param.Id()
+		if stream_id <= 0 {
+			stream_id = i + 1
+		}
+		encoder, err := newEncoder(ctx, stream_id, param)
 		if err != nil {
 			result = errors.Join(result, err)
+		} else if _, exists := writer.encoder[stream_id]; exists {
+
 		} else {
-			writer.encoder[i] = encoder
+			writer.encoder[stream_id] = encoder
 		}
 	}
 
@@ -143,16 +151,15 @@ func (w *writer) Close() error {
 		result = errors.Join(result, encoder.Close())
 	}
 
+	// Free output resources
+	if w.output != nil {
+		// This calls avio_close(w.avio)
+		result = errors.Join(result, ff.AVFormat_close_writer(w.output))
+	}
+
 	// Free resources
 	if w.metadata != nil {
 		ff.AVUtil_dict_free(w.metadata)
-	}
-	if w.output != nil {
-		result = errors.Join(result, ff.AVFormat_close_writer(w.output))
-	}
-	if w.avio != nil {
-		fmt.Println("TODO AVIO")
-		//		result = errors.Join(result, ff.AVFormat_avio_close(w.avio))
 	}
 
 	// Release resources
@@ -183,7 +190,46 @@ func (w *writer) String() string {
 // PUBLIC METHODS
 
 func (w *writer) Decoder(DecoderMapFunc) (Decoder, error) {
-	return nil, ErrNotImplemented
+	return nil, ErrOutOfOrder.With("not an input stream")
+}
+
+func (w *writer) Mux(context.Context, MuxFunc) error {
+	return ErrNotImplemented
+
+	/*
+			while (1) {
+		        AVStream *in_stream, *out_stream;
+
+		        ret = av_read_frame(ifmt_ctx, pkt);
+		        if (ret < 0)
+		            break;
+
+		        in_stream  = ifmt_ctx->streams[pkt->stream_index];
+		        if (pkt->stream_index >= stream_mapping_size ||
+		            stream_mapping[pkt->stream_index] < 0) {
+		            av_packet_unref(pkt);
+		            continue;
+		        }
+
+		        pkt->stream_index = stream_mapping[pkt->stream_index];
+		        out_stream = ofmt_ctx->streams[pkt->stream_index];
+		        log_packet(ifmt_ctx, pkt, "in");
+
+		        // copy packet
+		        av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
+		        pkt->pos = -1;
+		        log_packet(ofmt_ctx, pkt, "out");
+
+		        ret = av_interleaved_write_frame(ofmt_ctx, pkt);
+		        // pkt is now blank (av_interleaved_write_frame() takes ownership of
+		        // its contents and resets pkt), so that no unreferencing is necessary.
+		        // This would be different if one used av_write_frame().
+		        if (ret < 0) {
+		            fprintf(stderr, "Error muxing packet\n");
+		            break;
+		        }
+		    }
+	*/
 }
 
 // Return OUTPUT and combination of DEVICE and STREAM

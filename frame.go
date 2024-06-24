@@ -71,6 +71,11 @@ func (frame *frame) Type() MediaType {
 	return NONE
 }
 
+// Id is unused
+func (frame *frame) Id() int {
+	return 0
+}
+
 // Return the timestamp as a duration, or minus one if not set
 func (frame *frame) Time() time.Duration {
 	pts := frame.ctx.Pts()
