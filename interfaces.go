@@ -33,7 +33,7 @@ type Manager interface {
 	Create(string, Format, []Metadata, ...Parameters) (Media, error)
 
 	// Create a media stream for writing. The format will be used to
-	// determine the formar type and one or more CodecParameters used to
+	// determine the format and one or more CodecParameters used to
 	// create the streams. If no parameters are provided, then the
 	// default parameters for the format are used. It is the responsibility
 	// of the caller to also close the writer when done.
@@ -233,9 +233,12 @@ type VideoParameters interface {
 // io.EOF if you want to stop processing the packets early.
 type DecoderFunc func(Packet) error
 
-// MuxFunc is a function that multiplexes a packet. Return
-// io.EOF to stop multiplexing normally.
-type MuxFunc func(Packet) error
+// MuxFunc is a function that multiplexes a packet. It is
+// repeatedly called with a stream identifier - return a packet
+// for that stream if one is available, or nil if no
+// packet is available for muxing. Return io.EOF to
+// stop multiplexing.
+type MuxFunc func(int) (Packet, error)
 
 // FrameFunc is a function that processes a frame of audio
 // or video data.  Return io.EOF if you want to stop
@@ -254,9 +257,15 @@ type Codec interface {
 	Type() MediaType
 }
 
-// Packet represents a packet of demultiplexed data.
-// Currently this is quite opaque!
-type Packet interface{}
+// Packet represents a packet of demultiplexed data, or a packet
+// to be multiplexed.
+type Packet interface {
+	// The packet can be audio, video, subtitle or data.
+	Type() MediaType
+
+	// The stream identifier for the packet
+	Id() int
+}
 
 // Frame represents a frame of audio or video data.
 type Frame interface {
