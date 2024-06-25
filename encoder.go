@@ -69,24 +69,47 @@ func newEncoder(ctx *ff.AVFormatContext, stream_id int, param Parameters) (*enco
 	switch codec.Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		encoder.t = AUDIO
-		// TODO: Check codec supports this configuration
 
-		// Set codec parameters
-		if err := codecctx.SetChannelLayout(par.audiopar.Ch); err != nil {
+		// Choose sample format
+		if sampleformat, err := ff.AVCodec_supported_sampleformat(codec, par.audiopar.SampleFormat); err != nil {
+			ff.AVCodec_free_context(codecctx)
+			return nil, err
+		} else {
+			codecctx.SetSampleFormat(sampleformat)
+		}
+
+		// Choose sample rate
+		if samplerate, err := ff.AVCodec_supported_samplerate(codec, par.audiopar.Samplerate); err != nil {
+			ff.AVCodec_free_context(codecctx)
+			return nil, err
+		} else {
+			codecctx.SetSampleRate(samplerate)
+		}
+
+		// Choose channel layout
+		if channellayout, err := ff.AVCodec_supported_channellayout(codec, par.audiopar.Ch); err != nil {
+			ff.AVCodec_free_context(codecctx)
+			return nil, err
+		} else if err := codecctx.SetChannelLayout(channellayout); err != nil {
 			ff.AVCodec_free_context(codecctx)
 			return nil, err
 		}
-		codecctx.SetSampleFormat(par.audiopar.SampleFormat)
-		codecctx.SetSampleRate(par.audiopar.Samplerate)
 
 		// Set stream parameters
 		encoder.stream.SetTimeBase(ff.AVUtil_rational(1, par.audiopar.Samplerate))
+
 	case ff.AVMEDIA_TYPE_VIDEO:
 		encoder.t = VIDEO
-		// TODO: Check codec supports this configuration
+
+		// Choose pixel format
+		if pixelformat, err := ff.AVCodec_supported_pixelformat(codec, par.videopar.PixelFormat); err != nil {
+			ff.AVCodec_free_context(codecctx)
+			return nil, err
+		} else {
+			codecctx.SetPixFmt(pixelformat)
+		}
 
 		// Set codec parameters
-		codecctx.SetPixFmt(par.videopar.PixelFormat)
 		codecctx.SetWidth(par.videopar.Width)
 		codecctx.SetHeight(par.videopar.Height)
 
