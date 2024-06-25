@@ -146,3 +146,13 @@ func (encoder *encoder) Close() error {
 	// Return success
 	return nil
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (encoder *encoder) encode(fn MuxFunc) (*ff.AVPacket, error) {
+	packet, err := fn(encoder.stream.Id())
+	if packet != nil {
+	}
+
+}

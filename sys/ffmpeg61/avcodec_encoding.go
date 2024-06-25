@@ -50,3 +50,15 @@ func AVCodec_receive_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 	}
 	return nil
 }
+
+// Write a packet to an output media file ensuring correct interleaving.
+// This function will buffer the packets internally as needed to make sure the packets in the output file are
+// properly interleaved, usually ordered by increasing dts. Callers doing their own interleaving should
+// call av_write_frame() instead of this function.
+func AVCodec_interleaved_write_frame(ctx *AVFormatContext, pkt *AVPacket) error {
+	if err := AVError(C.av_interleaved_write_frame((*C.AVFormatContext)(ctx), (*C.AVPacket)(pkt))); err != 0 {
+		return err
+	}
+	// Return success
+	return nil
+}

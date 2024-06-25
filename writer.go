@@ -193,44 +193,108 @@ func (w *writer) Decoder(DecoderMapFunc) (Decoder, error) {
 	return nil, ErrOutOfOrder.With("not an input stream")
 }
 
-func (w *writer) Mux(context.Context, MuxFunc) error {
-	return ErrNotImplemented
+func (w *writer) Mux(ctx context.Context, fn MuxFunc) error {
+	// Check fn
+	if fn == nil {
+		return ErrBadParameter.With("nil mux function")
+	}
 
-	/*
-			while (1) {
-		        AVStream *in_stream, *out_stream;
+	// Create a new map of encoders
+	encoders := make(map[int]*encoder, len(w.encoder))
+	for k, v := range w.encoder {
+		encoders[k] = v
+	}
 
-		        ret = av_read_frame(ifmt_ctx, pkt);
-		        if (ret < 0)
-		            break;
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break FOR_LOOP
+		default:
+			// Loop until no more encoders are available to send packets
+			if len(encoders) == 0 {
+				break FOR_LOOP
+			}
 
-		        in_stream  = ifmt_ctx->streams[pkt->stream_index];
-		        if (pkt->stream_index >= stream_mapping_size ||
-		            stream_mapping[pkt->stream_index] < 0) {
-		            av_packet_unref(pkt);
-		            continue;
-		        }
+			// Find the first encoder which should return a packet
+			next_time := 0
+			next_stream := 0
+			for stream := range encoders {
+				if next_time == 0 || encoder.nextTime() < next_time {
+					next_time = encoder.nextTime()
+					next_stream = stream
+				}
+			}
 
-		        pkt->stream_index = stream_mapping[pkt->stream_index];
-		        out_stream = ofmt_ctx->streams[pkt->stream_index];
-		        log_packet(ifmt_ctx, pkt, "in");
+			// Get a packet from the encoder
+			packet, err := encoders[next_stream].encode(fn)
+			if errors.Is(err, io.EOF) {
+				break FOR_LOOP
+			} else if err != nil {
+				return err
+			} else if packet == nil {
+				// Remove the encoder from the map
+				delete(encoders, next_stream)
+				continue FOR_LOOP
+			}
 
-		        // copy packet
-		        av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
-		        pkt->pos = -1;
-		        log_packet(ofmt_ctx, pkt, "out");
+			// Send the packet to the muxer
+			//av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
+			// Packet's stream_index field must be set to the index of the corresponding stream in s->streams.
+			// The timestamps (pts, dts) must be set to correct values in the stream's timebase
+			//  (unless the output format is flagged with the AVFMT_NOTIMESTAMPS flag, then they can be set
+			// to AV_NOPTS_VALUE). The dts for subsequent packets in one stream must be strictly increasing
+			// (unless the output format is flagged with the AVFMT_TS_NONSTRICT, then they merely have to
+			// be nondecreasing). duration should also be set if known.
+			if err := ff.AVCodec_interleaved_write_frame(w.output, packet); err != nil {
+				return err
+			}
+		}
+	}
 
-		        ret = av_interleaved_write_frame(ofmt_ctx, pkt);
-		        // pkt is now blank (av_interleaved_write_frame() takes ownership of
-		        // its contents and resets pkt), so that no unreferencing is necessary.
-		        // This would be different if one used av_write_frame().
-		        if (ret < 0) {
-		            fprintf(stderr, "Error muxing packet\n");
-		            break;
-		        }
-		    }
-	*/
+	// Flush
+	if err := ff.AVCodec_interleaved_write_frame(w.output, nil); err != nil {
+		return err
+	}
+
+	// Return the context error, which will be nil if the loop ended normally
+	return ctx.Err()
 }
+
+/*
+		while (1) {
+	        AVStream *in_stream, *out_stream;
+
+	        ret = av_read_frame(ifmt_ctx, pkt);
+	        if (ret < 0)
+	            break;
+
+	        in_stream  = ifmt_ctx->streams[pkt->stream_index];
+	        if (pkt->stream_index >= stream_mapping_size ||
+	            stream_mapping[pkt->stream_index] < 0) {
+	            av_packet_unref(pkt);
+	            continue;
+	        }
+
+	        pkt->stream_index = stream_mapping[pkt->stream_index];
+	        out_stream = ofmt_ctx->streams[pkt->stream_index];
+	        log_packet(ifmt_ctx, pkt, "in");
+
+	        // copy packet
+	        av_packet_rescale_ts(pkt, in_stream->time_base, out_stream->time_base);
+	        pkt->pos = -1;
+	        log_packet(ofmt_ctx, pkt, "out");
+
+	        ret = av_interleaved_write_frame(ofmt_ctx, pkt);
+	        // pkt is now blank (av_interleaved_write_frame() takes ownership of
+	        // its contents and resets pkt), so that no unreferencing is necessary.
+	        // This would be different if one used av_write_frame().
+	        if (ret < 0) {
+	            fprintf(stderr, "Error muxing packet\n");
+	            break;
+	        }
+	    }
+*/
 
 // Return OUTPUT and combination of DEVICE and STREAM
 func (w *writer) Type() MediaType {
