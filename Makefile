@@ -48,6 +48,15 @@ test: go-dep
 	@${GO} test ./pkg/...
 	@${GO} test .
 
+container-test: go-dep
+	@echo Test
+	@${GO} mod tidy
+	@${GO} test --tags=container ./sys/ffmpeg61
+	@${GO} test --tags=container ./sys/chromaprint
+	@${GO} test --tags=container ./pkg/...
+	@${GO} test --tags=container .
+
+
 
 cli: go-dep mkdir
 	@echo Build media tool

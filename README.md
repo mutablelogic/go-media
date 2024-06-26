@@ -3,7 +3,7 @@
 
 This module provides an interface for media services, including:
 
-* Bindings in golang for [ffmpeg 6](https://ffmpeg.org/);
+* Bindings in golang for [FFmpeg 6.1](https://ffmpeg.org/);
 * Opening media files, devices and network sockets for reading and writing;
 * Retrieving metadata and artwork from audio and video media;
 * Re-multiplexing media files from one format to another;
@@ -235,8 +235,8 @@ The license is Apache 2 so feel free to redistribute. Redistributions in either 
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
 
-> go-media
-> https://github.com/mutablelogic/go-media/
+> __go-media__\
+> [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)\
 > Copyright (c) 2021-2024 David Thorpe, All rights reserved.
 
 This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under

@@ -18,14 +18,14 @@ func Test_avutil_log_000(t *testing.T) {
 	assert.Equal(AV_LOG_TRACE, AVUtil_log_get_level())
 
 	// Log a message
-	AVUtil_log(nil, AV_LOG_TRACE, "This is a trace message")
-	AVUtil_log(nil, AV_LOG_DEBUG, "This is a debug message")
-	AVUtil_log(nil, AV_LOG_VERBOSE, "This is a verbose message")
-	AVUtil_log(nil, AV_LOG_INFO, "This is a info message")
-	AVUtil_log(nil, AV_LOG_WARNING, "This is a warning message")
-	AVUtil_log(nil, AV_LOG_ERROR, "This is a error message")
-	AVUtil_log(nil, AV_LOG_FATAL, "This is a fatal message")
-	AVUtil_log(nil, AV_LOG_PANIC, "This is a panic message")
+	AVUtil_log(nil, AV_LOG_TRACE, "This is a trace message\n")
+	AVUtil_log(nil, AV_LOG_DEBUG, "This is a debug message\n")
+	AVUtil_log(nil, AV_LOG_VERBOSE, "This is a verbose message\n")
+	AVUtil_log(nil, AV_LOG_INFO, "This is a info message\n")
+	AVUtil_log(nil, AV_LOG_WARNING, "This is a warning message\n")
+	AVUtil_log(nil, AV_LOG_ERROR, "This is a error message\n")
+	AVUtil_log(nil, AV_LOG_FATAL, "This is a fatal message\n")
+	AVUtil_log(nil, AV_LOG_PANIC, "This is a panic message\n")
 }
 
 func Test_avutil_log_001(t *testing.T) {
@@ -41,12 +41,12 @@ func Test_avutil_log_001(t *testing.T) {
 	})
 
 	// Log a message
-	AVUtil_log(nil, AV_LOG_TRACE, "This is a trace message")
-	AVUtil_log(nil, AV_LOG_DEBUG, "This is a debug message")
-	AVUtil_log(nil, AV_LOG_VERBOSE, "This is a verbose message")
-	AVUtil_log(nil, AV_LOG_INFO, "This is a info message")
-	AVUtil_log(nil, AV_LOG_WARNING, "This is a warning message")
-	AVUtil_log(nil, AV_LOG_ERROR, "This is a error message")
-	AVUtil_log(nil, AV_LOG_FATAL, "This is a fatal message")
-	AVUtil_log(nil, AV_LOG_PANIC, "This is a panic message")
+	AVUtil_log(nil, AV_LOG_TRACE, "This is a trace message\n")
+	AVUtil_log(nil, AV_LOG_DEBUG, "This is a debug message\n")
+	AVUtil_log(nil, AV_LOG_VERBOSE, "This is a verbose message\n")
+	AVUtil_log(nil, AV_LOG_INFO, "This is a info message\n")
+	AVUtil_log(nil, AV_LOG_WARNING, "This is a warning message\n")
+	AVUtil_log(nil, AV_LOG_ERROR, "This is a error message\n")
+	AVUtil_log(nil, AV_LOG_FATAL, "This is a fatal message\n")
+	AVUtil_log(nil, AV_LOG_PANIC, "This is a panic message\n")
 }

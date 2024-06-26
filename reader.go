@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,6 +10,9 @@ import (
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,6 +231,10 @@ func (r *reader) Metadata(keys ...string) []Metadata {
 
 	// Return all the metadata
 	return result
+}
+
+func (r *reader) Mux(context.Context, MuxFunc) error {
+	return ErrOutOfOrder.With("not an output stream")
 }
 
 ////////////////////////////////////////////////////////////////////////////////

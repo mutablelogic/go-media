@@ -16,11 +16,18 @@ type par struct {
 	t MediaType
 	audiopar
 	videopar
+	codecpar
 	planepar
 }
 
 type codecpar struct {
-	Framerate ff.AVRational
+	Codec ff.AVCodecID `json:"codec"`
+
+	// Stream Id
+	StreamId int `json:"stream_id"`
+
+	// For video (in fps)
+	Framerate float64 `json:"framerate"`
 }
 
 type audiopar struct {
@@ -37,12 +44,6 @@ type videopar struct {
 
 type planepar struct {
 	NumPlanes int `json:"num_video_planes"`
-}
-
-type timingpar struct {
-	Framerate ff.AVRational `json:"framerate"`
-	Pts       int64         `json:"pts"`
-	TimeBase  ff.AVRational `json:"time_base"`
 }
 
 var _ Parameters = (*par)(nil)
@@ -168,6 +169,11 @@ func (par *par) String() string {
 // Return type
 func (par *par) Type() MediaType {
 	return par.t
+}
+
+// Return stream id
+func (par *par) Id() int {
+	return par.codecpar.StreamId
 }
 
 // Return number of planes for a specific PixelFormat

@@ -1,6 +1,9 @@
 package ffmpeg
 
-import "unsafe"
+import (
+	"fmt"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
@@ -99,3 +102,62 @@ func AVCodec_is_encoder(codec *AVCodec) bool {
 func AVCodec_is_decoder(codec *AVCodec) bool {
 	return C.av_codec_is_decoder((*C.struct_AVCodec)(codec)) != 0
 }
+
+// Return a supported sample format that is closest to the given sample format.
+func AVCodec_supported_sampleformat(codec *AVCodec, samplefmt AVSampleFormat) (AVSampleFormat, error) {
+	first := AV_SAMPLE_FMT_NONE
+	for i, fmt := range codec.SampleFormats() {
+		if fmt == samplefmt {
+			return samplefmt, nil
+		}
+		if i == 0 {
+			first = fmt
+		}
+	}
+	// Return an error and the first supported sample format
+	return first, fmt.Errorf("sample format %v is not supported by codec %q", samplefmt, codec.Name())
+}
+
+// Return a supported pixel format that is closest to the given pixel format.
+func AVCodec_supported_pixelformat(codec *AVCodec, pixelfmt AVPixelFormat) (AVPixelFormat, error) {
+	first := AV_PIX_FMT_NONE
+	for i, fmt := range codec.PixelFormats() {
+		if fmt == pixelfmt {
+			return pixelfmt, nil
+		}
+		if i == 0 {
+			first = fmt
+		}
+	}
+	// Return an error and the first supported sample format
+	return first, fmt.Errorf("pixel format %v is not supported by codec %q", pixelfmt, codec.Name())
+}
+
+/*
+// Return a supported sample rate that is closest to the given sample rate.
+func AVCodec_supported_samplerate(codec *AVCodec, samplerate int) (int, error) {
+	max := 0
+	for _, rate := range codec.SupportedSamplerates() {
+		if rate == samplerate {
+			return samplerate, nil
+		}
+		if rate > max {
+			max = rate
+		}
+	}
+	if max > 0 {
+		return max, nil
+	} else {
+		return 0, fmt.Errorf("sample rate %v is not supported by codec %q", samplerate, codec.Name())
+	}
+}
+
+// Return a supported channel layout that is closest to the given channel layout.
+func AVCodec_supported_channellayout(codec *AVCodec, channellayout AVChannelLayout) (AVChannelLayout, error) {
+	for _, layout := range codec.ChannelLayouts() {
+		if C.av_channel_layout_compare(&layout, &channellayout) == 0 {
+			return channellayout, nil
+		}
+	}
+}
+*/
