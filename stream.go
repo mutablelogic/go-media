@@ -12,14 +12,7 @@ type stream struct {
 	*ff.AVStream
 }
 
-type writerstream struct {
-	t     MediaType
-	codec *ff.AVCodec
-}
-
 var _ Stream = (*stream)(nil)
-
-//var _ Stream = (*writerstream)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
