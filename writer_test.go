@@ -1,6 +1,7 @@
 package media_test
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,5 +34,12 @@ func Test_writer_001(t *testing.T) {
 		t.SkipNow()
 	}
 	defer writer.Close()
+
 	t.Log(writer, "=>", filename)
+
+	// Perform muxing of packets
+	writer.Mux(context.Background(), func(stream int) (Packet, error) {
+		t.Log("Muxing packet for stream", stream)
+		return nil, nil
+	})
 }
