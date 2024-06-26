@@ -310,7 +310,7 @@ func compareNextPts(a, b *encoder) bool {
 
 // Return OUTPUT and combination of DEVICE and STREAM
 func (w *writer) Type() MediaType {
-	return OUTPUT
+	return w.t
 }
 
 // Return the metadata for the media.
