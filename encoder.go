@@ -4,6 +4,7 @@ import (
 
 	// Packages
 	"fmt"
+	"io"
 
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
@@ -15,10 +16,11 @@ import (
 // TYPES
 
 type encoder struct {
-	t      MediaType
-	ctx    *ff.AVCodecContext
-	stream *ff.AVStream
-	packet *ff.AVPacket
+	t        MediaType
+	ctx      *ff.AVCodecContext
+	stream   *ff.AVStream
+	packet   *ff.AVPacket
+	next_pts int64
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,19 +80,22 @@ func newEncoder(ctx *ff.AVFormatContext, stream_id int, param Parameters) (*enco
 			codecctx.SetSampleFormat(sampleformat)
 		}
 
-		// Choose sample rate
-		if samplerate, err := ff.AVCodec_supported_samplerate(codec, par.audiopar.Samplerate); err != nil {
-			ff.AVCodec_free_context(codecctx)
-			return nil, err
-		} else {
-			codecctx.SetSampleRate(samplerate)
-		}
+		// TODO Choose sample rate
+		codecctx.SetSampleRate(par.audiopar.Samplerate)
 
-		// Choose channel layout
-		if channellayout, err := ff.AVCodec_supported_channellayout(codec, par.audiopar.Ch); err != nil {
-			ff.AVCodec_free_context(codecctx)
-			return nil, err
-		} else if err := codecctx.SetChannelLayout(channellayout); err != nil {
+		// TODO
+		//if samplerate, err := ff.AVCodec_supported_samplerate(codec, par.audiopar.Samplerate); err != nil {
+		//	ff.AVCodec_free_context(codecctx)
+		//	return nil, err
+		//}
+
+		// TODO Choose channel layout
+		//if channellayout, err := ff.AVCodec_supported_channellayout(codec, par.audiopar.Ch); err != nil {
+		//	ff.AVCodec_free_context(codecctx)
+		//	return nil, err
+		//}
+
+		if err := codecctx.SetChannelLayout(par.audiopar.Ch); err != nil {
 			ff.AVCodec_free_context(codecctx)
 			return nil, err
 		}
@@ -174,8 +179,7 @@ func (encoder *encoder) Close() error {
 // PRIVATE METHODS
 
 func (encoder *encoder) encode(fn MuxFunc) (*ff.AVPacket, error) {
-	packet, err := fn(encoder.stream.Id())
-	if packet != nil {
-	}
-
+	// TODO
+	fmt.Println("TODO: encode - get packet")
+	return nil, io.EOF
 }

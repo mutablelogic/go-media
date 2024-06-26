@@ -217,17 +217,24 @@ FOR_LOOP:
 			}
 
 			// Find the first encoder which should return a packet
-			next_time := 0
-			next_stream := 0
-			for stream := range encoders {
-				if next_time == 0 || encoder.nextTime() < next_time {
-					next_time = encoder.nextTime()
+			var next_encoder *encoder
+			var next_stream int
+			for stream, encoder := range encoders {
+				// Initialise the next encoder
+				if next_encoder == nil {
+					next_encoder = encoder
+					next_stream = stream
+					continue
+				}
+				// Compare
+				if !compareNextPts(next_encoder, encoder) {
+					next_encoder = encoder
 					next_stream = stream
 				}
 			}
 
 			// Get a packet from the encoder
-			packet, err := encoders[next_stream].encode(fn)
+			packet, err := next_encoder.encode(fn)
 			if errors.Is(err, io.EOF) {
 				break FOR_LOOP
 			} else if err != nil {
@@ -259,6 +266,11 @@ FOR_LOOP:
 
 	// Return the context error, which will be nil if the loop ended normally
 	return ctx.Err()
+}
+
+// Returns true if a.next_pts is greater than b.next_pts
+func compareNextPts(a, b *encoder) bool {
+	return ff.AVUtil_compare_ts(a.next_pts, a.stream.TimeBase(), b.next_pts, b.stream.TimeBase()) > 0
 }
 
 /*

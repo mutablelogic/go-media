@@ -105,14 +105,35 @@ func AVCodec_is_decoder(codec *AVCodec) bool {
 
 // Return a supported sample format that is closest to the given sample format.
 func AVCodec_supported_sampleformat(codec *AVCodec, samplefmt AVSampleFormat) (AVSampleFormat, error) {
-	for _, fmt := range codec.SampleFormats() {
+	first := AV_SAMPLE_FMT_NONE
+	for i, fmt := range codec.SampleFormats() {
 		if fmt == samplefmt {
 			return samplefmt, nil
 		}
+		if i == 0 {
+			first = fmt
+		}
 	}
-	return AVSampleFormat(AV_SAMPLE_FMT_NONE), fmt.Errorf("sample format %v is not supported by codec %q", samplefmt, codec.Name())
+	// Return an error and the first supported sample format
+	return first, fmt.Errorf("sample format %v is not supported by codec %q", samplefmt, codec.Name())
 }
 
+// Return a supported pixel format that is closest to the given pixel format.
+func AVCodec_supported_pixelformat(codec *AVCodec, pixelfmt AVPixelFormat) (AVPixelFormat, error) {
+	first := AV_PIX_FMT_NONE
+	for i, fmt := range codec.PixelFormats() {
+		if fmt == pixelfmt {
+			return pixelfmt, nil
+		}
+		if i == 0 {
+			first = fmt
+		}
+	}
+	// Return an error and the first supported sample format
+	return first, fmt.Errorf("pixel format %v is not supported by codec %q", pixelfmt, codec.Name())
+}
+
+/*
 // Return a supported sample rate that is closest to the given sample rate.
 func AVCodec_supported_samplerate(codec *AVCodec, samplerate int) (int, error) {
 	max := 0
@@ -139,8 +160,4 @@ func AVCodec_supported_channellayout(codec *AVCodec, channellayout AVChannelLayo
 		}
 	}
 }
-
-// Return a supported pixel format that is closest to the given pixel format.
-func AVCodec_supported_pixelformat(AVCodec *codec, AVPixelFormat pixelformat) (AVPixelFormat, error) {
-
-}
+*/
