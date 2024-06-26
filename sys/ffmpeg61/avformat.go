@@ -114,8 +114,8 @@ type jsonAVFormatContext struct {
 	Url        string          `json:"url,omitempty"`
 	NumStreams uint            `json:"nb_streams,omitempty"`
 	Streams    []*AVStream     `json:"streams,omitempty"`
-	StartTime  int64           `json:"start_time,omitempty"`
-	Duration   int64           `json:"duration,omitempty"`
+	StartTime  AVTimestamp     `json:"start_time,omitempty"`
+	Duration   AVTimestamp     `json:"duration,omitempty"`
 	BitRate    int64           `json:"bit_rate,omitempty"`
 	PacketSize uint            `json:"packet_size,omitempty"`
 	Flags      AVFormatFlag    `json:"flags,omitempty"`
@@ -129,8 +129,8 @@ func (ctx *AVFormatContext) MarshalJSON() ([]byte, error) {
 		Url:        C.GoString(ctx.url),
 		NumStreams: uint(ctx.nb_streams),
 		Streams:    ctx.Streams(),
-		StartTime:  int64(ctx.start_time),
-		Duration:   int64(ctx.duration),
+		StartTime:  AVTimestamp(ctx.start_time),
+		Duration:   AVTimestamp(ctx.duration),
 		BitRate:    int64(ctx.bit_rate),
 		PacketSize: uint(ctx.packet_size),
 		Flags:      AVFormatFlag(ctx.flags),

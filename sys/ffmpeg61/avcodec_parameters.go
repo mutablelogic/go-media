@@ -18,16 +18,16 @@ import "C"
 // TYPES
 
 type jsonAVCodecParametersAudio struct {
-	SampleFormat  AVSampleFormat  `json:"format,omitempty"`
-	SampleRate    int             `json:"sample_rate,omitempty"`
-	ChannelLayout AVChannelLayout `json:"channel_layout,omitempty"`
+	SampleFormat  AVSampleFormat  `json:"format"`
+	SampleRate    int             `json:"sample_rate"`
+	ChannelLayout AVChannelLayout `json:"channel_layout"`
 	FrameSize     int             `json:"frame_size,omitempty"`
 }
 
 type jsonAVCodecParameterVideo struct {
-	PixelFormat       AVPixelFormat `json:"format,omitempty"`
-	Width             int           `json:"width,omitempty"`
-	Height            int           `json:"height,omitempty"`
+	PixelFormat       AVPixelFormat `json:"format"`
+	Width             int           `json:"width"`
+	Height            int           `json:"height"`
 	SampleAspectRatio AVRational    `json:"sample_aspect_ratio,omitempty"`
 }
 
