@@ -1,4 +1,8 @@
+//go:build !container
+
 package media_test
+
+// TODO: Allow this test to run in containers
 
 import (
 	"context"
