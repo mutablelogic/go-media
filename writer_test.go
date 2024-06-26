@@ -23,7 +23,7 @@ func Test_writer_001(t *testing.T) {
 
 	// Write audio file
 	filename := filepath.Join(t.TempDir(), t.Name()+".mp3")
-	stream, err := manager.AudioParameters("mono", "s16", 22050)
+	stream, err := manager.AudioParameters("mono", "fltp", 22050)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}

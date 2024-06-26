@@ -17,43 +17,62 @@ import "C"
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+type jsonAVCodecParametersAudio struct {
+	SampleFormat  AVSampleFormat  `json:"format,omitempty"`
+	SampleRate    int             `json:"sample_rate,omitempty"`
+	ChannelLayout AVChannelLayout `json:"channel_layout,omitempty"`
+	FrameSize     int             `json:"frame_size,omitempty"`
+}
+
+type jsonAVCodecParameterVideo struct {
+	PixelFormat       AVPixelFormat `json:"format,omitempty"`
+	Width             int           `json:"width,omitempty"`
+	Height            int           `json:"height,omitempty"`
+	SampleAspectRatio AVRational    `json:"sample_aspect_ratio,omitempty"`
+}
+
 type jsonAVCodecParameters struct {
-	CodecType         AVMediaType `json:"codec_type"`
-	CodecID           AVCodecID   `json:"codec_id,omitempty"`
-	CodecTag          uint32      `json:"codec_tag,omitempty"`
-	Format            int         `json:"format,omitempty"`
-	BitRate           int64       `json:"bit_rate,omitempty"`
-	Width             int         `json:"width,omitempty"`
-	Height            int         `json:"height,omitempty"`
-	SampleAspectRatio AVRational  `json:"sample_aspect_ratio,omitempty"`
-	SampleRate        int         `json:"sample_rate,omitempty"`
-	FrameSize         int         `json:"frame_size,omitempty"`
+	CodecType AVMediaType `json:"codec_type"`
+	CodecID   AVCodecID   `json:"codec_id,omitempty"`
+	CodecTag  uint32      `json:"codec_tag,omitempty"`
+	BitRate   int64       `json:"bit_rate,omitempty"`
+	*jsonAVCodecParametersAudio
+	*jsonAVCodecParameterVideo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (ctx *AVCodecParameters) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonAVCodecParameters{
-		CodecType:         AVMediaType(ctx.codec_type),
-		CodecID:           AVCodecID(ctx.codec_id),
-		CodecTag:          uint32(ctx.codec_tag),
-		Format:            int(ctx.format),
-		BitRate:           int64(ctx.bit_rate),
-		Width:             int(ctx.width),
-		Height:            int(ctx.height),
-		SampleAspectRatio: (AVRational)(ctx.sample_aspect_ratio),
-		SampleRate:        int(ctx.sample_rate),
-		FrameSize:         int(ctx.frame_size),
-	})
+	par := jsonAVCodecParameters{
+		CodecType: AVMediaType(ctx.codec_type),
+		CodecID:   AVCodecID(ctx.codec_id),
+		CodecTag:  uint32(ctx.codec_tag),
+		BitRate:   int64(ctx.bit_rate),
+	}
+	switch ctx.CodecType() {
+	case AVMEDIA_TYPE_AUDIO:
+		par.jsonAVCodecParametersAudio = &jsonAVCodecParametersAudio{
+			SampleFormat:  AVSampleFormat(ctx.format),
+			SampleRate:    int(ctx.sample_rate),
+			ChannelLayout: AVChannelLayout(ctx.ch_layout),
+			FrameSize:     int(ctx.frame_size),
+		}
+	case AVMEDIA_TYPE_VIDEO:
+		par.jsonAVCodecParameterVideo = &jsonAVCodecParameterVideo{
+			PixelFormat:       AVPixelFormat(ctx.format),
+			Width:             int(ctx.width),
+			Height:            int(ctx.height),
+			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
+		}
+	}
+
+	return json.Marshal(par)
 }
 
 func (ctx *AVCodecParameters) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	data, _ := json.MarshalIndent(ctx, "", "  ")
+	return string(data)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
