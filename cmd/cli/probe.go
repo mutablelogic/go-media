@@ -18,24 +18,26 @@ var (
 	reDevice = regexp.MustCompile(`^([a-zA-Z0-9]+):([^\/].*|)$`)
 )
 
+func formatFromPath(manager media.Manager, filter media.MediaType, path string) (media.Format, string) {
+	if m := reDevice.FindStringSubmatch(path); m != nil {
+
+		fmts := manager.InputFormats(filter|media.DEVICE, m[1])
+		if len(fmts) > 0 {
+			return fmts[0], m[2]
+		}
+	}
+	return nil, path
+}
+
 func (cmd *ProbeCmd) Run(globals *Globals) error {
 	var format media.Format
 
+	// Get format and path
 	manager := globals.manager
+	format, path := formatFromPath(manager, media.NONE, cmd.Path)
 
-	filter := media.NONE
-
-	// Try device first
-	if m := reDevice.FindStringSubmatch(cmd.Path); m != nil {
-		cmd.Path = m[2]
-		fmts := manager.InputFormats(filter|media.DEVICE, m[1])
-		if len(fmts) > 0 {
-			format = fmts[0]
-		}
-	}
-
-	// Open the media file or device
-	reader, err := manager.Open(cmd.Path, format, cmd.Opts)
+	// Open a reader
+	reader, err := manager.Open(path, format, cmd.Opts)
 	if err != nil {
 		return err
 	}

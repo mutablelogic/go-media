@@ -16,18 +16,24 @@ import (
 )
 
 type ThumbnailsCmd struct {
-	Path  string        `arg:"" required:"" help:"Media file or path" type:"path"`
+	Path  string        `arg:"" required:"" help:"Media file, device or path" type:"string"`
 	Dur   time.Duration `name:"duration" help:"Duration between thumnnails" type:"duration" default:"1m"`
 	Width int           `name:"width" help:"Width of thumbnail" type:"int" default:"320"`
 }
 
 func (cmd *ThumbnailsCmd) Run(globals *Globals) error {
+	// If we have a device, then use this
+	format, path := formatFromPath(globals.manager, media.NONE, cmd.Path)
+	if format != nil {
+		return cmd.mediaWalker(globals.ctx, globals.manager, format, path)
+	}
+
 	// Create the walker with the processor callback
 	walker := file.NewWalker(func(ctx context.Context, root, relpath string, info fs.FileInfo) error {
 		if info.IsDir() || info.Size() == 0 {
 			return nil
 		}
-		if err := cmd.mediaWalker(ctx, globals.manager, filepath.Join(root, relpath)); err != nil {
+		if err := cmd.mediaWalker(ctx, globals.manager, nil, filepath.Join(root, relpath)); err != nil {
 			if err == context.Canceled {
 				globals.manager.Infof("Cancelled\n")
 			} else {
@@ -41,8 +47,8 @@ func (cmd *ThumbnailsCmd) Run(globals *Globals) error {
 	return walker.Walk(globals.ctx, cmd.Path)
 }
 
-func (cmd *ThumbnailsCmd) mediaWalker(ctx context.Context, manager media.Manager, path string) error {
-	reader, err := manager.Open(path, nil)
+func (cmd *ThumbnailsCmd) mediaWalker(ctx context.Context, manager media.Manager, format media.Format, path string) error {
+	reader, err := manager.Open(path, format)
 	if err != nil {
 		return err
 	}
