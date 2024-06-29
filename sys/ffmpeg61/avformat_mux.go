@@ -29,6 +29,8 @@ func AVFormat_open_writer(writer *AVIOContextEx, format *AVOutputFormat, filenam
 		ctx.SetPb(writer)
 	}
 
+	ctx.SetFlags(ctx.Flags() | AVFMT_FLAG_CUSTOM_IO)
+
 	// TODO: Mark AVFMT_NOFILE
 
 	// Return success
@@ -59,7 +61,7 @@ func AVFormat_close_writer(ctx *AVFormatContext) error {
 	var result error
 
 	octx := (*C.struct_AVFormatContext)(ctx)
-	if octx.oformat.flags&C.int(AVFMT_NOFILE) == 0 && octx.pb != nil {
+	if octx.oformat.flags&C.int(AVFMT_NOFILE) == 0 && octx.flags&C.int(AVFMT_FLAG_CUSTOM_IO) == 0 {
 		if err := AVError(C.avio_closep(&octx.pb)); err != 0 {
 			result = errors.Join(result, err)
 		}

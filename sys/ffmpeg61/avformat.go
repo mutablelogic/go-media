@@ -254,11 +254,11 @@ func (ctx *AVFormatContext) Stream(stream int) *AVStream {
 	}
 }
 
-func (ctx *AVFormatContext) Flags() AVFormat {
-	return AVFormat(ctx.flags)
+func (ctx *AVFormatContext) Flags() AVFormatFlag {
+	return AVFormatFlag(ctx.flags)
 }
 
-func (ctx *AVFormatContext) SetFlags(flag AVFormat) {
+func (ctx *AVFormatContext) SetFlags(flag AVFormatFlag) {
 	ctx.flags = C.int(flag)
 }
 

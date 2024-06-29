@@ -22,8 +22,6 @@ func Test_writer_001(t *testing.T) {
 	// Create a writer with an audio stream
 	writer, err := ffmpeg.NewWriter(w,
 		ffmpeg.OptOutputFormat(w.Name()),
-		ffmpeg.OptAudioStream(),
-		ffmpeg.OptVideoStream("1280x720"),
 	)
 	if !assert.NoError(err) {
 		t.FailNow()

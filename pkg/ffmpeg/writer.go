@@ -74,7 +74,7 @@ func (w *Writer) Close() error {
 	if w.output != nil {
 		// This calls avio_close(w.avio)
 		fmt.Println("TODO: AVFormat_close_writer")
-		//result = errors.Join(result, ff.AVFormat_close_writer(w.output))
+		result = errors.Join(result, ff.AVFormat_close_writer(w.output))
 		w.output = nil
 	}
 

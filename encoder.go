@@ -135,7 +135,7 @@ func newEncoder(ctx *ff.AVFormatContext, stream_id int, param Parameters) (*enco
 	}
 
 	// Some formats want stream headers to be separate.
-	if ctx.Flags().Is(ff.AVFMT_GLOBALHEADER) {
+	if ctx.Output().Flags().Is(ff.AVFMT_GLOBALHEADER) {
 		codecctx.SetFlags(codecctx.Flags() | ff.AV_CODEC_FLAG_GLOBAL_HEADER)
 	}
 

@@ -89,7 +89,7 @@ func createMedia(url string, format Format, metadata []Metadata, params ...Param
 	}
 
 	// Open the output file, if needed
-	if !ctx.Flags().Is(ff.AVFMT_NOFILE) {
+	if !ctx.Output().Flags().Is(ff.AVFMT_NOFILE) {
 		w, err := ff.AVFormat_avio_open(url, ff.AVIO_FLAG_WRITE)
 		if err != nil {
 			return nil, errors.Join(err, writer.Close())
