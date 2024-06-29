@@ -1,4 +1,4 @@
-package media
+package ffmpeg
 
 import (
 	"encoding/json"
@@ -17,8 +17,9 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type frame struct {
-	ctx *ff.AVFrame
+type Frame struct {
+	ctx    *ff.AVFrame
+	stream int
 }
 
 var (
@@ -40,18 +41,18 @@ var (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewFrame(ctx *ff.AVFrame) *frame {
-	return &frame{ctx}
+func NewFrame(ctx *ff.AVFrame, stream int) *Frame {
+	return &Frame{ctx, stream}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (frame *frame) MarshalJSON() ([]byte, error) {
+func (frame *Frame) MarshalJSON() ([]byte, error) {
 	return json.Marshal(frame.ctx)
 }
 
-func (frame *frame) String() string {
+func (frame *Frame) String() string {
 	data, _ := json.MarshalIndent(frame, "", "  ")
 	return string(data)
 }
@@ -59,8 +60,13 @@ func (frame *frame) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PARAMETERS
 
+// Return the context
+func (frame *Frame) AVFrame() *ff.AVFrame {
+	return frame.ctx
+}
+
 // Return the media type (AUDIO, VIDEO)
-func (frame *frame) Type() media.MediaType {
+func (frame *Frame) Type() media.MediaType {
 	if frame.ctx.NumSamples() > 0 {
 		return media.AUDIO
 	}
@@ -70,13 +76,13 @@ func (frame *frame) Type() media.MediaType {
 	return media.NONE
 }
 
-// Id is unused
-func (frame *frame) Id() int {
-	return 0
+// Return the stream
+func (frame *Frame) Id() int {
+	return frame.stream
 }
 
 // Return the timestamp as a duration, or minus one if not set
-func (frame *frame) Time() time.Duration {
+func (frame *Frame) Time() time.Duration {
 	pts := frame.ctx.Pts()
 	if pts == ff.AV_NOPTS_VALUE {
 		return -1
@@ -89,17 +95,17 @@ func (frame *frame) Time() time.Duration {
 
 // Return the number of planes for a specific PixelFormat
 // or SampleFormat and ChannelLayout combination
-func (frame *frame) NumPlanes() int {
+func (frame *Frame) NumPlanes() int {
 	return ff.AVUtil_frame_get_num_planes(frame.ctx)
 }
 
 // Return the byte data for a plane
-func (frame *frame) Bytes(plane int) []byte {
+func (frame *Frame) Bytes(plane int) []byte {
 	return frame.ctx.Bytes(plane)[:frame.ctx.Planesize(plane)]
 }
 
 // Return the int16 data for a plane
-func (frame *frame) Int16(plane int) []int16 {
+func (frame *Frame) Int16(plane int) []int16 {
 	sz := frame.ctx.Planesize(plane) >> 1
 	return frame.ctx.Int16(plane)[:sz]
 }
@@ -108,7 +114,7 @@ func (frame *frame) Int16(plane int) []int16 {
 // AUDIO PARAMETERS
 
 // Return number of samples
-func (frame *frame) NumSamples() int {
+func (frame *Frame) NumSamples() int {
 	if frame.Type() != media.AUDIO {
 		return 0
 	}
@@ -116,7 +122,7 @@ func (frame *frame) NumSamples() int {
 }
 
 // Return channel layout
-func (frame *frame) ChannelLayout() string {
+func (frame *Frame) ChannelLayout() string {
 	if frame.Type() != media.AUDIO {
 		return ""
 	}
@@ -129,7 +135,7 @@ func (frame *frame) ChannelLayout() string {
 }
 
 // Return the sample format
-func (frame *frame) SampleFormat() string {
+func (frame *Frame) SampleFormat() string {
 	if frame.Type() != media.AUDIO {
 		return ""
 	}
@@ -137,7 +143,7 @@ func (frame *frame) SampleFormat() string {
 }
 
 // Return the sample rate (Hz)
-func (frame *frame) Samplerate() int {
+func (frame *Frame) Samplerate() int {
 	if frame.Type() != media.AUDIO {
 		return 0
 	}
@@ -149,7 +155,7 @@ func (frame *frame) Samplerate() int {
 // VIDEO PARAMETERS
 
 // Convert a frame into an image
-func (frame *frame) Image() (image.Image, error) {
+func (frame *Frame) Image() (image.Image, error) {
 	if t := frame.Type(); t != media.VIDEO {
 		return nil, ErrBadParameter.With("unsupported frame type", t)
 	}
@@ -205,7 +211,7 @@ func (frame *frame) Image() (image.Image, error) {
 }
 
 // Return the number of bytes in a single row of the video frame
-func (frame *frame) Stride(plane int) int {
+func (frame *Frame) Stride(plane int) int {
 	if frame.Type() == media.VIDEO {
 		return frame.ctx.Linesize(plane)
 	} else {
@@ -214,7 +220,7 @@ func (frame *frame) Stride(plane int) int {
 }
 
 // Return the width of the video frame
-func (frame *frame) Width() int {
+func (frame *Frame) Width() int {
 	if frame.Type() != media.VIDEO {
 		return 0
 	}
@@ -222,7 +228,7 @@ func (frame *frame) Width() int {
 }
 
 // Return the height of the video frame
-func (frame *frame) Height() int {
+func (frame *Frame) Height() int {
 	if frame.Type() != media.VIDEO {
 		return 0
 	}
@@ -230,7 +236,7 @@ func (frame *frame) Height() int {
 }
 
 // Return the pixel format
-func (frame *frame) PixelFormat() string {
+func (frame *Frame) PixelFormat() string {
 	if frame.Type() != media.VIDEO {
 		return ""
 	}

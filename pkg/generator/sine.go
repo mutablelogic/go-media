@@ -120,5 +120,5 @@ func (s *sine) Frame() media.Frame {
 	}
 
 	// Return the frame
-	return ffmpeg.NewFrame(s.frame)
+	return ffmpeg.NewFrame(s.frame, 0)
 }

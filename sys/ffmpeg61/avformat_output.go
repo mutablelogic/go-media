@@ -64,6 +64,10 @@ func (ctx *AVOutputFormat) Flags() AVFormat {
 	return AVFormat(ctx.flags)
 }
 
+func (ctx *AVOutputFormat) SetFlags(flags AVFormat) {
+	ctx.flags = C.int(flags)
+}
+
 func (ctx *AVOutputFormat) MimeTypes() string {
 	return C.GoString(ctx.mime_type)
 }

@@ -109,5 +109,5 @@ func (yuv420p *yuv420p) Frame() media.Frame {
 	}
 
 	// Return the frame
-	return ffmpeg.NewFrame(yuv420p.frame)
+	return ffmpeg.NewFrame(yuv420p.frame, 0)
 }
