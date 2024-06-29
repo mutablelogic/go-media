@@ -29,11 +29,12 @@ type jsonAVAudioFrame struct {
 }
 
 type jsonAVVideoFrame struct {
-	PixelFormat AVPixelFormat `json:"pixel_format"`
-	Width       int           `json:"width"`
-	Height      int           `json:"height"`
-	PictureType AVPictureType `json:"picture_type,omitempty"`
-	Stride      []int         `json:"plane_stride,omitempty"`
+	PixelFormat  AVPixelFormat `json:"pixel_format"`
+	Width        int           `json:"width"`
+	Height       int           `json:"height"`
+	SampleAspect AVRational    `json:"sample_aspect_ratio,omitempty"`
+	PictureType  AVPictureType `json:"picture_type,omitempty"`
+	Stride       []int         `json:"plane_stride,omitempty"`
 }
 
 type jsonAVFrame struct {
@@ -67,11 +68,12 @@ func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
 		// Video
 		return json.Marshal(jsonAVFrame{
 			jsonAVVideoFrame: &jsonAVVideoFrame{
-				PixelFormat: AVPixelFormat(ctx.format),
-				Width:       int(ctx.width),
-				Height:      int(ctx.height),
-				PictureType: AVPictureType(ctx.pict_type),
-				Stride:      ctx.linesizes(),
+				PixelFormat:  AVPixelFormat(ctx.format),
+				Width:        int(ctx.width),
+				Height:       int(ctx.height),
+				SampleAspect: AVRational(ctx.sample_aspect_ratio),
+				PictureType:  AVPictureType(ctx.pict_type),
+				Stride:       ctx.linesizes(),
 			},
 			Pts:        AVTimestamp(ctx.pts),
 			TimeBase:   AVRational(ctx.time_base),
@@ -185,6 +187,14 @@ func (ctx *AVFrame) SampleRate() int {
 
 func (ctx *AVFrame) SetSampleRate(sample_rate int) {
 	ctx.sample_rate = C.int(sample_rate)
+}
+
+func (ctx *AVFrame) SampleAspectRatio() AVRational {
+	return AVRational(ctx.sample_aspect_ratio)
+}
+
+func (ctx *AVFrame) SetSampleAspectRatio(aspect_ratio AVRational) {
+	ctx.sample_aspect_ratio = C.struct_AVRational(aspect_ratio)
 }
 
 func (ctx *AVFrame) ChannelLayout() AVChannelLayout {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	imagex "github.com/mutablelogic/go-media/pkg/image"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
@@ -19,8 +20,6 @@ import (
 type frame struct {
 	ctx *ff.AVFrame
 }
-
-var _ Frame = (*frame)(nil)
 
 var (
 	yuvSubsampleRatio = map[ff.AVPixelFormat]image.YCbCrSubsampleRatio{
@@ -41,7 +40,7 @@ var (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func newFrame(ctx *ff.AVFrame) *frame {
+func NewFrame(ctx *ff.AVFrame) *frame {
 	return &frame{ctx}
 }
 
@@ -61,14 +60,14 @@ func (frame *frame) String() string {
 // PARAMETERS
 
 // Return the media type (AUDIO, VIDEO)
-func (frame *frame) Type() MediaType {
+func (frame *frame) Type() media.MediaType {
 	if frame.ctx.NumSamples() > 0 {
-		return AUDIO
+		return media.AUDIO
 	}
 	if frame.ctx.Width() != 0 && frame.ctx.Height() != 0 {
-		return VIDEO
+		return media.VIDEO
 	}
-	return NONE
+	return media.NONE
 }
 
 // Id is unused
@@ -80,6 +79,9 @@ func (frame *frame) Id() int {
 func (frame *frame) Time() time.Duration {
 	pts := frame.ctx.Pts()
 	if pts == ff.AV_NOPTS_VALUE {
+		return -1
+	}
+	if frame.ctx.TimeBase().Den() == 0 {
 		return -1
 	}
 	return secondsToDuration(float64(pts) * ff.AVUtil_rational_q2d(frame.ctx.TimeBase()))
@@ -107,7 +109,7 @@ func (frame *frame) Int16(plane int) []int16 {
 
 // Return number of samples
 func (frame *frame) NumSamples() int {
-	if frame.Type() != AUDIO {
+	if frame.Type() != media.AUDIO {
 		return 0
 	}
 	return frame.ctx.NumSamples()
@@ -115,7 +117,7 @@ func (frame *frame) NumSamples() int {
 
 // Return channel layout
 func (frame *frame) ChannelLayout() string {
-	if frame.Type() != AUDIO {
+	if frame.Type() != media.AUDIO {
 		return ""
 	}
 	ch := frame.ctx.ChannelLayout()
@@ -128,7 +130,7 @@ func (frame *frame) ChannelLayout() string {
 
 // Return the sample format
 func (frame *frame) SampleFormat() string {
-	if frame.Type() != AUDIO {
+	if frame.Type() != media.AUDIO {
 		return ""
 	}
 	return ff.AVUtil_get_sample_fmt_name(frame.ctx.SampleFormat())
@@ -136,7 +138,7 @@ func (frame *frame) SampleFormat() string {
 
 // Return the sample rate (Hz)
 func (frame *frame) Samplerate() int {
-	if frame.Type() != AUDIO {
+	if frame.Type() != media.AUDIO {
 		return 0
 	}
 	return frame.ctx.SampleRate()
@@ -148,7 +150,7 @@ func (frame *frame) Samplerate() int {
 
 // Convert a frame into an image
 func (frame *frame) Image() (image.Image, error) {
-	if t := frame.Type(); t != VIDEO {
+	if t := frame.Type(); t != media.VIDEO {
 		return nil, ErrBadParameter.With("unsupported frame type", t)
 	}
 	pixel_format := frame.ctx.PixFmt()
@@ -204,7 +206,7 @@ func (frame *frame) Image() (image.Image, error) {
 
 // Return the number of bytes in a single row of the video frame
 func (frame *frame) Stride(plane int) int {
-	if frame.Type() == VIDEO {
+	if frame.Type() == media.VIDEO {
 		return frame.ctx.Linesize(plane)
 	} else {
 		return 0
@@ -213,7 +215,7 @@ func (frame *frame) Stride(plane int) int {
 
 // Return the width of the video frame
 func (frame *frame) Width() int {
-	if frame.Type() != VIDEO {
+	if frame.Type() != media.VIDEO {
 		return 0
 	}
 	return frame.ctx.Width()
@@ -221,7 +223,7 @@ func (frame *frame) Width() int {
 
 // Return the height of the video frame
 func (frame *frame) Height() int {
-	if frame.Type() != VIDEO {
+	if frame.Type() != media.VIDEO {
 		return 0
 	}
 	return frame.ctx.Height()
@@ -229,7 +231,7 @@ func (frame *frame) Height() int {
 
 // Return the pixel format
 func (frame *frame) PixelFormat() string {
-	if frame.Type() != VIDEO {
+	if frame.Type() != media.VIDEO {
 		return ""
 	}
 	return ff.AVUtil_get_pix_fmt_name(frame.ctx.PixFmt())
