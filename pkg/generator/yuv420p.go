@@ -22,7 +22,8 @@ var _ Generator = (*yuv420p)(nil)
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Video generator - YUV420P
+// Create a new video generator which generates YUV420P frames
+// of the specified size and framerate (in frames per second)
 func NewYUV420P(size string, framerate int) (*yuv420p, error) {
 	yuv420p := new(yuv420p)
 
@@ -77,6 +78,7 @@ func (yuv420p *yuv420p) String() string {
 ////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return the first and subsequent frames of raw video data
 func (yuv420p *yuv420p) Frame() media.Frame {
 	// Set the Pts
 	if yuv420p.frame.Pts() == ff.AV_NOPTS_VALUE {

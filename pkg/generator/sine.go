@@ -33,7 +33,9 @@ const (
 ////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Sine wave generator - mono float32
+// Create a new sine wave generator with one channel using float32
+// for samples. The frequency in Hz, volume in decibels and samplerate
+// (ie, 44100) for the audio stream are passed as arguments.
 func NewSine(freq float64, volume float64, samplerate int) (*sine, error) {
 	sine := new(sine)
 
@@ -79,7 +81,7 @@ func NewSine(freq float64, volume float64, samplerate int) (*sine, error) {
 	return sine, nil
 }
 
-// Free resources
+// Free resources for the generator
 func (s *sine) Close() error {
 	ff.AVUtil_frame_free(s.frame)
 	s.frame = nil
@@ -97,6 +99,7 @@ func (s *sine) String() string {
 ////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return the first and subsequent frames of raw audio data
 func (s *sine) Frame() media.Frame {
 	// Set the Pts
 	if s.frame.Pts() == ff.AV_NOPTS_VALUE {
