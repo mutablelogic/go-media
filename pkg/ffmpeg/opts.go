@@ -22,6 +22,10 @@ type opts struct {
 	oformat  *ffmpeg.AVOutputFormat
 	streams  map[int]*Par
 	metadata []*Metadata
+
+	// Reader options
+	iformat *ffmpeg.AVInputFormat
+	opts    []string // These are key=value pairs
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +50,27 @@ func OptOutputFormat(name string) Opt {
 		} else {
 			return ErrBadParameter.Withf("invalid output format %q", name)
 		}
+		return nil
+	}
+}
+
+// Input format from name or url
+func OptInputFormat(name string) Opt {
+	return func(o *opts) error {
+		// By name
+		if iformat := ffmpeg.AVFormat_find_input_format(name); iformat != nil {
+			o.iformat = iformat
+		} else {
+			return ErrBadParameter.Withf("invalid input format %q", name)
+		}
+		return nil
+	}
+}
+
+// Input format options
+func OptInputOpt(opt ...string) Opt {
+	return func(o *opts) error {
+		o.opts = append(o.opts, opt...)
 		return nil
 	}
 }
