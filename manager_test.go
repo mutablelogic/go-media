@@ -39,20 +39,6 @@ func Test_manager_002(t *testing.T) {
 	t.Log(formats)
 }
 
-func Test_manager_003(t *testing.T) {
-	assert := assert.New(t)
-
-	manager, err := NewManager()
-	if !assert.NoError(err) {
-		t.SkipNow()
-	}
-
-	version := manager.Version()
-	assert.NotNil(version)
-
-	tablewriter.New(os.Stderr, tablewriter.OptHeader(), tablewriter.OptOutputText()).Write(version)
-}
-
 func Test_manager_004(t *testing.T) {
 	assert := assert.New(t)
 

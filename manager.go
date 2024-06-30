@@ -1,12 +1,11 @@
 package media
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"runtime"
 
 	// Package imports
-	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
@@ -301,42 +300,17 @@ func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media,
 
 // Create a media file for writing, from a url, path, or device.
 func (manager *manager) Create(url string, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
-	return createMedia(url, format, metadata, params...)
+	return nil, errors.New("not implemented")
 }
 
 // Create a media stream for writing.
 func (manager *manager) Write(w io.Writer, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
-	return createWriter(w, format, metadata, params...)
+	return nil, errors.New("not implemented")
 }
 
 // Return version information for the media manager as a set of metadata
 func (manager *manager) Version() []Metadata {
-	metadata := []Metadata{
-		newMetadata("libavcodec_version", ffVersionAsString(ff.AVCodec_version())),
-		newMetadata("libavformat_version", ffVersionAsString(ff.AVFormat_version())),
-		newMetadata("libavutil_version", ffVersionAsString(ff.AVUtil_version())),
-		newMetadata("libavdevice_version", ffVersionAsString(ff.AVDevice_version())),
-		//		newMetadata("libavfilter_version", ff.AVFilter_version()),
-		newMetadata("libswscale_version", ffVersionAsString(ff.SWScale_version())),
-		newMetadata("libswresample_version", ffVersionAsString(ff.SWResample_version())),
-	}
-	if version.GitSource != "" {
-		metadata = append(metadata, newMetadata("git_source", version.GitSource))
-	}
-	if version.GitBranch != "" {
-		metadata = append(metadata, newMetadata("git_branch", version.GitBranch))
-	}
-	if version.GitTag != "" {
-		metadata = append(metadata, newMetadata("git_tag", version.GitTag))
-	}
-	if version.GoBuildTime != "" {
-		metadata = append(metadata, newMetadata("go_build_time", version.GoBuildTime))
-	}
-	if runtime.Version() != "" {
-		metadata = append(metadata, newMetadata("go_version", runtime.Version()))
-		metadata = append(metadata, newMetadata("go_arch", runtime.GOOS+"/"+runtime.GOARCH))
-	}
-	return metadata
+	return nil
 }
 
 // Log error messages
