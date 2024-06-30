@@ -14,7 +14,7 @@ import (
 
 func Test_yuv420p_001(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
+	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -25,7 +25,7 @@ func Test_yuv420p_001(t *testing.T) {
 
 func Test_yuv420p_002(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
+	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -39,7 +39,7 @@ func Test_yuv420p_002(t *testing.T) {
 
 func Test_yuv420p_003(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
+	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
