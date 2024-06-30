@@ -1,7 +1,7 @@
 package ffmpeg
 
 import (
-	"runtime"
+	"fmt"
 	"unsafe"
 )
 
@@ -21,7 +21,7 @@ static AVIOContext* avio_alloc_context_(int sz, int writeable, void* userInfo) {
 	if (!buf) {
 		return NULL;
 	}
-	return avio_alloc_context(buf, sz, writeable, userInfo,avio_read_callback,avio_write_callback,avio_seek_callback);
+	return avio_alloc_context(buf, sz, writeable, userInfo, avio_read_callback, avio_write_callback, avio_seek_callback);
 }
 */
 import "C"
@@ -32,8 +32,6 @@ import "C"
 // Wrapper around AVIOContext with callbacks
 type AVIOContextEx struct {
 	*AVIOContext
-	cb  AVIOContextCallback
-	pin *runtime.Pinner
 }
 
 // Callbacks for AVIOContextEx
@@ -43,6 +41,10 @@ type AVIOContextCallback interface {
 	Seeker(offset int64, whence int) int64
 }
 
+var (
+	callbacks = make(map[uintptr]AVIOContextCallback)
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 
@@ -50,10 +52,10 @@ type AVIOContextCallback interface {
 func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCallback) *AVIOContextEx {
 	// Create a context
 	ctx := new(AVIOContextEx)
-	ctx.cb = callback
-	ctx.pin = new(runtime.Pinner)
-	ctx.pin.Pin(ctx.cb)
-	ctx.pin.Pin(ctx.pin)
+
+	// Set the callback
+	ptr := uintptr(unsafe.Pointer(ctx))
+	callbacks[ptr] = callback
 
 	// Allocate the context
 	ctx.AVIOContext = (*AVIOContext)(C.avio_alloc_context_(
@@ -71,8 +73,6 @@ func AVFormat_avio_alloc_context(sz int, writeable bool, callback AVIOContextCal
 // Create and initialize a AVIOContext for accessing the resource indicated by url.
 func AVFormat_avio_open(url string, flags AVIOFlag) (*AVIOContextEx, error) {
 	ctx := new(AVIOContextEx)
-	ctx.pin = new(runtime.Pinner)
-	ctx.pin.Pin(ctx.pin)
 	cUrl := C.CString(url)
 	defer C.free(unsafe.Pointer(cUrl))
 	if err := AVError(C.avio_open((**C.struct_AVIOContext)(unsafe.Pointer(&ctx.AVIOContext)), cUrl, C.int(flags))); err != 0 {
@@ -99,7 +99,10 @@ func AVFormat_avio_close(ctx *AVIOContextEx) error {
 func AVFormat_avio_context_free(ctx *AVIOContextEx) {
 	C.av_free(unsafe.Pointer(ctx.buffer))
 	C.avio_context_free((**C.struct_AVIOContext)(unsafe.Pointer(&ctx.AVIOContext)))
-	ctx.pin.Unpin()
+
+	// Remove the callback
+	ptr := uintptr(unsafe.Pointer(ctx))
+	delete(callbacks, ptr)
 }
 
 // avio_w8
@@ -145,18 +148,30 @@ func AVFormat_avio_read(ctx *AVIOContextEx, buf []byte) int {
 
 //export avio_read_callback
 func avio_read_callback(userInfo unsafe.Pointer, buf *C.uint8_t, size C.int) C.int {
-	ctx := (*AVIOContextEx)(userInfo)
-	return C.int(ctx.cb.Reader(cByteSlice(unsafe.Pointer(buf), size)))
+	ptr := uintptr(userInfo)
+	callback, ok := callbacks[ptr]
+	if !ok {
+		panic("avio_read_callback: callback not found")
+	}
+	return C.int(callback.Reader(cByteSlice(unsafe.Pointer(buf), size)))
 }
 
 //export avio_write_callback
 func avio_write_callback(userInfo unsafe.Pointer, buf *C.uint8_t, size C.int) C.int {
-	ctx := (*AVIOContextEx)(userInfo)
-	return C.int(ctx.cb.Writer(cByteSlice(unsafe.Pointer(buf), size)))
+	ptr := uintptr(userInfo)
+	callback, ok := callbacks[ptr]
+	if !ok {
+		panic("avio_write_callback: callback not found " + fmt.Sprint(ptr))
+	}
+	return C.int(callback.Writer(cByteSlice(unsafe.Pointer(buf), size)))
 }
 
 //export avio_seek_callback
 func avio_seek_callback(userInfo unsafe.Pointer, offset C.int64_t, whence C.int) C.int64_t {
-	ctx := (*AVIOContextEx)(userInfo)
-	return C.int64_t(ctx.cb.Seeker(int64(offset), int(whence)))
+	ptr := uintptr(userInfo)
+	callback, ok := callbacks[ptr]
+	if !ok {
+		panic("avio_seek_callback: callback not found")
+	}
+	return C.int64_t(callback.Seeker(int64(offset), int(whence)))
 }

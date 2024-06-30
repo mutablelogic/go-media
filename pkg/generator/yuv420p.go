@@ -24,16 +24,18 @@ var _ Generator = (*yuv420p)(nil)
 
 // Create a new video generator which generates YUV420P frames
 // of the specified size and framerate (in frames per second)
-func NewYUV420P(size string, framerate int) (*yuv420p, error) {
+func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	yuv420p := new(yuv420p)
 
 	// Check parameters
+	if par.CodecType() != ff.AVMEDIA_TYPE_VIDEO {
+		return nil, errors.New("invalid codec type")
+	} else if par.PixelFormat() != ff.AV_PIX_FMT_YUV420P {
+		return nil, errors.New("invalid pixel format, only yuv420p is supported")
+	}
+	framerate := ff.AVUtil_rational_q2d(par.Framerate())
 	if framerate <= 0 {
 		return nil, errors.New("invalid framerate")
-	}
-	w, h, err := ff.AVUtil_parse_video_size(size)
-	if err != nil {
-		return nil, err
 	}
 
 	// Create a frame
@@ -42,11 +44,11 @@ func NewYUV420P(size string, framerate int) (*yuv420p, error) {
 		return nil, errors.New("failed to allocate frame")
 	}
 
-	frame.SetPixFmt(ff.AV_PIX_FMT_YUV420P)
-	frame.SetWidth(w)
-	frame.SetHeight(h)
-	frame.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
-	frame.SetTimeBase(ff.AVUtil_rational(1, framerate))
+	frame.SetPixFmt(par.PixelFormat())
+	frame.SetWidth(par.Width())
+	frame.SetHeight(par.Height())
+	frame.SetSampleAspectRatio(par.SampleAspectRatio())
+	frame.SetTimeBase(ff.AVUtil_rational_invert(par.Framerate()))
 	frame.SetPts(ff.AV_NOPTS_VALUE)
 
 	// Allocate buffer
@@ -80,6 +82,10 @@ func (yuv420p *yuv420p) String() string {
 
 // Return the first and subsequent frames of raw video data
 func (yuv420p *yuv420p) Frame() media.Frame {
+	if err := ff.AVUtil_frame_make_writable(yuv420p.frame); err != nil {
+		return nil
+	}
+
 	// Set the Pts
 	if yuv420p.frame.Pts() == ff.AV_NOPTS_VALUE {
 		yuv420p.frame.SetPts(0)

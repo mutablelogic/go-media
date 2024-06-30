@@ -17,7 +17,7 @@ func Test_rescaler_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create an image generator
-	image, err := generator.NewYUV420P("vga", 25)
+	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -53,7 +53,7 @@ func Test_rescaler_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create an image generator
-	image, err := generator.NewYUV420P("vga", 25)
+	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuva420p", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -120,7 +120,5 @@ func Test_rescaler_002(t *testing.T) {
 			t.FailNow()
 		}
 		t.Logf("Wrote %s", tmpfile)
-
 	}
-
 }

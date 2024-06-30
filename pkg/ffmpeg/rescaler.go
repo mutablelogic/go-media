@@ -12,13 +12,12 @@ import (
 // TYPES
 
 type rescaler struct {
-	opts
-
 	src_pix_fmt ff.AVPixelFormat
 	src_width   int
 	src_height  int
 	ctx         *ff.SWSContext
 	flags       ff.SWSFlag
+	force       bool
 	dest        *ff.AVFrame
 }
 
@@ -28,20 +27,22 @@ type rescaler struct {
 // Create a new rescaler which will rescale the input frame to the
 // specified format, width and height.
 func NewRescaler(format ff.AVPixelFormat, opt ...Opt) (*rescaler, error) {
+	options := newOpts()
 	rescaler := new(rescaler)
 
 	// Apply options
-	rescaler.pix_fmt = format
-	rescaler.width = 640
-	rescaler.height = 480
+	options.par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
+	options.par.SetPixelFormat(format)
+	options.par.SetWidth(640)
+	options.par.SetHeight(480)
 	for _, o := range opt {
-		if err := o(&rescaler.opts); err != nil {
+		if err := o(options); err != nil {
 			return nil, err
 		}
 	}
 
 	// Check parameters
-	if rescaler.pix_fmt == ff.AV_PIX_FMT_NONE {
+	if options.par.PixelFormat() == ff.AV_PIX_FMT_NONE {
 		return nil, errors.New("invalid parameters")
 	}
 
@@ -51,10 +52,13 @@ func NewRescaler(format ff.AVPixelFormat, opt ...Opt) (*rescaler, error) {
 		return nil, errors.New("failed to allocate frame")
 	}
 
+	// Set force flag
+	rescaler.force = options.force
+
 	// Set parameters
-	dest.SetPixFmt(rescaler.pix_fmt)
-	dest.SetWidth(rescaler.width)
-	dest.SetHeight(rescaler.height)
+	dest.SetPixFmt(options.par.PixelFormat())
+	dest.SetWidth(options.par.Width())
+	dest.SetHeight(options.par.Height())
 
 	// Allocate buffer
 	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {

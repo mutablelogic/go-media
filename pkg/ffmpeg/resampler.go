@@ -12,9 +12,9 @@ import (
 // TYPES
 
 type resampler struct {
-	opts
-	ctx  *ff.SWRContext
-	dest *ff.AVFrame
+	ctx   *ff.SWRContext
+	dest  *ff.AVFrame
+	force bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,23 +23,26 @@ type resampler struct {
 // Create a new audio resampler which will resample the input frame to the
 // specified channel layout, sample rate and sample format.
 func NewResampler(format ff.AVSampleFormat, opt ...Opt) (*resampler, error) {
+	options := newOpts()
 	resampler := new(resampler)
 
 	// Apply options
-	resampler.sample_fmt = format
-	resampler.ch = ff.AV_CHANNEL_LAYOUT_MONO
-	resampler.samplerate = 44100
+	options.par.SetCodecType(ff.AVMEDIA_TYPE_AUDIO)
+	options.par.SetSampleFormat(format)
+	options.par.SetChannelLayout(ff.AV_CHANNEL_LAYOUT_MONO)
+	options.par.SetSamplerate(44100)
 	for _, o := range opt {
-		if err := o(&resampler.opts); err != nil {
+		if err := o(options); err != nil {
 			return nil, err
 		}
 	}
 
 	// Check parameters
-	if resampler.sample_fmt == ff.AV_SAMPLE_FMT_NONE {
+	if options.par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
 		return nil, errors.New("invalid sample format parameters")
 	}
-	if !ff.AVUtil_channel_layout_check(&resampler.ch) {
+	ch := options.par.ChannelLayout()
+	if !ff.AVUtil_channel_layout_check(&ch) {
 		return nil, errors.New("invalid channel layout parameters")
 	}
 
@@ -52,14 +55,17 @@ func NewResampler(format ff.AVSampleFormat, opt ...Opt) (*resampler, error) {
 	// Set parameters - we don't allocate the buffer here,
 	// we do that when we have a source frame and know how
 	// large the destination frame should be
-	dest.SetSampleFormat(resampler.sample_fmt)
-	dest.SetSampleRate(resampler.samplerate)
-	if err := dest.SetChannelLayout(resampler.ch); err != nil {
+	dest.SetSampleFormat(options.par.SampleFormat())
+	dest.SetSampleRate(options.par.Samplerate())
+	if err := dest.SetChannelLayout(options.par.ChannelLayout()); err != nil {
 		ff.AVUtil_frame_free(dest)
 		return nil, err
 	} else {
 		resampler.dest = dest
 	}
+
+	// Set force flag
+	resampler.force = options.force
 
 	// Return success
 	return resampler, nil

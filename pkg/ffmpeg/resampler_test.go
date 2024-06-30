@@ -13,7 +13,7 @@ func Test_resampler_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// Sine wave generator
-	audio, err := generator.NewSine(2000, 10, 44100)
+	audio, err := generator.NewSine(2000, 10, ffmpeg.AudioPar("fltp", "mono", 44100))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

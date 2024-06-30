@@ -1,10 +1,11 @@
 package ffmpeg
 
 import (
-	// Namespace imports
-
-	. "github.com/djthorpe/go-errors"
+	// Package imports
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,18 +16,22 @@ type Opt func(*opts) error
 type opts struct {
 	// Resample/resize options
 	force bool
+	par   *Par
 
-	// Format options
-	oformat *ffmpeg.AVOutputFormat
+	// Writer options
+	oformat  *ffmpeg.AVOutputFormat
+	streams  map[int]*Par
+	metadata []*Metadata
+}
 
-	// Audio options
-	sample_fmt ffmpeg.AVSampleFormat
-	ch         ffmpeg.AVChannelLayout
-	samplerate int
+////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
 
-	// Video options
-	pix_fmt       ffmpeg.AVPixelFormat
-	width, height int
+func newOpts() *opts {
+	return &opts{
+		par:     new(Par),
+		streams: make(map[int]*Par),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,11 +50,41 @@ func OptOutputFormat(name string) Opt {
 	}
 }
 
+// New stream with parameters
+func OptStream(stream int, par *Par) Opt {
+	return func(o *opts) error {
+		if par == nil {
+			return ErrBadParameter.With("invalid parameters")
+		}
+		if stream == 0 {
+			stream = len(o.streams) + 1
+		}
+		if _, exists := o.streams[stream]; exists {
+			return ErrDuplicateEntry.Withf("stream %v", stream)
+		}
+		if stream < 0 {
+			return ErrBadParameter.Withf("invalid stream %v", stream)
+		}
+		o.streams[stream] = par
+
+		// Return success
+		return nil
+	}
+}
+
 // Force resampling and resizing on decode, even if the input and output
 // parameters are the same
 func OptForce() Opt {
 	return func(o *opts) error {
 		o.force = true
+		return nil
+	}
+}
+
+// Append metadata to the output file, including artwork
+func OptMetadata(entry ...*Metadata) Opt {
+	return func(o *opts) error {
+		o.metadata = append(o.metadata, entry...)
 		return nil
 	}
 }
@@ -61,7 +96,8 @@ func OptPixFormat(format string) Opt {
 		if fmt == ffmpeg.AV_PIX_FMT_NONE {
 			return ErrBadParameter.Withf("invalid pixel format %q", format)
 		}
-		o.pix_fmt = fmt
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_VIDEO)
+		o.par.SetPixelFormat(fmt)
 		return nil
 	}
 }
@@ -72,8 +108,9 @@ func OptWidthHeight(w, h int) Opt {
 		if w <= 0 || h <= 0 {
 			return ErrBadParameter.Withf("invalid width %v or height %v", w, h)
 		}
-		o.width = w
-		o.height = h
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_VIDEO)
+		o.par.SetWidth(w)
+		o.par.SetHeight(h)
 		return nil
 	}
 }
@@ -85,8 +122,9 @@ func OptFrameSize(size string) Opt {
 		if err != nil {
 			return ErrBadParameter.Withf("invalid frame size %q", size)
 		}
-		o.width = w
-		o.height = h
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_VIDEO)
+		o.par.SetWidth(w)
+		o.par.SetHeight(h)
 		return nil
 	}
 }
@@ -94,18 +132,25 @@ func OptFrameSize(size string) Opt {
 // Channel layout
 func OptChannelLayout(layout string) Opt {
 	return func(o *opts) error {
-		return ffmpeg.AVUtil_channel_layout_from_string(&o.ch, layout)
+		var ch ffmpeg.AVChannelLayout
+		if err := ffmpeg.AVUtil_channel_layout_from_string(&ch, layout); err != nil {
+			return ErrBadParameter.Withf("invalid channel layout %q", layout)
+		}
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_AUDIO)
+		return o.par.SetChannelLayout(ch)
 	}
 }
 
 // Nuumber of channels
-func OptChannels(ch int) Opt {
+func OptChannels(num int) Opt {
 	return func(o *opts) error {
-		if ch <= 0 || ch > 64 {
-			return ErrBadParameter.Withf("invalid number of channels %v", ch)
+		var ch ffmpeg.AVChannelLayout
+		if num <= 0 || num > 64 {
+			return ErrBadParameter.Withf("invalid number of channels %v", num)
 		}
-		ffmpeg.AVUtil_channel_layout_default(&o.ch, ch)
-		return nil
+		ffmpeg.AVUtil_channel_layout_default(&ch, num)
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_AUDIO)
+		return o.par.SetChannelLayout(ch)
 	}
 }
 
@@ -115,7 +160,8 @@ func OptSampleRate(rate int) Opt {
 		if rate <= 0 {
 			return ErrBadParameter.Withf("invalid sample rate %v", rate)
 		}
-		o.samplerate = rate
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_AUDIO)
+		o.par.SetSamplerate(rate)
 		return nil
 	}
 }
@@ -127,7 +173,8 @@ func OptSampleFormat(format string) Opt {
 		if fmt == ffmpeg.AV_SAMPLE_FMT_NONE {
 			return ErrBadParameter.Withf("invalid sample format %q", format)
 		}
-		o.sample_fmt = fmt
+		o.par.SetCodecType(ffmpeg.AVMEDIA_TYPE_AUDIO)
+		o.par.SetSampleFormat(fmt)
 		return nil
 	}
 }

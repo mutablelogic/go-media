@@ -11,6 +11,7 @@ import (
 /*
 #cgo pkg-config: libavutil
 #include <libavutil/rational.h>
+#include <libavutil/avutil.h>
 */
 import "C"
 
@@ -71,4 +72,29 @@ func AVUtil_rational_d2q(d float64, max int) AVRational {
 // Convert an AVRational to a float64.
 func AVUtil_rational_q2d(a AVRational) float64 {
 	return float64(C.av_q2d(C.AVRational(a)))
+}
+
+// Compare two rationals.
+func AVUtil_rational_equal(a, b AVRational) bool {
+	return C.av_cmp_q(C.AVRational(a), C.AVRational(b)) == 0
+}
+
+// Invert a rational.
+func AVUtil_rational_invert(q AVRational) AVRational {
+	return AVRational(C.av_inv_q(C.AVRational(q)))
+}
+
+// Resacale a rational
+func AVUtil_rational_rescale_q(a int64, bq AVRational, cq AVRational) int64 {
+	return int64(C.av_rescale_q(C.int64_t(a), C.AVRational(bq), C.AVRational(cq)))
+}
+
+// Rescale a value from one range to another.
+func AVUtil_rescale_rnd(a, b, c int64, rnd AVRounding) int64 {
+	return int64(C.av_rescale_rnd(C.int64_t(a), C.int64_t(b), C.int64_t(c), C.enum_AVRounding(rnd)))
+}
+
+// Compare two timestamps each in its own time base. Returns -1 if a is before b, 1 if a is after b, or 0 if they are equal.
+func AVUtil_compare_ts(a int64, a_tb AVRational, b int64, b_tb AVRational) int {
+	return int(C.av_compare_ts(C.int64_t(a), C.AVRational(a_tb), C.int64_t(b), C.AVRational(b_tb)))
 }

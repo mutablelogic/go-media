@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mutablelogic/go-media/pkg/ffmpeg"
 	"github.com/mutablelogic/go-media/pkg/generator"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_sine_001(t *testing.T) {
 	assert := assert.New(t)
-	sine, err := generator.NewSine(2000, 10, 44100)
+	sine, err := generator.NewSine(2000, 10, ffmpeg.AudioPar("fltp", "mono", 44100))
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -23,7 +24,7 @@ func Test_sine_001(t *testing.T) {
 
 func Test_sine_002(t *testing.T) {
 	assert := assert.New(t)
-	sine, err := generator.NewSine(2000, 10, 44100)
+	sine, err := generator.NewSine(2000, 10, ffmpeg.AudioPar("fltp", "mono", 44100))
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -42,7 +43,7 @@ func Test_sine_003(t *testing.T) {
 	const frequency = 440
 	const volume = -10.0
 
-	sine, err := generator.NewSine(frequency, volume, sampleRate)
+	sine, err := generator.NewSine(frequency, volume, ffmpeg.AudioPar("fltp", "mono", sampleRate))
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
