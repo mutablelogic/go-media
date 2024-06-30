@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -189,6 +190,20 @@ func (w *Writer) Close() error {
 
 	// Return any errors
 	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+// Display the writer as a string
+func (w *Writer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(w.output)
+}
+
+// Display the writer as a string
+func (w *Writer) String() string {
+	data, _ := json.MarshalIndent(w, "", "  ")
+	return string(data)
 }
 
 //////////////////////////////////////////////////////////////////////////////
