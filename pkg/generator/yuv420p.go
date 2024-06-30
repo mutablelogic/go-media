@@ -80,6 +80,10 @@ func (yuv420p *yuv420p) String() string {
 
 // Return the first and subsequent frames of raw video data
 func (yuv420p *yuv420p) Frame() media.Frame {
+	if err := ff.AVUtil_frame_make_writable(yuv420p.frame); err != nil {
+		return nil
+	}
+
 	// Set the Pts
 	if yuv420p.frame.Pts() == ff.AV_NOPTS_VALUE {
 		yuv420p.frame.SetPts(0)

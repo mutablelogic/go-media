@@ -59,6 +59,7 @@ type jsonAVCodecContext struct {
 	SampleFormat     AVSampleFormat  `json:"sample_fmt,omitempty"`
 	SampleRate       int             `json:"sample_rate,omitempty"`
 	ChannelLayout    AVChannelLayout `json:"channel_layout,omitempty"`
+	FrameSize        int             `json:"frame_size,omitempty"`
 	TimeBase         AVRational      `json:"time_base,omitempty"`
 }
 
@@ -192,6 +193,7 @@ func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
 			SampleFormat:     AVSampleFormat(ctx.sample_fmt),
 			SampleRate:       int(ctx.sample_rate),
 			ChannelLayout:    AVChannelLayout(ctx.ch_layout),
+			FrameSize:        int(ctx.frame_size),
 		})
 	default:
 		return json.Marshal(jsonAVCodecContext{

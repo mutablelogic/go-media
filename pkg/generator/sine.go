@@ -27,7 +27,7 @@ var _ Generator = (*sine)(nil)
 // GLOBALS
 
 const (
-	frameDuration = 20 * time.Millisecond // Each frame is 20ms of audio
+	frameDuration = 10 * time.Millisecond // Each frame is 10ms of audio
 )
 
 ////////////////////////////////////////////////////////////////////////////
@@ -36,18 +36,28 @@ const (
 // Create a new sine wave generator with one channel using float32
 // for samples. The frequency in Hz, volume in decibels and samplerate
 // (ie, 44100) for the audio stream are passed as arguments.
-func NewSine(freq float64, volume float64, samplerate int) (*sine, error) {
+func NewSine(freq, volume float64, par *ffmpeg.Par) (*sine, error) {
 	sine := new(sine)
 
 	// Check parameters
+	if par.CodecType() != ff.AVMEDIA_TYPE_AUDIO {
+		return nil, errors.New("invalid codec type")
+	} else if par.ChannelLayout().NumChannels() != 1 {
+		return nil, errors.New("invalid channel layout, only mono is supported")
+	} else if par.SampleFormat() != ff.AV_SAMPLE_FMT_FLT && par.SampleFormat() != ff.AV_SAMPLE_FMT_FLTP {
+		return nil, errors.New("invalid sample format, only float32 is supported")
+	}
 	if freq <= 0 {
 		return nil, errors.New("invalid frequency")
 	}
 	if volume <= -100 {
 		return nil, errors.New("invalid volume")
 	}
-	if samplerate <= 0 {
+	if par.Samplerate() <= 0 {
 		return nil, errors.New("invalid samplerate")
+	}
+	if par.FrameSize() <= 0 {
+		par.SetFrameSize(int(float64(par.Samplerate()) * frameDuration.Seconds()))
 	}
 
 	// Create a frame
@@ -56,16 +66,13 @@ func NewSine(freq float64, volume float64, samplerate int) (*sine, error) {
 		return nil, errors.New("failed to allocate frame")
 	}
 
-	// Set frame parameters
-	numSamples := int(float64(samplerate) * frameDuration.Seconds())
-
 	frame.SetSampleFormat(ff.AV_SAMPLE_FMT_FLT) // float32
 	if err := frame.SetChannelLayout(ff.AV_CHANNEL_LAYOUT_MONO); err != nil {
 		return nil, err
 	}
-	frame.SetSampleRate(samplerate)
-	frame.SetNumSamples(numSamples)
-	frame.SetTimeBase(ff.AVUtil_rational(1, samplerate))
+	frame.SetSampleRate(par.Samplerate())
+	frame.SetNumSamples(par.FrameSize())
+	frame.SetTimeBase(ff.AVUtil_rational(1, par.Samplerate()))
 	frame.SetPts(ff.AV_NOPTS_VALUE)
 
 	// Allocate buffer
@@ -101,6 +108,10 @@ func (s *sine) String() string {
 
 // Return the first and subsequent frames of raw audio data
 func (s *sine) Frame() media.Frame {
+	if err := ff.AVUtil_frame_make_writable(s.frame); err != nil {
+		return nil
+	}
+
 	// Set the Pts
 	if s.frame.Pts() == ff.AV_NOPTS_VALUE {
 		s.frame.SetPts(0)
