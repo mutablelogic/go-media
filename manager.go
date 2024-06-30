@@ -1,6 +1,7 @@
 package media
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -301,12 +302,12 @@ func (manager *manager) Read(r io.Reader, format Format, opts ...string) (Media,
 
 // Create a media file for writing, from a url, path, or device.
 func (manager *manager) Create(url string, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
-	return createMedia(url, format, metadata, params...)
+	return nil, errors.New("not implemented")
 }
 
 // Create a media stream for writing.
 func (manager *manager) Write(w io.Writer, format Format, metadata []Metadata, params ...Parameters) (Media, error) {
-	return createWriter(w, format, metadata, params...)
+	return nil, errors.New("not implemented")
 }
 
 // Return version information for the media manager as a set of metadata
