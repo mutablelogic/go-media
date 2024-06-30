@@ -184,9 +184,6 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 
 	// Send the frame to the encoder
 	if err := ff.AVCodec_send_frame(e.ctx, frame); err != nil {
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
-			return nil
-		}
 		return err
 	}
 
@@ -200,6 +197,10 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 		} else if err != nil {
 			return err
 		}
+
+		// rescale output packet timestamp values from codec to stream timebase
+		ff.AVCodec_packet_rescale_ts(e.packet, e.ctx.TimeBase(), e.stream.TimeBase())
+		e.packet.SetStreamIndex(e.stream.Index())
 
 		// Pass back to the caller
 		if err := fn(e.packet, &timebase); errors.Is(err, io.EOF) {

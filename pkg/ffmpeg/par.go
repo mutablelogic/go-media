@@ -80,6 +80,21 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	// Set default sample aspect ratio
 	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
 
+	/* TODO
+	c->gop_size      = 12; // emit one intra frame every twelve frames at most
+	c->pix_fmt       = STREAM_PIX_FMT;
+	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+		// just for testing, we also add B-frames
+		c->max_b_frames = 2;
+	}
+	if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+		// Needed to avoid using macroblocks in which some coeffs overflow.
+		// This does not happen with normal video, it just happens here as
+		// the motion of the chroma plane does not match the luma plane.
+		c->mb_decision = 2;
+	}
+	*/
+
 	// Return success
 	return par, nil
 }
