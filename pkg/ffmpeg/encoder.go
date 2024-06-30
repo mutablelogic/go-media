@@ -3,7 +3,6 @@ package ffmpeg
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"syscall"
 
@@ -21,6 +20,9 @@ type Encoder struct {
 	ctx    *ff.AVCodecContext
 	stream *ff.AVStream
 	packet *ff.AVPacket
+
+	// We are flushing the encoder
+	eof bool
 	//next_pts int64
 }
 
@@ -28,9 +30,9 @@ type Encoder struct {
 // return nil to continue encoding or io.EOF to stop encoding.
 type EncoderFrameFn func(int) (*ff.AVFrame, error)
 
-// EncoderPacketFn is a function which is called for each packet encoded. It should
-// return nil to continue encoding or io.EOF to stop encoding immediately.
-type EncoderPacketFn func(*ff.AVPacket) error
+// EncoderPacketFn is a function which is called for each packet encoded, with
+// the stream timebase.
+type EncoderPacketFn func(*ff.AVPacket, *ff.AVRational) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -178,8 +180,9 @@ func (e *Encoder) Par() *Par {
 // PRIVATE METHODS
 
 func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
+	timebase := e.stream.TimeBase()
+
 	// Send the frame to the encoder
-	fmt.Println("Sending frame", frame)
 	if err := ff.AVCodec_send_frame(e.ctx, frame); err != nil {
 		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
 			return nil
@@ -191,7 +194,6 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 	var result error
 	for {
 		// Receive the packet
-		fmt.Println("Receiving packet")
 		if err := ff.AVCodec_receive_packet(e.ctx, e.packet); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
 			// Finished receiving packet or EOF
 			break
@@ -200,7 +202,7 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 		}
 
 		// Pass back to the caller
-		if err := fn(e.packet); errors.Is(err, io.EOF) {
+		if err := fn(e.packet, &timebase); errors.Is(err, io.EOF) {
 			// End early, return EOF
 			result = io.EOF
 			break
@@ -214,7 +216,7 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 
 	// Flush
 	if result == nil {
-		result = fn(nil)
+		result = fn(nil, &timebase)
 	}
 
 	// Return success or EOF

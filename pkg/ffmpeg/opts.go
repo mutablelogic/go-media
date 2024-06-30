@@ -1,10 +1,11 @@
 package ffmpeg
 
 import (
-	// Namespace imports
-
-	. "github.com/djthorpe/go-errors"
+	// Package imports
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,11 +18,10 @@ type opts struct {
 	force bool
 	par   *Par
 
-	// Format options
-	oformat *ffmpeg.AVOutputFormat
-
-	// Stream options
-	streams map[int]*Par
+	// Writer options
+	oformat  *ffmpeg.AVOutputFormat
+	streams  map[int]*Par
+	metadata []*Metadata
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +99,14 @@ func OptVideoStream(stream int, par *Par) Opt {
 func OptForce() Opt {
 	return func(o *opts) error {
 		o.force = true
+		return nil
+	}
+}
+
+// Append metadata to the output file, including artwork
+func OptMetadata(entry ...*Metadata) Opt {
+	return func(o *opts) error {
+		o.metadata = append(o.metadata, entry...)
 		return nil
 	}
 }

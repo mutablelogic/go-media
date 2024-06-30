@@ -39,6 +39,40 @@ const (
 //////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// Create a new writer with a URL and options
+func Create(url string, opt ...Opt) (*Writer, error) {
+	options := newOpts()
+	writer := new(Writer)
+
+	// Apply options
+	for _, opt := range opt {
+		if err := opt(options); err != nil {
+			return nil, err
+		}
+	}
+
+	// Guess the output format
+	var ofmt *ff.AVOutputFormat
+	if options.oformat == nil && url != "" {
+		options.oformat = ff.AVFormat_guess_format("", url, "")
+	}
+	if options.oformat == nil {
+		return nil, ErrBadParameter.With("unable to guess the output format")
+	}
+
+	// Allocate the output media context
+	ctx, err := ff.AVFormat_create_file(url, ofmt)
+	if err != nil {
+		return nil, err
+	} else {
+		writer.output = ctx
+	}
+
+	// Continue with open
+	return writer.open(options)
+}
+
+// Create a new writer with an io.Writer and options
 func NewWriter(w io.Writer, opt ...Opt) (*Writer, error) {
 	options := newOpts()
 	writer := new(Writer)
@@ -68,6 +102,11 @@ func NewWriter(w io.Writer, opt ...Opt) (*Writer, error) {
 		writer.output = ctx
 	}
 
+	// Continue with open
+	return writer.open(options)
+}
+
+func (writer *Writer) open(options *opts) (*Writer, error) {
 	// Create codec contexts for each stream
 	var result error
 	keys := sort.IntSlice(maps.Keys(options.streams))
@@ -86,7 +125,25 @@ func NewWriter(w io.Writer, opt ...Opt) (*Writer, error) {
 		return nil, errors.Join(result, writer.Close())
 	}
 
-	// Write the header
+	// Add metadata
+	metadata := ff.AVUtil_dict_alloc()
+	if metadata == nil {
+		return nil, errors.Join(errors.New("unable to allocate metadata dictionary"), writer.Close())
+	}
+	for _, entry := range options.metadata {
+		// Ignore artwork fields
+		if entry.Key == MetaArtwork || entry.Key == "" || entry.Value == nil {
+			continue
+		}
+		// Set dictionary entry
+		if err := ff.AVUtil_dict_set(metadata, entry.Key, fmt.Sprint(entry.Value), ff.AV_DICT_APPEND); err != nil {
+			return nil, errors.Join(err, writer.Close())
+		}
+	}
+
+	// Set metadata, write the header
+	// Metadata ownership is transferred to the output context
+	writer.output.SetMetadata(metadata)
 	if err := ff.AVFormat_write_header(writer.output, nil); err != nil {
 		return nil, errors.Join(err, writer.Close())
 	} else {
@@ -97,6 +154,7 @@ func NewWriter(w io.Writer, opt ...Opt) (*Writer, error) {
 	return writer, nil
 }
 
+// Close a writer and release resources
 func (w *Writer) Close() error {
 	var result error
 
@@ -148,7 +206,9 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 	}
 	if out == nil {
 		// By default, write packet to output
-		out = w.Write
+		out = func(pkt *ff.AVPacket, tb *ff.AVRational) error {
+			return w.Write(pkt)
+		}
 	}
 
 	// Initialise encoders
@@ -159,29 +219,41 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 			return ErrBadParameter.Withf("duplicate stream %v", stream)
 		}
 		encoders[stream] = encoder
+
+		// Initialize the encoder
+		encoder.eof = false
 	}
 
-	// Continue until all encoders have returned io.EOF
+	// Continue until all encoders have returned io.EOF and have been flushed
 	for {
 		// No more encoding to do
 		if len(encoders) == 0 {
 			break
 		}
+
+		// TODO: We get the encoder with the lowest timestamp
 		for stream, encoder := range encoders {
-			// Receive a frame for the encoder
-			frame, err := in(stream)
-			if errors.Is(err, io.EOF) {
-				fmt.Println("EOF for frame on stream", stream)
-				delete(encoders, stream)
-			} else if err != nil {
+			var frame *ff.AVFrame
+			var err error
+
+			// Receive a frame if not EOF
+			if !encoder.eof {
+				frame, err = in(stream)
+				if errors.Is(err, io.EOF) {
+					encoder.eof = true
+				} else if err != nil {
+					return fmt.Errorf("stream %v: %w", stream, err)
+				}
+			}
+
+			// Send a frame for encoding
+			if err := encoder.Encode(frame, out); err != nil {
 				return fmt.Errorf("stream %v: %w", stream, err)
-			} else if frame == nil {
-				return fmt.Errorf("stream %v: nil frame received", stream)
-			} else if err := encoder.Encode(frame, out); errors.Is(err, io.EOF) {
-				fmt.Println("EOF for packet on stream", stream)
+			}
+
+			// If eof then delete the encoder
+			if encoder.eof {
 				delete(encoders, stream)
-			} else if err != nil {
-				return fmt.Errorf("stream %v: %w", stream, err)
 			}
 		}
 	}
@@ -190,7 +262,8 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 	return nil
 }
 
-// Write a packet to the output
+// Write a packet to the output. If you intercept the packets in the
+// Encode method, then you can use this method to write packets to the output.
 func (w *Writer) Write(packet *ff.AVPacket) error {
 	return ff.AVCodec_interleaved_write_frame(w.output, packet)
 }
