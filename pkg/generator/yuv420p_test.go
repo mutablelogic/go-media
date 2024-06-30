@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	"github.com/mutablelogic/go-media/pkg/generator"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_yuv420p_001(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P("1024x768", 25)
+	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -24,7 +25,7 @@ func Test_yuv420p_001(t *testing.T) {
 
 func Test_yuv420p_002(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P("vga", 25)
+	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -38,7 +39,7 @@ func Test_yuv420p_002(t *testing.T) {
 
 func Test_yuv420p_003(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P("vga", 25)
+	image, err := generator.NewYUV420P(25, ffmpeg.VideoPar("yuva420p", "1280x720"))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

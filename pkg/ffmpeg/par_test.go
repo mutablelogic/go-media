@@ -20,7 +20,7 @@ func Test_par_001(t *testing.T) {
 func Test_par_002(t *testing.T) {
 	assert := assert.New(t)
 
-	par, err := ffmpeg.NewVideoPar("yuv420p", "1280x720")
+	par, err := ffmpeg.NewVideoPar("yuv420p", "1280x720", 25)
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

@@ -84,12 +84,20 @@ func NewWriter(w io.Writer, opt ...Opt) (*Writer, error) {
 		}
 	}
 
-	// Check output
+	// Try once more to get the output format
 	var filename string
 	if options.oformat == nil {
+		if w_, ok := w.(*os.File); ok {
+			filename = w_.Name()
+			if err := OptOutputFormat(filename)(options); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Bail out
+	if options.oformat == nil {
 		return nil, ErrBadParameter.Withf("invalid output format")
-	} else if w_, ok := w.(*os.File); ok {
-		filename = w_.Name()
 	}
 
 	// Allocate the AVIO context

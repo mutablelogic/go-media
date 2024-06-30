@@ -2,9 +2,9 @@ package ffmpeg
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 
+	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -51,7 +51,7 @@ func NewAudioPar(samplefmt string, channellayout string, samplerate int) (*Par, 
 	return par, nil
 }
 
-func NewVideoPar(pixfmt string, size string) (*Par, error) {
+func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	par := new(Par)
 	par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
 
@@ -70,6 +70,13 @@ func NewVideoPar(pixfmt string, size string) (*Par, error) {
 		par.SetHeight(h)
 	}
 
+	// Frame rate
+	if framerate <= 0 {
+		return nil, ErrBadParameter.Withf("negative or zero framerate %v", framerate)
+	} else {
+		par.SetFramerate(ff.AVUtil_rational_d2q(framerate, 1<<24))
+	}
+
 	// Set default sample aspect ratio
 	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
 
@@ -85,8 +92,8 @@ func AudioPar(samplefmt string, channellayout string, samplerate int) *Par {
 	}
 }
 
-func VideoPar(pixfmt string, size string) *Par {
-	if par, err := NewVideoPar(pixfmt, size); err != nil {
+func VideoPar(pixfmt string, size string, framerate float64) *Par {
+	if par, err := NewVideoPar(pixfmt, size, framerate); err != nil {
 		panic(err)
 	} else {
 		return par
@@ -199,11 +206,61 @@ func (ctx *Par) validateAudioCodec(codec *ff.AVCodecContext) error {
 }
 
 func (ctx *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
-	fmt.Println("TODO: copyVideoCodec")
+	codec.SetPixFmt(ctx.PixelFormat())
+	codec.SetWidth(ctx.Width())
+	codec.SetHeight(ctx.Height())
+	codec.SetSampleAspectRatio(ctx.SampleAspectRatio())
+	codec.SetFramerate(ctx.Framerate())
+	codec.SetTimeBase(ff.AVUtil_rational_invert(ctx.Framerate()))
 	return nil
 }
 
 func (ctx *Par) validateVideoCodec(codec *ff.AVCodecContext) error {
-	fmt.Println("TODO: validateVideoCodec")
+	pixelformats := codec.Codec().PixelFormats()
+	framerates := codec.Codec().SupportedFramerates()
+
+	// First we set params from the codec which are not already set
+	if ctx.PixelFormat() == ff.AV_PIX_FMT_NONE {
+		if len(pixelformats) > 0 {
+			ctx.SetPixelFormat(pixelformats[0])
+		}
+	}
+	if ctx.Framerate().Num() == 0 || ctx.Framerate().Den() == 0 {
+		if len(framerates) > 0 {
+			ctx.SetFramerate(framerates[0])
+		}
+	}
+
+	// Then we check to make sure the parameters are compatible with
+	// the codec
+	if len(pixelformats) > 0 {
+		if !slices.Contains(pixelformats, ctx.PixelFormat()) {
+			return ErrBadParameter.Withf("unsupported pixel format %v", ctx.PixelFormat())
+		}
+	} else if ctx.PixelFormat() == ff.AV_PIX_FMT_NONE {
+		return ErrBadParameter.With("pixel format not set")
+	}
+	if ctx.Width() == 0 || ctx.Height() == 0 {
+		return ErrBadParameter.Withf("invalid width %v or height %v", ctx.Width(), ctx.Height())
+	}
+	if ctx.SampleAspectRatio().Num() == 0 || ctx.SampleAspectRatio().Den() == 0 {
+		ctx.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+	}
+	if ctx.Framerate().Num() == 0 || ctx.Framerate().Den() == 0 {
+		return ErrBadParameter.With("framerate not set")
+	} else if len(framerates) > 0 {
+		valid := false
+		for _, fr := range framerates {
+			if ff.AVUtil_rational_equal(fr, ctx.Framerate()) {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return ErrBadParameter.Withf("unsupported framerate %v", ctx.Framerate())
+		}
+	}
+
+	// Return success
 	return nil
 }

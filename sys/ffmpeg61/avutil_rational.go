@@ -72,3 +72,13 @@ func AVUtil_rational_d2q(d float64, max int) AVRational {
 func AVUtil_rational_q2d(a AVRational) float64 {
 	return float64(C.av_q2d(C.AVRational(a)))
 }
+
+// Compare two rationals.
+func AVUtil_rational_equal(a, b AVRational) bool {
+	return C.av_cmp_q(C.AVRational(a), C.AVRational(b)) == 0
+}
+
+// Invert a rational.
+func AVUtil_rational_invert(q AVRational) AVRational {
+	return AVRational(C.av_inv_q(C.AVRational(q)))
+}

@@ -50,33 +50,11 @@ func OptOutputFormat(name string) Opt {
 	}
 }
 
-// New audio stream with parameters
-func OptAudioStream(stream int, par *Par) Opt {
+// New stream with parameters
+func OptStream(stream int, par *Par) Opt {
 	return func(o *opts) error {
-		if par == nil || par.CodecType() != ffmpeg.AVMEDIA_TYPE_AUDIO {
-			return ErrBadParameter.With("invalid audio parameters")
-		}
-		if stream == 0 {
-			stream = len(o.streams) + 1
-		}
-		if _, exists := o.streams[stream]; exists {
-			return ErrDuplicateEntry.Withf("stream %v", stream)
-		}
-		if stream < 0 {
-			return ErrBadParameter.Withf("invalid stream %v", stream)
-		}
-		o.streams[stream] = par
-
-		// Return success
-		return nil
-	}
-}
-
-// New video stream with parameters
-func OptVideoStream(stream int, par *Par) Opt {
-	return func(o *opts) error {
-		if par == nil || par.CodecType() != ffmpeg.AVMEDIA_TYPE_VIDEO {
-			return ErrBadParameter.With("invalid video parameters")
+		if par == nil {
+			return ErrBadParameter.With("invalid parameters")
 		}
 		if stream == 0 {
 			stream = len(o.streams) + 1
