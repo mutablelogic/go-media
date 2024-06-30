@@ -17,18 +17,35 @@ import "C"
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Open an output stream.
+// Open an output stream without managing a file.
 func AVFormat_open_writer(writer *AVIOContextEx, format *AVOutputFormat, filename string) (*AVFormatContext, error) {
-	// TODO
-	return nil, errors.New("not implemented")
+	var ctx *AVFormatContext
+
+	cFilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cFilename))
+	if err := AVError(C.avformat_alloc_output_context2((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), (*C.struct_AVOutputFormat)(format), nil, cFilename)); err != 0 {
+		return nil, err
+	} else {
+		ctx.SetPb(writer)
+	}
+
+	ctx.SetFlags(ctx.Flags() | AVFMT_FLAG_CUSTOM_IO)
+
+	// TODO: Mark AVFMT_NOFILE
+
+	// Return success
+	return ctx, nil
 }
 
 // Open an output file.
 func AVFormat_create_file(filename string, format *AVOutputFormat) (*AVFormatContext, error) {
 	var ctx *AVFormatContext
-	if err := AVError(C.avformat_alloc_output_context2((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), (*C.struct_AVOutputFormat)(format), nil, C.CString(filename))); err != 0 {
+
+	cFilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cFilename))
+	if err := AVError(C.avformat_alloc_output_context2((**C.struct_AVFormatContext)(unsafe.Pointer(&ctx)), (*C.struct_AVOutputFormat)(format), nil, cFilename)); err != 0 {
 		return nil, err
-	} else if !ctx.Flags().Is(AVFMT_NOFILE) {
+	} else if !ctx.Output().Flags().Is(AVFMT_NOFILE) {
 		if ioctx, err := AVFormat_avio_open(filename, AVIO_FLAG_WRITE); err != nil {
 			return nil, err
 		} else {
@@ -44,7 +61,7 @@ func AVFormat_close_writer(ctx *AVFormatContext) error {
 	var result error
 
 	octx := (*C.struct_AVFormatContext)(ctx)
-	if octx.oformat.flags&C.int(AVFMT_NOFILE) == 0 && octx.pb != nil {
+	if octx.oformat.flags&C.int(AVFMT_NOFILE) == 0 && octx.flags&C.int(AVFMT_FLAG_CUSTOM_IO) == 0 {
 		if err := AVError(C.avio_closep(&octx.pb)); err != 0 {
 			result = errors.Join(result, err)
 		}

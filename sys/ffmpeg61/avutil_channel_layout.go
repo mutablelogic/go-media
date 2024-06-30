@@ -122,6 +122,15 @@ func AVUtil_channel_layout_check(ch_layout *AVChannelLayout) bool {
 	return C.av_channel_layout_check((*C.struct_AVChannelLayout)(ch_layout)) != 0
 }
 
+// Check whether two channel layouts are semantically the same
+func AVUtil_channel_layout_compare(a *AVChannelLayout, b *AVChannelLayout) bool {
+	if ret := C.av_channel_layout_compare((*C.struct_AVChannelLayout)(a), (*C.struct_AVChannelLayout)(b)); ret == 0 {
+		return false
+	} else {
+		return true
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 

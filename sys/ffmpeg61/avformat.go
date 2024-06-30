@@ -119,6 +119,7 @@ type jsonAVFormatContext struct {
 	BitRate    int64           `json:"bit_rate,omitempty"`
 	PacketSize uint            `json:"packet_size,omitempty"`
 	Flags      AVFormatFlag    `json:"flags,omitempty"`
+	Metadata   *AVDictionary   `json:"metadata,omitempty"`
 }
 
 func (ctx *AVFormatContext) MarshalJSON() ([]byte, error) {
@@ -134,6 +135,7 @@ func (ctx *AVFormatContext) MarshalJSON() ([]byte, error) {
 		BitRate:    int64(ctx.bit_rate),
 		PacketSize: uint(ctx.packet_size),
 		Flags:      AVFormatFlag(ctx.flags),
+		Metadata:   ctx.Metadata(),
 	})
 }
 
@@ -229,6 +231,14 @@ func (ctx *AVFormatContext) Metadata() *AVDictionary {
 	return &AVDictionary{ctx.metadata}
 }
 
+func (ctx *AVFormatContext) SetMetadata(dict *AVDictionary) {
+	if dict == nil {
+		ctx.metadata = nil
+	} else {
+		ctx.metadata = dict.ctx
+	}
+}
+
 func (ctx *AVFormatContext) SetPb(pb *AVIOContextEx) {
 	if pb == nil {
 		ctx.pb = nil
@@ -254,8 +264,12 @@ func (ctx *AVFormatContext) Stream(stream int) *AVStream {
 	}
 }
 
-func (ctx *AVFormatContext) Flags() AVFormat {
-	return AVFormat(ctx.flags)
+func (ctx *AVFormatContext) Flags() AVFormatFlag {
+	return AVFormatFlag(ctx.flags)
+}
+
+func (ctx *AVFormatContext) SetFlags(flag AVFormatFlag) {
+	ctx.flags = C.int(flag)
 }
 
 func (ctx *AVFormatContext) Duration() int64 {

@@ -49,17 +49,20 @@ type jsonAVCodec struct {
 }
 
 type jsonAVCodecContext struct {
-	CodecType        AVMediaType     `json:"codec_type,omitempty"`
-	Codec            *AVCodec        `json:"codec,omitempty"`
-	BitRate          int64           `json:"bit_rate,omitempty"`
-	BitRateTolerance int             `json:"bit_rate_tolerance,omitempty"`
-	PixelFormat      AVPixelFormat   `json:"pix_fmt,omitempty"`
-	Width            int             `json:"width,omitempty"`
-	Height           int             `json:"height,omitempty"`
-	SampleFormat     AVSampleFormat  `json:"sample_fmt,omitempty"`
-	SampleRate       int             `json:"sample_rate,omitempty"`
-	ChannelLayout    AVChannelLayout `json:"channel_layout,omitempty"`
-	TimeBase         AVRational      `json:"time_base,omitempty"`
+	CodecType         AVMediaType     `json:"codec_type,omitempty"`
+	Codec             *AVCodec        `json:"codec,omitempty"`
+	BitRate           int64           `json:"bit_rate,omitempty"`
+	BitRateTolerance  int             `json:"bit_rate_tolerance,omitempty"`
+	PixelFormat       AVPixelFormat   `json:"pix_fmt,omitempty"`
+	Width             int             `json:"width,omitempty"`
+	Height            int             `json:"height,omitempty"`
+	SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitempty"`
+	Framerate         AVRational      `json:"framerate,omitempty"`
+	SampleFormat      AVSampleFormat  `json:"sample_fmt,omitempty"`
+	SampleRate        int             `json:"sample_rate,omitempty"`
+	ChannelLayout     AVChannelLayout `json:"channel_layout,omitempty"`
+	FrameSize         int             `json:"frame_size,omitempty"`
+	TimeBase          AVRational      `json:"time_base,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,13 +177,15 @@ func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
 	switch ctx.codec_type {
 	case C.AVMEDIA_TYPE_VIDEO:
 		return json.Marshal(jsonAVCodecContext{
-			CodecType:        AVMediaType(ctx.codec_type),
-			Codec:            (*AVCodec)(ctx.codec),
-			BitRate:          int64(ctx.bit_rate),
-			BitRateTolerance: int(ctx.bit_rate_tolerance),
-			PixelFormat:      AVPixelFormat(ctx.pix_fmt),
-			Width:            int(ctx.width),
-			Height:           int(ctx.height),
+			CodecType:         AVMediaType(ctx.codec_type),
+			Codec:             (*AVCodec)(ctx.codec),
+			BitRate:           int64(ctx.bit_rate),
+			BitRateTolerance:  int(ctx.bit_rate_tolerance),
+			PixelFormat:       AVPixelFormat(ctx.pix_fmt),
+			Width:             int(ctx.width),
+			Height:            int(ctx.height),
+			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
+			Framerate:         AVRational(ctx.framerate),
 		})
 	case C.AVMEDIA_TYPE_AUDIO:
 		return json.Marshal(jsonAVCodecContext{
@@ -192,6 +197,7 @@ func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
 			SampleFormat:     AVSampleFormat(ctx.sample_fmt),
 			SampleRate:       int(ctx.sample_rate),
 			ChannelLayout:    AVChannelLayout(ctx.ch_layout),
+			FrameSize:        int(ctx.frame_size),
 		})
 	default:
 		return json.Marshal(jsonAVCodecContext{
@@ -403,12 +409,12 @@ func (ctx *AVCodecContext) SetHeight(height int) {
 	ctx.height = C.int(height)
 }
 
-func (ctx *AVCodecContext) TimeBase() AVRational {
-	return (AVRational)(ctx.time_base)
+func (ctx *AVCodecContext) SampleAspectRatio() AVRational {
+	return (AVRational)(ctx.sample_aspect_ratio)
 }
 
-func (ctx *AVCodecContext) SetTimeBase(time_base AVRational) {
-	ctx.time_base = C.struct_AVRational(time_base)
+func (ctx *AVCodecContext) SetSampleAspectRatio(sample_aspect_ratio AVRational) {
+	ctx.sample_aspect_ratio = C.struct_AVRational(sample_aspect_ratio)
 }
 
 func (ctx *AVCodecContext) Framerate() AVRational {
@@ -417,6 +423,14 @@ func (ctx *AVCodecContext) Framerate() AVRational {
 
 func (ctx *AVCodecContext) SetFramerate(framerate AVRational) {
 	ctx.framerate = C.struct_AVRational(framerate)
+}
+
+func (ctx *AVCodecContext) TimeBase() AVRational {
+	return (AVRational)(ctx.time_base)
+}
+
+func (ctx *AVCodecContext) SetTimeBase(time_base AVRational) {
+	ctx.time_base = C.struct_AVRational(time_base)
 }
 
 // Audio sample format.
