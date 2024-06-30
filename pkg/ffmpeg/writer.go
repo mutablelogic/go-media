@@ -230,6 +230,7 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 
 		// Initialize the encoder
 		encoder.eof = false
+		encoder.next_pts = 0
 	}
 
 	// Continue until all encoders have returned io.EOF and have been flushed
@@ -239,31 +240,42 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 			break
 		}
 
-		// TODO: We get the encoder with the lowest timestamp
+		// Find encoder with the lowest timestamp, based on next_pts and timebase
+		next_stream := -1
+		var next_encoder *Encoder
 		for stream, encoder := range encoders {
-			var frame *ff.AVFrame
-			var err error
-
-			// Receive a frame if not EOF
-			if !encoder.eof {
-				frame, err = in(stream)
-				if errors.Is(err, io.EOF) {
-					encoder.eof = true
-				} else if err != nil {
-					return fmt.Errorf("stream %v: %w", stream, err)
-				}
-			}
-
-			// Send a frame for encoding
-			if err := encoder.Encode(frame, out); err != nil {
-				return fmt.Errorf("stream %v: %w", stream, err)
-			}
-
-			// If eof then delete the encoder
-			if encoder.eof {
-				delete(encoders, stream)
+			if next_encoder == nil || compareNextPts(encoder, next_encoder) < 0 {
+				next_encoder = encoder
+				next_stream = stream
 			}
 		}
+
+		var frame *ff.AVFrame
+		var err error
+
+		// Receive a frame if not EOF
+		if !next_encoder.eof {
+			frame, err = in(next_stream)
+			if errors.Is(err, io.EOF) {
+				next_encoder.eof = true
+			} else if err != nil {
+				return fmt.Errorf("stream %v: %w", next_stream, err)
+			}
+		}
+
+		// Send a frame for encoding
+		if err := next_encoder.Encode(frame, out); err != nil {
+			return fmt.Errorf("stream %v: %w", next_stream, err)
+		}
+
+		// If eof then delete the encoder
+		if next_encoder.eof {
+			delete(encoders, next_stream)
+			continue
+		}
+
+		// Calculate the next PTS
+		next_encoder.next_pts = next_encoder.next_pts + next_encoder.nextPts(frame)
 	}
 
 	// Return success
@@ -274,6 +286,11 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 // Encode method, then you can use this method to write packets to the output.
 func (w *Writer) Write(packet *ff.AVPacket) error {
 	return ff.AVCodec_interleaved_write_frame(w.output, packet)
+}
+
+// Returns -1 if a is before v
+func compareNextPts(a, b *Encoder) int {
+	return ff.AVUtil_compare_ts(a.next_pts, a.stream.TimeBase(), b.next_pts, b.stream.TimeBase())
 }
 
 ////////////////////////////////////////////////////////////////////////////////

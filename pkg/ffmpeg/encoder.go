@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"syscall"
 
@@ -23,7 +24,9 @@ type Encoder struct {
 
 	// We are flushing the encoder
 	eof bool
-	//next_pts int64
+
+	// The next presentation timestamp
+	next_pts int64
 }
 
 // EncoderFrameFn is a function which is called to receive a frame to encode. It should
@@ -85,12 +88,6 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 		encoder.stream = streamctx
 	}
 
-	// Copy parameters to stream
-	if err := ff.AVCodec_parameters_from_context(encoder.stream.CodecPar(), encoder.ctx); err != nil {
-		ff.AVCodec_free_context(encoder.ctx)
-		return nil, err
-	}
-
 	// Some formats want stream headers to be separate.
 	if ctx.Output().Flags().Is(ff.AVFMT_GLOBALHEADER) {
 		encoder.ctx.SetFlags(encoder.ctx.Flags() | ff.AV_CODEC_FLAG_GLOBAL_HEADER)
@@ -100,6 +97,12 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 	if err := ff.AVCodec_open(encoder.ctx, codec, nil); err != nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, ErrInternalAppError.Withf("codec_open: %v", err)
+	}
+
+	// Copy parameters to stream
+	if err := ff.AVCodec_parameters_from_context(encoder.stream.CodecPar(), encoder.ctx); err != nil {
+		ff.AVCodec_free_context(encoder.ctx)
+		return nil, err
 	}
 
 	// Create a packet
@@ -176,6 +179,22 @@ func (e *Encoder) Par() *Par {
 	}
 }
 
+// Return the codec type
+func (e *Encoder) nextPts(frame *ff.AVFrame) int64 {
+	next_pts := int64(0)
+	switch e.ctx.Codec().Type() {
+	case ff.AVMEDIA_TYPE_AUDIO:
+		next_pts = ff.AVUtil_rational_rescale_q(int64(frame.NumSamples()), ff.AVUtil_rational(1, frame.SampleRate()), e.stream.TimeBase())
+	case ff.AVMEDIA_TYPE_VIDEO:
+		next_pts = ff.AVUtil_rational_rescale_q(1, ff.AVUtil_rational_invert(e.ctx.Framerate()), e.stream.TimeBase())
+	default:
+		// Dunno what to do with subtitle and data streams yet
+		fmt.Println("TODO: next_pts for subtitle and data streams")
+		return 0
+	}
+	return next_pts
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -201,6 +220,7 @@ func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
 		// rescale output packet timestamp values from codec to stream timebase
 		ff.AVCodec_packet_rescale_ts(e.packet, e.ctx.TimeBase(), e.stream.TimeBase())
 		e.packet.SetStreamIndex(e.stream.Index())
+		e.packet.SetTimeBase(e.stream.TimeBase())
 
 		// Pass back to the caller
 		if err := fn(e.packet, &timebase); errors.Is(err, io.EOF) {

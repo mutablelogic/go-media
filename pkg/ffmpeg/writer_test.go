@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -118,7 +119,7 @@ func Test_writer_003(t *testing.T) {
 	// Create a writer with an audio stream
 	writer, err := ffmpeg.NewWriter(w,
 		ffmpeg.OptMetadata(ffmpeg.NewMetadata("title", t.Name())),
-		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "1280x720", 25)),
+		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "640x480", 30)),
 	)
 	if !assert.NoError(err) {
 		t.FailNow()
@@ -126,7 +127,7 @@ func Test_writer_003(t *testing.T) {
 	defer writer.Close()
 
 	// Make an video generator
-	video, err := generator.NewYUV420P(25, writer.Stream(1).Par())
+	video, err := generator.NewYUV420P(writer.Stream(1).Par())
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -139,14 +140,70 @@ func Test_writer_003(t *testing.T) {
 		if frame.Time() >= duration {
 			return nil, io.EOF
 		} else {
-			t.Log("Frame", frame.Time().Truncate(time.Millisecond))
+			t.Log("Frame", stream, "=>", frame.Time().Truncate(time.Millisecond))
 			return frame.(*ffmpeg.Frame).AVFrame(), nil
 		}
 	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
 		if packet != nil {
-			t.Log("Packet", packet)
+			d := time.Duration(ff.AVUtil_rational_q2d(packet.TimeBase()) * float64(packet.Pts()) * float64(time.Second))
+			t.Log("Packet", d.Truncate(time.Millisecond))
 		}
 		return writer.Write(packet)
 	}))
+	t.Log("Written to", w.Name())
+}
+
+func Test_writer_004(t *testing.T) {
+	assert := assert.New(t)
+
+	// Write to a file
+	w, err := os.CreateTemp("", t.Name()+"_*.m4v")
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer w.Close()
+
+	// Create a writer with an audio stream
+	writer, err := ffmpeg.Create(w.Name(),
+		ffmpeg.OptMetadata(ffmpeg.NewMetadata("title", t.Name())),
+		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "640x480", 30)),
+		ffmpeg.OptStream(2, ffmpeg.AudioPar("fltp", "mono", 22050)),
+	)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer writer.Close()
+
+	// Make an video generator
+	video, err := generator.NewYUV420P(writer.Stream(1).Par())
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer video.Close()
+
+	// Make an audio generator
+	audio, err := generator.NewSine(440, -5, writer.Stream(2).Par())
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	// Write 10 secs of frames
+	duration := time.Minute * 10
+	assert.NoError(writer.Encode(func(stream int) (*ff.AVFrame, error) {
+		var frame media.Frame
+		switch stream {
+		case 1:
+			frame = video.Frame()
+		case 2:
+			frame = audio.Frame()
+		}
+		if frame.Time() >= duration {
+			t.Log("Frame time is EOF", frame.Time())
+			return nil, io.EOF
+		} else {
+			t.Log("Frame", stream, "=>", frame.Time().Truncate(time.Millisecond))
+			return frame.(*ffmpeg.Frame).AVFrame(), nil
+		}
+	}, nil))
 	t.Log("Written to", w.Name())
 }

@@ -18,14 +18,15 @@ import "C"
 // TYPES
 
 type jsonAVPacket struct {
-	Pts           int64 `json:"pts,omitempty"`
-	Dts           int64 `json:"dts,omitempty"`
-	Size          int   `json:"size,omitempty"`
-	StreamIndex   int   `json:"stream_index"` // Stream index starts at 0
-	Flags         int   `json:"flags,omitempty"`
-	SideDataElems int   `json:"side_data_elems,omitempty"`
-	Duration      int64 `json:"duration,omitempty"`
-	Pos           int64 `json:"pos,omitempty"`
+	Pts           int64      `json:"pts,omitempty"`
+	Dts           int64      `json:"dts,omitempty"`
+	Size          int        `json:"size,omitempty"`
+	StreamIndex   int        `json:"stream_index"` // Stream index starts at 0
+	Flags         int        `json:"flags,omitempty"`
+	SideDataElems int        `json:"side_data_elems,omitempty"`
+	Duration      int64      `json:"duration,omitempty"`
+	TimeBase      AVRational `json:"time_base,omitempty"`
+	Pos           int64      `json:"pos,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +41,7 @@ func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
 		Flags:         int(ctx.flags),
 		SideDataElems: int(ctx.side_data_elems),
 		Duration:      int64(ctx.duration),
+		TimeBase:      AVRational(ctx.time_base),
 		Pos:           int64(ctx.pos),
 	})
 }
@@ -112,6 +114,14 @@ func (ctx *AVPacket) StreamIndex() int {
 
 func (ctx *AVPacket) SetStreamIndex(index int) {
 	ctx.stream_index = C.int(index)
+}
+
+func (ctx *AVPacket) TimeBase() AVRational {
+	return AVRational(ctx.time_base)
+}
+
+func (ctx *AVPacket) SetTimeBase(tb AVRational) {
+	ctx.time_base = C.AVRational(tb)
 }
 
 func (ctx *AVPacket) Pts() int64 {
