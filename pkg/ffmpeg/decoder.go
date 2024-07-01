@@ -21,10 +21,6 @@ type Decoder struct {
 	frame    *ff.AVFrame   // Destination frame
 }
 
-// DecoderFrameFn is a function which is called to send a frame after decoding. It should
-// return nil to continue decoding or io.EOF to stop.
-type DecoderFrameFn func(int, *Frame) error
-
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -119,15 +115,7 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			return err
 		}
 
-		// Resample or resize the frame, then pass to the frame function
-		//frame, err := d.re(d.frame)
-		//if err != nil {
-		//	return err
-		//}
-
-		// Copy over the timebase and ptr from the stream
-		d.frame.SetTimeBase(d.timeBase)
-		d.frame.SetPts(d.frame.Pts())
+		// TODO: Modify Pts?
 
 		// Pass back to the caller
 		if err := fn(d.stream, (*Frame)(d.frame)); errors.Is(err, io.EOF) {
@@ -139,33 +127,12 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 
 		// Re-allocate frames for next iteration
 		ff.AVUtil_frame_unref(d.frame)
-		//		ff.AVUtil_frame_unref(d.reframe)
 	}
 
-	// Flush the resizer or resampler if we haven't received an EOF
-	/*
-		if result == nil {
-			finished := false
-			for {
-				if finished {
-					break
-				}
-				if frame, err := d.reflush(d.frame); err != nil {
-					return err
-				} else if frame == nil {
-					finished = true
-				} else if err := framefn(newFrame(frame)); errors.Is(err, io.EOF) {
-					finished = true
-				} else if err != nil {
-					return err
-				}
-
-				// Re-allocate frames for next iteration
-				ff.AVUtil_frame_unref(d.frame)
-				ff.AVUtil_frame_unref(d.reframe)
-			}
-		}
-	*/
+	// Flush
+	if err := fn(d.stream, nil); err != nil && !errors.Is(err, io.EOF) {
+		result = errors.Join(result, err)
+	}
 
 	// Return success or EOF
 	return result

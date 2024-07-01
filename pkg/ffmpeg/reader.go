@@ -35,6 +35,10 @@ type reader_callback struct {
 // stream parameters if you want to copy the stream without any changes.
 type DecoderMapFunc func(int, *Par) (*Par, error)
 
+// DecoderFrameFn is a function which is called to send a frame after decoding. It should
+// return nil to continue decoding or io.EOF to stop.
+type DecoderFrameFn func(int, *Frame) error
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 

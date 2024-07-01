@@ -90,23 +90,23 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 		}
 	}
 
-	// Copy parameters from the source frame
-	// TODO: this seems to mess with the sample rate
-	//if src != nil {
-	//	if err := r.dest.CopyPropsFromFrame(src); err != nil {
-	//		return nil, err
-	//	}
-	//}
-
 	// Perform resampling
+	fmt.Println("Do convert")
 	if err := ff.SWResample_convert_frame(r.ctx, (*ff.AVFrame)(src), (*ff.AVFrame)(r.dest)); err != nil {
 		return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
 	}
 
 	// Get remaining samples
-	if src == nil {
+	for {
 		samples := ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate()))
+		if samples <= 0 {
+			break
+		}
 		fmt.Println("TODO: SWResample_get_delay remaining samples=", samples)
+		if err := ff.SWResample_convert_frame(r.ctx, nil, (*ff.AVFrame)(r.dest)); err != nil {
+			return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
+		}
+		fmt.Println(r.dest)
 	}
 
 	// Return the destination frame or nil
@@ -135,6 +135,9 @@ func newResampler(dest, src *Frame) (*ff.SWRContext, error) {
 		ff.SWResample_free(ctx)
 		return nil, fmt.Errorf("SWResample_set_opts: %w", err)
 	}
+
+	fmt.Println("new context")
+	fmt.Println(" src", src)
 
 	// Initialize the resampling context
 	if err := ff.SWResample_init(ctx); err != nil {
