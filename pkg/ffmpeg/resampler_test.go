@@ -43,9 +43,14 @@ func Test_resampler_001(t *testing.T) {
 	}
 
 	// Flush
-	dest, err := resampler.Frame(nil)
-	if !assert.NoError(err) {
-		t.FailNow()
+	for {
+		dest, err := resampler.Frame(nil)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		t.Log("FLUSH =>", dest)
+		if dest == nil {
+			break
+		}
 	}
-	t.Log("FLUSH =>", dest)
 }

@@ -91,11 +91,12 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 	}
 
 	// Copy parameters from the source frame
-	if src != nil {
-		if err := r.dest.CopyPropsFromFrame(src); err != nil {
-			return nil, err
-		}
-	}
+	// TODO: this seems to mess with the sample rate
+	//if src != nil {
+	//	if err := r.dest.CopyPropsFromFrame(src); err != nil {
+	//		return nil, err
+	//	}
+	//}
 
 	// Perform resampling
 	if err := ff.SWResample_convert_frame(r.ctx, (*ff.AVFrame)(src), (*ff.AVFrame)(r.dest)); err != nil {
@@ -103,7 +104,8 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 	}
 
 	// Get remaining samples
-	if samples := ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate())); samples > 0 {
+	if src == nil {
+		samples := ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate()))
 		fmt.Println("TODO: SWResample_get_delay remaining samples=", samples)
 	}
 

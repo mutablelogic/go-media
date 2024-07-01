@@ -12,21 +12,12 @@ import (
 // TYPES
 
 type Frame ff.AVFrame
-type Type ff.AVMediaType
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
 	PTS_UNDEFINED = ff.AV_NOPTS_VALUE
-)
-
-const (
-	UNKNOWN  Type = Type(ff.AVMEDIA_TYPE_UNKNOWN)
-	VIDEO    Type = Type(ff.AVMEDIA_TYPE_VIDEO)
-	AUDIO    Type = Type(ff.AVMEDIA_TYPE_AUDIO)
-	DATA     Type = Type(ff.AVMEDIA_TYPE_DATA)
-	SUBTITLE Type = Type(ff.AVMEDIA_TYPE_SUBTITLE)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
