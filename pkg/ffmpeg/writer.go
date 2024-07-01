@@ -229,7 +229,7 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 	}
 	if out == nil {
 		// By default, write packet to output
-		out = func(pkt *ff.AVPacket, tb *ff.AVRational) error {
+		out = func(pkt *Packet) error {
 			return w.Write(pkt)
 		}
 	}
@@ -299,8 +299,8 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 
 // Write a packet to the output. If you intercept the packets in the
 // Encode method, then you can use this method to write packets to the output.
-func (w *Writer) Write(packet *ff.AVPacket) error {
-	return ff.AVCodec_interleaved_write_frame(w.output, packet)
+func (w *Writer) Write(packet *Packet) error {
+	return ff.AVCodec_interleaved_write_frame(w.output, (*ff.AVPacket)(packet))
 }
 
 // Returns -1 if a is before v

@@ -21,7 +21,19 @@ type RGB24 struct {
 var _ image.Image = (*RGB24)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
-// TYPES
+// LIFECYCLE
+
+func NewRGB24(r image.Rectangle) *RGB24 {
+	w, h := r.Dx(), r.Dy()
+	return &RGB24{
+		Pix:    make([]uint8, 3*w*h),
+		Stride: 3 * w,
+		Rect:   r,
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
 // ColorModel returns RGB color model.
 func (p *RGB24) ColorModel() color.Model {
@@ -36,6 +48,17 @@ func (p *RGB24) Bounds() image.Rectangle {
 // At implements image.Image.At
 func (p *RGB24) At(x, y int) color.Color {
 	return p.RGBAAt(x, y)
+}
+
+func (p *RGB24) Set(x, y int, c color.Color) {
+	if !(image.Point{x, y}.In(p.Rect)) {
+		return
+	}
+	i := (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)*3
+	r, g, b, _ := c.RGBA()
+	p.Pix[i+0] = uint8(r >> 8)
+	p.Pix[i+1] = uint8(g >> 8)
+	p.Pix[i+2] = uint8(b >> 8)
 }
 
 // RGBAAt returns the color of the pixel at (x, y) as RGBA.

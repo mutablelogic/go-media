@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"errors"
 
 	// Packages
@@ -79,6 +80,14 @@ func (frame *Frame) Close() error {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (frame *Frame) String() string {
+	data, _ := json.MarshalIndent((*ff.AVFrame)(frame), "", "  ")
+	return string(data)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - FRAME
 
 // Allocate buffers for the frame
@@ -101,9 +110,8 @@ func (frame *Frame) CopyPropsFromFrame(other *Frame) error {
 	return ff.AVUtil_frame_copy_props((*ff.AVFrame)(frame), (*ff.AVFrame)(other))
 }
 
-// Return frame type - AUDIO or VIDEO
-// other types are not yet identified
-// and returned as UNKNOWN
+// Return frame type - AUDIO or VIDEO. Other types are not yet
+// identified and returned as UNKNOWN
 func (frame *Frame) Type() Type {
 	switch {
 	case frame.SampleRate() > 0 && frame.SampleFormat() != ff.AV_SAMPLE_FMT_NONE:
@@ -245,6 +253,8 @@ func (frame *Frame) matchesResampleResize(other *Frame) bool {
 		if frame.Width() != other.Width() || frame.Height() != other.Height() {
 			return false
 		}
+		// We don't need to check the SampleAspectRatio, TimeBase or FrameRate
+		// for the purposes of resampling or resizing
 		return true
 	default:
 		return false

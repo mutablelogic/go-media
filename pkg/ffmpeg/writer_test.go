@@ -4,11 +4,9 @@ import (
 	"io"
 	"os"
 	"testing"
-	"time"
 
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -50,7 +48,7 @@ func Test_writer_001(t *testing.T) {
 			t.Log("Frame", frame.Ts())
 			return frame, nil
 		}
-	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
+	}, func(packet *ffmpeg.Packet) error {
 		if packet != nil {
 			t.Log("Packet", packet)
 		}
@@ -96,7 +94,7 @@ func Test_writer_002(t *testing.T) {
 			t.Log("Frame ", frame.Ts())
 			return frame, nil
 		}
-	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
+	}, func(packet *ffmpeg.Packet) error {
 		if packet != nil {
 			t.Log("Packet", packet)
 		}
@@ -142,10 +140,9 @@ func Test_writer_003(t *testing.T) {
 			t.Log("Frame", stream, "=>", frame.Ts())
 			return frame, nil
 		}
-	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
+	}, func(packet *ffmpeg.Packet) error {
 		if packet != nil {
-			d := time.Duration(ff.AVUtil_rational_q2d(packet.TimeBase()) * float64(packet.Pts()) * float64(time.Second))
-			t.Log("Packet", d.Truncate(time.Millisecond))
+			t.Log("Packet", packet.Ts())
 		}
 		return writer.Write(packet)
 	}))

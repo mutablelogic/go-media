@@ -35,7 +35,7 @@ type EncoderFrameFn func(int) (*Frame, error)
 
 // EncoderPacketFn is a function which is called for each packet encoded, with
 // the stream timebase.
-type EncoderPacketFn func(*ff.AVPacket, *ff.AVRational) error
+type EncoderPacketFn func(*Packet) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -199,8 +199,6 @@ func (e *Encoder) nextPts(frame *Frame) int64 {
 // PRIVATE METHODS
 
 func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
-	timebase := e.stream.TimeBase()
-
 	// Send the frame to the encoder
 	if err := ff.AVCodec_send_frame(e.ctx, (*ff.AVFrame)(frame)); err != nil {
 		return err
@@ -223,7 +221,7 @@ func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 		e.packet.SetTimeBase(e.stream.TimeBase())
 
 		// Pass back to the caller
-		if err := fn(e.packet, &timebase); errors.Is(err, io.EOF) {
+		if err := fn((*Packet)(e.packet)); errors.Is(err, io.EOF) {
 			// End early, return EOF
 			result = io.EOF
 			break
@@ -235,9 +233,9 @@ func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 		ff.AVCodec_packet_unref(e.packet)
 	}
 
-	// Flush
+	// Flush packet
 	if result == nil {
-		result = fn(nil, &timebase)
+		result = fn(nil)
 	}
 
 	// Return success or EOF

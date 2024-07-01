@@ -12,13 +12,14 @@ import (
 // TYPES
 
 type rescaler struct {
+	ctx   *ff.SWSContext
+	flags ff.SWSFlag
+	force bool
+	dest  *Frame
+
 	src_pix_fmt ff.AVPixelFormat
 	src_width   int
 	src_height  int
-	ctx         *ff.SWSContext
-	flags       ff.SWSFlag
-	force       bool
-	dest        *ff.AVFrame
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,54 +31,33 @@ func NewRescaler(par *Par, force bool) (*rescaler, error) {
 	rescaler := new(rescaler)
 
 	// Check parameters
-	if par == nil || par.CodecType() != ff.AVMEDIA_TYPE_AUDIO {
+	if par == nil || par.CodecType() != ff.AVMEDIA_TYPE_VIDEO {
 		return nil, errors.New("invalid codec type")
 	}
-	if par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
-		return nil, errors.New("invalid sample format parameters")
+	if par.PixelFormat() == ff.AV_PIX_FMT_NONE {
+		return nil, errors.New("invalid pixel format parameters")
 	}
-	ch := par.ChannelLayout()
-	if !ff.AVUtil_channel_layout_check(&ch) {
-		return nil, errors.New("invalid channel layout parameters")
-	}
-
-	// Apply options
-	options.par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
-	options.par.SetPixelFormat(format)
-	options.par.SetWidth(640)
-	options.par.SetHeight(480)
-	for _, o := range opt {
-		if err := o(options); err != nil {
-			return nil, err
-		}
-	}
-
-	// Check parameters
-	if options.par.PixelFormat() == ff.AV_PIX_FMT_NONE {
-		return nil, errors.New("invalid parameters")
+	if par.Width() == 0 || par.Height() == 0 {
+		return nil, errors.New("invalid width or height parameters")
 	}
 
 	// Create a destimation frame
-	dest := ff.AVUtil_frame_alloc()
-	if dest == nil {
-		return nil, errors.New("failed to allocate frame")
+	dest, err := NewFrame(par)
+	if err != nil {
+		return nil, err
 	}
 
-	// Set force flag
-	rescaler.force = options.force
-
 	// Set parameters
-	dest.SetPixFmt(options.par.PixelFormat())
-	dest.SetWidth(options.par.Width())
-	dest.SetHeight(options.par.Height())
+	rescaler.dest = dest
+	rescaler.force = force
+	rescaler.flags = ff.SWS_POINT
 
 	// Allocate buffer
-	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {
-		ff.AVUtil_frame_free(dest)
-		return nil, err
+	if err := dest.AllocateBuffers(); err != nil {
+		return nil, errors.Join(err, dest.Close())
 	} else {
 		rescaler.dest = dest
-		rescaler.flags = ff.SWS_POINT
+
 	}
 
 	// Return success
@@ -88,59 +68,56 @@ func NewRescaler(par *Par, force bool) (*rescaler, error) {
 func (r *rescaler) Close() error {
 	if r.ctx != nil {
 		ff.SWScale_free_context(r.ctx)
-		r.ctx = nil
 	}
-	if r.dest != nil {
-		ff.AVUtil_frame_free(r.dest)
-		r.dest = nil
-	}
-	return nil
+	result := r.dest.Close()
+	r.dest = nil
+	r.ctx = nil
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // Scale the source image and return the destination image
-func (r *rescaler) Frame(src *ff.AVFrame) (*ff.AVFrame, error) {
-	// If source is null then return null (no flushing)
+func (r *rescaler) Frame(src *Frame) (*Frame, error) {
+	// If source is null then return null (no flushing needed)
+	// or return the same frame if it matches the destination format
+	// and force is not set
 	if src == nil {
 		return nil, nil
-	}
-
-	// Simply return the frame if it matches the destination format
-	if matchesVideoFormat(src, r.dest) && !r.force {
+	} else if src.matchesResampleResize(r.dest) && !r.force {
 		return src, nil
 	}
 
 	// Allocate a context
-	if r.ctx == nil || r.src_pix_fmt != src.PixFmt() || r.src_width != src.Width() || r.src_height != src.Height() {
+	if r.ctx == nil || r.src_pix_fmt != src.PixelFormat() || r.src_width != src.Width() || r.src_height != src.Height() {
 		// Release existing scaling context, if any
 		if r.ctx != nil {
 			ff.SWScale_free_context(r.ctx)
 		}
 		// Create a new scaling context
 		ctx := ff.SWScale_get_context(
-			src.Width(), src.Height(), src.PixFmt(), // source
-			r.dest.Width(), r.dest.Height(), r.dest.PixFmt(), // destination
+			src.Width(), src.Height(), src.PixelFormat(), // source
+			r.dest.Width(), r.dest.Height(), r.dest.PixelFormat(), // destination
 			r.flags, nil, nil, nil,
 		)
 		if ctx == nil {
 			return nil, errors.New("failed to allocate swscale context")
 		} else {
 			r.ctx = ctx
-			r.src_pix_fmt = src.PixFmt()
+			r.src_pix_fmt = src.PixelFormat()
 			r.src_width = src.Width()
 			r.src_height = src.Height()
 		}
 	}
 
-	// Rescale the image
-	if err := ff.SWScale_scale_frame(r.ctx, r.dest, src, false); err != nil {
+	// Copy parameters from the source frame
+	if err := r.dest.CopyPropsFromFrame(src); err != nil {
 		return nil, err
 	}
 
-	// Copy parameters from the source frame
-	if err := ff.AVUtil_frame_copy_props(r.dest, src); err != nil {
+	// Rescale the image
+	if err := ff.SWScale_scale_frame(r.ctx, (*ff.AVFrame)(r.dest), (*ff.AVFrame)(src), false); err != nil {
 		return nil, err
 	}
 
@@ -150,12 +127,3 @@ func (r *rescaler) Frame(src *ff.AVFrame) (*ff.AVFrame, error) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-// Returns true if the pixel format, width and height of the source
-// and destination frames match
-func matchesVideoFormat(src, dest *ff.AVFrame) bool {
-	if src.PixFmt() == dest.PixFmt() && src.Width() == dest.Width() && src.Height() == dest.Height() {
-		return true
-	}
-	return false
-}
