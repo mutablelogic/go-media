@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -42,14 +41,14 @@ func Test_writer_001(t *testing.T) {
 	defer audio.Close()
 
 	// Write 15 mins of frames
-	duration := 60 * time.Minute
-	assert.NoError(writer.Encode(func(stream int) (*ff.AVFrame, error) {
+	duration := float64(15 * 60)
+	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
-		if frame.Time() >= duration {
+		if frame.Ts() >= duration {
 			return nil, io.EOF
 		} else {
-			t.Log("Frame s", frame.Time().Truncate(time.Millisecond))
-			return frame.(*ffmpeg.Frame).AVFrame(), nil
+			t.Log("Frame", frame.Ts())
+			return frame, nil
 		}
 	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
 		if packet != nil {
@@ -88,14 +87,14 @@ func Test_writer_002(t *testing.T) {
 	defer audio.Close()
 
 	// Write 15 mins of frames
-	duration := 15 * time.Minute
-	assert.NoError(writer.Encode(func(stream int) (*ff.AVFrame, error) {
+	duration := float64(15 * 60)
+	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
-		if frame.Time() >= duration {
+		if frame.Ts() >= duration {
 			return nil, io.EOF
 		} else {
-			t.Log("Frame s", frame.Time().Truncate(time.Millisecond))
-			return frame.(*ffmpeg.Frame).AVFrame(), nil
+			t.Log("Frame ", frame.Ts())
+			return frame, nil
 		}
 	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
 		if packet != nil {
@@ -134,14 +133,14 @@ func Test_writer_003(t *testing.T) {
 	defer video.Close()
 
 	// Write 1 min of frames
-	duration := time.Minute
-	assert.NoError(writer.Encode(func(stream int) (*ff.AVFrame, error) {
+	duration := float64(60)
+	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
 		frame := video.Frame()
-		if frame.Time() >= duration {
+		if frame.Ts() >= duration {
 			return nil, io.EOF
 		} else {
-			t.Log("Frame", stream, "=>", frame.Time().Truncate(time.Millisecond))
-			return frame.(*ffmpeg.Frame).AVFrame(), nil
+			t.Log("Frame", stream, "=>", frame.Ts())
+			return frame, nil
 		}
 	}, func(packet *ff.AVPacket, timebase *ff.AVRational) error {
 		if packet != nil {
@@ -188,21 +187,21 @@ func Test_writer_004(t *testing.T) {
 	}
 
 	// Write 10 secs of frames
-	duration := time.Minute * 10
-	assert.NoError(writer.Encode(func(stream int) (*ff.AVFrame, error) {
-		var frame media.Frame
+	duration := float64(10)
+	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
+		var frame *ffmpeg.Frame
 		switch stream {
 		case 1:
 			frame = video.Frame()
 		case 2:
 			frame = audio.Frame()
 		}
-		if frame.Time() >= duration {
-			t.Log("Frame time is EOF", frame.Time())
+		if frame.Ts() >= duration {
+			t.Log("Frame time is EOF", frame.Ts())
 			return nil, io.EOF
 		} else {
-			t.Log("Frame", stream, "=>", frame.Time().Truncate(time.Millisecond))
-			return frame.(*ffmpeg.Frame).AVFrame(), nil
+			t.Log("Frame", stream, "=>", frame.Ts())
+			return frame, nil
 		}
 	}, nil))
 	t.Log("Written to", w.Name())

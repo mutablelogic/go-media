@@ -31,7 +31,7 @@ type Encoder struct {
 
 // EncoderFrameFn is a function which is called to receive a frame to encode. It should
 // return nil to continue encoding or io.EOF to stop encoding.
-type EncoderFrameFn func(int) (*ff.AVFrame, error)
+type EncoderFrameFn func(int) (*Frame, error)
 
 // EncoderPacketFn is a function which is called for each packet encoded, with
 // the stream timebase.
@@ -71,10 +71,10 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 
 	// Check codec against parameters and set defaults as needed, then
 	// copy back to codec
-	if err := par.ValidateFromCodec(encoder.ctx); err != nil {
+	if err := par.ValidateFromCodec(encoder.ctx.Codec()); err != nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, err
-	} else if err := par.CopyToCodec(encoder.ctx); err != nil {
+	} else if err := par.CopyToCodecContext(encoder.ctx); err != nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (e *Encoder) String() string {
 // Encode a frame and pass packets to the EncoderPacketFn. If the frame is nil, then
 // the encoder will flush any remaining packets. If io.EOF is returned then
 // it indicates that the encoder has ended prematurely.
-func (e *Encoder) Encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
+func (e *Encoder) Encode(frame *Frame, fn EncoderPacketFn) error {
 	if fn == nil {
 		return ErrBadParameter.With("nil fn")
 	}
@@ -180,7 +180,7 @@ func (e *Encoder) Par() *Par {
 }
 
 // Return the codec type
-func (e *Encoder) nextPts(frame *ff.AVFrame) int64 {
+func (e *Encoder) nextPts(frame *Frame) int64 {
 	next_pts := int64(0)
 	switch e.ctx.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
@@ -198,11 +198,11 @@ func (e *Encoder) nextPts(frame *ff.AVFrame) int64 {
 //////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (e *Encoder) encode(frame *ff.AVFrame, fn EncoderPacketFn) error {
+func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 	timebase := e.stream.TimeBase()
 
 	// Send the frame to the encoder
-	if err := ff.AVCodec_send_frame(e.ctx, frame); err != nil {
+	if err := ff.AVCodec_send_frame(e.ctx, (*ff.AVFrame)(frame)); err != nil {
 		return err
 	}
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	// Packages
-	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
@@ -14,7 +13,7 @@ import (
 // LIFECYCLE
 
 type yuv420p struct {
-	frame *ff.AVFrame
+	frame *ffmpeg.Frame
 }
 
 var _ Generator = (*yuv420p)(nil)
@@ -28,7 +27,7 @@ func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	yuv420p := new(yuv420p)
 
 	// Check parameters
-	if par.CodecType() != ff.AVMEDIA_TYPE_VIDEO {
+	if par.Type() != ffmpeg.VIDEO {
 		return nil, errors.New("invalid codec type")
 	} else if par.PixelFormat() != ff.AV_PIX_FMT_YUV420P {
 		return nil, errors.New("invalid pixel format, only yuv420p is supported")
@@ -39,34 +38,28 @@ func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	}
 
 	// Create a frame
-	frame := ff.AVUtil_frame_alloc()
-	if frame == nil {
-		return nil, errors.New("failed to allocate frame")
+	frame, err := ffmpeg.NewFrame(par)
+	if err != nil {
+		return nil, err
 	}
-
-	frame.SetPixFmt(par.PixelFormat())
-	frame.SetWidth(par.Width())
-	frame.SetHeight(par.Height())
-	frame.SetSampleAspectRatio(par.SampleAspectRatio())
-	frame.SetTimeBase(ff.AVUtil_rational_invert(par.Framerate()))
-	frame.SetPts(ff.AV_NOPTS_VALUE)
 
 	// Allocate buffer
-	if err := ff.AVUtil_frame_get_buffer(frame, false); err != nil {
-		return nil, err
-	} else {
-		yuv420p.frame = frame
+	if err := frame.AllocateBuffers(); err != nil {
+		return nil, errors.Join(err, frame.Close())
 	}
+
+	// Set parameters
+	yuv420p.frame = frame
 
 	// Return success
 	return yuv420p, nil
 }
 
-// Free resources
+// Free resources for the generator
 func (yuv420p *yuv420p) Close() error {
-	ff.AVUtil_frame_free(yuv420p.frame)
+	result := yuv420p.frame.Close()
 	yuv420p.frame = nil
-	return nil
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -81,22 +74,23 @@ func (yuv420p *yuv420p) String() string {
 // PUBLIC METHODS
 
 // Return the first and subsequent frames of raw video data
-func (yuv420p *yuv420p) Frame() media.Frame {
-	if err := ff.AVUtil_frame_make_writable(yuv420p.frame); err != nil {
+func (yuv420p *yuv420p) Frame() *ffmpeg.Frame {
+	// Make a writable copy if the frame is not writable
+	if err := yuv420p.frame.MakeWritable(); err != nil {
 		return nil
 	}
 
 	// Set the Pts
-	if yuv420p.frame.Pts() == ff.AV_NOPTS_VALUE {
+	if yuv420p.frame.Pts() == ffmpeg.PTS_UNDEFINED {
 		yuv420p.frame.SetPts(0)
 	} else {
-		yuv420p.frame.SetPts(yuv420p.frame.Pts() + 1)
+		yuv420p.frame.IncPts(1)
 	}
 
 	/* Y */
 	n := int(yuv420p.frame.Pts())
 	yplane := yuv420p.frame.Bytes(0)
-	ystride := yuv420p.frame.Linesize(0)
+	ystride := yuv420p.frame.Stride(0)
 	for y := 0; y < yuv420p.frame.Height(); y++ {
 		for x := 0; x < yuv420p.frame.Width(); x++ {
 			yplane[y*ystride+x] = byte(x + y + n*3)
@@ -106,7 +100,7 @@ func (yuv420p *yuv420p) Frame() media.Frame {
 	/* Cb and Cr */
 	cbplane := yuv420p.frame.Bytes(1)
 	crplane := yuv420p.frame.Bytes(2)
-	cstride := yuv420p.frame.Linesize(1)
+	cstride := yuv420p.frame.Stride(1)
 	for y := 0; y < yuv420p.frame.Height()>>1; y++ {
 		for x := 0; x < yuv420p.frame.Width()>>1; x++ {
 			cbplane[y*cstride+x] = byte(128 + y + n*2)
@@ -115,5 +109,5 @@ func (yuv420p *yuv420p) Frame() media.Frame {
 	}
 
 	// Return the frame
-	return ffmpeg.NewFrame(yuv420p.frame, 0)
+	return yuv420p.frame
 }

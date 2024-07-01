@@ -265,7 +265,7 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 			}
 		}
 
-		var frame *ff.AVFrame
+		var frame *Frame
 		var err error
 
 		// Receive a frame if not EOF

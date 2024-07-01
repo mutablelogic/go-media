@@ -26,9 +26,20 @@ type rescaler struct {
 
 // Create a new rescaler which will rescale the input frame to the
 // specified format, width and height.
-func NewRescaler(format ff.AVPixelFormat, opt ...Opt) (*rescaler, error) {
-	options := newOpts()
+func NewRescaler(par *Par, force bool) (*rescaler, error) {
 	rescaler := new(rescaler)
+
+	// Check parameters
+	if par == nil || par.CodecType() != ff.AVMEDIA_TYPE_AUDIO {
+		return nil, errors.New("invalid codec type")
+	}
+	if par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
+		return nil, errors.New("invalid sample format parameters")
+	}
+	ch := par.ChannelLayout()
+	if !ff.AVUtil_channel_layout_check(&ch) {
+		return nil, errors.New("invalid channel layout parameters")
+	}
 
 	// Apply options
 	options.par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
