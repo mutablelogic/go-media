@@ -51,7 +51,7 @@ func Test_yuv420p_003(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		img, err := image.Frame().Image()
+		img, err := image.Frame().ImageFromFrame()
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
