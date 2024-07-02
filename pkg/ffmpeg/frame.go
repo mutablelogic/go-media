@@ -2,250 +2,253 @@ package ffmpeg
 
 import (
 	"encoding/json"
-	"image"
-	"time"
+	"errors"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	imagex "github.com/mutablelogic/go-media/pkg/image"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Frame struct {
-	ctx    *ff.AVFrame
-	stream int
-}
+type Frame ff.AVFrame
 
-var (
-	yuvSubsampleRatio = map[ff.AVPixelFormat]image.YCbCrSubsampleRatio{
-		ff.AV_PIX_FMT_YUV410P: image.YCbCrSubsampleRatio410,
-		ff.AV_PIX_FMT_YUV411P: image.YCbCrSubsampleRatio410,
-		ff.AV_PIX_FMT_YUV420P: image.YCbCrSubsampleRatio420,
-		ff.AV_PIX_FMT_YUV422P: image.YCbCrSubsampleRatio422,
-		ff.AV_PIX_FMT_YUV440P: image.YCbCrSubsampleRatio420,
-		ff.AV_PIX_FMT_YUV444P: image.YCbCrSubsampleRatio444,
-	}
-	yuvaSubsampleRatio = map[ff.AVPixelFormat]image.YCbCrSubsampleRatio{
-		ff.AV_PIX_FMT_YUVA420P: image.YCbCrSubsampleRatio420,
-		ff.AV_PIX_FMT_YUVA422P: image.YCbCrSubsampleRatio422,
-		ff.AV_PIX_FMT_YUVA444P: image.YCbCrSubsampleRatio444,
-	}
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	PTS_UNDEFINED = ff.AV_NOPTS_VALUE
 )
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewFrame(ctx *ff.AVFrame, stream int) *Frame {
-	return &Frame{ctx, stream}
+// Create a new frame and optionally set audio or video parameters
+func NewFrame(par *Par) (*Frame, error) {
+	frame := ff.AVUtil_frame_alloc()
+	if frame == nil {
+		return nil, errors.New("failed to allocate frame")
+	}
+
+	// If parameters are nil, then return the frame
+	if par == nil {
+		return (*Frame)(frame), nil
+	}
+
+	// Set parameters
+	switch par.CodecType() {
+	case ff.AVMEDIA_TYPE_AUDIO:
+		frame.SetSampleFormat(par.SampleFormat())
+		if err := frame.SetChannelLayout(par.ChannelLayout()); err != nil {
+			ff.AVUtil_frame_free(frame)
+			return nil, err
+		}
+		frame.SetSampleRate(par.Samplerate())
+		frame.SetNumSamples(par.FrameSize())
+		frame.SetTimeBase(ff.AVUtil_rational(1, par.Samplerate()))
+	case ff.AVMEDIA_TYPE_VIDEO:
+		frame.SetPixFmt(par.PixelFormat())
+		frame.SetWidth(par.Width())
+		frame.SetHeight(par.Height())
+		frame.SetSampleAspectRatio(par.SampleAspectRatio())
+		frame.SetTimeBase(ff.AVUtil_rational_invert(par.Framerate()))
+	default:
+		ff.AVUtil_frame_free(frame)
+		return nil, errors.New("invalid codec type")
+	}
+
+	// Clear Pts
+	frame.SetPts(ff.AV_NOPTS_VALUE)
+
+	// Return success
+	return (*Frame)(frame), nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// Release frame resources
+func (frame *Frame) Close() error {
+	ff.AVUtil_frame_free((*ff.AVFrame)(frame))
+	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (frame *Frame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(frame.ctx)
-}
-
 func (frame *Frame) String() string {
-	data, _ := json.MarshalIndent(frame, "", "  ")
+	data, _ := json.MarshalIndent((*ff.AVFrame)(frame), "", "  ")
 	return string(data)
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// PARAMETERS
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - FRAME
 
-// Return the context
-func (frame *Frame) AVFrame() *ff.AVFrame {
-	return frame.ctx
+// Allocate buffers for the frame
+func (frame *Frame) AllocateBuffers() error {
+	return ff.AVUtil_frame_get_buffer((*ff.AVFrame)(frame), false)
 }
 
-// Return the media type (AUDIO, VIDEO)
-func (frame *Frame) Type() media.MediaType {
-	if frame.ctx.NumSamples() > 0 {
+// Make the frame writable
+func (frame *Frame) MakeWritable() error {
+	return ff.AVUtil_frame_make_writable((*ff.AVFrame)(frame))
+}
+
+// Unreference frame buffers
+func (frame *Frame) Unref() {
+	ff.AVUtil_frame_unref((*ff.AVFrame)(frame))
+}
+
+// Copy properties from another frame
+func (frame *Frame) CopyPropsFromFrame(other *Frame) error {
+	return ff.AVUtil_frame_copy_props((*ff.AVFrame)(frame), (*ff.AVFrame)(other))
+}
+
+// Return frame type - AUDIO or VIDEO. Other types are not yet
+// identified and returned as UNKNOWN
+func (frame *Frame) Type() media.Type {
+	switch {
+	case frame.SampleRate() > 0 && frame.SampleFormat() != ff.AV_SAMPLE_FMT_NONE:
 		return media.AUDIO
-	}
-	if frame.ctx.Width() != 0 && frame.ctx.Height() != 0 {
+	case frame.Width() > 0 && frame.Height() > 0 && frame.PixelFormat() != ff.AV_PIX_FMT_NONE:
 		return media.VIDEO
-	}
-	return media.NONE
-}
-
-// Return the stream
-func (frame *Frame) Id() int {
-	return frame.stream
-}
-
-// Return the timestamp as a duration, or minus one if not set
-func (frame *Frame) Time() time.Duration {
-	pts := frame.ctx.Pts()
-	if pts == ff.AV_NOPTS_VALUE {
-		return -1
-	}
-	if frame.ctx.TimeBase().Den() == 0 {
-		return -1
-	}
-	return secondsToDuration(float64(pts) * ff.AVUtil_rational_q2d(frame.ctx.TimeBase()))
-}
-
-// Return the number of planes for a specific PixelFormat
-// or SampleFormat and ChannelLayout combination
-func (frame *Frame) NumPlanes() int {
-	return ff.AVUtil_frame_get_num_planes(frame.ctx)
-}
-
-// Return the byte data for a plane
-func (frame *Frame) Bytes(plane int) []byte {
-	return frame.ctx.Bytes(plane)[:frame.ctx.Planesize(plane)]
-}
-
-// Return the int16 data for a plane
-func (frame *Frame) Int16(plane int) []int16 {
-	sz := frame.ctx.Planesize(plane) >> 1
-	return frame.ctx.Int16(plane)[:sz]
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// AUDIO PARAMETERS
-
-// Return number of samples
-func (frame *Frame) NumSamples() int {
-	if frame.Type() != media.AUDIO {
-		return 0
-	}
-	return frame.ctx.NumSamples()
-}
-
-// Return channel layout
-func (frame *Frame) ChannelLayout() string {
-	if frame.Type() != media.AUDIO {
-		return ""
-	}
-	ch := frame.ctx.ChannelLayout()
-	if name, err := ff.AVUtil_channel_layout_describe(&ch); err != nil {
-		return ""
-	} else {
-		return name
-	}
-}
-
-// Return the sample format
-func (frame *Frame) SampleFormat() string {
-	if frame.Type() != media.AUDIO {
-		return ""
-	}
-	return ff.AVUtil_get_sample_fmt_name(frame.ctx.SampleFormat())
-}
-
-// Return the sample rate (Hz)
-func (frame *Frame) Samplerate() int {
-	if frame.Type() != media.AUDIO {
-		return 0
-	}
-	return frame.ctx.SampleRate()
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// VIDEO PARAMETERS
-
-// Convert a frame into an image
-func (frame *Frame) Image() (image.Image, error) {
-	if t := frame.Type(); t != media.VIDEO {
-		return nil, ErrBadParameter.With("unsupported frame type", t)
-	}
-	pixel_format := frame.ctx.PixFmt()
-	switch pixel_format {
-	case ff.AV_PIX_FMT_GRAY8:
-		return &image.Gray{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	case ff.AV_PIX_FMT_RGBA:
-		return &image.RGBA{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
-	case ff.AV_PIX_FMT_RGB24:
-		return &imagex.RGB24{
-			Pix:    frame.Bytes(0),
-			Stride: frame.Stride(0),
-			Rect:   image.Rect(0, 0, frame.Width(), frame.Height()),
-		}, nil
 	default:
-		if ratio, exists := yuvSubsampleRatio[pixel_format]; exists {
-			return &image.YCbCr{
-				Y:              frame.Bytes(0),
-				Cb:             frame.Bytes(1),
-				Cr:             frame.Bytes(2),
-				YStride:        frame.Stride(0),
-				CStride:        frame.Stride(1),
-				SubsampleRatio: ratio,
-				Rect:           image.Rect(0, 0, frame.Width(), frame.Height()),
-			}, nil
-		}
-		if ratio, exists := yuvaSubsampleRatio[pixel_format]; exists {
-			return &image.NYCbCrA{
-				YCbCr: image.YCbCr{
-					Y:              frame.Bytes(0),
-					Cb:             frame.Bytes(1),
-					Cr:             frame.Bytes(2),
-					YStride:        frame.Stride(0),
-					CStride:        frame.Stride(1),
-					SubsampleRatio: ratio,
-					Rect:           image.Rect(0, 0, frame.Width(), frame.Height()),
-				},
-				A:       frame.Bytes(3),
-				AStride: frame.Stride(3),
-			}, nil
-		}
+		return media.UNKNOWN
 	}
-	return nil, ErrNotImplemented.With("unsupported pixel format", frame.ctx.PixFmt())
 }
 
-// Return the number of bytes in a single row of the video frame
+// Return plane data as a float32 slice
+func (frame *Frame) Float32(plane int) []float32 {
+	ctx := (*ff.AVFrame)(frame)
+	return ctx.Float32(plane)
+}
+
+// Return plane data as a byte slice
+func (frame *Frame) Bytes(plane int) []byte {
+	return (*ff.AVFrame)(frame).Bytes(plane)
+}
+
+// Return the stride for a plane (number of bytes in a row)
 func (frame *Frame) Stride(plane int) int {
-	if frame.Type() == media.VIDEO {
-		return frame.ctx.Linesize(plane)
-	} else {
-		return 0
-	}
+	return (*ff.AVFrame)(frame).Linesize(plane)
 }
 
-// Return the width of the video frame
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - AUDIO PARAMETERS
+
+func (frame *Frame) SampleFormat() ff.AVSampleFormat {
+	return (*ff.AVFrame)(frame).SampleFormat()
+}
+
+func (frame *Frame) ChannelLayout() ff.AVChannelLayout {
+	return (*ff.AVFrame)(frame).ChannelLayout()
+}
+
+func (frame *Frame) SampleRate() int {
+	return (*ff.AVFrame)(frame).SampleRate()
+}
+
+func (frame *Frame) FrameSize() int {
+	return (*ff.AVFrame)(frame).NumSamples()
+}
+
+func (frame *Frame) NumSamples() int {
+	return (*ff.AVFrame)(frame).NumSamples()
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - VIDEO PARAMETERS
+
+func (frame *Frame) PixelFormat() ff.AVPixelFormat {
+	return (*ff.AVFrame)(frame).PixFmt()
+}
+
 func (frame *Frame) Width() int {
-	if frame.Type() != media.VIDEO {
-		return 0
-	}
-	return frame.ctx.Width()
+	return (*ff.AVFrame)(frame).Width()
 }
 
-// Return the height of the video frame
 func (frame *Frame) Height() int {
-	if frame.Type() != media.VIDEO {
-		return 0
-	}
-	return frame.ctx.Height()
+	return (*ff.AVFrame)(frame).Height()
 }
 
-// Return the pixel format
-func (frame *Frame) PixelFormat() string {
-	if frame.Type() != media.VIDEO {
-		return ""
-	}
-	return ff.AVUtil_get_pix_fmt_name(frame.ctx.PixFmt())
+func (frame *Frame) SampleAspectRatio() ff.AVRational {
+	return (*ff.AVFrame)(frame).SampleAspectRatio()
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+func (frame *Frame) FrameRate() ff.AVRational {
+	return ff.AVUtil_rational_invert((*ff.AVFrame)(frame).TimeBase())
+}
 
-func secondsToDuration(seconds float64) time.Duration {
-	return time.Duration(seconds * float64(time.Second))
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - TIME PARAMETERS
+
+func (frame *Frame) TimeBase() ff.AVRational {
+	return (*ff.AVFrame)(frame).TimeBase()
+}
+
+// Return the presentation timestamp in int64
+func (frame *Frame) Pts() int64 {
+	return (*ff.AVFrame)(frame).Pts()
+}
+
+// Set the presentation timestamp in int64
+func (frame *Frame) SetPts(v int64) {
+	(*ff.AVFrame)(frame).SetPts(v)
+}
+
+// Increment presentation timestamp
+func (frame *Frame) IncPts(v int64) {
+	(*ff.AVFrame)(frame).SetPts((*ff.AVFrame)(frame).Pts() + v)
+}
+
+// Return the timestamp in seconds, or PTS_UNDEFINED if the timestamp
+// is undefined or timebase is not set
+func (frame *Frame) Ts() float64 {
+	ctx := (*ff.AVFrame)(frame)
+	pts := ctx.Pts()
+	if pts == ff.AV_NOPTS_VALUE {
+		return PTS_UNDEFINED
+	}
+	tb := ctx.TimeBase()
+	if tb.Num() == 0 || tb.Den() == 0 {
+		return PTS_UNDEFINED
+	}
+	return ff.AVUtil_rational_q2d(tb) * float64(pts)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Returns true if a AUDIO or VIDEO frame matches the other frame, for
+// resampling and resizing purposes. Note does not check number of samples
+// or framerate
+func (frame *Frame) matchesResampleResize(other *Frame) bool {
+	// Match types
+	if frame.Type() != other.Type() {
+		return false
+	}
+	switch frame.Type() {
+	case media.AUDIO:
+		if frame.SampleFormat() != other.SampleFormat() {
+			return false
+		}
+		cha, chb := frame.ChannelLayout(), other.ChannelLayout()
+		if !ff.AVUtil_channel_layout_compare(&cha, &chb) {
+			return false
+		}
+		if frame.SampleRate() != other.SampleRate() {
+			return false
+		}
+		return true
+	case media.VIDEO:
+		if frame.PixelFormat() != other.PixelFormat() {
+			return false
+		}
+		if frame.Width() != other.Width() || frame.Height() != other.Height() {
+			return false
+		}
+		// We don't need to check the SampleAspectRatio, TimeBase or FrameRate
+		// for the purposes of resampling or resizing
+		return true
+	default:
+		return false
+	}
 }

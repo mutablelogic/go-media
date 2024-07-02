@@ -9,7 +9,6 @@ import (
 
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +23,7 @@ func Test_rescaler_001(t *testing.T) {
 	defer image.Close()
 
 	// Create a rescaler
-	rescaler, err := ffmpeg.NewRescaler(ff.AV_PIX_FMT_RGB24, ffmpeg.OptFrameSize("1024x768"))
+	rescaler, err := ffmpeg.NewRescaler(ffmpeg.VideoPar("rgb24", "1024x768", 25), false)
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -32,13 +31,13 @@ func Test_rescaler_001(t *testing.T) {
 
 	// Rescale ten frames
 	for i := 0; i < 10; i++ {
-		src := image.Frame().(*ffmpeg.Frame)
+		src := image.Frame()
 		if !assert.NotNil(src) {
 			t.FailNow()
 		}
 
 		// Rescale the frame
-		dest, err := rescaler.Frame(src.AVFrame())
+		dest, err := rescaler.Frame(src)
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
@@ -60,7 +59,7 @@ func Test_rescaler_002(t *testing.T) {
 	defer image.Close()
 
 	// Create a rescaler
-	rescaler, err := ffmpeg.NewRescaler(ff.AV_PIX_FMT_RGB24, ffmpeg.OptFrameSize("1024x768"))
+	rescaler, err := ffmpeg.NewRescaler(ffmpeg.VideoPar("rgb24", "1024x768", 25), false)
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -73,11 +72,11 @@ func Test_rescaler_002(t *testing.T) {
 
 	// Rescale ten frames
 	for i := 0; i < 10; i++ {
-		f := image.Frame().(*ffmpeg.Frame)
+		f := image.Frame()
 		if !assert.NotNil(f) {
 			t.FailNow()
 		}
-		src_image, err := f.Image()
+		src_image, err := f.ImageFromFrame()
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
@@ -96,14 +95,13 @@ func Test_rescaler_002(t *testing.T) {
 		t.Logf("Wrote %s", tmpfile)
 
 		// Rescale the frame
-		dest, err := rescaler.Frame(f.AVFrame())
+		dest, err := rescaler.Frame(f)
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
 
 		// Make a naive image
-		dest_frame := ffmpeg.NewFrame(dest, 0)
-		dest_image, err := dest_frame.Image()
+		dest_image, err := dest.ImageFromFrame()
 		if !assert.NoError(err) {
 			t.FailNow()
 		}

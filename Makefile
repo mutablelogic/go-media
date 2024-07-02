@@ -43,10 +43,22 @@ docker-push: docker-dep
 test: go-dep
 	@echo Test
 	@${GO} mod tidy
+	@echo ... test sys/ffmpeg61
 	@${GO} test ./sys/ffmpeg61
+	@echo ... test pkg/ffmpeg
+	@${GO} test -v ./pkg/ffmpeg
+	@echo ... test sys/chromaprint
 	@${GO} test ./sys/chromaprint
+	@echo ... test pkg/chromaprint
+	@${GO} test ./pkg/chromaprint
+	@echo ... test pkg/file
+	@${GO} test ./pkg/file
+	@echo ... test pkg/generator
+	@${GO} test ./pkg/generator
+	@echo ... test pkg/image
+	@${GO} test ./pkg/image
+	@echo ... test pkg
 	@${GO} test ./pkg/...
-	@${GO} test .
 
 container-test: go-dep
 	@echo Test
@@ -55,8 +67,6 @@ container-test: go-dep
 	@${GO} test --tags=container ./sys/chromaprint
 	@${GO} test --tags=container ./pkg/...
 	@${GO} test --tags=container .
-
-
 
 cli: go-dep mkdir
 	@echo Build media tool

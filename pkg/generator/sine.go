@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// Packages
-	media "github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
@@ -16,7 +16,7 @@ import (
 // LIFECYCLE
 
 type sine struct {
-	frame     *ff.AVFrame
+	frame     *ffmpeg.Frame
 	frequency float64 // in Hz
 	volume    float64 // in decibels
 }
@@ -27,7 +27,7 @@ var _ Generator = (*sine)(nil)
 // GLOBALS
 
 const (
-	frameDuration = 10 * time.Millisecond // Each frame is 10ms of audio
+	frameDuration = 20 * time.Millisecond // Each frame is 20ms of audio
 )
 
 ////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,7 @@ func NewSine(freq, volume float64, par *ffmpeg.Par) (*sine, error) {
 	sine := new(sine)
 
 	// Check parameters
-	if par.CodecType() != ff.AVMEDIA_TYPE_AUDIO {
+	if par.Type() != media.AUDIO {
 		return nil, errors.New("invalid codec type")
 	} else if par.ChannelLayout().NumChannels() != 1 {
 		return nil, errors.New("invalid channel layout, only mono is supported")
@@ -61,28 +61,20 @@ func NewSine(freq, volume float64, par *ffmpeg.Par) (*sine, error) {
 	}
 
 	// Create a frame
-	frame := ff.AVUtil_frame_alloc()
-	if frame == nil {
-		return nil, errors.New("failed to allocate frame")
-	}
-
-	frame.SetSampleFormat(ff.AV_SAMPLE_FMT_FLT) // float32
-	if err := frame.SetChannelLayout(ff.AV_CHANNEL_LAYOUT_MONO); err != nil {
+	frame, err := ffmpeg.NewFrame(par)
+	if err != nil {
 		return nil, err
 	}
-	frame.SetSampleRate(par.Samplerate())
-	frame.SetNumSamples(par.FrameSize())
-	frame.SetTimeBase(ff.AVUtil_rational(1, par.Samplerate()))
-	frame.SetPts(ff.AV_NOPTS_VALUE)
 
 	// Allocate buffer
-	if err := ff.AVUtil_frame_get_buffer(frame, false); err != nil {
-		return nil, err
-	} else {
-		sine.frame = frame
-		sine.frequency = freq
-		sine.volume = volume
+	if err := frame.AllocateBuffers(); err != nil {
+		return nil, errors.Join(err, frame.Close())
 	}
+
+	// Set parameters
+	sine.frame = frame
+	sine.frequency = freq
+	sine.volume = volume
 
 	// Return success
 	return sine, nil
@@ -90,9 +82,9 @@ func NewSine(freq, volume float64, par *ffmpeg.Par) (*sine, error) {
 
 // Free resources for the generator
 func (s *sine) Close() error {
-	ff.AVUtil_frame_free(s.frame)
+	result := s.frame.Close()
 	s.frame = nil
-	return nil
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -107,20 +99,21 @@ func (s *sine) String() string {
 // PUBLIC METHODS
 
 // Return the first and subsequent frames of raw audio data
-func (s *sine) Frame() media.Frame {
-	if err := ff.AVUtil_frame_make_writable(s.frame); err != nil {
+func (s *sine) Frame() *ffmpeg.Frame {
+	// Make a writable copy if the frame is not writable
+	if err := s.frame.MakeWritable(); err != nil {
 		return nil
 	}
 
 	// Set the Pts
-	if s.frame.Pts() == ff.AV_NOPTS_VALUE {
+	if s.frame.Pts() == ffmpeg.PTS_UNDEFINED {
 		s.frame.SetPts(0)
 	} else {
-		s.frame.SetPts(s.frame.Pts() + int64(s.frame.NumSamples()))
+		s.frame.IncPts(int64(s.frame.NumSamples()))
 	}
 
 	// Calculate current phase and volume
-	t := ff.AVUtil_rational_q2d(s.frame.TimeBase()) * float64(s.frame.Pts())
+	t := s.frame.Ts() // Timestamp in seconds
 	volume := math.Pow(10, s.volume/20.0)
 	data := s.frame.Float32(0)
 
@@ -131,5 +124,5 @@ func (s *sine) Frame() media.Frame {
 	}
 
 	// Return the frame
-	return ffmpeg.NewFrame(s.frame, 0)
+	return s.frame
 }

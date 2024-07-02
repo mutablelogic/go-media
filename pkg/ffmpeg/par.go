@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -130,8 +131,23 @@ func (ctx *Par) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (ctx *Par) ValidateFromCodec(codec *ff.AVCodecContext) error {
-	switch codec.Codec().Type() {
+func (ctx *Par) Type() media.Type {
+	switch ctx.CodecType() {
+	case ff.AVMEDIA_TYPE_AUDIO:
+		return media.AUDIO
+	case ff.AVMEDIA_TYPE_VIDEO:
+		return media.VIDEO
+	case ff.AVMEDIA_TYPE_SUBTITLE:
+		return media.SUBTITLE
+	case ff.AVMEDIA_TYPE_DATA:
+		return media.DATA
+	default:
+		return media.UNKNOWN
+	}
+}
+
+func (ctx *Par) ValidateFromCodec(codec *ff.AVCodec) error {
+	switch codec.Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		return ctx.validateAudioCodec(codec)
 	case ff.AVMEDIA_TYPE_VIDEO:
@@ -140,7 +156,7 @@ func (ctx *Par) ValidateFromCodec(codec *ff.AVCodecContext) error {
 	return nil
 }
 
-func (ctx *Par) CopyToCodec(codec *ff.AVCodecContext) error {
+func (ctx *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
 	switch codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		return ctx.copyAudioCodec(codec)
@@ -162,10 +178,10 @@ func (ctx *Par) copyAudioCodec(codec *ff.AVCodecContext) error {
 	return nil
 }
 
-func (ctx *Par) validateAudioCodec(codec *ff.AVCodecContext) error {
-	sampleformats := codec.Codec().SampleFormats()
-	samplerates := codec.Codec().SupportedSamplerates()
-	channellayouts := codec.Codec().ChannelLayouts()
+func (ctx *Par) validateAudioCodec(codec *ff.AVCodec) error {
+	sampleformats := codec.SampleFormats()
+	samplerates := codec.SupportedSamplerates()
+	channellayouts := codec.ChannelLayouts()
 
 	// First we set params from the codec which are not already set
 	if ctx.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
@@ -230,9 +246,9 @@ func (ctx *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
 	return nil
 }
 
-func (ctx *Par) validateVideoCodec(codec *ff.AVCodecContext) error {
-	pixelformats := codec.Codec().PixelFormats()
-	framerates := codec.Codec().SupportedFramerates()
+func (ctx *Par) validateVideoCodec(codec *ff.AVCodec) error {
+	pixelformats := codec.PixelFormats()
+	framerates := codec.SupportedFramerates()
 
 	// First we set params from the codec which are not already set
 	if ctx.PixelFormat() == ff.AV_PIX_FMT_NONE {

@@ -48,7 +48,7 @@ type jsonAVFrame struct {
 }
 
 func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
-	if ctx.nb_samples > 0 {
+	if ctx.sample_rate > 0 && ctx.SampleFormat() != AV_SAMPLE_FMT_NONE {
 		// Audio
 		return json.Marshal(jsonAVFrame{
 			jsonAVAudioFrame: &jsonAVAudioFrame{
@@ -64,7 +64,7 @@ func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
 			NumPlanes:    AVUtil_frame_get_num_planes(ctx),
 			PlaneBytes:   ctx.planesizes(),
 		})
-	} else if ctx.width != 0 && ctx.height != 0 {
+	} else if ctx.width != 0 && ctx.height != 0 && ctx.PixFmt() != AV_PIX_FMT_NONE {
 		// Video
 		return json.Marshal(jsonAVFrame{
 			jsonAVVideoFrame: &jsonAVVideoFrame{
@@ -147,9 +147,9 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 	} else if frame.width != 0 && frame.height != 0 {
 		// Video
 		return AVUtil_pix_fmt_count_planes(AVPixelFormat(frame.format))
-	} else {
-		return 0
 	}
+	// Other
+	return 0
 }
 
 // Copy only "metadata" fields from src to dst, those fields that do not affect the data layout in the buffers.
@@ -265,9 +265,9 @@ func (ctx *AVFrame) Planesize(plane int) int {
 	if plane < 0 || plane >= int(C.AV_NUM_DATA_POINTERS) {
 		return 0
 	}
-	if ctx.NumSamples() > 0 {
-		return AVUtil_get_bytes_per_sample(AVSampleFormat(ctx.format)) * ctx.NumSamples()
-	} else if ctx.Height() > 0 {
+	if ctx.NumSamples() > 0 && ctx.SampleFormat() != AV_SAMPLE_FMT_NONE {
+		return AVUtil_get_bytes_per_sample(AVSampleFormat(ctx.format)) * ctx.NumSamples() * ctx.ChannelLayout().NumChannels()
+	} else if ctx.Height() > 0 && ctx.PixFmt() != AV_PIX_FMT_NONE {
 		return ctx.Linesize(plane) * ctx.Height()
 	} else {
 		return 0
@@ -292,11 +292,6 @@ func (ctx *AVFrame) planesizes() []int {
 	return planesizes
 }
 
-// Return a buffer reference to the data for a plane.
-func (ctx *AVFrame) bufferRef(plane int) *AVBufferRef {
-	return (*AVBufferRef)(C.av_frame_get_plane_buffer((*C.AVFrame)(ctx), C.int(plane)))
-}
-
 // Returns a plane as a byte array (same as uint8).
 func (ctx *AVFrame) Bytes(plane int) []byte {
 	return ctx.Uint8(plane)
@@ -304,74 +299,42 @@ func (ctx *AVFrame) Bytes(plane int) []byte {
 
 // Returns a plane as a uint8 array.
 func (ctx *AVFrame) Uint8(plane int) []uint8 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cUint8Slice(unsafe.Pointer(buf.data), C.int(buf.size))
-	}
+	return cUint8Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)))
 }
 
 // Returns a plane as a int8 array.
 func (ctx *AVFrame) Int8(plane int) []int8 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cInt8Slice(unsafe.Pointer(buf.data), C.int(buf.size))
-	}
+	return cInt8Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)))
 }
 
 // Returns a plane as a uint16 array.
 func (ctx *AVFrame) Uint16(plane int) []uint16 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cUint16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
-	}
+	return cUint16Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>1))
 }
 
 // Returns a plane as a int16 array.
 func (ctx *AVFrame) Int16(plane int) []int16 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cInt16Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>1)
-	}
+	return cInt16Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>1))
 }
 
 // Returns a plane as a uint32 array.
 func (ctx *AVFrame) Uint32(plane int) []uint32 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cUint32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
-	}
+	return cUint32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a int32 array.
 func (ctx *AVFrame) Int32(plane int) []int32 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cInt32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
-	}
+	return cInt32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a float32 array.
 func (ctx *AVFrame) Float32(plane int) []float32 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cFloat32Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>2)
-	}
+	return cFloat32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a float64 array.
 func (ctx *AVFrame) Float64(plane int) []float64 {
-	if buf := ctx.bufferRef(plane); buf == nil {
-		return nil
-	} else {
-		return cFloat64Slice(unsafe.Pointer(buf.data), C.int(buf.size)>>3)
-	}
+	return cFloat64Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>3))
 }
 
 // Returns the data as a set of planes and strides

@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/mutablelogic/go-media/pkg/ffmpeg"
 	"github.com/mutablelogic/go-media/pkg/generator"
@@ -63,7 +62,7 @@ func Test_sine_003(t *testing.T) {
 	var bytes_written int
 	for {
 		frame := sine.Frame()
-		if frame.Time() > 10*time.Second {
+		if frame.Ts() > 10.0 {
 			break
 		}
 		n, err := fh.Write(frame.Bytes(0))

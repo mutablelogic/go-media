@@ -42,12 +42,12 @@ type Manager interface {
 	// Return supported input formats which match any filter, which can be
 	// a name, extension (with preceeding period) or mimetype. The MediaType
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	InputFormats(MediaType, ...string) []Format
+	InputFormats(Type, ...string) []Format
 
 	// Return supported output formats which match any filter, which can be
 	// a name, extension (with preceeding period) or mimetype. The MediaType
 	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	OutputFormats(MediaType, ...string) []Format
+	OutputFormats(Type, ...string) []Format
 
 	// Return supported devices for a given format.
 	// Not all devices may be supported on all platforms or listed
@@ -105,7 +105,7 @@ type Device interface {
 	Description() string
 
 	// Flags indicating the type INPUT or OUTPUT, AUDIO or VIDEO
-	Type() MediaType
+	Type() Type
 
 	// Whether this is the default device
 	Default() bool
@@ -129,7 +129,7 @@ type Format interface {
 
 	// Flags indicating the type. INPUT for a demuxer or source, OUTPUT for a muxer or
 	// sink, DEVICE for a device, FILE for a file. Plus AUDIO, VIDEO, DATA, SUBTITLE.
-	Type() MediaType
+	Type() Type
 }
 
 // Media represents a media stream, which can be input or output. A new media
@@ -150,7 +150,7 @@ type Media interface {
 
 	// Return INPUT for a demuxer or source, OUTPUT for a muxer or
 	// sink, DEVICE for a device, FILE for a file or stream.
-	Type() MediaType
+	Type() Type
 
 	// Return the metadata for the media, filtering by keys if any
 	// are included. Use the "artwork" key to return only artwork.
@@ -168,7 +168,7 @@ type DecoderMapFunc func(Stream) (Parameters, error)
 // within a media file
 type Stream interface {
 	// Return AUDIO, VIDEO, SUBTITLE or DATA
-	Type() MediaType
+	Type() Type
 
 	// Return the stream parameters
 	Parameters() Parameters
@@ -195,7 +195,7 @@ type Parameters interface {
 	VideoParameters
 
 	// Return the media type (AUDIO, VIDEO, SUBTITLE, DATA)
-	Type() MediaType
+	Type() Type
 
 	// Return the stream id for encoding, or zero if not set
 	Id() int
@@ -254,14 +254,14 @@ type Codec interface {
 	Description() string
 
 	// Return the codec type (AUDIO, VIDEO, SUBTITLE, DATA, INPUT, OUTPUT)
-	Type() MediaType
+	Type() Type
 }
 
 // Packet represents a packet of demultiplexed data, or a packet
 // to be multiplexed.
 type Packet interface {
 	// The packet can be audio, video, subtitle or data.
-	Type() MediaType
+	Type() Type
 
 	// The stream identifier for the packet
 	Id() int

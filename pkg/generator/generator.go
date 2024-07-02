@@ -4,7 +4,7 @@ import (
 	"io"
 
 	// Packages
-	media "github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media/pkg/ffmpeg"
 )
 
 ////////////////////////////////////////////////////////////////////////////
@@ -14,6 +14,6 @@ import (
 type Generator interface {
 	io.Closer
 
-	// Return a generated frame
-	Frame() media.Frame
+	// Return the next generated frame
+	Frame() *ffmpeg.Frame
 }

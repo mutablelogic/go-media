@@ -13,7 +13,7 @@ import (
 
 type resampler struct {
 	ctx   *ff.SWRContext
-	dest  *ff.AVFrame
+	dest  *Frame
 	force bool
 }
 
@@ -22,50 +22,33 @@ type resampler struct {
 
 // Create a new audio resampler which will resample the input frame to the
 // specified channel layout, sample rate and sample format.
-func NewResampler(format ff.AVSampleFormat, opt ...Opt) (*resampler, error) {
-	options := newOpts()
+func NewResampler(par *Par, force bool) (*resampler, error) {
 	resampler := new(resampler)
 
-	// Apply options
-	options.par.SetCodecType(ff.AVMEDIA_TYPE_AUDIO)
-	options.par.SetSampleFormat(format)
-	options.par.SetChannelLayout(ff.AV_CHANNEL_LAYOUT_MONO)
-	options.par.SetSamplerate(44100)
-	for _, o := range opt {
-		if err := o(options); err != nil {
-			return nil, err
-		}
-	}
-
 	// Check parameters
-	if options.par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
-		return nil, errors.New("invalid sample format parameters")
+	if par == nil || par.CodecType() != ff.AVMEDIA_TYPE_AUDIO {
+		return nil, errors.New("invalid codec type")
 	}
-	ch := options.par.ChannelLayout()
+	if par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
+		return nil, errors.New("invalid sample format")
+	}
+	if par.Samplerate() <= 0 {
+		return nil, errors.New("invalid sample rate")
+	}
+	ch := par.ChannelLayout()
 	if !ff.AVUtil_channel_layout_check(&ch) {
-		return nil, errors.New("invalid channel layout parameters")
+		return nil, errors.New("invalid channel layout")
 	}
 
 	// Create a destimation frame
-	dest := ff.AVUtil_frame_alloc()
-	if dest == nil {
-		return nil, errors.New("failed to allocate frame")
-	}
-
-	// Set parameters - we don't allocate the buffer here,
-	// we do that when we have a source frame and know how
-	// large the destination frame should be
-	dest.SetSampleFormat(options.par.SampleFormat())
-	dest.SetSampleRate(options.par.Samplerate())
-	if err := dest.SetChannelLayout(options.par.ChannelLayout()); err != nil {
-		ff.AVUtil_frame_free(dest)
+	dest, err := NewFrame(par)
+	if err != nil {
 		return nil, err
-	} else {
-		resampler.dest = dest
 	}
 
-	// Set force flag
-	resampler.force = options.force
+	// Set parameters
+	resampler.dest = dest
+	resampler.force = force
 
 	// Return success
 	return resampler, nil
@@ -77,21 +60,19 @@ func (r *resampler) Close() error {
 		ff.SWResample_free(r.ctx)
 		r.ctx = nil
 	}
-	if r.dest != nil {
-		ff.AVUtil_frame_free(r.dest)
-		r.dest = nil
-	}
-	return nil
+	result := r.dest.Close()
+	r.dest = nil
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // Resample the source and return the destination
-func (r *resampler) Frame(src *ff.AVFrame) (*ff.AVFrame, error) {
+func (r *resampler) Frame(src *Frame) (*Frame, error) {
 	// Simply return the frame if it matches the destination format
 	if src != nil {
-		if matchesAudioFormat(src, r.dest) && !r.force {
+		if src.matchesResampleResize(r.dest) && !r.force {
 			return src, nil
 		}
 	}
@@ -109,50 +90,51 @@ func (r *resampler) Frame(src *ff.AVFrame) (*ff.AVFrame, error) {
 		}
 	}
 
-	// Copy parameters from the source frame
-	if src != nil {
-		if err := ff.AVUtil_frame_copy_props(r.dest, src); err != nil {
+	// Output buffer size
+	var num_samples int
+	if src == nil {
+		num_samples = int(ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate())))
+	} else {
+		delay := ff.SWResample_get_delay(r.ctx, int64(src.SampleRate())) + int64(src.NumSamples())
+		num_samples = int(ff.AVUtil_rescale_rnd(delay, int64(r.dest.SampleRate()), int64(src.SampleRate()), ff.AV_ROUND_UP))
+	}
+	if num_samples < 0 {
+		return nil, errors.New("av_rescale_rnd error")
+	}
+	if num_samples == 0 {
+		return nil, nil
+	}
+
+	// Check buffer
+	// TODO UGLY CODE ALERT
+	if r.dest.NumSamples() < num_samples {
+		sample_fmt := r.dest.SampleFormat()
+		sample_rate := r.dest.SampleRate()
+		sample_ch := r.dest.ChannelLayout()
+		r.dest.Unref()
+		(*ff.AVFrame)(r.dest).SetSampleFormat(sample_fmt)
+		(*ff.AVFrame)(r.dest).SetSampleRate(sample_rate)
+		(*ff.AVFrame)(r.dest).SetChannelLayout(sample_ch)
+		(*ff.AVFrame)(r.dest).SetNumSamples(num_samples)
+		if err := r.dest.AllocateBuffers(); err != nil {
+			ff.SWResample_free(r.ctx)
 			return nil, err
 		}
 	}
 
-	// Get remaining samples
-	if src == nil {
-		samples := ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate()))
-		fmt.Println("TODO: remaining samples=", samples)
-	}
-
 	// Perform resampling
-	if err := ff.SWResample_convert_frame(r.ctx, src, r.dest); err != nil {
+	if err := ff.SWResample_convert_frame(r.ctx, (*ff.AVFrame)(src), (*ff.AVFrame)(r.dest)); err != nil {
 		return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
 	}
 
 	// Return the destination frame or nil
-	if r.dest.NumSamples() == 0 {
-		return nil, nil
-	} else {
-		return r.dest, nil
-	}
+	return r.dest, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// Returns true if the sample format, channels and sample rate of the source
-// and destination frames match.
-func matchesAudioFormat(src, dest *ff.AVFrame) bool {
-	if src.SampleFormat() != dest.SampleFormat() {
-		return false
-	}
-	if src.SampleRate() != dest.SampleRate() {
-		return false
-	}
-	a := src.ChannelLayout()
-	b := dest.ChannelLayout()
-	return ff.AVUtil_channel_layout_compare(&a, &b)
-}
-
-func newResampler(dest, src *ff.AVFrame) (*ff.SWRContext, error) {
+func newResampler(dest, src *Frame) (*ff.SWRContext, error) {
 	// Create a new resampler
 	ctx := ff.SWResample_alloc()
 	if ctx == nil {
@@ -172,33 +154,6 @@ func newResampler(dest, src *ff.AVFrame) (*ff.SWRContext, error) {
 	if err := ff.SWResample_init(ctx); err != nil {
 		ff.SWResample_free(ctx)
 		return nil, fmt.Errorf("SWResample_init: %w", err)
-	}
-
-	sample_fmt := dest.SampleFormat()
-	sample_rate := dest.SampleRate()
-	sample_ch := dest.ChannelLayout()
-
-	// Unreference the current frame
-	ff.AVUtil_frame_unref(dest)
-
-	// Set the number of samples
-	if dest_samples, err := ff.SWResample_get_out_samples(ctx, src.NumSamples()); err != nil {
-		ff.SWResample_free(ctx)
-		return nil, fmt.Errorf("SWResample_get_out_samples: %w", err)
-	} else if dest_samples == 0 {
-		ff.SWResample_free(ctx)
-		return nil, fmt.Errorf("SWResample_get_out_samples: number of samples is zero")
-	} else {
-		dest.SetSampleFormat(sample_fmt)
-		dest.SetSampleRate(sample_rate)
-		dest.SetChannelLayout(sample_ch)
-		dest.SetNumSamples(dest_samples)
-	}
-
-	// Create buffers
-	if err := ff.AVUtil_frame_get_buffer(dest, false); err != nil {
-		ff.SWResample_free(ctx)
-		return nil, fmt.Errorf("AVUtil_frame_get_buffer: %w", err)
 	}
 
 	// Return success
