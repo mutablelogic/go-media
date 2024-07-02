@@ -14,7 +14,7 @@ import (
 type Opt func(*opts) error
 
 type opts struct {
-	// General options
+	// Resize/resample options
 	force bool
 
 	// Writer options
