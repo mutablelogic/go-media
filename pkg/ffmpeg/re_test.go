@@ -66,14 +66,14 @@ func Test_re_002(t *testing.T) {
 	assert := assert.New(t)
 
 	r, err := ffmpeg.Open("../../etc/test/sample.mp3")
-	//r, err := ffmpeg.Open("/Volumes/Drobo/Media/Music/ABBA/Gold_ Greatest Hits/01 Dancing Queen.m4a")
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer r.Close()
 
 	// Make resampler
-	re, err := ffmpeg.NewRe(ffmpeg.AudioPar("s16", "stereo", 44100), true)
+	const sampleRate = 2000
+	re, err := ffmpeg.NewRe(ffmpeg.AudioPar("s16", "mono", sampleRate), true)
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -107,6 +107,6 @@ func Test_re_002(t *testing.T) {
 		t.FailNow()
 	}
 	// Print
-	t.Log("  play with: ffplay -f s16le -ar 44100 -ac 2", w.Name())
+	t.Log("  play with: ffplay -f s16le -ar ", sampleRate, " -ac 1", w.Name())
 
 }

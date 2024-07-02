@@ -90,31 +90,45 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 		}
 	}
 
+	// Output buffer size
+	var num_samples int
+	if src == nil {
+		num_samples = int(ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate())))
+	} else {
+		delay := ff.SWResample_get_delay(r.ctx, int64(src.SampleRate())) + int64(src.NumSamples())
+		num_samples = int(ff.AVUtil_rescale_rnd(delay, int64(r.dest.SampleRate()), int64(src.SampleRate()), ff.AV_ROUND_UP))
+	}
+	if num_samples < 0 {
+		return nil, errors.New("av_rescale_rnd error")
+	}
+	if num_samples == 0 {
+		return nil, nil
+	}
+
+	// Check buffer
+	// TODO UGLY CODE ALERT
+	if r.dest.NumSamples() < num_samples {
+		sample_fmt := r.dest.SampleFormat()
+		sample_rate := r.dest.SampleRate()
+		sample_ch := r.dest.ChannelLayout()
+		r.dest.Unref()
+		(*ff.AVFrame)(r.dest).SetSampleFormat(sample_fmt)
+		(*ff.AVFrame)(r.dest).SetSampleRate(sample_rate)
+		(*ff.AVFrame)(r.dest).SetChannelLayout(sample_ch)
+		(*ff.AVFrame)(r.dest).SetNumSamples(num_samples)
+		if err := r.dest.AllocateBuffers(); err != nil {
+			ff.SWResample_free(r.ctx)
+			return nil, err
+		}
+	}
+
 	// Perform resampling
-	fmt.Println("Do convert")
 	if err := ff.SWResample_convert_frame(r.ctx, (*ff.AVFrame)(src), (*ff.AVFrame)(r.dest)); err != nil {
 		return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
 	}
 
-	// Get remaining samples
-	for {
-		samples := ff.SWResample_get_delay(r.ctx, int64(r.dest.SampleRate()))
-		if samples <= 0 {
-			break
-		}
-		fmt.Println("TODO: SWResample_get_delay remaining samples=", samples)
-		if err := ff.SWResample_convert_frame(r.ctx, nil, (*ff.AVFrame)(r.dest)); err != nil {
-			return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
-		}
-		fmt.Println(r.dest)
-	}
-
 	// Return the destination frame or nil
-	if r.dest.NumSamples() == 0 {
-		return nil, nil
-	} else {
-		return r.dest, nil
-	}
+	return r.dest, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,41 +150,10 @@ func newResampler(dest, src *Frame) (*ff.SWRContext, error) {
 		return nil, fmt.Errorf("SWResample_set_opts: %w", err)
 	}
 
-	fmt.Println("new context")
-	fmt.Println(" src", src)
-
 	// Initialize the resampling context
 	if err := ff.SWResample_init(ctx); err != nil {
 		ff.SWResample_free(ctx)
 		return nil, fmt.Errorf("SWResample_init: %w", err)
-	}
-
-	// Make a copy of the destination frame parameters
-	sample_fmt := dest.SampleFormat()
-	sample_rate := dest.SampleRate()
-	sample_ch := dest.ChannelLayout()
-
-	// Unreference the current frame
-	dest.Unref()
-
-	// Set the number of samples
-	if dest_samples, err := ff.SWResample_get_out_samples(ctx, src.NumSamples()); err != nil {
-		ff.SWResample_free(ctx)
-		return nil, fmt.Errorf("SWResample_get_out_samples: %w", err)
-	} else if dest_samples == 0 {
-		ff.SWResample_free(ctx)
-		return nil, fmt.Errorf("SWResample_get_out_samples: number of samples is zero")
-	} else {
-		(*ff.AVFrame)(dest).SetSampleFormat(sample_fmt)
-		(*ff.AVFrame)(dest).SetSampleRate(sample_rate)
-		(*ff.AVFrame)(dest).SetChannelLayout(sample_ch)
-		(*ff.AVFrame)(dest).SetNumSamples(dest_samples)
-	}
-
-	// Create buffers
-	if err := dest.AllocateBuffers(); err != nil {
-		ff.SWResample_free(ctx)
-		return nil, err
 	}
 
 	// Return success
