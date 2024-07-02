@@ -5,6 +5,7 @@ import (
 	"image"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	imagex "github.com/mutablelogic/go-media/pkg/image"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
@@ -60,7 +61,7 @@ func FrameFromImage(src image.Image) (*Frame, error) {
 // until the image is no longer required, but the image can be discarded
 // TODO: Add a copy flag which copies the memory?
 func (frame *Frame) ImageFromFrame() (image.Image, error) {
-	if frame.Type() != VIDEO {
+	if frame.Type() != media.VIDEO {
 		return nil, ErrBadParameter.With("unsupported frame type: ", frame.Type())
 	}
 	switch frame.PixelFormat() {

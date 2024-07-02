@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -130,18 +131,18 @@ func (ctx *Par) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (ctx *Par) Type() Type {
+func (ctx *Par) Type() media.Type {
 	switch ctx.CodecType() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		return AUDIO
+		return media.AUDIO
 	case ff.AVMEDIA_TYPE_VIDEO:
-		return VIDEO
+		return media.VIDEO
 	case ff.AVMEDIA_TYPE_SUBTITLE:
-		return SUBTITLE
+		return media.SUBTITLE
 	case ff.AVMEDIA_TYPE_DATA:
-		return DATA
+		return media.DATA
 	default:
-		return UNKNOWN
+		return media.UNKNOWN
 	}
 }
 

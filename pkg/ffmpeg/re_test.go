@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -88,7 +89,7 @@ func Test_re_002(t *testing.T) {
 
 	// Decode function
 	decodefn := func(_ int, frame *ffmpeg.Frame) error {
-		if frame != nil && frame.Type() != ffmpeg.AUDIO {
+		if frame != nil && frame.Type() != media.AUDIO {
 			return nil
 		}
 		resampled, err := re.Frame(frame)

@@ -5,6 +5,9 @@ import (
 
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	assert "github.com/stretchr/testify/assert"
+
+	// Namespace imports
+	. "github.com/mutablelogic/go-media"
 )
 
 func Test_frame_001(t *testing.T) {
@@ -26,7 +29,7 @@ func Test_frame_002(t *testing.T) {
 		t.FailNow()
 	}
 	defer frame.Close()
-	assert.Equal(ffmpeg.AUDIO, frame.Type())
+	assert.Equal(AUDIO, frame.Type())
 	assert.Equal(44100, frame.SampleRate())
 	t.Log(frame)
 }
@@ -39,7 +42,7 @@ func Test_frame_003(t *testing.T) {
 		t.FailNow()
 	}
 	defer frame.Close()
-	assert.Equal(ffmpeg.VIDEO, frame.Type())
+	assert.Equal(VIDEO, frame.Type())
 	assert.Equal(1280, frame.Width())
 	assert.Equal(720, frame.Height())
 	t.Log(frame)

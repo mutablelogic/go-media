@@ -46,7 +46,7 @@ test: go-dep
 	@echo ... test sys/ffmpeg61
 	@${GO} test ./sys/ffmpeg61
 	@echo ... test pkg/ffmpeg
-	@${GO} test ./pkg/ffmpeg
+	@${GO} test -v ./pkg/ffmpeg
 	@echo ... test sys/chromaprint
 	@${GO} test ./sys/chromaprint
 	@echo ... test pkg/chromaprint

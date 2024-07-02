@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -118,15 +119,15 @@ func Test_reader_005(t *testing.T) {
 	}
 	defer r.Close()
 
-	media, err := ffmpeg.NewReader(r)
+	input, err := ffmpeg.NewReader(r)
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
-	defer media.Close()
+	defer input.Close()
 
 	// Map function - only video streams
 	mapfn := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
-		if par.Type() == ffmpeg.VIDEO {
+		if par.Type() == media.VIDEO {
 			t.Logf("Stream %v[%d] => %v", par.Type(), stream, par)
 			return par, nil
 		}
@@ -162,7 +163,7 @@ func Test_reader_005(t *testing.T) {
 		return nil
 	}
 
-	if err := media.Decode(context.Background(), framefn, mapfn); !assert.NoError(err) {
+	if err := input.Decode(context.Background(), framefn, mapfn); !assert.NoError(err) {
 		t.FailNow()
 	}
 }

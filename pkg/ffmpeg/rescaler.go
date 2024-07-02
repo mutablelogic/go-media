@@ -123,6 +123,3 @@ func (r *rescaler) Frame(src *Frame) (*Frame, error) {
 	// Return the destination frame
 	return r.dest, nil
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS

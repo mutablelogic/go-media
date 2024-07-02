@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	// Packages
+	"github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
@@ -27,7 +28,7 @@ func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	yuv420p := new(yuv420p)
 
 	// Check parameters
-	if par.Type() != ffmpeg.VIDEO {
+	if par.Type() != media.VIDEO {
 		return nil, errors.New("invalid codec type")
 	} else if par.PixelFormat() != ff.AV_PIX_FMT_YUV420P {
 		return nil, errors.New("invalid pixel format, only yuv420p is supported")

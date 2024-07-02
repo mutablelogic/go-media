@@ -3,7 +3,9 @@ package ffmpeg
 import (
 	"errors"
 	"fmt"
+
 	// Packages
+	media "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,7 +14,7 @@ import (
 // Re implements a resampler and rescaler for audio and video frames.
 // May need to extend it for subtitles later on
 type Re struct {
-	t     Type
+	t     media.Type
 	audio *resampler
 	video *rescaler
 }
@@ -24,13 +26,13 @@ func NewRe(par *Par, force bool) (*Re, error) {
 	re := new(Re)
 	re.t = par.Type()
 	switch re.t {
-	case AUDIO:
+	case media.AUDIO:
 		if audio, err := NewResampler(par, force); err != nil {
 			return nil, err
 		} else {
 			re.audio = audio
 		}
-	case VIDEO:
+	case media.VIDEO:
 		if video, err := NewRescaler(par, force); err != nil {
 			return nil, err
 		} else {
@@ -69,9 +71,9 @@ func (re *Re) Frame(src *Frame) (*Frame, error) {
 		}
 	}
 	switch re.t {
-	case AUDIO:
+	case media.AUDIO:
 		return re.audio.Frame(src)
-	case VIDEO:
+	case media.VIDEO:
 		return re.video.Frame(src)
 	default:
 		return src, nil

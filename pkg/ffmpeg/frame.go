@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
@@ -103,14 +104,14 @@ func (frame *Frame) CopyPropsFromFrame(other *Frame) error {
 
 // Return frame type - AUDIO or VIDEO. Other types are not yet
 // identified and returned as UNKNOWN
-func (frame *Frame) Type() Type {
+func (frame *Frame) Type() media.Type {
 	switch {
 	case frame.SampleRate() > 0 && frame.SampleFormat() != ff.AV_SAMPLE_FMT_NONE:
-		return AUDIO
+		return media.AUDIO
 	case frame.Width() > 0 && frame.Height() > 0 && frame.PixelFormat() != ff.AV_PIX_FMT_NONE:
-		return VIDEO
+		return media.VIDEO
 	default:
-		return UNKNOWN
+		return media.UNKNOWN
 	}
 }
 
@@ -225,7 +226,7 @@ func (frame *Frame) matchesResampleResize(other *Frame) bool {
 		return false
 	}
 	switch frame.Type() {
-	case AUDIO:
+	case media.AUDIO:
 		if frame.SampleFormat() != other.SampleFormat() {
 			return false
 		}
@@ -237,7 +238,7 @@ func (frame *Frame) matchesResampleResize(other *Frame) bool {
 			return false
 		}
 		return true
-	case VIDEO:
+	case media.VIDEO:
 		if frame.PixelFormat() != other.PixelFormat() {
 			return false
 		}

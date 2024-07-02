@@ -7,6 +7,7 @@ import (
 	"time"
 
 	// Packages
+	"github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
@@ -39,7 +40,7 @@ func NewSine(freq, volume float64, par *ffmpeg.Par) (*sine, error) {
 	sine := new(sine)
 
 	// Check parameters
-	if par.Type() != ffmpeg.AUDIO {
+	if par.Type() != media.AUDIO {
 		return nil, errors.New("invalid codec type")
 	} else if par.ChannelLayout().NumChannels() != 1 {
 		return nil, errors.New("invalid channel layout, only mono is supported")
