@@ -64,7 +64,7 @@ func NewManager(opt ...Opt) (*Manager, error) {
 		manager.opts = append(manager.opts, OptForce())
 	}
 
-	// Retyrn success
+	// Return success
 	return manager, nil
 }
 
@@ -99,7 +99,7 @@ func (manager *Manager) NewReader(r io.Reader, format media.Format, opts ...stri
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - VERSION
 
-// Return version information
+// Return version information as metadata key/value pairs
 func (manager *Manager) Version() []media.Metadata {
 	var result []media.Metadata
 	for _, v := range version.Version() {
