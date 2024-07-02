@@ -63,7 +63,10 @@ func Test_reader_003(t *testing.T) {
 	defer media.Close()
 
 	framefn := func(stream int, frame *ffmpeg.Frame) error {
-		t.Logf("Frame %v[%d] => %v", frame.Type(), stream, time.Duration(frame.Ts()*float64(time.Second)).Truncate(time.Millisecond))
+		// Receive a nil frame at the end of each packet
+		if frame != nil {
+			t.Logf("Frame %v[%d] => %v", frame.Type(), stream, time.Duration(frame.Ts()*float64(time.Second)).Truncate(time.Millisecond))
+		}
 		return nil
 	}
 
