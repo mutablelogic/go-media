@@ -68,8 +68,6 @@ container-test: go-dep
 	@${GO} test --tags=container ./pkg/...
 	@${GO} test --tags=container .
 
-
-
 cli: go-dep mkdir
 	@echo Build media tool
 	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/cli
