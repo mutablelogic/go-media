@@ -23,8 +23,10 @@ func Test_re_001(t *testing.T) {
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
-	frame, err := ffmpeg.FrameFromImage(img)
+	frame, err := ffmpeg.NewFrame(nil)
 	if !assert.NoError(err) {
+		t.FailNow()
+	} else if err := frame.FromImage(img); !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer frame.Close()
@@ -43,7 +45,7 @@ func Test_re_001(t *testing.T) {
 	}
 
 	// Get image from frame
-	destimg, err := dest.ImageFromFrame()
+	destimg, err := dest.Image()
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

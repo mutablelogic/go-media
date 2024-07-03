@@ -159,27 +159,27 @@ func main() {
 ### Encoding - Audio and Video
 
 This example shows you how to encode video and audio frames into a media file.
+It creates a testcard signal overlayed with a timestamp, and a 1KHz tone at -5dB
 
 ```go
 package main
 
 import (
+  "fmt"
   "io"
   "log"
   "os"
-  "time"
 
-  media "github.com/mutablelogic/go-media"
+  // Packages
   ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
   generator "github.com/mutablelogic/go-media/pkg/generator"
-  ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
+// This example encodes an audio an video stream to a file
 func main() {
   // Create a new file with an audio and video stream
-  // 30fps and 22050Hz mono audio
   file, err := ffmpeg.Create(os.Args[1],
-    ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "640x480", 30)),
+    ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "1024x720", 30)),
     ffmpeg.OptStream(2, ffmpeg.AudioPar("fltp", "mono", 22050)),
   )
   if err != nil {
@@ -187,40 +187,39 @@ func main() {
   }
   defer file.Close()
 
-  // Make an video generator which can generate YUV420P frames
-  // with the same parameters as the video stream
-  video, err := generator.NewYUV420P(file.Stream(1).Par())
+  // Make an video generator which can generate frames with the same
+  // parameters as the video stream
+  video, err := generator.NewEBU(file.Stream(1).Par())
   if err != nil {
     log.Fatal(err)
   }
   defer video.Close()
 
-  // Make an audio generator which can generate a 440Hz tone
+  // Make an audio generator which can generate a 1KHz tone
   // at -5dB with the same parameters as the audio stream
-  audio, err := generator.NewSine(440, -5, file.Stream(2).Par())
+  audio, err := generator.NewSine(1000, -5, file.Stream(2).Par())
   if err != nil {
     log.Fatal(err)
   }
   defer audio.Close()
 
-  // Write 1 min of frames, passing video and audio frames to the encoder
+  // Write 90 seconds, passing video and audio frames to the encoder
   // and returning io.EOF when the duration is reached
-  duration := time.Minute
-  if err := file.Encode(func(stream int) (*ff.AVFrame, error) {
-    var frame media.Frame
+  duration := float64(90)
+  err = file.Encode(func(stream int) (*ffmpeg.Frame, error) {
+    var frame *ffmpeg.Frame
     switch stream {
     case 1:
       frame = video.Frame()
     case 2:
       frame = audio.Frame()
     }
-    if frame.Time() >= duration {
-      return nil, io.EOF
-    } else {
-      log.Println("Frame", stream, "=>", frame.Time().Truncate(time.Millisecond))
-      return frame.(*ffmpeg.Frame).AVFrame(), nil
+    if frame != nil && frame.Ts() < duration {
+      return frame, nil
     }
-  }, nil); err != nil {
+    return nil, io.EOF
+  }, nil)
+  if err != nil {
     log.Fatal(err)
   }
 }

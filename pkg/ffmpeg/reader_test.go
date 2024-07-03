@@ -152,7 +152,7 @@ func Test_reader_005(t *testing.T) {
 		defer w.Close()
 
 		// Get the image
-		image, err := frame.ImageFromFrame()
+		image, err := frame.Image()
 		if err != nil {
 			return err
 		}

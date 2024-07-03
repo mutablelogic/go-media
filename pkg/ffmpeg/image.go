@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"errors"
 	"image"
 
 	// Packages
@@ -38,29 +37,30 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a frame from an image. Creates a new Frame, which must
-// be unreferenced after use and closed to release resources.
-// TODO: Support SampleAspectRatio
-func FrameFromImage(src image.Image) (*Frame, error) {
+// Repurpose a frame and copy image into it.
+// TODO: Support SampleAspectRatio?
+func (frame *Frame) FromImage(src image.Image) error {
 	switch src := src.(type) {
-	case *image.Gray: // AV_PIX_FMT_GRAY8
-		return newGray8(src)
+	case *image.RGBA: // AV_PIX_FMT_RGBA
+		return frame.fromRGBA(src, ff.AV_PIX_FMT_RGBA)
 	case *image.NRGBA: // AV_PIX_FMT_RGBA
-		return newRGBA(src)
+		return frame.fromNRGBA(src, ff.AV_PIX_FMT_RGBA)
+	case *image.Gray: // AV_PIX_FMT_GRAY8
+		return frame.fromGray8(src, ff.AV_PIX_FMT_GRAY8)
 	case *imagex.RGB24: // AV_PIX_FMT_RGB24
-		return newRGB24(src)
+		return frame.fromRGB24(src, ff.AV_PIX_FMT_RGB24)
 	case *image.YCbCr: // Planar YUV formats
 		if pixfmt, exists := pixfmtYCbCr[src.SubsampleRatio]; exists {
-			return newYUVP(src, pixfmt)
+			return frame.fromYUVP(src, pixfmt)
 		}
 	}
-	return nil, ErrNotImplemented.Withf("unsupported image format: %T", src)
+	return ErrNotImplemented.Withf("unsupported image format: %T", src)
 }
 
 // Create an image from a frame. The frame should not be unreferenced
 // until the image is no longer required, but the image can be discarded
 // TODO: Add a copy flag which copies the memory?
-func (frame *Frame) ImageFromFrame() (image.Image, error) {
+func (frame *Frame) Image() (image.Image, error) {
 	if frame.Type() != media.VIDEO {
 		return nil, ErrBadParameter.With("unsupported frame type: ", frame.Type())
 	}
@@ -104,20 +104,37 @@ func (frame *Frame) ImageFromFrame() (image.Image, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func newRGBA(src *image.NRGBA) (*Frame, error) {
-	par := new(Par)
-	par.SetPixelFormat(ff.AV_PIX_FMT_RGBA)
-	par.SetWidth(src.Rect.Dx())
-	par.SetHeight(src.Rect.Dy())
-	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+func (frame *Frame) fromImage(pixfmt ff.AVPixelFormat, w, h int, sar ff.AVRational) error {
+	// Save timing parameters
+	timeBase := frame.TimeBase()
+	pts := frame.Pts()
 
-	// Make the frame and allocate buffers
-	frame, err := NewFrame(par)
-	if err != nil {
-		return nil, err
+	if frame.PixelFormat() != pixfmt || frame.Width() != w || frame.Height() != h {
+		// Clear frame
+		frame.Unref()
+
+		// Allocate buffers for the frame
+		((*ff.AVFrame)(frame)).SetPixFmt(pixfmt)
+		((*ff.AVFrame)(frame)).SetWidth(w)
+		((*ff.AVFrame)(frame)).SetHeight(h)
+		if err := frame.AllocateBuffers(); err != nil {
+			return err
+		}
 	}
-	if err := frame.AllocateBuffers(); err != nil {
-		return nil, errors.Join(err, frame.Close())
+
+	// Copy over timing parameters, etc.
+	((*ff.AVFrame)(frame)).SetSampleAspectRatio(sar)
+	((*ff.AVFrame)(frame)).SetTimeBase(timeBase)
+	((*ff.AVFrame)(frame)).SetPts(pts)
+
+	// Return success
+	return nil
+}
+
+func (frame *Frame) fromNRGBA(src *image.NRGBA, pixfmt ff.AVPixelFormat) error {
+	// Create a new frame if the pixel format or size is different
+	if err := frame.fromImage(pixfmt, src.Bounds().Dx(), src.Bounds().Dy(), ff.AVUtil_rational(1, 1)); err != nil {
+		return err
 	}
 	if src.Stride == frame.Stride(0) {
 		copy(frame.Bytes(0), src.Pix)
@@ -128,23 +145,12 @@ func newRGBA(src *image.NRGBA) (*Frame, error) {
 	}
 
 	// Return success
-	return frame, nil
+	return nil
 }
 
-func newGray8(src *image.Gray) (*Frame, error) {
-	par := new(Par)
-	par.SetPixelFormat(ff.AV_PIX_FMT_GRAY8)
-	par.SetWidth(src.Rect.Dx())
-	par.SetHeight(src.Rect.Dy())
-	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
-
-	// Make the frame and allocate buffers
-	frame, err := NewFrame(par)
-	if err != nil {
-		return nil, err
-	}
-	if err := frame.AllocateBuffers(); err != nil {
-		return nil, errors.Join(err, frame.Close())
+func (frame *Frame) fromRGBA(src *image.RGBA, pixfmt ff.AVPixelFormat) error {
+	if err := frame.fromImage(pixfmt, src.Bounds().Dx(), src.Bounds().Dy(), ff.AVUtil_rational(1, 1)); err != nil {
+		return err
 	}
 	if src.Stride == frame.Stride(0) {
 		copy(frame.Bytes(0), src.Pix)
@@ -155,23 +161,12 @@ func newGray8(src *image.Gray) (*Frame, error) {
 	}
 
 	// Return success
-	return frame, nil
+	return nil
 }
 
-func newRGB24(src *imagex.RGB24) (*Frame, error) {
-	par := new(Par)
-	par.SetPixelFormat(ff.AV_PIX_FMT_RGB24)
-	par.SetWidth(src.Rect.Dx())
-	par.SetHeight(src.Rect.Dy())
-	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
-
-	// Make the frame and allocate buffers
-	frame, err := NewFrame(par)
-	if err != nil {
-		return nil, err
-	}
-	if err := frame.AllocateBuffers(); err != nil {
-		return nil, errors.Join(err, frame.Close())
+func (frame *Frame) fromGray8(src *image.Gray, pixfmt ff.AVPixelFormat) error {
+	if err := frame.fromImage(pixfmt, src.Bounds().Dx(), src.Bounds().Dy(), ff.AVUtil_rational(1, 1)); err != nil {
+		return err
 	}
 	if src.Stride == frame.Stride(0) {
 		copy(frame.Bytes(0), src.Pix)
@@ -182,25 +177,29 @@ func newRGB24(src *imagex.RGB24) (*Frame, error) {
 	}
 
 	// Return success
-	return frame, nil
+	return nil
 }
 
-func newYUVP(src *image.YCbCr, pixfmt ff.AVPixelFormat) (*Frame, error) {
-	par := new(Par)
-	par.SetPixelFormat(pixfmt)
-	par.SetWidth(src.Rect.Dx())
-	par.SetHeight(src.Rect.Dy())
-	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
-
-	// Make the frame and allocate buffers
-	frame, err := NewFrame(par)
-	if err != nil {
-		return nil, err
+func (frame *Frame) fromRGB24(src *imagex.RGB24, pixfmt ff.AVPixelFormat) error {
+	if err := frame.fromImage(pixfmt, src.Bounds().Dx(), src.Bounds().Dy(), ff.AVUtil_rational(1, 1)); err != nil {
+		return err
 	}
-	if err := frame.AllocateBuffers(); err != nil {
-		return nil, errors.Join(err, frame.Close())
+	if src.Stride == frame.Stride(0) {
+		copy(frame.Bytes(0), src.Pix)
+	} else {
+		for y := 0; y < src.Rect.Dy(); y++ {
+			copy(frame.Bytes(0)[y*frame.Stride(0):], src.Pix[y*src.Stride:])
+		}
 	}
 
+	// Return success
+	return nil
+}
+
+func (frame *Frame) fromYUVP(src *image.YCbCr, pixfmt ff.AVPixelFormat) error {
+	if err := frame.fromImage(pixfmt, src.Bounds().Dx(), src.Bounds().Dy(), ff.AVUtil_rational(1, 1)); err != nil {
+		return err
+	}
 	if src.YStride == frame.Stride(0) && src.CStride == frame.Stride(1) && src.CStride == frame.Stride(2) {
 		copy(frame.Bytes(0), src.Y)
 		copy(frame.Bytes(1), src.Cb)
@@ -216,5 +215,5 @@ func newYUVP(src *image.YCbCr, pixfmt ff.AVPixelFormat) (*Frame, error) {
 	}
 
 	// Return success
-	return frame, nil
+	return nil
 }
