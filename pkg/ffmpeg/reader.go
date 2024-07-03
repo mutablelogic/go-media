@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -172,6 +173,30 @@ func (r *Reader) Duration() time.Duration {
 	return 0
 }
 
+// Return the "best stream" for a specific media type, or -1 if there is no
+// "best stream" for that type.
+func (r *Reader) BestStream(t media.Type) int {
+	switch {
+	case t.Is(media.VIDEO):
+		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_VIDEO, -1, -1); err == nil {
+			return r.input.Stream(stream).Id()
+		}
+	case t.Is(media.AUDIO):
+		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_AUDIO, -1, -1); err == nil {
+			return r.input.Stream(stream).Id()
+		}
+	case t.Is(media.SUBTITLE):
+		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_SUBTITLE, -1, -1); err == nil {
+			return r.input.Stream(stream).Id()
+		}
+	case t.Is(media.DATA):
+		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_DATA, -1, -1); err == nil {
+			return r.input.Stream(stream).Id()
+		}
+	}
+	return -1
+}
+
 // Return the metadata for the media stream, filtering by the specified keys
 // if there are any. Artwork is returned with the "artwork" key.
 func (r *Reader) Metadata(keys ...string) []*Metadata {
@@ -204,7 +229,7 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 // The decoding can be interrupted by cancelling the context, or by the decodefn
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
-func (r *Reader) Decode(ctx context.Context, decodefn DecoderFrameFn, mapfn DecoderMapFunc) error {
+func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
 	decoders := make(map[int]*Decoder, r.input.NumStreams())
 
 	// Standard decoder map function copies all streams

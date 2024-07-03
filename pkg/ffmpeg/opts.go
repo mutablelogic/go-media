@@ -11,9 +11,17 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Option which can affect the behaviour of ffmpeg
 type Opt func(*opts) error
 
+// Logging function which is used to log messages
+type LogFunc func(string)
+
 type opts struct {
+	// Logging options
+	level    ffmpeg.AVLog
+	callback LogFunc
+
 	// Resize/resample options
 	force bool
 
@@ -38,6 +46,19 @@ func newOpts() *opts {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Set a logging function
+func OptLog(verbose bool, fn LogFunc) Opt {
+	return func(o *opts) error {
+		if verbose {
+			o.level = ffmpeg.AV_LOG_VERBOSE
+		} else {
+			o.level = ffmpeg.AV_LOG_FATAL
+		}
+		o.callback = fn
+		return nil
+	}
+}
 
 // Output format from name or url
 func OptOutputFormat(name string) Opt {

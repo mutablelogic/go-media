@@ -1,10 +1,11 @@
 package version
 
 import (
+	"encoding/binary"
 	"fmt"
 	"runtime"
 
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
@@ -15,32 +16,43 @@ var (
 	GoBuildTime string
 )
 
+type Metadata struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 // Return version information as a set of metadata
-func Version() []*ffmpeg.Metadata {
-	metadata := []*ffmpeg.Metadata{
-		ffmpeg.NewMetadata("libavcodec_version", ffVersionAsString(ff.AVCodec_version())),
-		ffmpeg.NewMetadata("libavformat_version", ffVersionAsString(ff.AVFormat_version())),
-		ffmpeg.NewMetadata("libavutil_version", ffVersionAsString(ff.AVUtil_version())),
-		ffmpeg.NewMetadata("libavdevice_version", ffVersionAsString(ff.AVDevice_version())),
-		//		newMetadata("libavfilter_version", ff.AVFilter_version()),
-		ffmpeg.NewMetadata("libswscale_version", ffVersionAsString(ff.SWScale_version())),
-		ffmpeg.NewMetadata("libswresample_version", ffVersionAsString(ff.SWResample_version())),
+func Version() []Metadata {
+	metadata := []Metadata{
+		{"libavcodec_version", ffVersionAsString(ff.AVCodec_version())},
+		{"libavformat_version", ffVersionAsString(ff.AVFormat_version())},
+		{"libavutil_version", ffVersionAsString(ff.AVUtil_version())},
+		{"libavdevice_version", ffVersionAsString(ff.AVDevice_version())},
+		//		Version{"libavfilter_version", ff.AVFilter_version()},
+		{"libswscale_version", ffVersionAsString(ff.SWScale_version())},
+		{"libswresample_version", ffVersionAsString(ff.SWResample_version())},
 	}
 	if GitSource != "" {
-		metadata = append(metadata, ffmpeg.NewMetadata("git_source", GitSource))
+		metadata = append(metadata, Metadata{"git_source", GitSource})
 	}
 	if GitBranch != "" {
-		metadata = append(metadata, ffmpeg.NewMetadata("git_branch", GitBranch))
+		metadata = append(metadata, Metadata{"git_branch", GitBranch})
 	}
 	if GitTag != "" {
-		metadata = append(metadata, ffmpeg.NewMetadata("git_tag", GitTag))
+		metadata = append(metadata, Metadata{"git_tag", GitTag})
 	}
 	if GoBuildTime != "" {
-		metadata = append(metadata, ffmpeg.NewMetadata("go_build_time", GoBuildTime))
+		metadata = append(metadata, Metadata{"go_build_time", GoBuildTime})
 	}
 	if runtime.Version() != "" {
-		metadata = append(metadata, ffmpeg.NewMetadata("go_version", runtime.Version()))
-		metadata = append(metadata, ffmpeg.NewMetadata("go_arch", runtime.GOOS+"/"+runtime.GOARCH))
+		metadata = append(metadata, Metadata{"go_version", runtime.Version()})
+		metadata = append(metadata, Metadata{"os_arch", runtime.GOOS + "/" + runtime.GOARCH})
+	}
+	switch NativeEndian {
+	case binary.LittleEndian:
+		metadata = append(metadata, Metadata{"os_endian", "little"})
+	case binary.BigEndian:
+		metadata = append(metadata, Metadata{"os_endian", "big"})
 	}
 	return metadata
 }

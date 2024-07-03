@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_yuv420p_001(t *testing.T) {
+func Test_ebu_001(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
+	image, err := generator.NewEBU(ffmpeg.VideoPar("rgb24", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -23,23 +23,9 @@ func Test_yuv420p_001(t *testing.T) {
 	t.Log(image)
 }
 
-func Test_yuv420p_002(t *testing.T) {
+func Test_ebu_002(t *testing.T) {
 	assert := assert.New(t)
-	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
-	if !assert.NoError(err) {
-		t.FailNow()
-	}
-	defer image.Close()
-
-	for i := 0; i < 10; i++ {
-		frame := image.Frame()
-		t.Log(frame)
-	}
-}
-
-func Test_yuv420p_003(t *testing.T) {
-	assert := assert.New(t)
-	image, err := generator.NewYUV420P(ffmpeg.VideoPar("yuv420p", "1280x720", 25))
+	image, err := generator.NewEBU(ffmpeg.VideoPar("rgb24", "1280x720", 25))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -50,7 +36,7 @@ func Test_yuv420p_003(t *testing.T) {
 		t.SkipNow()
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		img, err := image.Frame().Image()
 		if !assert.NoError(err) {
 			t.FailNow()

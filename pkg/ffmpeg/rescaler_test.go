@@ -76,7 +76,7 @@ func Test_rescaler_002(t *testing.T) {
 		if !assert.NotNil(f) {
 			t.FailNow()
 		}
-		src_image, err := f.ImageFromFrame()
+		src_image, err := f.Image()
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
@@ -101,7 +101,7 @@ func Test_rescaler_002(t *testing.T) {
 		}
 
 		// Make a naive image
-		dest_image, err := dest.ImageFromFrame()
+		dest_image, err := dest.Image()
 		if !assert.NoError(err) {
 			t.FailNow()
 		}

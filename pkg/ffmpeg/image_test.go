@@ -27,14 +27,16 @@ func Test_image_001(t *testing.T) {
 	}
 
 	// Create a frame from the image
-	frame, err := ffmpeg.FrameFromImage(image)
+	frame, err := ffmpeg.NewFrame(nil)
 	if !assert.NoError(err) {
+		t.FailNow()
+	} else if err := frame.FromImage(image); !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer frame.Close()
 
 	// Create a new image from the frame
-	image2, err := frame.ImageFromFrame()
+	image2, err := frame.Image()
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -75,14 +77,16 @@ func Test_image_002(t *testing.T) {
 	}
 
 	// Create a frame from the image
-	frame, err := ffmpeg.FrameFromImage(grey8)
+	frame, err := ffmpeg.NewFrame(nil)
 	if !assert.NoError(err) {
+		t.FailNow()
+	} else if err := frame.FromImage(grey8); !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer frame.Close()
 
 	// Create a new image from the frame
-	grey8_dest, err := frame.ImageFromFrame()
+	grey8_dest, err := frame.Image()
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -92,7 +96,9 @@ func Test_image_002(t *testing.T) {
 		for x := 0; x < frame.Width(); x++ {
 			r1, g1, b1, a1 := grey8.At(x, y).RGBA()
 			r2, g2, b2, a2 := grey8_dest.At(x, y).RGBA()
-			assert.Equal(r1, r2)
+			if !assert.Equal(r1, r2) {
+				t.FailNow()
+			}
 			assert.Equal(g1, g2)
 			assert.Equal(b1, b2)
 			assert.Equal(a1, a2)
@@ -123,14 +129,16 @@ func Test_image_003(t *testing.T) {
 	}
 
 	// Create a frame from the image
-	frame, err := ffmpeg.FrameFromImage(rgb24)
+	frame, err := ffmpeg.NewFrame(nil)
 	if !assert.NoError(err) {
+		t.FailNow()
+	} else if err := frame.FromImage(rgb24); !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer frame.Close()
 
 	// Create a new image from the frame
-	rgb24_dest, err := frame.ImageFromFrame()
+	rgb24_dest, err := frame.Image()
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -162,14 +170,16 @@ func Test_image_004(t *testing.T) {
 	}
 
 	// Create a frame from the image
-	frame, err := ffmpeg.FrameFromImage(source)
+	frame, err := ffmpeg.NewFrame(nil)
 	if !assert.NoError(err) {
+		t.FailNow()
+	} else if err := frame.FromImage(source); !assert.NoError(err) {
 		t.FailNow()
 	}
 	defer frame.Close()
 
 	// Create a new image from the frame
-	dest, err := frame.ImageFromFrame()
+	dest, err := frame.Image()
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

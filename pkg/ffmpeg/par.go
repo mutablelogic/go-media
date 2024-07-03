@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 
 	// Packages
@@ -72,8 +73,8 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	}
 
 	// Frame rate
-	if framerate <= 0 {
-		return nil, ErrBadParameter.Withf("negative or zero framerate %v", framerate)
+	if framerate < 0 {
+		return nil, ErrBadParameter.Withf("negative framerate %v", framerate)
 	} else {
 		par.SetFramerate(ff.AVUtil_rational_d2q(framerate, 1<<24))
 	}
@@ -144,6 +145,14 @@ func (ctx *Par) Type() media.Type {
 	default:
 		return media.UNKNOWN
 	}
+}
+
+func (ctx *Par) WidthHeight() string {
+	return fmt.Sprintf("%dx%d", ctx.Width(), ctx.Height())
+}
+
+func (ctx *Par) FrameRate() float64 {
+	return ff.AVUtil_rational_q2d(ctx.Framerate())
 }
 
 func (ctx *Par) ValidateFromCodec(codec *ff.AVCodec) error {

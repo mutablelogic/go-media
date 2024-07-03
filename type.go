@@ -38,3 +38,11 @@ func (t Type) String() string {
 		return "UNKNOWN"
 	}
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+func (t Type) Is(u Type) bool {
+	// TODO: Change later to flags
+	return t == u
+}

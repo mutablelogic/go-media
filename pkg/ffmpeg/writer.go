@@ -141,11 +141,11 @@ func (writer *Writer) open(options *opts) (*Writer, error) {
 	}
 	for _, entry := range options.metadata {
 		// Ignore artwork fields
-		if entry.Key == MetaArtwork || entry.Key == "" || entry.Value == nil {
+		if entry.Key() == MetaArtwork || entry.Key() == "" {
 			continue
 		}
 		// Set dictionary entry
-		if err := ff.AVUtil_dict_set(metadata, entry.Key, fmt.Sprint(entry.Value), ff.AV_DICT_APPEND); err != nil {
+		if err := ff.AVUtil_dict_set(metadata, entry.Key(), entry.Value(), ff.AV_DICT_APPEND); err != nil {
 			return nil, errors.Join(err, writer.Close())
 		}
 	}

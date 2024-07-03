@@ -4,20 +4,13 @@ import (
 	"log"
 	"os"
 
-	media "github.com/mutablelogic/go-media"
-	file "github.com/mutablelogic/go-media/pkg/file"
+	// Packages
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 )
 
 func main() {
-	manager, err := media.NewManager()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Open a media file for reading. The format of the file is guessed.
-	// Alteratively, you can pass a format as the second argument. Further optional
-	// arguments can be used to set the format options.
-	reader, err := manager.Open(os.Args[1], nil)
+	reader, err := ffmpeg.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,12 +26,11 @@ func main() {
 	// Retrieve artwork by using the MetaArtwork key. The value is of type []byte.
 	// which needs to be converted to an image. There is a utility method to
 	// detect the image type.
-	for _, artwork := range reader.Metadata(media.MetaArtwork) {
-		mimetype, ext, err := file.MimeType(artwork.Value().([]byte))
-		if err != nil {
-			log.Fatal(err)
+	for _, artwork := range reader.Metadata(ffmpeg.MetaArtwork) {
+		mimetype := artwork.Value()
+		if mimetype != "" {
+			log.Print("We got some artwork of mimetype ", mimetype)
 		}
-		log.Print("got artwork", mimetype, ext)
 	}
 
 }
