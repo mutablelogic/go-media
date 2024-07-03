@@ -106,7 +106,7 @@ func Test_re_002(t *testing.T) {
 		return nil
 	}
 	// Get audio frames
-	if err := r.Decode(context.Background(), decodefn, nil); !assert.NoError(err) {
+	if err := r.Decode(context.Background(), nil, decodefn); !assert.NoError(err) {
 		t.FailNow()
 	}
 	// Print
