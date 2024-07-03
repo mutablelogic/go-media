@@ -28,7 +28,7 @@ func main() {
 	// The audio and video streams are resampled and resized to fit the
 	// parameters we pass to the decoder.
 	mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
-		if par.Type() == VIDEO {
+		if stream == input.BestStream(VIDEO) {
 			// Convert frame to yuv420p as needed
 			return ffmpeg.VideoPar("yuv420p", par.WidthHeight(), par.FrameRate()), nil
 		}
