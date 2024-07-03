@@ -96,17 +96,6 @@ func (manager *Manager) NewReader(r io.Reader, format media.Format, opts ...stri
 }
 */
 
-/*
-func (manager *Manager) Transcode(context,output_writer,input_reader or file,input_mapping_function) {
-	// 1. Read the input and detect the streams
-	// 2. Make a mapping to output streams
-	// 3. Create an output writer or file, with the mapped streams
-	// 4. Create one goroutine which reads the input and passes frames to a channel
-	// 5. Create a second goroutine which reads the channel and writes to the output
-	// 6. When EOF on the input or context is cancelled, then stop
-}
-*/
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - VERSION
 

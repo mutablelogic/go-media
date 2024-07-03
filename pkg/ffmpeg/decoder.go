@@ -16,7 +16,7 @@ import (
 type Decoder struct {
 	stream   int
 	codec    *ff.AVCodecContext
-	dest     *Par          // Destination parameters
+	par      *Par          // Destination parameters
 	re       *Re           // Resample/resize
 	timeBase ff.AVRational // Timebase for the stream
 	frame    *ff.AVFrame   // Destination frame
@@ -29,7 +29,7 @@ type Decoder struct {
 func NewDecoder(stream *ff.AVStream, dest *Par, force bool) (*Decoder, error) {
 	decoder := new(Decoder)
 	decoder.stream = stream.Id()
-	decoder.dest = dest
+	decoder.par = dest
 	decoder.timeBase = stream.TimeBase()
 
 	// Create a frame for decoder output - before resize/resample

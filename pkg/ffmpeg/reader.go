@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	// Packages
@@ -230,11 +232,102 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
 func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
-	decoders := make(map[int]*Decoder, r.input.NumStreams())
+	// Map streams to decoders
+	decoders, err := r.mapStreams(mapfn)
+	if err != nil {
+		return err
+	}
+	defer decoders.Close()
+
+	// Do the decoding
+	return r.decode(ctx, decoders, decodefn)
+}
+
+// Transcode the media stream to a writer
+// As per the decode method, the map function is called for each stream and should return the
+// parameters for the destination. If the map function returns nil for a stream, then
+// the stream is ignored.
+func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFunc, opt ...Opt) error {
+	// Map streams to decoders
+	decoders, err := r.mapStreams(mapfn)
+	if err != nil {
+		return err
+	}
+	defer decoders.Close()
+
+	// Add streams to the output
+	for _, decoder := range decoders {
+		opt = append(opt, OptStream(decoder.stream, decoder.par))
+	}
+
+	// Create an output
+	output, err := NewWriter(w, opt...)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	// One go-routine for decoding, one for encoding
+	var wg sync.WaitGroup
+	var result error
+
+	// Make a channel for transcoding frames. The decoder should
+	// be ahead of the encoder, so there is probably no need to
+	// create a buffered channel.
+	ch := make(chan *Frame)
+
+	// Decoding
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := r.decode(ctx, decoders, func(stream int, frame *Frame) error {
+			ch <- frame
+			return nil
+		}); err != nil {
+			result = err
+		}
+		// Close channel at the end of decoding
+		close(ch)
+	}()
+
+	// Encoding
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for frame := range ch {
+			fmt.Println("TODO: Write frame to output", frame)
+		}
+	}()
+
+	// Wait for the process to finish
+	wg.Wait()
+
+	// Return any errors
+	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - DECODE
+
+type decoderMap map[int]*Decoder
+
+func (d decoderMap) Close() error {
+	var result error
+	for _, decoder := range d {
+		if err := decoder.Close(); err != nil {
+			result = errors.Join(result, err)
+		}
+	}
+	return result
+}
+
+// Map streams to decoders, and return the decoders
+func (r *Reader) mapStreams(fn DecoderMapFunc) (decoderMap, error) {
+	decoders := make(decoderMap, r.input.NumStreams())
 
 	// Standard decoder map function copies all streams
-	if mapfn == nil {
-		mapfn = func(_ int, par *Par) (*Par, error) {
+	if fn == nil {
+		fn = func(_ int, par *Par) (*Par, error) {
 			return par, nil
 		}
 	}
@@ -247,7 +340,7 @@ func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn Deco
 		stream_index := stream.Index()
 
 		// Get decoder parameters and map to a decoder
-		par, err := mapfn(stream.Id(), &Par{
+		par, err := fn(stream.Id(), &Par{
 			AVCodecParameters: *stream.CodecPar(),
 		})
 		if err != nil {
@@ -268,24 +361,14 @@ func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn Deco
 		result = errors.Join(result, ErrBadParameter.With("no streams to decode"))
 	}
 
-	// Now we have a map of decoders, we can start decoding
-	if result == nil {
-		result = r.decode(ctx, decoders, decodefn)
-	}
-
-	// Release resources
-	for _, decoder := range decoders {
-		if err := decoder.Close(); err != nil {
-			result = errors.Join(result, err)
-		}
+	// If there are errors, then free the decoders
+	if result != nil {
+		result = errors.Join(result, decoders.Close())
 	}
 
 	// Return any errors
-	return result
+	return decoders, result
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS - DECODE
 
 func (r *Reader) decode(ctx context.Context, decoders map[int]*Decoder, fn DecoderFrameFn) error {
 	// Allocate a packet
