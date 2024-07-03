@@ -61,6 +61,8 @@ and open media files and byte streams.
 ### Demultiplexing
 
 ```go
+package main
+
 import (
   media "github.com/mutablelogic/go-media"
 )
@@ -109,6 +111,8 @@ func main() {
 This example shows you how to decode video frames from a media file into images.
 
 ```go
+package main
+
 import (
   media "github.com/mutablelogic/go-media"
 )
