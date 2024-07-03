@@ -108,53 +108,82 @@ func main() {
 
 ### Decoding - Video
 
-This example shows you how to decode video frames from a media file into images.
+This example shows you how to decode video frames from a media file into images, and
+encode those images to JPEG format.
 
 ```go
 package main
 
 import (
-  media "github.com/mutablelogic/go-media"
+  "context"
+  "fmt"
+  "image/jpeg"
+  "io"
+  "log"
+  "os"
+  "path/filepath"
+
+  // Packages
+  ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+
+  // Namespace imports
+  . "github.com/mutablelogic/go-media"
 )
 
 func main() {
-  manager, err := media.NewManager()
+  // Open a media file for reading. The format of the file is guessed.
+  input, err := ffmpeg.Open(os.Args[1])
   if err != nil {
     log.Fatal(err)
   }
 
-  media, err := manager.Open("etc/test/sample.mp4", nil)
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer media.Close()
-
-  // Create a decoder for the media file. Only video streams are decoded
-  decoder, err := media.Decoder(func(stream Stream) (Parameters, error) {
-    if stream.Type() == VIDEO {
-      // Copy video
-      return stream.Parameters(), nil
-    } else {
-      // Ignore other stream types
-      return nil, nil
+  // Make a map function which can be used to decode the streams and set
+  // the parameters we want from the decode. The audio and video streams
+  // are resampled and resized to fit the parameters we pass back the decoder.
+  mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
+    if par.Type() == VIDEO {
+      // Convert frame to yuv420p to frame size and rate as source
+      return ffmpeg.VideoPar("yuv420p", par.WidthHeight(), par.FrameRate()), nil
     }
-  })
+    // Ignore other streams
+    return nil, nil
+  }
+
+  // Make a folder where we're going to store the thumbnails
+  tmp, err := os.MkdirTemp("", "decode")
   if err != nil {
     log.Fatal(err)
   }
 
-  // The frame function is called for each frame in the stream
-  framefn := func(frame Frame) error {
-    image, err := frame.Image()
+  // Decode the streams and receive the video frame
+  // If the map function is nil, the frames are copied. In this example,
+  // we get a yuv420p frame at the same size as the original.
+  n := 0
+  err = input.Decode(context.Background(), mapfunc, func(stream int, frame *ffmpeg.Frame) error {
+    // Write the frame to a file
+    w, err := os.Create(filepath.Join(tmp, fmt.Sprintf("frame-%d-%d.jpg", stream, n)))
     if err != nil {
       return err
     }
-    // TODO: Do something with the image here....
-    return nil
-  }
+    defer w.Close()
 
-  // decode frames from the stream
-  if err := decoder.Decode(context.Background(), framefn); err != nil {
+    // Convert to an image and encode a JPEG
+    if image, err := frame.Image(); err != nil {
+      return err
+    } else if err := jpeg.Encode(w, image, nil); err != nil {
+      return err
+    } else {
+      log.Println("Wrote:", w.Name())
+    }
+
+    // End after 10 frames
+    n++
+    if n >= 10 {
+      return io.EOF
+    }
+    return nil
+  })
+  if err != nil {
     log.Fatal(err)
   }
 }

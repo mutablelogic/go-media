@@ -71,7 +71,7 @@ func Test_reader_003(t *testing.T) {
 		return nil
 	}
 
-	if err := media.Decode(context.Background(), framefn, nil); !assert.NoError(err) {
+	if err := media.Decode(context.Background(), nil, framefn); !assert.NoError(err) {
 		t.FailNow()
 	}
 }
@@ -104,7 +104,7 @@ func Test_reader_004(t *testing.T) {
 		return nil
 	}
 
-	if err := media.Decode(context.Background(), framefn, mapfn); !assert.NoError(err) {
+	if err := media.Decode(context.Background(), mapfn, framefn); !assert.NoError(err) {
 		t.FailNow()
 	}
 }
@@ -163,7 +163,7 @@ func Test_reader_005(t *testing.T) {
 		return nil
 	}
 
-	if err := input.Decode(context.Background(), framefn, mapfn); !assert.NoError(err) {
+	if err := input.Decode(context.Background(), mapfn, framefn); !assert.NoError(err) {
 		t.FailNow()
 	}
 }

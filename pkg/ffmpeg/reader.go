@@ -204,7 +204,7 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 // The decoding can be interrupted by cancelling the context, or by the decodefn
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
-func (r *Reader) Decode(ctx context.Context, decodefn DecoderFrameFn, mapfn DecoderMapFunc) error {
+func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
 	decoders := make(map[int]*Decoder, r.input.NumStreams())
 
 	// Standard decoder map function copies all streams
