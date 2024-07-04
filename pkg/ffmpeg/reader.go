@@ -181,7 +181,11 @@ func (r *Reader) BestStream(t media.Type) int {
 	switch {
 	case t.Is(media.VIDEO):
 		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_VIDEO, -1, -1); err == nil {
-			return r.input.Stream(stream).Id()
+			// Only return if this doesn't have a disposition - so we don't select artwork, for example
+			disposition := r.input.Stream(stream).Disposition()
+			if disposition == 0 || disposition.Is(ff.AV_DISPOSITION_DEFAULT) {
+				return r.input.Stream(stream).Id()
+			}
 		}
 	case t.Is(media.AUDIO):
 		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_AUDIO, -1, -1); err == nil {

@@ -158,6 +158,15 @@ func (writer *Writer) open(options *opts) (*Writer, error) {
 		}
 	}
 
+	// Add artwork
+	for _, entry := range options.metadata {
+		// Ignore artwork fields
+		if entry.Key() != MetaArtwork || len(entry.Bytes()) == 0 {
+			continue
+		}
+		fmt.Println("TODO: Add artwork")
+	}
+
 	// Set metadata, write the header
 	// Metadata ownership is transferred to the output context
 	writer.output.SetMetadata(metadata)
