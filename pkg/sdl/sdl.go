@@ -110,17 +110,16 @@ func (s *Context) RunLoop(w *Window, evt uint32) {
 	pts := ffmpeg.TS_UNDEFINED
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			switch event.(type) {
+			switch event := event.(type) {
 			case *sdl.QuitEvent:
 				running = false
-				break
 			case *sdl.UserEvent:
-				if event.(*sdl.UserEvent).Type != evt {
+				if event.Type != evt {
 					break
 				}
 
 				// Get the video frame - if nil, then end of stream
-				frame := (*ffmpeg.Frame)(event.(*sdl.UserEvent).Data1)
+				frame := (*ffmpeg.Frame)(event.Data1)
 				if frame == nil {
 					running = false
 					break
