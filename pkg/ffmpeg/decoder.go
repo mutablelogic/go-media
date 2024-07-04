@@ -152,7 +152,7 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			dest = (*Frame)(d.frame)
 		}
 
-		// Copy accross the timebase and pts
+		// Copy across the timebase and pts
 		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
 		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
 
