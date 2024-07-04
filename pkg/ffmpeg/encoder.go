@@ -29,14 +29,6 @@ type Encoder struct {
 	next_pts int64
 }
 
-// EncoderFrameFn is a function which is called to receive a frame to encode. It should
-// return nil to continue encoding or io.EOF to stop encoding.
-type EncoderFrameFn func(int) (*Frame, error)
-
-// EncoderPacketFn is a function which is called for each packet encoded, with
-// the stream timebase.
-type EncoderPacketFn func(*Packet) error
-
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 

@@ -152,12 +152,9 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			dest = (*Frame)(d.frame)
 		}
 
-		// TODO: Modify Pts?
-		// What else do we need to copy across?
-		fmt.Println("TODO", d.timeBase, dest.TimeBase(), ff.AVTimestamp(dest.Pts()))
-		if dest.Pts() == PTS_UNDEFINED {
-			(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
-		}
+		// Copy accross the timebase and pts
+		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
+		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
 
 		// Pass back to the caller
 		if err := fn(d.stream, dest); errors.Is(err, io.EOF) {
