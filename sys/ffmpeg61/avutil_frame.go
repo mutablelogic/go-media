@@ -150,6 +150,14 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 	return 0
 }
 
+// Copy frame data
+func AVUtil_frame_copy(dst, src *AVFrame) error {
+	if ret := AVError(C.av_frame_copy((*C.struct_AVFrame)(dst), (*C.struct_AVFrame)(src))); ret < 0 {
+		return ret
+	}
+	return nil
+}
+
 // Copy only "metadata" fields from src to dst, those fields that do not affect the data layout in the buffers.
 // E.g. pts, sample rate (for audio) or sample aspect ratio (for video), but not width/height or channel layout.
 // Side data is also copied.

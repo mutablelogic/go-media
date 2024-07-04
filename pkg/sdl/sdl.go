@@ -3,17 +3,17 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
+	"unsafe"
 
 	// Packages
-	"github.com/mutablelogic/go-media"
-	"github.com/mutablelogic/go-media/pkg/ffmpeg"
+	media "github.com/mutablelogic/go-media"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	sdl "github.com/veandco/go-sdl2/sdl"
 )
 
@@ -41,12 +41,6 @@ func (s *Context) Close() error {
 	return nil
 }
 
-func (s *Context) PushQuitEvent() {
-	sdl.PushEvent(&sdl.QuitEvent{
-		Type: sdl.QUIT,
-	})
-}
-
 func (s *Context) NewWindow(title string, width, height int32) (*Window, error) {
 	window, err := sdl.CreateWindow(
 		title,
@@ -67,7 +61,6 @@ func (s *Context) NewWindow(title string, width, height int32) (*Window, error) 
 		window.Destroy()
 		return nil, err
 	}
-
 	return &Window{window, renderer, texture}, nil
 }
 
@@ -82,6 +75,7 @@ func (w *Window) Close() error {
 	if err := (*sdl.Window)(w.Window).Destroy(); err != nil {
 		result = errors.Join(result, err)
 	}
+	w.Texture = nil
 	w.Renderer = nil
 	w.Window = nil
 
@@ -109,26 +103,63 @@ func (w *Window) RenderFrame(frame *ffmpeg.Frame) error {
 	)
 }
 
-func (s *Context) RunLoop() {
+func (s *Context) RunLoop(w *Window, evt uint32) {
 	runtime.LockOSThread()
 	running := true
+
+	pts := ffmpeg.TS_UNDEFINED
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
 			case *sdl.QuitEvent:
 				running = false
 				break
+			case *sdl.UserEvent:
+				if event.(*sdl.UserEvent).Type != evt {
+					break
+				}
+
+				// Get the video frame - if nil, then end of stream
+				frame := (*ffmpeg.Frame)(event.(*sdl.UserEvent).Data1)
+				if frame == nil {
+					running = false
+					break
+				}
+
+				// Pause to present the frame at the correct PTS
+				if pts != ffmpeg.TS_UNDEFINED && pts < frame.Ts() {
+					pause := frame.Ts() - pts
+					if pause > 0 {
+						sdl.Delay(uint32(pause * 1000))
+					}
+				}
+
+				// Set current timestamp
+				pts = frame.Ts()
+
+				// Render the frame, release the frame resources
+				if err := w.RenderFrame(frame); err != nil {
+					log.Print(err)
+				} else if err := w.Flush(); err != nil {
+					log.Print(err)
+				} else if err := frame.Close(); err != nil {
+					log.Print(err)
+				}
+
 			}
 		}
 	}
 }
 
 func main() {
-	sdl, err := NewSDL()
+	ctx, err := NewSDL()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer sdl.Close()
+	defer ctx.Close()
+
+	// Register an event for a new frame
+	evt := sdl.RegisterEvents(1)
 
 	// Open video
 	input, err := ffmpeg.Open(os.Args[1])
@@ -151,24 +182,28 @@ func main() {
 		return nil, nil
 	}
 
-	ch := make(chan *ffmpeg.Frame)
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		err := input.Decode(context.Background(), mapfn, func(stream int, frame *ffmpeg.Frame) error {
-			ch <- frame
+			copy, err := frame.Copy()
+			if err != nil {
+				copy.Close()
+				return err
+			}
+			sdl.PushEvent(&sdl.UserEvent{
+				Type:  evt,
+				Data1: unsafe.Pointer(copy),
+			})
 			return nil
 		})
 		if err != nil {
 			result = errors.Join(result, err)
 		}
-
-		// Close channel
-		close(ch)
-
 		// Quit event
-		sdl.PushQuitEvent()
+		sdl.PushEvent(&sdl.QuitEvent{
+			Type: sdl.QUIT,
+		})
 	}()
 
 	// HACK
@@ -183,27 +218,15 @@ func main() {
 		title = meta[0].Value()
 	}
 
-	window, err := sdl.NewWindow(title, w, h)
+	// Create a new window
+	window, err := ctx.NewWindow(title, w, h)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer window.Close()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for frame := range ch {
-			if err := window.RenderFrame(frame); err != nil {
-				fmt.Println("Error rendering frame:", err)
-			}
-			if err := window.Flush(); err != nil {
-				fmt.Println("Error flushing frame:", err)
-			}
-		}
-	}()
-
-	// Run the SDL loop
-	sdl.RunLoop()
+	// Run the SDL loop until quit
+	ctx.RunLoop(window, evt)
 
 	// Wait until all goroutines have finished
 	wg.Wait()

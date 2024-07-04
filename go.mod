@@ -12,6 +12,7 @@ require (
 	github.com/llgcode/draw2d v0.0.0-20240627062922-0ed1ff131195
 	github.com/mutablelogic/go-client v1.0.8
 	github.com/stretchr/testify v1.9.0
+	github.com/veandco/go-sdl2 v0.4.40
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
 )
 

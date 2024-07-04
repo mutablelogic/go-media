@@ -19,6 +19,7 @@ type Frame ff.AVFrame
 
 const (
 	PTS_UNDEFINED = ff.AV_NOPTS_VALUE
+	TS_UNDEFINED  = -1.0
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -90,6 +91,42 @@ func (frame *Frame) AllocateBuffers() error {
 // Make the frame writable
 func (frame *Frame) MakeWritable() error {
 	return ff.AVUtil_frame_make_writable((*ff.AVFrame)(frame))
+}
+
+// Make a copy of the frame, which should be released by the caller
+func (frame *Frame) Copy() (*Frame, error) {
+	copy := ff.AVUtil_frame_alloc()
+	if copy == nil {
+		return nil, errors.New("failed to allocate frame")
+	}
+	switch frame.Type() {
+	case media.AUDIO:
+		copy.SetSampleFormat(frame.SampleFormat())
+		copy.SetChannelLayout(frame.ChannelLayout())
+		copy.SetSampleRate(frame.SampleRate())
+		copy.SetNumSamples(frame.NumSamples())
+	case media.VIDEO:
+		copy.SetPixFmt(frame.PixelFormat())
+		copy.SetWidth(frame.Width())
+		copy.SetHeight(frame.Height())
+		copy.SetSampleAspectRatio(frame.SampleAspectRatio())
+	default:
+		ff.AVUtil_frame_free(copy)
+		return nil, errors.New("invalid codec type")
+	}
+	if err := ff.AVUtil_frame_get_buffer(copy, false); err != nil {
+		ff.AVUtil_frame_free(copy)
+		return nil, err
+	}
+	if err := ff.AVUtil_frame_copy(copy, (*ff.AVFrame)(frame)); err != nil {
+		ff.AVUtil_frame_free(copy)
+		return nil, err
+	}
+	if err := ff.AVUtil_frame_copy_props(copy, (*ff.AVFrame)(frame)); err != nil {
+		ff.AVUtil_frame_free(copy)
+		return nil, err
+	}
+	return (*Frame)(copy), nil
 }
 
 // Unreference frame buffers
@@ -199,17 +236,17 @@ func (frame *Frame) IncPts(v int64) {
 	(*ff.AVFrame)(frame).SetPts((*ff.AVFrame)(frame).Pts() + v)
 }
 
-// Return the timestamp in seconds, or PTS_UNDEFINED if the timestamp
+// Return the timestamp in seconds, or TS_UNDEFINED if the timestamp
 // is undefined or timebase is not set
 func (frame *Frame) Ts() float64 {
 	ctx := (*ff.AVFrame)(frame)
 	pts := ctx.Pts()
 	if pts == ff.AV_NOPTS_VALUE {
-		return PTS_UNDEFINED
+		return TS_UNDEFINED
 	}
 	tb := ctx.TimeBase()
 	if tb.Num() == 0 || tb.Den() == 0 {
-		return PTS_UNDEFINED
+		return TS_UNDEFINED
 	}
 	return ff.AVUtil_rational_q2d(tb) * float64(pts)
 }
