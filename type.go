@@ -43,6 +43,5 @@ func (t Type) String() string {
 // METHODS
 
 func (t Type) Is(u Type) bool {
-	// TODO: Change later to flags
-	return t == u
+	return t&u == u
 }

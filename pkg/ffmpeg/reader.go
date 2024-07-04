@@ -344,7 +344,7 @@ func (r *Reader) mapStreams(fn DecoderMapFunc) (decoderMap, error) {
 		stream_index := stream.Index()
 
 		// Get decoder parameters and map to a decoder
-		par, err := fn(stream.Id(), &Par{
+		par, err := fn(stream_index, &Par{
 			AVCodecParameters: *stream.CodecPar(),
 		})
 		if err != nil {
