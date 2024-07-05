@@ -69,15 +69,28 @@ func (ctx *AVDeviceInfo) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+// list of autodetected devices
 func (ctx *AVDeviceInfoList) Devices() []*AVDeviceInfo {
-	if ctx.nb_devices == 0 || ctx.devices == nil {
+	if ctx == nil || ctx.nb_devices == 0 || ctx.devices == nil {
 		return nil
 	}
 	return cAVDeviceInfoSlice(unsafe.Pointer(ctx.devices), ctx.nb_devices)
 }
 
+// number of autodetected devices
 func (ctx *AVDeviceInfoList) NumDevices() int {
+	if ctx == nil {
+		return 0
+	}
 	return int(ctx.nb_devices)
+}
+
+// index of default device or -1 if no default
+func (ctx *AVDeviceInfoList) Default() int {
+	if ctx == nil {
+		return -1
+	}
+	return int(ctx.default_device)
 }
 
 func (ctx *AVDeviceInfo) Name() string {

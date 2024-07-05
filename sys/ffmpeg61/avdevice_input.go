@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -60,7 +59,6 @@ func AVDevice_list_input_sources(device *AVInputFormat, device_name string, devi
 	// Get list
 	var list *C.struct_AVDeviceInfoList
 	if ret := int(C.avdevice_list_input_sources((*C.struct_AVInputFormat)(device), cName, dict, &list)); ret < 0 {
-		fmt.Println("C list", device, cName, dict, list, ret)
 		return nil, AVError(ret)
 	}
 

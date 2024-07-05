@@ -2,7 +2,6 @@ package ffmpeg
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	// Packages
@@ -35,6 +34,8 @@ type metaDevice struct {
 	Default     bool   `json:"default,omitempty"`
 }
 
+var _ media.Format = &Format{}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -50,14 +51,36 @@ func newInputFormats(demuxer *ff.AVInputFormat, t media.Type) []media.Format {
 		})
 	}
 
-	// Get devices
-	if t.Is(media.DEVICE) {
-		list, err := ff.AVDevice_list_input_sources(demuxer, "", nil)
-		if err == nil {
-			fmt.Println(list)
-		}
+	if !t.Is(media.DEVICE) {
+		return result
 	}
 
+	// Get devices
+	list, err := ff.AVDevice_list_input_sources(demuxer, "", nil)
+	if err != nil {
+		// Bail out if we can't get the list of devices
+		return result
+	}
+	defer ff.AVDevice_free_list_devices(list)
+
+	// Make device list
+	devices := make([]*Device, 0, list.NumDevices())
+	for i, device := range list.Devices() {
+		devices = append(devices, &Device{
+			metaDevice{
+				Name:        device.Name(),
+				Description: device.Description(),
+				Default:     list.Default() == i,
+			},
+		})
+	}
+
+	// Append to result
+	for _, format := range result {
+		format.(*Format).Devices = devices
+	}
+
+	// Return result
 	return result
 }
 
@@ -71,14 +94,36 @@ func newOutputFormats(muxer *ff.AVOutputFormat, t media.Type) []media.Format {
 		})
 	}
 
-	// Get devices
-	if t.Is(media.DEVICE) {
-		dict := ff.AVUtil_dict_alloc()
-		defer ff.AVUtil_dict_free(dict)
-		list, err := ff.AVDevice_list_output_sinks(muxer, "", dict)
-		fmt.Println(err, list, dict)
+	if !t.Is(media.DEVICE) {
+		return result
 	}
 
+	// Get devices
+	list, err := ff.AVDevice_list_output_sinks(muxer, "", nil)
+	if err != nil {
+		// Bail out if we can't get the list of devices
+		return result
+	}
+	defer ff.AVDevice_free_list_devices(list)
+
+	// Make device list
+	devices := make([]*Device, 0, list.NumDevices())
+	for i, device := range list.Devices() {
+		devices = append(devices, &Device{
+			metaDevice{
+				Name:        device.Name(),
+				Description: device.Description(),
+				Default:     list.Default() == i,
+			},
+		})
+	}
+
+	// Append to result
+	for _, format := range result {
+		format.(*Format).Devices = devices
+	}
+
+	// Return result
 	return result
 }
 
@@ -99,4 +144,15 @@ func (f *Format) Type() media.Type {
 
 func (f *Format) Name() string {
 	return f.metaFormat.Name
+}
+
+func (f *Format) Description() string {
+	switch {
+	case f.Input != nil:
+		return f.Input.LongName()
+	case f.Output != nil:
+		return f.Output.LongName()
+	default:
+		return f.metaFormat.Name
+	}
 }
