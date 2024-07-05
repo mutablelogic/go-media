@@ -52,10 +52,10 @@ func newInputFormats(demuxer *ff.AVInputFormat, t media.Type) []media.Format {
 
 	// Get devices
 	if t.Is(media.DEVICE) {
-		dict := ff.AVUtil_dict_alloc()
-		defer ff.AVUtil_dict_free(dict)
-		list, err := ff.AVDevice_list_input_sources(demuxer, "", dict)
-		fmt.Println(err, list, dict)
+		list, err := ff.AVDevice_list_input_sources(demuxer, "", nil)
+		if err == nil {
+			fmt.Println(list)
+		}
 	}
 
 	return result
