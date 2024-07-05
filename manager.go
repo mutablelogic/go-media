@@ -112,4 +112,7 @@ type Format interface {
 
 	// The unique name that the format can be referenced as
 	Name() string
+
+	// Description of the format
+	Description() string
 }

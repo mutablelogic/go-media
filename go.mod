@@ -1,8 +1,6 @@
 module github.com/mutablelogic/go-media
 
-go 1.22
-
-toolchain go1.22.4
+go 1.20
 
 require (
 	github.com/alecthomas/kong v0.9.0
