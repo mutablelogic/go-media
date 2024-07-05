@@ -14,7 +14,6 @@ import (
 	media "github.com/mutablelogic/go-media"
 	fonts "github.com/mutablelogic/go-media/etc/fonts"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
 ////////////////////////////////////////////////////////////////////////////
@@ -45,7 +44,7 @@ func NewEBU(par *ffmpeg.Par) (*ebu, error) {
 	if par.Type() != media.VIDEO {
 		return nil, errors.New("invalid codec type")
 	}
-	framerate := ff.AVUtil_rational_q2d(par.Framerate())
+	framerate := par.FrameRate()
 	if framerate <= 0 {
 		return nil, errors.New("invalid framerate")
 	}

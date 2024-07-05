@@ -33,7 +33,7 @@ func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	} else if par.PixelFormat() != ff.AV_PIX_FMT_YUV420P {
 		return nil, errors.New("invalid pixel format, only yuv420p is supported")
 	}
-	framerate := ff.AVUtil_rational_q2d(par.Framerate())
+	framerate := par.FrameRate()
 	if framerate <= 0 {
 		return nil, errors.New("invalid framerate")
 	}

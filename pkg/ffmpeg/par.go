@@ -18,6 +18,7 @@ import (
 
 type Par struct {
 	ff.AVCodecParameters
+	timebase ff.AVRational
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -76,7 +77,7 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	if framerate < 0 {
 		return nil, ErrBadParameter.Withf("negative framerate %v", framerate)
 	} else {
-		par.SetFramerate(ff.AVUtil_rational_d2q(framerate, 1<<24))
+		par.timebase = ff.AVUtil_rational_invert(ff.AVUtil_rational_d2q(framerate, 1<<24))
 	}
 
 	// Set default sample aspect ratio
@@ -152,7 +153,8 @@ func (ctx *Par) WidthHeight() string {
 }
 
 func (ctx *Par) FrameRate() float64 {
-	return ff.AVUtil_rational_q2d(ctx.Framerate())
+	framerate := ff.AVUtil_rational_invert(ctx.timebase)
+	return ff.AVUtil_rational_q2d(framerate)
 }
 
 func (ctx *Par) ValidateFromCodec(codec *ff.AVCodec) error {
@@ -250,8 +252,7 @@ func (ctx *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
 	codec.SetWidth(ctx.Width())
 	codec.SetHeight(ctx.Height())
 	codec.SetSampleAspectRatio(ctx.SampleAspectRatio())
-	codec.SetFramerate(ctx.Framerate())
-	codec.SetTimeBase(ff.AVUtil_rational_invert(ctx.Framerate()))
+	codec.SetTimeBase(ctx.timebase)
 	return nil
 }
 
@@ -265,9 +266,9 @@ func (ctx *Par) validateVideoCodec(codec *ff.AVCodec) error {
 			ctx.SetPixelFormat(pixelformats[0])
 		}
 	}
-	if ctx.Framerate().Num() == 0 || ctx.Framerate().Den() == 0 {
+	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
 		if len(framerates) > 0 {
-			ctx.SetFramerate(framerates[0])
+			ctx.timebase = ff.AVUtil_rational_invert(framerates[0])
 		}
 	}
 
@@ -286,18 +287,18 @@ func (ctx *Par) validateVideoCodec(codec *ff.AVCodec) error {
 	if ctx.SampleAspectRatio().Num() == 0 || ctx.SampleAspectRatio().Den() == 0 {
 		ctx.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
 	}
-	if ctx.Framerate().Num() == 0 || ctx.Framerate().Den() == 0 {
+	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
 		return ErrBadParameter.With("framerate not set")
 	} else if len(framerates) > 0 {
 		valid := false
 		for _, fr := range framerates {
-			if ff.AVUtil_rational_equal(fr, ctx.Framerate()) {
+			if ff.AVUtil_rational_equal(fr, ff.AVUtil_rational_invert(ctx.timebase)) {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return ErrBadParameter.Withf("unsupported framerate %v", ctx.Framerate())
+			return ErrBadParameter.Withf("unsupported framerate %v", ff.AVUtil_rational_invert(ctx.timebase))
 		}
 	}
 
