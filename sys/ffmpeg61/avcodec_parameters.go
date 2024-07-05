@@ -66,7 +66,6 @@ func (ctx AVCodecParameters) MarshalJSON() ([]byte, error) {
 			Width:             int(ctx.width),
 			Height:            int(ctx.height),
 			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
-			Framerate:         AVRational(ctx.framerate),
 		}
 	}
 
@@ -179,14 +178,6 @@ func (ctx *AVCodecParameters) SampleAspectRatio() AVRational {
 
 func (ctx *AVCodecParameters) SetSampleAspectRatio(aspect AVRational) {
 	ctx.sample_aspect_ratio = C.AVRational(aspect)
-}
-
-func (ctx *AVCodecParameters) Framerate() AVRational {
-	return AVRational(ctx.framerate)
-}
-
-func (ctx *AVCodecParameters) SetFramerate(rate AVRational) {
-	ctx.framerate = C.AVRational(rate)
 }
 
 // Video
