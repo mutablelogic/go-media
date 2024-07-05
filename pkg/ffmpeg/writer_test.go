@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
 	assert "github.com/stretchr/testify/assert"

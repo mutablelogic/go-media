@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	// Packages
 	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	assert "github.com/stretchr/testify/assert"

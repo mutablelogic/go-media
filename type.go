@@ -3,26 +3,28 @@ package media
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Type of codec, device, format or stream
 type Type int
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	NONE  Type = 0
-	VIDEO Type = (1 << iota)
-	AUDIO
-	SUBTITLE
-	DATA
-	UNKNOWN
-	ANY     = NONE
-	mintype = VIDEO
-	maxtype = UNKNOWN
+	NONE     Type   = 0           // Type is not defined
+	VIDEO    Type   = (1 << iota) // Type is video
+	AUDIO                         // Type is audio
+	SUBTITLE                      // Type is subtitle
+	DATA                          // Type is data
+	UNKNOWN                       // Type is unknown
+	ANY      = NONE               // Type is any (used for filtering)
+	mintype  = VIDEO
+	maxtype  = UNKNOWN
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // STINGIFY
 
+// Return the type as a string
 func (t Type) String() string {
 	if t == NONE {
 		return t.FlagString()
@@ -36,6 +38,7 @@ func (t Type) String() string {
 	return str[1:]
 }
 
+// Return a flag as a string
 func (t Type) FlagString() string {
 	switch t {
 	case NONE:
@@ -56,6 +59,7 @@ func (t Type) FlagString() string {
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
+// Returns true if the type matches a set of flags
 func (t Type) Is(u Type) bool {
 	return t&u == u
 }

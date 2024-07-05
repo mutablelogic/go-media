@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// Namespace imports
-
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 

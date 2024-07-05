@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	imagex "github.com/mutablelogic/go-media/pkg/image"
 	assert "github.com/stretchr/testify/assert"

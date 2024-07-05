@@ -1,13 +1,11 @@
 package ffmpeg
 
 import (
-
-	// Packages
-
 	"slices"
 
+	// Packages
 	media "github.com/mutablelogic/go-media"
-	"github.com/mutablelogic/go-media/pkg/version"
+	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
 
