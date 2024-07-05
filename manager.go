@@ -5,6 +5,8 @@ functions to determine capabilities and manage media files and devices.
 */
 package media
 
+import "io"
+
 // Manager represents a manager for media formats and devices.
 // Create a new manager object using the NewManager function.
 //
@@ -26,7 +28,7 @@ type Manager interface {
 	// Open a media file or device for reading, from a path or url.
 	// If a format is specified, then the format will be used to open
 	// the file. Close the media object when done.
-	//Open(string, Format, ...string) (Media, error)
+	Open(string, Format, ...string) (Media, error)
 
 	// Open a media stream for reading.  If a format is
 	// specified, then the format will be used to open the file. Close the
@@ -46,11 +48,6 @@ type Manager interface {
 	// default parameters for the format are used. It is the responsibility
 	// of the caller to also close the writer when done.
 	//Write(io.Writer, Format, []Metadata, ...Parameters) (Media, error)
-
-	// Return supported devices for a given format.
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	//Devices(Format) []Device
 
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
@@ -112,4 +109,14 @@ type Format interface {
 
 	// The unique name that the format can be referenced as
 	Name() string
+}
+
+// A container format for a media file, reader, device or
+// network stream
+type Media interface {
+	io.Closer
+
+	// The type of the format, which can be combinations of
+	// INPUT, OUTPUT, DEVICE
+	Type() Type
 }

@@ -112,6 +112,8 @@ func AVFormat_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
 	if err := AVError(C.av_read_frame((*C.struct_AVFormatContext)(ctx), (*C.struct_AVPacket)(packet))); err < 0 {
 		if err == AVERROR_EOF {
 			return io.EOF
+		} else if err.IsErrno(syscall.EAGAIN) {
+			return syscall.EAGAIN
 		} else {
 			return err
 		}

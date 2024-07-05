@@ -8,6 +8,9 @@ import (
 	media "github.com/mutablelogic/go-media"
 	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,6 +97,24 @@ func (manager *Manager) NewReader(r io.Reader, format media.Format, opts ...stri
 	return NewReader(r, opt...)
 }
 */
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - READER
+
+func (manager *Manager) Open(url string, format media.Format, opts ...string) (media.Media, error) {
+	o := append([]Opt{}, manager.opts[:]...)
+	if format != nil {
+		if format_, ok := format.(*Format); ok && format_.Input != nil {
+			o = append(o, optInputFormat(format_))
+		} else {
+			return nil, ErrBadParameter.With("invalid input format")
+		}
+	}
+	if len(opts) > 0 {
+		o = append(o, OptInputOpt(opts...))
+	}
+	return Open(url, o...)
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - FORMATS

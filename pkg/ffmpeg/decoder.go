@@ -8,6 +8,9 @@ import (
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +38,7 @@ func NewDecoder(stream *ff.AVStream, dest *Par, force bool) (*Decoder, error) {
 	// Create a frame for decoder output - before resize/resample
 	frame := ff.AVUtil_frame_alloc()
 	if frame == nil {
-		return nil, errors.New("failed to allocate frame")
+		return nil, ErrInternalAppError.With("failed to allocate frame")
 	}
 
 	// Create a codec context for the decoder
@@ -114,12 +117,12 @@ func (d *Decoder) Close() error {
 // correct timebase, etc set
 func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 	if fn == nil {
-		return errors.New("DecoderFrameFn is nil")
+		return ErrBadParameter.With("DecoderFrameFn is nil")
 	}
 
 	// Submit the packet to the decoder (nil packet will flush the decoder)
 	if err := ff.AVCodec_send_packet(d.codec, packet); err != nil {
-		return err
+		return ErrInternalAppError.With("AVCodec_send_packet:", err)
 	}
 
 	// get all the available frames from the decoder
@@ -136,7 +139,7 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			// Finished decoding packet or EOF
 			break
 		} else if err != nil {
-			return err
+			return ErrInternalAppError.With("AVCodec_receive_frame:", err)
 		}
 
 		// Obtain the output frame. If a new frame is returned, it is

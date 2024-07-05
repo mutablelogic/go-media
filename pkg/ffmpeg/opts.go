@@ -2,7 +2,7 @@ package ffmpeg
 
 import (
 	// Package imports
-
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports
@@ -32,6 +32,7 @@ type opts struct {
 	metadata []*Metadata
 
 	// Reader options
+	t       media.Type
 	iformat *ffmpeg.AVInputFormat
 	opts    []string // These are key=value pairs
 }
@@ -82,6 +83,19 @@ func OptInputFormat(name string) Opt {
 			o.iformat = iformat
 		} else {
 			return ErrBadParameter.Withf("invalid input format %q", name)
+		}
+		return nil
+	}
+}
+
+// Input format from ff.AVInputFormat
+func optInputFormat(format *Format) Opt {
+	return func(o *opts) error {
+		if format != nil && format.Input != nil {
+			o.iformat = format.Input
+			o.t = format.Type()
+		} else {
+			return ErrBadParameter.With("invalid input format")
 		}
 		return nil
 	}
