@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	// Packages
+	"github.com/stretchr/testify/assert"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_avformat_input_001(t *testing.T) {

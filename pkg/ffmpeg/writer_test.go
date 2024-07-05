@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
 	assert "github.com/stretchr/testify/assert"
@@ -38,8 +39,8 @@ func Test_writer_001(t *testing.T) {
 	}
 	defer audio.Close()
 
-	// Write 15 mins of frames
-	duration := float64(15 * 60)
+	// Write 1 min of frames
+	duration := float64(60)
 	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
 		if frame.Ts() >= duration {

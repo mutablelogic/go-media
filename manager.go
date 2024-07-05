@@ -16,7 +16,8 @@ package media
 //	      }
 //
 // Various options are available to control the manager, for
-// logging and affecting decoding.
+// logging and affecting decoding, that can be applied when
+// creating the manager by passing them as arguments.
 //
 // Only one manager can be created. If NewManager is called
 // a second time, the previously created manager is returned,
@@ -46,32 +47,10 @@ type Manager interface {
 	// of the caller to also close the writer when done.
 	//Write(io.Writer, Format, []Metadata, ...Parameters) (Media, error)
 
-	// Return supported input formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//InputFormats(Type, ...string) []Format
-
-	// Return supported output formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//OutputFormats(Type, ...string) []Format
-
 	// Return supported devices for a given format.
 	// Not all devices may be supported on all platforms or listed
 	// if the device does not support enumeration.
 	//Devices(Format) []Device
-
-	// Return all supported channel layouts
-	//ChannelLayouts() []Metadata
-
-	// Return all supported sample formats
-	//SampleFormats() []Metadata
-
-	// Return all supported  pixel formats
-	//PixelFormats() []Metadata
-
-	// Return all supported codecs
-	//Codecs() []Metadata
 
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
@@ -88,6 +67,32 @@ type Manager interface {
 	// Return codec parameters for video encoding
 	// Codec name, Profile name, Framerate (fps) and VideoParameters
 	//VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
+
+	// Return supported input formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	//InputFormats(Type, ...string) []Format
+
+	// Return supported output formats which match any filter, which can be
+	// a name, extension (with preceeding period) or mimetype. The MediaType
+	// can be NONE (for any) or combinations of DEVICE and STREAM.
+	//OutputFormats(Type, ...string) []Format
+
+	// Return all supported sample formats
+	SampleFormats() []Metadata
+
+	// Return all supported pixel formats
+	PixelFormats() []Metadata
+
+	// Return standard channel layouts which can be used for audio,
+	// with the number of channels provided. If no channels are provided,
+	// then all standard channel layouts are returned.
+	ChannelLayouts() []Metadata
+
+	// Return all supported codecs, of a specific type or all
+	// if ANY is used. If any names is provided, then only the codecs
+	// with those names are returned.
+	Codecs(Type, ...string) []Metadata
 
 	// Return version information for the media manager as a set of
 	// metadata

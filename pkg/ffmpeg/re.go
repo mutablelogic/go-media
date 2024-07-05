@@ -22,6 +22,9 @@ type Re struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// Return a new resampler or rescaler, with the destination parameters. If
+// force is true, then the resampler will always resample, even if the
+// destination parameters are the same as the source parameters.
 func NewRe(par *Par, force bool) (*Re, error) {
 	re := new(Re)
 	re.t = par.Type()
@@ -46,6 +49,7 @@ func NewRe(par *Par, force bool) (*Re, error) {
 	return re, nil
 }
 
+// Release resources
 func (re *Re) Close() error {
 	var result error
 	if re.audio != nil {
@@ -63,6 +67,7 @@ func (re *Re) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Resample or rescale the source frame and return the destination frame
 func (re *Re) Frame(src *Frame) (*Frame, error) {
 	// Check type - if not flush
 	if src != nil {

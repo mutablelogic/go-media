@@ -3,6 +3,7 @@ package ffmpeg_test
 import (
 	"testing"
 
+	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	generator "github.com/mutablelogic/go-media/pkg/generator"
 	assert "github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func Test_resampler_001(t *testing.T) {
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
-		t.Log("FLUSH =>", dest)
+		t.Log(" =>", dest)
 		if dest == nil {
 			break
 		}

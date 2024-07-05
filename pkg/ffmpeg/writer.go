@@ -30,6 +30,14 @@ type writer_callback struct {
 	w io.Writer
 }
 
+// EncoderFrameFn is a function which is called to receive a frame to encode. It should
+// return nil to continue encoding or io.EOF to stop encoding.
+type EncoderFrameFn func(int) (*Frame, error)
+
+// EncoderPacketFn is a function which is called for each packet encoded, with
+// the stream timebase.
+type EncoderPacketFn func(*Packet) error
+
 //////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -148,6 +156,15 @@ func (writer *Writer) open(options *opts) (*Writer, error) {
 		if err := ff.AVUtil_dict_set(metadata, entry.Key(), entry.Value(), ff.AV_DICT_APPEND); err != nil {
 			return nil, errors.Join(err, writer.Close())
 		}
+	}
+
+	// Add artwork
+	for _, entry := range options.metadata {
+		// Ignore artwork fields
+		if entry.Key() != MetaArtwork || len(entry.Bytes()) == 0 {
+			continue
+		}
+		fmt.Println("TODO: Add artwork")
 	}
 
 	// Set metadata, write the header

@@ -40,11 +40,10 @@ type jsonAVVideoFrame struct {
 type jsonAVFrame struct {
 	*jsonAVAudioFrame
 	*jsonAVVideoFrame
-	NumPlanes    int         `json:"num_planes,omitempty"`
-	PlaneBytes   []int       `json:"plane_bytes,omitempty"`
-	Pts          AVTimestamp `json:"pts,omitempty"`
-	BestEffortTs AVTimestamp `json:"best_effort_timestamp,omitempty"`
-	TimeBase     AVRational  `json:"time_base,omitempty"`
+	NumPlanes  int         `json:"num_planes,omitempty"`
+	PlaneBytes []int       `json:"plane_bytes,omitempty"`
+	Pts        AVTimestamp `json:"pts,omitempty"`
+	TimeBase   AVRational  `json:"time_base,omitempty"`
 }
 
 func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
@@ -58,11 +57,10 @@ func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
 				ChannelLayout:  AVChannelLayout(ctx.ch_layout),
 				BytesPerSample: AVUtil_get_bytes_per_sample(AVSampleFormat(ctx.format)),
 			},
-			Pts:          AVTimestamp(ctx.pts),
-			BestEffortTs: AVTimestamp(ctx.best_effort_timestamp),
-			TimeBase:     AVRational(ctx.time_base),
-			NumPlanes:    AVUtil_frame_get_num_planes(ctx),
-			PlaneBytes:   ctx.planesizes(),
+			Pts:        AVTimestamp(ctx.pts),
+			TimeBase:   AVRational(ctx.time_base),
+			NumPlanes:  AVUtil_frame_get_num_planes(ctx),
+			PlaneBytes: ctx.planesizes(),
 		})
 	} else if ctx.width != 0 && ctx.height != 0 && ctx.PixFmt() != AV_PIX_FMT_NONE {
 		// Video
@@ -150,6 +148,14 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 	}
 	// Other
 	return 0
+}
+
+// Copy frame data
+func AVUtil_frame_copy(dst, src *AVFrame) error {
+	if ret := AVError(C.av_frame_copy((*C.struct_AVFrame)(dst), (*C.struct_AVFrame)(src))); ret < 0 {
+		return ret
+	}
+	return nil
 }
 
 // Copy only "metadata" fields from src to dst, those fields that do not affect the data layout in the buffers.

@@ -16,7 +16,7 @@ import (
 type Decoder struct {
 	stream   int
 	codec    *ff.AVCodecContext
-	dest     *Par          // Destination parameters
+	par      *Par          // Destination parameters
 	re       *Re           // Resample/resize
 	timeBase ff.AVRational // Timebase for the stream
 	frame    *ff.AVFrame   // Destination frame
@@ -29,7 +29,7 @@ type Decoder struct {
 func NewDecoder(stream *ff.AVStream, dest *Par, force bool) (*Decoder, error) {
 	decoder := new(Decoder)
 	decoder.stream = stream.Id()
-	decoder.dest = dest
+	decoder.par = dest
 	decoder.timeBase = stream.TimeBase()
 
 	// Create a frame for decoder output - before resize/resample
@@ -152,12 +152,9 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			dest = (*Frame)(d.frame)
 		}
 
-		// TODO: Modify Pts?
-		// What else do we need to copy across?
-		fmt.Println("TODO", d.timeBase, dest.TimeBase(), ff.AVTimestamp(dest.Pts()))
-		if dest.Pts() == PTS_UNDEFINED {
-			(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
-		}
+		// Copy across the timebase and pts
+		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
+		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
 
 		// Pass back to the caller
 		if err := fn(d.stream, dest); errors.Is(err, io.EOF) {

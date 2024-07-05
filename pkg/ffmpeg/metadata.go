@@ -105,3 +105,8 @@ func (m *Metadata) Image() image.Image {
 	}
 	return nil
 }
+
+// Returns the value as an interface
+func (m *Metadata) Any() any {
+	return m.meta.Value
+}

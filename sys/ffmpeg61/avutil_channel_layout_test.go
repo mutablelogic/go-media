@@ -3,9 +3,10 @@ package ffmpeg_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_avutil_channel_layout_001(t *testing.T) {

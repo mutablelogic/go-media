@@ -3,8 +3,6 @@ package ffmpeg_test
 import (
 	"testing"
 
-	// Packages
-
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/sys/ffmpeg61"
 )
