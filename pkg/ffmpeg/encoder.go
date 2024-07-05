@@ -175,7 +175,7 @@ func (e *Encoder) Par() *Par {
 	}
 }
 
-// Return the codec type
+// Return the next expected timestamp after a frame has been encoded
 func (e *Encoder) nextPts(frame *Frame) int64 {
 	next_pts := int64(0)
 	switch e.ctx.Codec().Type() {
@@ -213,6 +213,8 @@ func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 
 		// rescale output packet timestamp values from codec to stream timebase
 		ff.AVCodec_packet_rescale_ts(e.packet, e.ctx.TimeBase(), e.stream.TimeBase())
+
+		// Set packet parameters
 		e.packet.SetStreamIndex(e.stream.Index())
 		e.packet.SetTimeBase(e.stream.TimeBase())
 

@@ -36,7 +36,7 @@ func init() {
 	draw2d.SetFontCache(fonts.NewFontCache())
 }
 
-// Create a new video generator which generates the EBU Test Card
+// Create a new video generator which generates the EBU Colour Bars
 func NewEBU(par *ffmpeg.Par) (*ebu, error) {
 	ebu := new(ebu)
 

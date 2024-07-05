@@ -112,11 +112,15 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 		sample_fmt := r.dest.SampleFormat()
 		sample_rate := r.dest.SampleRate()
 		sample_ch := r.dest.ChannelLayout()
+		sample_tb := r.dest.TimeBase()
+		sample_pts := r.dest.Pts()
 		r.dest.Unref()
 		(*ff.AVFrame)(r.dest).SetSampleFormat(sample_fmt)
 		(*ff.AVFrame)(r.dest).SetSampleRate(sample_rate)
 		(*ff.AVFrame)(r.dest).SetChannelLayout(sample_ch)
 		(*ff.AVFrame)(r.dest).SetNumSamples(num_samples)
+		(*ff.AVFrame)(r.dest).SetTimeBase(sample_tb)
+		(*ff.AVFrame)(r.dest).SetPts(sample_pts)
 		if err := r.dest.AllocateBuffers(); err != nil {
 			ff.SWResample_free(r.ctx)
 			return nil, err
@@ -128,6 +132,11 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 		return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
 	} else if r.dest.NumSamples() == 0 {
 		return nil, nil
+	}
+
+	// Set the pts
+	if src != nil && src.Pts() != ff.AV_NOPTS_VALUE {
+		r.dest.SetPts(ff.AVUtil_rational_rescale_q(src.Pts(), src.TimeBase(), r.dest.TimeBase()))
 	}
 
 	// Return the destination frame or nil

@@ -42,7 +42,7 @@ type jsonAVFrame struct {
 	*jsonAVVideoFrame
 	NumPlanes  int         `json:"num_planes,omitempty"`
 	PlaneBytes []int       `json:"plane_bytes,omitempty"`
-	Pts        AVTimestamp `json:"pts,omitempty"`
+	Pts        AVTimestamp `json:"pts"`
 	TimeBase   AVRational  `json:"time_base,omitempty"`
 }
 
@@ -123,6 +123,10 @@ func AVUtil_frame_get_buffer(frame *AVFrame, align bool) error {
 	return nil
 }
 
+func AVUtil_frame_is_allocated(frame *AVFrame) bool {
+	return frame.data[0] != nil
+}
+
 // Ensure that the frame data is writable, avoiding data copy if possible.
 // Do nothing if the frame is writable, allocate new buffers and copy the data if it is not.
 // Non-refcounted frames behave as non-writable, i.e. a copy is always made.
@@ -146,6 +150,7 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 		// Video
 		return AVUtil_pix_fmt_count_planes(AVPixelFormat(frame.format))
 	}
+
 	// Other
 	return 0
 }
@@ -246,10 +251,6 @@ func (ctx *AVFrame) SetPts(pts int64) {
 	ctx.pts = C.int64_t(pts)
 }
 
-func (ctx *AVFrame) BestEffortTs() int64 {
-	return int64(ctx.best_effort_timestamp)
-}
-
 func (ctx *AVFrame) TimeBase() AVRational {
 	return AVRational(ctx.time_base)
 }
@@ -283,6 +284,10 @@ func (ctx *AVFrame) Planesize(plane int) int {
 // Return all strides.
 func (ctx *AVFrame) linesizes() []int {
 	var linesizes []int
+
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	for i := 0; i < AVUtil_frame_get_num_planes(ctx); i++ {
 		linesizes = append(linesizes, ctx.Linesize(i))
 	}
@@ -292,6 +297,10 @@ func (ctx *AVFrame) linesizes() []int {
 // Return all planes sizes
 func (ctx *AVFrame) planesizes() []int {
 	var planesizes []int
+
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	for i := 0; i < AVUtil_frame_get_num_planes(ctx); i++ {
 		planesizes = append(planesizes, ctx.Planesize(i))
 	}
@@ -305,41 +314,65 @@ func (ctx *AVFrame) Bytes(plane int) []byte {
 
 // Returns a plane as a uint8 array.
 func (ctx *AVFrame) Uint8(plane int) []uint8 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cUint8Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)))
 }
 
 // Returns a plane as a int8 array.
 func (ctx *AVFrame) Int8(plane int) []int8 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cInt8Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)))
 }
 
 // Returns a plane as a uint16 array.
 func (ctx *AVFrame) Uint16(plane int) []uint16 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cUint16Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>1))
 }
 
 // Returns a plane as a int16 array.
 func (ctx *AVFrame) Int16(plane int) []int16 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cInt16Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>1))
 }
 
 // Returns a plane as a uint32 array.
 func (ctx *AVFrame) Uint32(plane int) []uint32 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cUint32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a int32 array.
 func (ctx *AVFrame) Int32(plane int) []int32 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cInt32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a float32 array.
 func (ctx *AVFrame) Float32(plane int) []float32 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cFloat32Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>2))
 }
 
 // Returns a plane as a float64 array.
 func (ctx *AVFrame) Float64(plane int) []float64 {
+	if !AVUtil_frame_is_allocated(ctx) {
+		return nil
+	}
 	return cFloat64Slice(unsafe.Pointer(ctx.data[plane]), C.int(ctx.Planesize(plane)>>3))
 }
 

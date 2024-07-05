@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	// Packages
@@ -251,6 +249,7 @@ func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn Deco
 // As per the decode method, the map function is called for each stream and should return the
 // parameters for the destination. If the map function returns nil for a stream, then
 // the stream is ignored.
+/*
 func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFunc, opt ...Opt) error {
 	// Map streams to decoders
 	decoders, err := r.mapStreams(mapfn)
@@ -309,7 +308,7 @@ func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFun
 	// Return any errors
 	return result
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - DECODE
 

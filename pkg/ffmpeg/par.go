@@ -22,9 +22,8 @@ type Par struct {
 }
 
 type jsonPar struct {
-	Par       ff.AVCodecParameters `json:"parameters"`
-	Timebase  ff.AVRational        `json:"timebase"`
-	Framerate float64              `json:"framerate,omitempty"`
+	Par      ff.AVCodecParameters `json:"parameters"`
+	Timebase ff.AVRational        `json:"timebase"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,7 +78,7 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 		par.SetHeight(h)
 	}
 
-	// Frame rate
+	// Frame rate and timebase
 	if framerate < 0 {
 		return nil, ErrBadParameter.Withf("negative framerate %v", framerate)
 	} else if framerate > 0 {
@@ -131,9 +130,8 @@ func VideoPar(pixfmt string, size string, framerate float64) *Par {
 
 func (ctx *Par) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonPar{
-		Par:       ctx.AVCodecParameters,
-		Timebase:  ctx.timebase,
-		Framerate: ctx.FrameRate(),
+		Par:      ctx.AVCodecParameters,
+		Timebase: ctx.timebase,
 	})
 }
 
