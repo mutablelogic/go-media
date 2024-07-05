@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +56,7 @@ type (
 	AVBufferRef        C.struct_AVBufferRef
 	AVChannel          C.enum_AVChannel
 	AVChannelLayout    C.AVChannelLayout
+	AVChannelOrder     C.enum_AVChannelOrder
 	AVClass            C.AVClass
 	AVDictionary       struct{ ctx *C.struct_AVDictionary } // Wrapper
 	AVDictionaryEntry  C.struct_AVDictionaryEntry
@@ -145,6 +147,13 @@ var (
 )
 
 const (
+	AV_CHANNEL_ORDER_UNSPEC    AVChannelOrder = C.AV_CHANNEL_ORDER_UNSPEC
+	AV_CHANNEL_ORDER_NATIVE    AVChannelOrder = C.AV_CHANNEL_ORDER_NATIVE
+	AV_CHANNEL_ORDER_CUSTOM    AVChannelOrder = C.AV_CHANNEL_ORDER_CUSTOM
+	AV_CHANNEL_ORDER_AMBISONIC AVChannelOrder = C.AV_CHANNEL_ORDER_AMBISONIC
+)
+
+const (
 	AV_NOPTS_VALUE = C.AV_NOPTS_VALUE ///< Undefined timestamp value
 )
 
@@ -158,7 +167,11 @@ const (
 )
 
 const (
-	AV_TIME_BASE = C.AV_TIME_BASE ///< Internal time base
+	AV_TIME_BASE = C.AV_TIME_BASE // Internal time base
+)
+
+const (
+	AV_CHAN_NONE AVChannel = C.AV_CHAN_NONE // Invalid channel
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,4 +214,18 @@ func (ctx *AVDictionary) String() string {
 	} else {
 		return string(str)
 	}
+}
+
+func (v AVChannelOrder) String() string {
+	switch v {
+	case AV_CHANNEL_ORDER_UNSPEC:
+		return "AV_CHANNEL_ORDER_UNSPEC"
+	case AV_CHANNEL_ORDER_NATIVE:
+		return "AV_CHANNEL_ORDER_NATIVE"
+	case AV_CHANNEL_ORDER_CUSTOM:
+		return "AV_CHANNEL_ORDER_CUSTOM"
+	case AV_CHANNEL_ORDER_AMBISONIC:
+		return "AV_CHANNEL_ORDER_AMBISONIC"
+	}
+	return fmt.Sprintf("AVChannelOrder(%d)", int(v))
 }

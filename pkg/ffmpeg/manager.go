@@ -3,6 +3,9 @@ package ffmpeg
 import (
 
 	// Packages
+
+	"slices"
+
 	media "github.com/mutablelogic/go-media"
 	"github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
@@ -95,6 +98,96 @@ func (manager *Manager) NewReader(r io.Reader, format media.Format, opts ...stri
 	return NewReader(r, opt...)
 }
 */
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - CODECS, PIXEL FORMATS, SAMPLE FORMATS AND CHANNEL
+// LAYOUTS
+
+// Return all supported sample formats
+func (manager *Manager) SampleFormats() []media.Metadata {
+	var result []media.Metadata
+	var opaque uintptr
+	for {
+		samplefmt := ff.AVUtil_next_sample_fmt(&opaque)
+		if samplefmt == ff.AV_SAMPLE_FMT_NONE {
+			break
+		}
+		if sampleformat := newSampleFormat(samplefmt); sampleformat != nil {
+			result = append(result, NewMetadata(sampleformat.Name(), sampleformat))
+		}
+	}
+	return result
+}
+
+// Return all supported pixel formats
+func (manager *Manager) PixelFormats() []media.Metadata {
+	var result []media.Metadata
+	var opaque uintptr
+	for {
+		pixfmt := ff.AVUtil_next_pixel_fmt(&opaque)
+		if pixfmt == ff.AV_PIX_FMT_NONE {
+			break
+		}
+		if pixelformat := newPixelFormat(pixfmt); pixelformat != nil {
+			result = append(result, NewMetadata(pixelformat.Name(), pixelformat))
+		}
+	}
+	return result
+}
+
+// Return standard channel layouts which can be used for audio
+func (manager *Manager) ChannelLayouts() []media.Metadata {
+	var result []media.Metadata
+	var iter uintptr
+	for {
+		ch := ff.AVUtil_channel_layout_standard(&iter)
+		if ch == nil {
+			break
+		}
+		if channellayout := newChannelLayout(ch); channellayout != nil {
+			result = append(result, NewMetadata(channellayout.Name(), channellayout))
+		}
+	}
+	return result
+}
+
+// Return all supported codecs, of a specific type or all
+// if ANY is used. If any names is provided, then only the codecs
+// with those names are returned. Codecs can be AUDIO, VIDEO and
+// SUBTITLE
+func (manager *Manager) Codecs(t media.Type, name ...string) []media.Metadata {
+	var iter uintptr
+
+	// Filter to match codecs
+	codecMatchesFilter := func(codec *Codec, t media.Type, names ...string) bool {
+		if codec == nil {
+			return false
+		}
+		if !(t == media.ANY || codec.Type().Is(t)) {
+			return false
+		}
+		if len(name) > 0 && !slices.Contains(names, codec.Name()) {
+			return false
+		}
+		return true
+	}
+
+	// Iterate over codecs
+	result := []media.Metadata{}
+	for {
+		codec := ff.AVCodec_iterate(&iter)
+		if codec == nil {
+			break
+		}
+		codec_ := newCodec(codec)
+		if codecMatchesFilter(codec_, t, name...) {
+			result = append(result, NewMetadata(codec_.Name(), codec_))
+		}
+	}
+
+	// Return matched codecs
+	return result
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - VERSION

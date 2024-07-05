@@ -48,7 +48,7 @@ func Test_resampler_001(t *testing.T) {
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
-		t.Log("FLUSH =>", dest)
+		t.Log(" =>", dest)
 		if dest == nil {
 			break
 		}

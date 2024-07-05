@@ -25,4 +25,7 @@ type Metadata interface {
 
 	// Returns the value as an image
 	Image() image.Image
+
+	// Returns the value as an interface
+	Any() any
 }

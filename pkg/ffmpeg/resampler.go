@@ -98,10 +98,11 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 		delay := ff.SWResample_get_delay(r.ctx, int64(src.SampleRate())) + int64(src.NumSamples())
 		num_samples = int(ff.AVUtil_rescale_rnd(delay, int64(r.dest.SampleRate()), int64(src.SampleRate()), ff.AV_ROUND_UP))
 	}
+
+	// Check number of samples
 	if num_samples < 0 {
 		return nil, errors.New("av_rescale_rnd error")
-	}
-	if num_samples == 0 {
+	} else if num_samples == 0 {
 		return nil, nil
 	}
 
@@ -125,6 +126,8 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 	// Perform resampling
 	if err := ff.SWResample_convert_frame(r.ctx, (*ff.AVFrame)(src), (*ff.AVFrame)(r.dest)); err != nil {
 		return nil, fmt.Errorf("SWResample_convert_frame: %w", err)
+	} else if r.dest.NumSamples() == 0 {
+		return nil, nil
 	}
 
 	// Return the destination frame or nil

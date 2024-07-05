@@ -72,7 +72,7 @@ func AVUtil_channel_layout_standard(iterator *uintptr) *AVChannelLayout {
 	return (*AVChannelLayout)(C.av_channel_layout_standard((*unsafe.Pointer)(unsafe.Pointer(iterator))))
 }
 
-// Iterate over all standard channel layouts.
+// Get a human-readable string describing the channel layout properties.
 func AVUtil_channel_layout_describe(channel_layout *AVChannelLayout) (string, error) {
 	if n := C.av_channel_layout_describe((*C.struct_AVChannelLayout)(channel_layout), &cBuf[0], cBufSize); n < 0 {
 		return "", AVError(n)
@@ -136,4 +136,8 @@ func AVUtil_channel_layout_compare(a *AVChannelLayout, b *AVChannelLayout) bool 
 
 func (ctx AVChannelLayout) NumChannels() int {
 	return int(ctx.nb_channels)
+}
+
+func (ctx AVChannelLayout) Order() AVChannelOrder {
+	return AVChannelOrder(ctx.order)
 }
