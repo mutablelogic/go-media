@@ -26,12 +26,12 @@ type (
 	AVCodecContext                C.AVCodecContext
 	AVCodecFlag                   C.uint32_t
 	AVCodecFlag2                  C.uint32_t
+	AVCodecID                     C.enum_AVCodecID
 	AVCodecMacroblockDecisionMode C.int
 	AVCodecParameters             C.AVCodecParameters
 	AVCodecParser                 C.AVCodecParser
 	AVCodecParserContext          C.AVCodecParserContext
 	AVProfile                     C.AVProfile
-	AVCodecID                     C.enum_AVCodecID
 )
 
 type jsonAVCodec struct {

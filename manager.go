@@ -68,15 +68,11 @@ type Manager interface {
 	// Codec name, Profile name, Framerate (fps) and VideoParameters
 	//VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
 
-	// Return supported input formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//InputFormats(Type, ...string) []Format
-
-	// Return supported output formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//OutputFormats(Type, ...string) []Format
+	// Return supported input and output container formats which match any filter,
+	// which can be a name, extension (with preceeding period) or mimetype. The Type
+	// can be a combination of DEVICE, INPUT, OUTPUT or ANY to select the right kind of
+	// format
+	Formats(Type, ...string) []Format
 
 	// Return all supported sample formats
 	SampleFormats() []Metadata
@@ -106,4 +102,14 @@ type Manager interface {
 
 	// Log info messages  with arguments
 	Infof(string, ...any)
+}
+
+// A container format for a media file or stream
+type Format interface {
+	// The type of the format, which can be combinations of
+	// INPUT, OUTPUT, DEVICE, AUDIO, VIDEO and SUBTITLE
+	Type() Type
+
+	// The unique name that the format can be referenced as
+	Name() string
 }
