@@ -30,7 +30,6 @@ type jsonAVCodecParameterVideo struct {
 	Width             int           `json:"width"`
 	Height            int           `json:"height"`
 	SampleAspectRatio AVRational    `json:"sample_aspect_ratio,omitempty"`
-	Framerate         AVRational    `json:"framerate,omitempty"`
 }
 
 type jsonAVCodecParameters struct {

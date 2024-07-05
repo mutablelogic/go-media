@@ -76,6 +76,7 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, ErrInternalAppError.With("could not allocate stream")
 	} else {
+		// Set stream identifier and timebase from parameters
 		streamctx.SetId(stream)
 		encoder.stream = streamctx
 	}
@@ -95,6 +96,8 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 	if err := ff.AVCodec_parameters_from_context(encoder.stream.CodecPar(), encoder.ctx); err != nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, err
+	} else {
+		encoder.stream.SetTimeBase(par.timebase)
 	}
 
 	// Create a packet
@@ -164,6 +167,7 @@ func (e *Encoder) Encode(frame *Frame, fn EncoderPacketFn) error {
 // Return the codec parameters
 func (e *Encoder) Par() *Par {
 	par := new(Par)
+	par.timebase = e.stream.TimeBase()
 	if err := ff.AVCodec_parameters_from_context(&par.AVCodecParameters, e.ctx); err != nil {
 		return nil
 	} else {

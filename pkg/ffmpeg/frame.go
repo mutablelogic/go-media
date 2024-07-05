@@ -53,7 +53,7 @@ func NewFrame(par *Par) (*Frame, error) {
 		frame.SetWidth(par.Width())
 		frame.SetHeight(par.Height())
 		frame.SetSampleAspectRatio(par.SampleAspectRatio())
-		frame.SetTimeBase(par.timebase)
+		frame.SetTimeBase(par.timebase) // Also sets framerate
 	default:
 		ff.AVUtil_frame_free(frame)
 		return nil, errors.New("invalid codec type")

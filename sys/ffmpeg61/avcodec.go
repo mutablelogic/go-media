@@ -186,6 +186,7 @@ func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
 			Height:            int(ctx.height),
 			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
 			Framerate:         AVRational(ctx.framerate),
+			TimeBase:          (AVRational)(ctx.time_base),
 		})
 	case C.AVMEDIA_TYPE_AUDIO:
 		return json.Marshal(jsonAVCodecContext{

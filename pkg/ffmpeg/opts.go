@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	// Package imports
+
 	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
 
 	// Namespace imports

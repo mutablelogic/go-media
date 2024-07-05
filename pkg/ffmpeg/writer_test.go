@@ -137,12 +137,17 @@ func Test_writer_003(t *testing.T) {
 		frame := video.Frame()
 		if frame.Ts() >= duration {
 			return nil, io.EOF
-		} else {
-			t.Log("Frame", stream, "=>", frame.Ts())
-			return frame, nil
 		}
+		if !assert.NotEqual(ffmpeg.TS_UNDEFINED, frame.Ts()) {
+			t.FailNow()
+		}
+		t.Log("Frame", stream, "=>", frame.Ts())
+		return frame, nil
 	}, func(packet *ffmpeg.Packet) error {
 		if packet != nil {
+			if !assert.NotEqual(ffmpeg.TS_UNDEFINED, packet.Ts()) {
+				t.FailNow()
+			}
 			t.Log("Packet", packet.Ts())
 		}
 		return writer.Write(packet)

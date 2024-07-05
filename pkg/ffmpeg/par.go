@@ -21,6 +21,12 @@ type Par struct {
 	timebase ff.AVRational
 }
 
+type jsonPar struct {
+	Par       ff.AVCodecParameters `json:"parameters"`
+	Timebase  ff.AVRational        `json:"timebase"`
+	Framerate float64              `json:"framerate,omitempty"`
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -76,12 +82,14 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	// Frame rate
 	if framerate < 0 {
 		return nil, ErrBadParameter.Withf("negative framerate %v", framerate)
-	} else {
+	} else if framerate > 0 {
 		par.timebase = ff.AVUtil_rational_invert(ff.AVUtil_rational_d2q(framerate, 1<<24))
 	}
 
 	// Set default sample aspect ratio
 	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+
+	// TODO: Set profile, codec and bitrate and any other parameters
 
 	/* TODO
 	c->gop_size      = 12; // emit one intra frame every twelve frames at most
@@ -122,12 +130,20 @@ func VideoPar(pixfmt string, size string, framerate float64) *Par {
 // STRINGIFY
 
 func (ctx *Par) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ctx.AVCodecParameters)
+	return json.Marshal(jsonPar{
+		Par:       ctx.AVCodecParameters,
+		Timebase:  ctx.timebase,
+		Framerate: ctx.FrameRate(),
+	})
 }
 
 func (ctx *Par) String() string {
-	data, _ := json.MarshalIndent(ctx, "", "  ")
-	return string(data)
+	data, err := json.MarshalIndent(ctx, "", "  ")
+	if err != nil {
+		return err.Error()
+	} else {
+		return string(data)
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -153,8 +169,10 @@ func (ctx *Par) WidthHeight() string {
 }
 
 func (ctx *Par) FrameRate() float64 {
-	framerate := ff.AVUtil_rational_invert(ctx.timebase)
-	return ff.AVUtil_rational_q2d(framerate)
+	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
+		return 0
+	}
+	return ff.AVUtil_rational_q2d(ff.AVUtil_rational_invert(ctx.timebase))
 }
 
 func (ctx *Par) ValidateFromCodec(codec *ff.AVCodec) error {
@@ -183,6 +201,7 @@ func (ctx *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
 func (ctx *Par) copyAudioCodec(codec *ff.AVCodecContext) error {
 	codec.SetSampleFormat(ctx.SampleFormat())
 	codec.SetSampleRate(ctx.Samplerate())
+	codec.SetTimeBase(ff.AVUtil_rational(1, ctx.Samplerate()))
 	if err := codec.SetChannelLayout(ctx.ChannelLayout()); err != nil {
 		return err
 	}

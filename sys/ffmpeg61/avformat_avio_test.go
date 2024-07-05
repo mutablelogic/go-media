@@ -55,7 +55,7 @@ func Test_avio_001(t *testing.T) {
 		if n == AVERROR_EOF {
 			break
 		}
-		fmt.Println("N=", n, string(buf[:n]))
+		t.Log("N=", n, string(buf[:n]))
 	}
 
 	// Free the context
