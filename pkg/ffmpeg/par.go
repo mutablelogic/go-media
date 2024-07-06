@@ -18,20 +18,25 @@ import (
 
 type Par struct {
 	ff.AVCodecParameters
+	opts     []media.Metadata
 	timebase ff.AVRational
 }
 
 type jsonPar struct {
-	Par      ff.AVCodecParameters `json:"parameters"`
-	Timebase ff.AVRational        `json:"timebase"`
+	ff.AVCodecParameters
+	Timebase ff.AVRational    `json:"timebase"`
+	Opts     []media.Metadata `json:"options"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewAudioPar(samplefmt string, channellayout string, samplerate int) (*Par, error) {
+// Create new audio parameters with sample format, channel layout and sample rate
+// plus any additional options which is used for creating a stream
+func NewAudioPar(samplefmt string, channellayout string, samplerate int, opts ...media.Metadata) (*Par, error) {
 	par := new(Par)
 	par.SetCodecType(ff.AVMEDIA_TYPE_AUDIO)
+	par.opts = opts
 
 	// Sample Format
 	if samplefmt_ := ff.AVUtil_get_sample_fmt(samplefmt); samplefmt_ == ff.AV_SAMPLE_FMT_NONE {
@@ -59,9 +64,12 @@ func NewAudioPar(samplefmt string, channellayout string, samplerate int) (*Par, 
 	return par, nil
 }
 
-func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
+// Create new video parameters with pixel format, frame size, framerate
+// plus any additional options which is used for creating a stream
+func NewVideoPar(pixfmt string, size string, framerate float64, opts ...media.Metadata) (*Par, error) {
 	par := new(Par)
 	par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
+	par.opts = opts
 
 	// Pixel Format
 	if pixfmt_ := ff.AVUtil_get_pix_fmt(pixfmt); pixfmt_ == ff.AV_PIX_FMT_NONE {
@@ -88,37 +96,22 @@ func NewVideoPar(pixfmt string, size string, framerate float64) (*Par, error) {
 	// Set default sample aspect ratio
 	par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
 
-	// TODO: Set profile, codec and bitrate and any other parameters
-
-	/* TODO
-	c->gop_size      = 12; // emit one intra frame every twelve frames at most
-	c->pix_fmt       = STREAM_PIX_FMT;
-	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-		// just for testing, we also add B-frames
-		c->max_b_frames = 2;
-	}
-	if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-		// Needed to avoid using macroblocks in which some coeffs overflow.
-		// This does not happen with normal video, it just happens here as
-		// the motion of the chroma plane does not match the luma plane.
-		c->mb_decision = 2;
-	}
-	*/
-
 	// Return success
 	return par, nil
 }
 
-func AudioPar(samplefmt string, channellayout string, samplerate int) *Par {
-	if par, err := NewAudioPar(samplefmt, channellayout, samplerate); err != nil {
+// Create audio parameters. If there is an error, then this function will panic
+func AudioPar(samplefmt string, channellayout string, samplerate int, opts ...media.Metadata) *Par {
+	if par, err := NewAudioPar(samplefmt, channellayout, samplerate, opts...); err != nil {
 		panic(err)
 	} else {
 		return par
 	}
 }
 
-func VideoPar(pixfmt string, size string, framerate float64) *Par {
-	if par, err := NewVideoPar(pixfmt, size, framerate); err != nil {
+// Create video parameters. If there is an error, then this function will panic
+func VideoPar(pixfmt string, size string, framerate float64, opts ...media.Metadata) *Par {
+	if par, err := NewVideoPar(pixfmt, size, framerate, opts...); err != nil {
 		panic(err)
 	} else {
 		return par
@@ -130,8 +123,9 @@ func VideoPar(pixfmt string, size string, framerate float64) *Par {
 
 func (ctx *Par) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jsonPar{
-		Par:      ctx.AVCodecParameters,
-		Timebase: ctx.timebase,
+		AVCodecParameters: ctx.AVCodecParameters,
+		Timebase:          ctx.timebase,
+		Opts:              ctx.opts,
 	})
 }
 
@@ -195,6 +189,19 @@ func (ctx *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// Return options as a dictionary, which needs to be freed after use
+// by the caller method
+func (ctx *Par) newOpts() *ff.AVDictionary {
+	dict := ff.AVUtil_dict_alloc()
+	for _, opt := range ctx.opts {
+		if err := ff.AVUtil_dict_set(dict, opt.Key(), opt.Value(), ff.AV_DICT_APPEND); err != nil {
+			ff.AVUtil_dict_free(dict)
+			return nil
+		}
+	}
+	return dict
+}
 
 func (ctx *Par) copyAudioCodec(codec *ff.AVCodecContext) error {
 	codec.SetSampleFormat(ctx.SampleFormat())

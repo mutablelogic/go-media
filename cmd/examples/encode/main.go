@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"syscall"
 
 	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
@@ -13,9 +16,14 @@ import (
 
 // This example encodes an audio an video stream to a file
 func main() {
+	// Check we have a filename
+	if len(os.Args) != 2 {
+		log.Fatal("Usage: encode filename")
+	}
+
 	// Create a new file with an audio and video stream
 	file, err := ffmpeg.Create(os.Args[1],
-		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "1280x720", 30)),
+		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "1280x720", 25, ffmpeg.NewMetadata("crf", 2))),
 		ffmpeg.OptStream(2, ffmpeg.AudioPar("fltp", "mono", 22050)),
 	)
 	if err != nil {
@@ -39,10 +47,13 @@ func main() {
 	}
 	defer audio.Close()
 
+	// Bail out when we receive a signal
+	ctx := ContextForSignal(os.Interrupt, syscall.SIGQUIT)
+
 	// Write 90 seconds, passing video and audio frames to the encoder
 	// and returning io.EOF when the duration is reached
 	duration := float64(90)
-	err = file.Encode(func(stream int) (*ffmpeg.Frame, error) {
+	err = file.Encode(ctx, func(stream int) (*ffmpeg.Frame, error) {
 		var frame *ffmpeg.Frame
 		switch stream {
 		case 1:
@@ -51,12 +62,12 @@ func main() {
 			frame = audio.Frame()
 		}
 		if frame != nil && frame.Ts() < duration {
-			fmt.Print(".")
+			fmt.Println(stream, frame.Ts())
 			return frame, nil
 		}
 		return nil, io.EOF
 	}, nil)
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatal(err)
 	}
 	fmt.Print("\n")

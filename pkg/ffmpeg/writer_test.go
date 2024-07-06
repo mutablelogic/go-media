@@ -1,6 +1,7 @@
 package ffmpeg_test
 
 import (
+	"context"
 	"io"
 	"os"
 	"testing"
@@ -41,7 +42,7 @@ func Test_writer_001(t *testing.T) {
 
 	// Write 1 min of frames
 	duration := float64(60)
-	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
+	assert.NoError(writer.Encode(context.Background(), func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
 		if frame.Ts() >= duration {
 			return nil, io.EOF
@@ -87,7 +88,7 @@ func Test_writer_002(t *testing.T) {
 
 	// Write 15 mins of frames
 	duration := float64(15 * 60)
-	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
+	assert.NoError(writer.Encode(context.Background(), func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
 		if frame.Ts() >= duration {
 			return nil, io.EOF
@@ -133,7 +134,7 @@ func Test_writer_003(t *testing.T) {
 
 	// Write 1 min of frames
 	duration := float64(60)
-	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
+	assert.NoError(writer.Encode(context.Background(), func(stream int) (*ffmpeg.Frame, error) {
 		frame := video.Frame()
 		if frame.Ts() >= duration {
 			return nil, io.EOF
@@ -191,7 +192,7 @@ func Test_writer_004(t *testing.T) {
 
 	// Write 10 secs of frames
 	duration := float64(10)
-	assert.NoError(writer.Encode(func(stream int) (*ffmpeg.Frame, error) {
+	assert.NoError(writer.Encode(context.Background(), func(stream int) (*ffmpeg.Frame, error) {
 		var frame *ffmpeg.Frame
 		switch stream {
 		case 1:
