@@ -48,3 +48,24 @@ func Test_frame_003(t *testing.T) {
 	assert.Equal(720, frame.Height())
 	t.Log(frame)
 }
+
+func Test_frame_004(t *testing.T) {
+	assert := assert.New(t)
+
+	frame, err := ffmpeg.NewFrame(ffmpeg.VideoPar("rgba", "1280x720", 25))
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer frame.Close()
+
+	copy, err := frame.Copy()
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer copy.Close()
+
+	assert.Equal(copy.Type(), frame.Type())
+	assert.Equal(copy.PixelFormat(), frame.PixelFormat())
+	assert.Equal(copy.Width(), frame.Width())
+	assert.Equal(copy.Height(), frame.Height())
+}

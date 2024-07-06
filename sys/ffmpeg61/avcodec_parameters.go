@@ -30,7 +30,6 @@ type jsonAVCodecParameterVideo struct {
 	Width             int           `json:"width"`
 	Height            int           `json:"height"`
 	SampleAspectRatio AVRational    `json:"sample_aspect_ratio,omitempty"`
-	Framerate         AVRational    `json:"framerate,omitempty"`
 }
 
 type jsonAVCodecParameters struct {
@@ -66,7 +65,6 @@ func (ctx AVCodecParameters) MarshalJSON() ([]byte, error) {
 			Width:             int(ctx.width),
 			Height:            int(ctx.height),
 			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
-			Framerate:         AVRational(ctx.framerate),
 		}
 	}
 
@@ -179,14 +177,6 @@ func (ctx *AVCodecParameters) SampleAspectRatio() AVRational {
 
 func (ctx *AVCodecParameters) SetSampleAspectRatio(aspect AVRational) {
 	ctx.sample_aspect_ratio = C.AVRational(aspect)
-}
-
-func (ctx *AVCodecParameters) Framerate() AVRational {
-	return AVRational(ctx.framerate)
-}
-
-func (ctx *AVCodecParameters) SetFramerate(rate AVRational) {
-	ctx.framerate = C.AVRational(rate)
 }
 
 // Video

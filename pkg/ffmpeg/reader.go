@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"slices"
 	"strings"
-	"sync"
+	"syscall"
 	"time"
 
 	// Packages
@@ -24,6 +23,7 @@ import (
 
 // Media reader which reads from a URL, file path or device
 type Reader struct {
+	t     media.Type
 	input *ff.AVFormatContext
 	avio  *ff.AVIOContextEx
 	force bool
@@ -124,8 +124,9 @@ func (r *Reader) open(options *opts) (*Reader, error) {
 		return nil, err
 	}
 
-	// Set force flag
+	// Set force flag and type
 	r.force = options.force
+	r.t = options.t | media.INPUT
 
 	// Return success
 	return r, nil
@@ -165,6 +166,11 @@ func (r *Reader) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Return the media type
+func (r *Reader) Type() media.Type {
+	return r.t
+}
 
 // Return the duration of the media stream, returns zero if unknown
 func (r *Reader) Duration() time.Duration {
@@ -251,6 +257,7 @@ func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn Deco
 // As per the decode method, the map function is called for each stream and should return the
 // parameters for the destination. If the map function returns nil for a stream, then
 // the stream is ignored.
+/*
 func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFunc, opt ...Opt) error {
 	// Map streams to decoders
 	decoders, err := r.mapStreams(mapfn)
@@ -309,7 +316,7 @@ func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFun
 	// Return any errors
 	return result
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - DECODE
 
@@ -346,6 +353,7 @@ func (r *Reader) mapStreams(fn DecoderMapFunc) (decoderMap, error) {
 		// Get decoder parameters and map to a decoder
 		par, err := fn(stream_index, &Par{
 			AVCodecParameters: *stream.CodecPar(),
+			timebase:          stream.TimeBase(),
 		})
 		if err != nil {
 			result = errors.Join(result, err)
@@ -391,8 +399,10 @@ FOR_LOOP:
 		default:
 			if err := ff.AVFormat_read_frame(r.input, packet); errors.Is(err, io.EOF) {
 				break FOR_LOOP
+			} else if errors.Is(err, syscall.EAGAIN) {
+				continue FOR_LOOP
 			} else if err != nil {
-				return err
+				return ErrInternalAppError.With("AVFormat_read_frame: ", err)
 			}
 			stream_index := packet.StreamIndex()
 			if decoder := decoders[stream_index]; decoder != nil {

@@ -1,5 +1,9 @@
 package media
 
+import (
+	"encoding/json"
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -10,19 +14,27 @@ type Type int
 // GLOBALS
 
 const (
-	NONE     Type   = 0           // Type is not defined
-	VIDEO    Type   = (1 << iota) // Type is video
-	AUDIO                         // Type is audio
-	SUBTITLE                      // Type is subtitle
-	DATA                          // Type is data
-	UNKNOWN                       // Type is unknown
-	ANY      = NONE               // Type is any (used for filtering)
-	mintype  = VIDEO
-	maxtype  = UNKNOWN
+	NONE     Type = 0           // Type is not defined
+	VIDEO    Type = (1 << iota) // Type is video
+	AUDIO                       // Type is audio
+	SUBTITLE                    // Type is subtitle
+	DATA                        // Type is data
+	UNKNOWN                     // Type is unknown
+	INPUT                       // Type is input format
+	OUTPUT                      // Type is output format
+	DEVICE                      // Type is input or output device
+	maxtype
+	mintype = VIDEO
+	ANY     = NONE // Type is any (used for filtering)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // STINGIFY
+
+// Return the type as a string
+func (t Type) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.String())
+}
 
 // Return the type as a string
 func (t Type) String() string {
@@ -30,7 +42,7 @@ func (t Type) String() string {
 		return t.FlagString()
 	}
 	str := ""
-	for f := mintype; f <= maxtype; f <<= 1 {
+	for f := mintype; f < maxtype; f <<= 1 {
 		if t&f == f {
 			str += "|" + f.FlagString()
 		}
@@ -51,6 +63,12 @@ func (t Type) FlagString() string {
 		return "SUBTITLE"
 	case DATA:
 		return "DATA"
+	case INPUT:
+		return "INPUT"
+	case OUTPUT:
+		return "OUTPUT"
+	case DEVICE:
+		return "DEVICE"
 	default:
 		return "UNKNOWN"
 	}

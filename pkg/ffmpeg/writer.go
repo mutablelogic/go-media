@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -240,7 +241,7 @@ func (w *Writer) Stream(stream int) *Encoder {
 // the frame. If the callback function returns io.EOF then the encoding for
 // that encoder is stopped after flushing. If the second callback is nil,
 // then packets are written to the output.
-func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
+func (w *Writer) Encode(ctx context.Context, in EncoderFrameFn, out EncoderPacketFn) error {
 	if in == nil {
 		return ErrBadParameter.With("nil in or out")
 	}
@@ -265,53 +266,35 @@ func (w *Writer) Encode(in EncoderFrameFn, out EncoderPacketFn) error {
 		encoder.next_pts = 0
 	}
 
-	// Continue until all encoders have returned io.EOF and have been flushed
+	// Continue until all encoders have returned io.EOF (or context cancelled)
+	// and have been flushed
 	for {
 		// No more encoding to do
 		if len(encoders) == 0 {
 			break
 		}
 
-		// Find encoder with the lowest timestamp, based on next_pts and timebase
-		next_stream := -1
-		var next_encoder *Encoder
-		for stream, encoder := range encoders {
-			if next_encoder == nil || compareNextPts(encoder, next_encoder) < 0 {
-				next_encoder = encoder
-				next_stream = stream
+		// Mark as EOF if context is done
+		select {
+		case <-ctx.Done():
+			// Mark all encoders as EOF to flush them
+			for _, encoder := range encoders {
+				encoder.eof = true
+			}
+			// Perform the encode
+			if err := encode(in, out, encoders); err != nil {
+				return err
+			}
+		default:
+			// Perform the encode
+			if err := encode(in, out, encoders); err != nil {
+				return err
 			}
 		}
-
-		var frame *Frame
-		var err error
-
-		// Receive a frame if not EOF
-		if !next_encoder.eof {
-			frame, err = in(next_stream)
-			if errors.Is(err, io.EOF) {
-				next_encoder.eof = true
-			} else if err != nil {
-				return fmt.Errorf("stream %v: %w", next_stream, err)
-			}
-		}
-
-		// Send a frame for encoding
-		if err := next_encoder.Encode(frame, out); err != nil {
-			return fmt.Errorf("stream %v: %w", next_stream, err)
-		}
-
-		// If eof then delete the encoder
-		if next_encoder.eof {
-			delete(encoders, next_stream)
-			continue
-		}
-
-		// Calculate the next PTS
-		next_encoder.next_pts = next_encoder.next_pts + next_encoder.nextPts(frame)
 	}
 
-	// Return success
-	return nil
+	// Return error from context
+	return ctx.Err()
 }
 
 // Write a packet to the output. If you intercept the packets in the
@@ -323,6 +306,49 @@ func (w *Writer) Write(packet *Packet) error {
 // Returns -1 if a is before v
 func compareNextPts(a, b *Encoder) int {
 	return ff.AVUtil_compare_ts(a.next_pts, a.stream.TimeBase(), b.next_pts, b.stream.TimeBase())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - Encoding
+
+// Find encoder with the lowest timestamp, based on next_pts and timebase
+// and send to the the EncoderFrameFn
+func encode(in EncoderFrameFn, out EncoderPacketFn, encoders map[int]*Encoder) error {
+	next_stream := -1
+	var next_encoder *Encoder
+	for stream, encoder := range encoders {
+		if next_encoder == nil || compareNextPts(encoder, next_encoder) < 0 {
+			next_encoder = encoder
+			next_stream = stream
+		}
+	}
+
+	// Receive a frame if not EOF
+	var frame *Frame
+	var err error
+	if !next_encoder.eof {
+		frame, err = in(next_stream)
+		if errors.Is(err, io.EOF) {
+			next_encoder.eof = true
+		} else if err != nil {
+			return fmt.Errorf("stream %v: %w", next_stream, err)
+		}
+	}
+
+	// Send a frame for encoding
+	if err := next_encoder.Encode(frame, out); err != nil {
+		return fmt.Errorf("stream %v: %w", next_stream, err)
+	}
+
+	// If eof then delete the encoder
+	if next_encoder.eof {
+		delete(encoders, next_stream)
+		return nil
+	}
+
+	// Calculate the next PTS
+	next_encoder.next_pts = next_encoder.next_pts + next_encoder.nextPts(frame)
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

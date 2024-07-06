@@ -72,10 +72,11 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 	}
 
 	// Create the stream
-	if streamctx := ff.AVFormat_new_stream(ctx, nil); streamctx == nil {
+	if streamctx := ff.AVFormat_new_stream(ctx, codec); streamctx == nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, ErrInternalAppError.With("could not allocate stream")
 	} else {
+		// Set stream identifier and timebase from parameters
 		streamctx.SetId(stream)
 		encoder.stream = streamctx
 	}
@@ -85,10 +86,28 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 		encoder.ctx.SetFlags(encoder.ctx.Flags() | ff.AV_CODEC_FLAG_GLOBAL_HEADER)
 	}
 
+	// Get the options
+	opts := par.newOpts()
+	if opts == nil {
+		ff.AVCodec_free_context(encoder.ctx)
+		return nil, ErrInternalAppError.With("could not allocate options dictionary")
+	}
+	defer ff.AVUtil_dict_free(opts)
+
 	// Open it
-	if err := ff.AVCodec_open(encoder.ctx, codec, nil); err != nil {
+	if err := ff.AVCodec_open(encoder.ctx, codec, opts); err != nil {
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, ErrInternalAppError.Withf("codec_open: %v", err)
+	}
+
+	// If there are any non-consumed options, then error
+	var result error
+	for _, key := range ff.AVUtil_dict_keys(opts) {
+		result = errors.Join(result, ErrBadParameter.Withf("Stream %d: invalid codec option %q", stream, key))
+	}
+	if result != nil {
+		ff.AVCodec_free_context(encoder.ctx)
+		return nil, result
 	}
 
 	// Copy parameters to stream
@@ -96,6 +115,10 @@ func NewEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*Encoder, error)
 		ff.AVCodec_free_context(encoder.ctx)
 		return nil, err
 	}
+
+	// Hint what timebase we want to encode at. This will change when writing the
+	// headers for the encoding process
+	encoder.stream.SetTimeBase(par.timebase)
 
 	// Create a packet
 	packet := ff.AVCodec_packet_alloc()
@@ -164,6 +187,7 @@ func (e *Encoder) Encode(frame *Frame, fn EncoderPacketFn) error {
 // Return the codec parameters
 func (e *Encoder) Par() *Par {
 	par := new(Par)
+	par.timebase = e.ctx.TimeBase()
 	if err := ff.AVCodec_parameters_from_context(&par.AVCodecParameters, e.ctx); err != nil {
 		return nil
 	} else {
@@ -171,14 +195,14 @@ func (e *Encoder) Par() *Par {
 	}
 }
 
-// Return the codec type
+// Return the next expected timestamp after a frame has been encoded
 func (e *Encoder) nextPts(frame *Frame) int64 {
 	next_pts := int64(0)
 	switch e.ctx.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		next_pts = ff.AVUtil_rational_rescale_q(int64(frame.NumSamples()), ff.AVUtil_rational(1, frame.SampleRate()), e.stream.TimeBase())
+		next_pts = ff.AVUtil_rational_rescale_q(int64(frame.NumSamples()), frame.TimeBase(), e.stream.TimeBase())
 	case ff.AVMEDIA_TYPE_VIDEO:
-		next_pts = ff.AVUtil_rational_rescale_q(1, ff.AVUtil_rational_invert(e.ctx.Framerate()), e.stream.TimeBase())
+		next_pts = ff.AVUtil_rational_rescale_q(1, frame.TimeBase(), e.stream.TimeBase())
 	default:
 		// Dunno what to do with subtitle and data streams yet
 		fmt.Println("TODO: next_pts for subtitle and data streams")
@@ -209,6 +233,8 @@ func (e *Encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 
 		// rescale output packet timestamp values from codec to stream timebase
 		ff.AVCodec_packet_rescale_ts(e.packet, e.ctx.TimeBase(), e.stream.TimeBase())
+
+		// Set packet parameters
 		e.packet.SetStreamIndex(e.stream.Index())
 		e.packet.SetTimeBase(e.stream.TimeBase())
 

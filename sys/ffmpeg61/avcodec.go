@@ -26,12 +26,12 @@ type (
 	AVCodecContext                C.AVCodecContext
 	AVCodecFlag                   C.uint32_t
 	AVCodecFlag2                  C.uint32_t
+	AVCodecID                     C.enum_AVCodecID
 	AVCodecMacroblockDecisionMode C.int
 	AVCodecParameters             C.AVCodecParameters
 	AVCodecParser                 C.AVCodecParser
 	AVCodecParserContext          C.AVCodecParserContext
 	AVProfile                     C.AVProfile
-	AVCodecID                     C.enum_AVCodecID
 )
 
 type jsonAVCodec struct {
@@ -186,6 +186,7 @@ func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
 			Height:            int(ctx.height),
 			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
 			Framerate:         AVRational(ctx.framerate),
+			TimeBase:          (AVRational)(ctx.time_base),
 		})
 	case C.AVMEDIA_TYPE_AUDIO:
 		return json.Marshal(jsonAVCodecContext{

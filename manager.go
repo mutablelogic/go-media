@@ -5,6 +5,8 @@ functions to determine capabilities and manage media files and devices.
 */
 package media
 
+import "io"
+
 // Manager represents a manager for media formats and devices.
 // Create a new manager object using the NewManager function.
 //
@@ -26,7 +28,7 @@ type Manager interface {
 	// Open a media file or device for reading, from a path or url.
 	// If a format is specified, then the format will be used to open
 	// the file. Close the media object when done.
-	//Open(string, Format, ...string) (Media, error)
+	Open(string, Format, ...string) (Media, error)
 
 	// Open a media stream for reading.  If a format is
 	// specified, then the format will be used to open the file. Close the
@@ -47,11 +49,6 @@ type Manager interface {
 	// of the caller to also close the writer when done.
 	//Write(io.Writer, Format, []Metadata, ...Parameters) (Media, error)
 
-	// Return supported devices for a given format.
-	// Not all devices may be supported on all platforms or listed
-	// if the device does not support enumeration.
-	//Devices(Format) []Device
-
 	// Return audio parameters for encoding
 	// ChannelLayout, SampleFormat, Samplerate
 	//AudioParameters(string, string, int) (Parameters, error)
@@ -68,15 +65,11 @@ type Manager interface {
 	// Codec name, Profile name, Framerate (fps) and VideoParameters
 	//VideoCodecParameters(string, string, float64, VideoParameters) (Parameters, error)
 
-	// Return supported input formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//InputFormats(Type, ...string) []Format
-
-	// Return supported output formats which match any filter, which can be
-	// a name, extension (with preceeding period) or mimetype. The MediaType
-	// can be NONE (for any) or combinations of DEVICE and STREAM.
-	//OutputFormats(Type, ...string) []Format
+	// Return supported input and output container formats which match any filter,
+	// which can be a name, extension (with preceeding period) or mimetype. The Type
+	// can be a combination of DEVICE, INPUT, OUTPUT or ANY to select the right kind of
+	// format
+	Formats(Type, ...string) []Format
 
 	// Return all supported sample formats
 	SampleFormats() []Metadata
@@ -106,4 +99,27 @@ type Manager interface {
 
 	// Log info messages  with arguments
 	Infof(string, ...any)
+}
+
+// A container format for a media file or stream
+type Format interface {
+	// The type of the format, which can be combinations of
+	// INPUT, OUTPUT, DEVICE, AUDIO, VIDEO and SUBTITLE
+	Type() Type
+
+	// The unique name that the format can be referenced as
+	Name() string
+
+	// Description of the format
+	Description() string
+}
+
+// A container format for a media file, reader, device or
+// network stream
+type Media interface {
+	io.Closer
+
+	// The type of the format, which can be combinations of
+	// INPUT, OUTPUT, DEVICE
+	Type() Type
 }

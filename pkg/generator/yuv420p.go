@@ -33,8 +33,7 @@ func NewYUV420P(par *ffmpeg.Par) (*yuv420p, error) {
 	} else if par.PixelFormat() != ff.AV_PIX_FMT_YUV420P {
 		return nil, errors.New("invalid pixel format, only yuv420p is supported")
 	}
-	framerate := ff.AVUtil_rational_q2d(par.Framerate())
-	if framerate <= 0 {
+	if framerate := par.FrameRate(); framerate <= 0 {
 		return nil, errors.New("invalid framerate")
 	}
 
@@ -76,15 +75,11 @@ func (yuv420p *yuv420p) String() string {
 
 // Return the first and subsequent frames of raw video data
 func (yuv420p *yuv420p) Frame() *ffmpeg.Frame {
-	// Make a writable copy if the frame is not writable
-	if err := yuv420p.frame.MakeWritable(); err != nil {
-		return nil
-	}
-
 	// Set the Pts
 	if yuv420p.frame.Pts() == ffmpeg.PTS_UNDEFINED {
 		yuv420p.frame.SetPts(0)
 	} else {
+		// Increment by one frame
 		yuv420p.frame.IncPts(1)
 	}
 

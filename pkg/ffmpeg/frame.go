@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
@@ -53,7 +54,7 @@ func NewFrame(par *Par) (*Frame, error) {
 		frame.SetWidth(par.Width())
 		frame.SetHeight(par.Height())
 		frame.SetSampleAspectRatio(par.SampleAspectRatio())
-		frame.SetTimeBase(ff.AVUtil_rational_invert(par.Framerate()))
+		frame.SetTimeBase(par.timebase) // Also sets framerate
 	default:
 		ff.AVUtil_frame_free(frame)
 		return nil, errors.New("invalid codec type")
@@ -88,6 +89,11 @@ func (frame *Frame) AllocateBuffers() error {
 	return ff.AVUtil_frame_get_buffer((*ff.AVFrame)(frame), false)
 }
 
+// Return true if the frame has allocated buffers
+func (frame *Frame) IsAllocated() bool {
+	return ff.AVUtil_frame_is_allocated((*ff.AVFrame)(frame))
+}
+
 // Make the frame writable
 func (frame *Frame) MakeWritable() error {
 	return ff.AVUtil_frame_make_writable((*ff.AVFrame)(frame))
@@ -99,6 +105,7 @@ func (frame *Frame) Copy() (*Frame, error) {
 	if copy == nil {
 		return nil, errors.New("failed to allocate frame")
 	}
+
 	switch frame.Type() {
 	case media.AUDIO:
 		copy.SetSampleFormat(frame.SampleFormat())
@@ -114,18 +121,21 @@ func (frame *Frame) Copy() (*Frame, error) {
 		ff.AVUtil_frame_free(copy)
 		return nil, errors.New("invalid codec type")
 	}
-	if err := ff.AVUtil_frame_get_buffer(copy, false); err != nil {
-		ff.AVUtil_frame_free(copy)
-		return nil, err
-	}
-	if err := ff.AVUtil_frame_copy(copy, (*ff.AVFrame)(frame)); err != nil {
-		ff.AVUtil_frame_free(copy)
-		return nil, err
+	if frame.IsAllocated() {
+		if err := ff.AVUtil_frame_get_buffer(copy, false); err != nil {
+			ff.AVUtil_frame_free(copy)
+			return nil, fmt.Errorf("AVUtil_frame_get_buffer: %w", err)
+		}
+		if err := ff.AVUtil_frame_copy(copy, (*ff.AVFrame)(frame)); err != nil {
+			ff.AVUtil_frame_free(copy)
+			return nil, fmt.Errorf("AVUtil_frame_copy: %w", err)
+		}
 	}
 	if err := ff.AVUtil_frame_copy_props(copy, (*ff.AVFrame)(frame)); err != nil {
 		ff.AVUtil_frame_free(copy)
-		return nil, err
+		return nil, fmt.Errorf("AVUtil_frame_copy_props: %w", err)
 	}
+
 	return (*Frame)(copy), nil
 }
 
