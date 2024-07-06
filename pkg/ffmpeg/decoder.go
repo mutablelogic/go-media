@@ -31,7 +31,7 @@ type Decoder struct {
 // Create a stream decoder which can decode packets from the input stream
 func NewDecoder(stream *ff.AVStream, dest *Par, force bool) (*Decoder, error) {
 	decoder := new(Decoder)
-	decoder.stream = stream.Id()
+	decoder.stream = stream.Index()
 	decoder.par = dest
 	decoder.timeBase = stream.TimeBase()
 
