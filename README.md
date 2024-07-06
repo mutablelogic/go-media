@@ -16,11 +16,45 @@ you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
-In order to build the examples, you'll need the library and header files for [FFmpeg 6](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also required for fingerprinting audio files. On Macintosh with [homebrew](http://bew.sh/), for example:
+In order to build the examples, you'll need the library and header files 
+for [FFmpeg 6](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also 
+required for fingerprinting audio files and SDL2 for the video player.
+
+### MacOS
+
+On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
 brew install ffmpeg@6 chromaprint make
+brew link ffmpeg@6
 ```
+
+### Debian
+
+If you're using Debian you may not be able to get the ffmpeg 6 unless you first of all add the debi-multimedia repository. 
+You can do this by adding the following line to your `/etc/apt/sources.list` file:
+
+```bash
+# Run commands as privileged user
+echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main" >> /etc/apt/sources.list
+apt update -y -oAcquire::AllowInsecureRepositories=true
+apt install -y --force-yes deb-multimedia-keyring
+```
+
+Then you can proceed to install the ffmpeg 6 and the other dependencies:
+
+```bash
+# Run commands as privileged user
+apt install -y libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev
+apt install -y libchromaprint-dev
+apt install -y libsdl2-dev
+```
+
+### Docker Container
+
+TODO
+
+## Examples
 
 There are some examples in the `cmd` folder of the main repository on how to use
 the package. The various make targets are:
@@ -42,8 +76,6 @@ git clone git@github.com:djthorpe/go-media.git
 cd go-media
 DOCKER_REGISTRY=ghcr.io/mutablelogic make docker
 ```
-
-## Examples
 
 There are a variety of types of object needed as part of media processing.
 All examples require a `Manager` to be created, which is used to enumerate all supported formats
