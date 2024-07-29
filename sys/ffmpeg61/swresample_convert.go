@@ -13,15 +13,14 @@ import "C"
 // PUBLIC METHODS
 
 // Core conversion function. Returns number of samples output per channel.
-// in and in_count can be set to 0 to flush the last few samples out at the end.
-func SWResample_convert(ctx *SWRContext, dst *AVSamples, dst_nb_samples int, src *AVSamples, src_nb_samples int) (int, error) {
-	n := int(C.swr_convert(
-		(*C.struct_SwrContext)(ctx),
-		&dst.planes[0],
-		C.int(dst_nb_samples),
-		&src.planes[0],
-		C.int(src_nb_samples),
-	))
+// src can be set to nil to flush the last few samples out at the end.
+func SWResample_convert(ctx *SWRContext, dest, src *AVSamples) (int, error) {
+	var n int
+	if src != nil {
+		n = int(C.swr_convert((*C.struct_SwrContext)(ctx), &dest.planes[0], dest.nb_samples, &src.planes[0], src.nb_samples))
+	} else {
+		n = int(C.swr_convert((*C.struct_SwrContext)(ctx), &dest.planes[0], dest.nb_samples, nil, 0))
+	}
 	if n < 0 {
 		return 0, AVError(n)
 	} else {
