@@ -155,12 +155,17 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			dest = (*Frame)(d.frame)
 		}
 
+		// If we have a nil frame here, then don't pass back to the caller
+		if dest == nil {
+			ff.AVUtil_frame_unref(d.frame)
+			continue
+		}
+
 		// Copy across the timebase and pts
-		// TODO if dest != nil {
+		// TODO
 		//	fmt.Println("pts=", d.frame.Pts())
-		//		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
-		//		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
-		//}
+		//	(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
+		//	(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
 
 		// Pass back to the caller
 		if err := fn(d.stream, dest); errors.Is(err, io.EOF) {

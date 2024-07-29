@@ -16,7 +16,7 @@ import (
 import "C"
 
 const (
-	AV_NUM_PLANES = 48
+	AV_NUM_PLANES = 8
 )
 
 type AVSamples struct {
@@ -82,6 +82,18 @@ func (data *AVSamples) NumSamples() int {
 
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
+
+// Get AVSamples from an AVFrame
+func AVUtil_samples_frame(frame *AVFrame) *AVSamples {
+	return &AVSamples{
+		nb_samples:  frame.nb_samples,
+		nb_channels: frame.channels,
+		sample_fmt:  C.enum_AVSampleFormat(frame.format),
+		plane_size:  frame.linesize[0],
+		buffer_size: frame.linesize[0] * frame.nb_samples,
+		planes:      frame.data,
+	}
+}
 
 // Allocate a samples buffer for nb_samples samples. Return allocated data for each plane, and the stride.
 func AVUtil_samples_alloc(nb_samples, nb_channels int, sample_fmt AVSampleFormat, align bool) (*AVSamples, error) {
