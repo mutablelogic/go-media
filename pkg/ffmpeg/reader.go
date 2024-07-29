@@ -7,15 +7,11 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,10 +19,11 @@ import (
 
 // Media reader which reads from a URL, file path or device
 type Reader struct {
-	t     media.Type
-	input *ff.AVFormatContext
-	avio  *ff.AVIOContextEx
-	force bool
+	t       media.Type
+	input   *ff.AVFormatContext
+	avio    *ff.AVIOContextEx
+	force   bool
+	context *Context
 }
 
 type reader_callback struct {
@@ -136,6 +133,11 @@ func (r *Reader) open(options *opts) (*Reader, error) {
 func (r *Reader) Close() error {
 	var result error
 
+	// Free context
+	if ctx := r.context; ctx != nil {
+		result = errors.Join(result, ctx.Close())
+	}
+
 	// Free resources
 	ff.AVFormat_free_context(r.input)
 	if r.avio != nil {
@@ -143,6 +145,7 @@ func (r *Reader) Close() error {
 	}
 
 	// Release resources
+	r.context = nil
 	r.input = nil
 	r.avio = nil
 
@@ -190,20 +193,20 @@ func (r *Reader) BestStream(t media.Type) int {
 			// Only return if this doesn't have a disposition - so we don't select artwork, for example
 			disposition := r.input.Stream(stream).Disposition()
 			if disposition == 0 || disposition.Is(ff.AV_DISPOSITION_DEFAULT) {
-				return r.input.Stream(stream).Id()
+				return r.input.Stream(stream).Index()
 			}
 		}
 	case t.Is(media.AUDIO):
 		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_AUDIO, -1, -1); err == nil {
-			return r.input.Stream(stream).Id()
+			return r.input.Stream(stream).Index()
 		}
 	case t.Is(media.SUBTITLE):
 		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_SUBTITLE, -1, -1); err == nil {
-			return r.input.Stream(stream).Id()
+			return r.input.Stream(stream).Index()
 		}
 	case t.Is(media.DATA):
 		if stream, _, err := ff.AVFormat_find_best_stream(r.input, ff.AVMEDIA_TYPE_DATA, -1, -1); err == nil {
-			return r.input.Stream(stream).Id()
+			return r.input.Stream(stream).Index()
 		}
 	}
 	return -1
@@ -233,24 +236,34 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 	return result
 }
 
-// Decode the media stream into frames. The decodefn is called for each
-// frame decoded from the stream. The map function is called for each stream
-// and should return the parameters for the destination frame. If the map
-// function returns nil, then the stream is ignored.
-//
-// The decoding can be interrupted by cancelling the context, or by the decodefn
-// returning an error or io.EOF. The latter will end the decoding process early but
-// will not return an error.
 func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
-	// Map streams to decoders
-	decoders, err := r.mapStreams(mapfn)
+	// Create a decoding context
+	decoders, err := newContext(r, mapfn)
 	if err != nil {
 		return err
 	}
 	defer decoders.Close()
 
 	// Do the decoding
-	return r.decode(ctx, decoders, decodefn)
+	return decoders.decode(ctx, decodefn)
+}
+
+// Map streams to decoders, and return the decoding context
+// The map function is called for each stream
+// and should return the parameters for the destination frame. If any
+// parameters are returned as null, then that stream is ignored
+func (r *Reader) Map(fn DecoderMapFunc) (*Context, error) {
+	return newContext(r, fn)
+}
+
+// Decode the media stream into frames. The decodefn is called for each
+// frame decoded from the stream.
+//
+// The decoding can be interrupted by cancelling the context, or by the decodefn
+// returning an error or io.EOF. The latter will end the decoding process early but
+// will not return an error.
+func (r *Reader) DecodeWithContext(ctx context.Context, decoders *Context, decodefn DecoderFrameFn) error {
+	return decoders.decode(ctx, decodefn)
 }
 
 // Transcode the media stream to a writer
@@ -317,120 +330,6 @@ func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFun
 	return result
 }
 */
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS - DECODE
-
-type decoderMap map[int]*Decoder
-
-func (d decoderMap) Close() error {
-	var result error
-	for _, decoder := range d {
-		if err := decoder.Close(); err != nil {
-			result = errors.Join(result, err)
-		}
-	}
-	return result
-}
-
-// Map streams to decoders, and return the decoders
-func (r *Reader) mapStreams(fn DecoderMapFunc) (decoderMap, error) {
-	decoders := make(decoderMap, r.input.NumStreams())
-
-	// Standard decoder map function copies all streams
-	if fn == nil {
-		fn = func(_ int, par *Par) (*Par, error) {
-			return par, nil
-		}
-	}
-
-	// Create a decoder for each stream
-	// The decoder map function should be returning the parameters for the
-	// destination frame.
-	var result error
-	for _, stream := range r.input.Streams() {
-		stream_index := stream.Index()
-
-		// Get decoder parameters and map to a decoder
-		par, err := fn(stream_index, &Par{
-			AVCodecParameters: *stream.CodecPar(),
-			timebase:          stream.TimeBase(),
-		})
-		if err != nil {
-			result = errors.Join(result, err)
-		} else if par == nil {
-			continue
-		} else if decoder, err := NewDecoder(stream, par, r.force); err != nil {
-			result = errors.Join(result, err)
-		} else if _, exists := decoders[stream_index]; exists {
-			result = errors.Join(result, ErrDuplicateEntry.Withf("stream index %d", stream_index))
-		} else {
-			decoders[stream_index] = decoder
-		}
-	}
-
-	// Check to see if we have to do something
-	if len(decoders) == 0 {
-		result = errors.Join(result, ErrBadParameter.With("no streams to decode"))
-	}
-
-	// If there are errors, then free the decoders
-	if result != nil {
-		result = errors.Join(result, decoders.Close())
-	}
-
-	// Return any errors
-	return decoders, result
-}
-
-func (r *Reader) decode(ctx context.Context, decoders map[int]*Decoder, fn DecoderFrameFn) error {
-	// Allocate a packet
-	packet := ff.AVCodec_packet_alloc()
-	if packet == nil {
-		return errors.New("failed to allocate packet")
-	}
-	defer ff.AVCodec_packet_free(packet)
-
-	// Read packets
-FOR_LOOP:
-	for {
-		select {
-		case <-ctx.Done():
-			break FOR_LOOP
-		default:
-			if err := ff.AVFormat_read_frame(r.input, packet); errors.Is(err, io.EOF) {
-				break FOR_LOOP
-			} else if errors.Is(err, syscall.EAGAIN) {
-				continue FOR_LOOP
-			} else if err != nil {
-				return ErrInternalAppError.With("AVFormat_read_frame: ", err)
-			}
-			stream_index := packet.StreamIndex()
-			if decoder := decoders[stream_index]; decoder != nil {
-				if err := decoder.decode(packet, fn); errors.Is(err, io.EOF) {
-					break FOR_LOOP
-				} else if err != nil {
-					return err
-				}
-			}
-		}
-
-		// Unreference the packet
-		ff.AVCodec_packet_unref(packet)
-	}
-
-	// Flush the decoders
-	for _, decoder := range decoders {
-		if err := decoder.decode(nil, fn); errors.Is(err, io.EOF) {
-			// no-op
-		} else if err != nil {
-			return err
-		}
-	}
-
-	// Return the context error - will be cancelled, perhaps, or nil if the
-	// demuxer finished successfully without cancellation
-	return ctx.Err()
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - CALLBACK

@@ -230,7 +230,7 @@ func (w *Writer) String() string {
 // Return a "stream" for encoding
 func (w *Writer) Stream(stream int) *Encoder {
 	for _, encoder := range w.encoders {
-		if encoder.stream.Id() == stream {
+		if encoder.stream.Index() == stream {
 			return encoder
 		}
 	}
@@ -255,7 +255,7 @@ func (w *Writer) Encode(ctx context.Context, in EncoderFrameFn, out EncoderPacke
 	// Initialise encoders
 	encoders := make(map[int]*Encoder, len(w.encoders))
 	for _, encoder := range w.encoders {
-		stream := encoder.stream.Id()
+		stream := encoder.stream.Index()
 		if _, exists := encoders[stream]; exists {
 			return ErrBadParameter.Withf("duplicate stream %v", stream)
 		}
@@ -333,6 +333,10 @@ func encode(in EncoderFrameFn, out EncoderPacketFn, encoders map[int]*Encoder) e
 		} else if err != nil {
 			return fmt.Errorf("stream %v: %w", next_stream, err)
 		}
+	}
+	// If frame not ready, try again
+	if frame == nil {
+		return nil
 	}
 
 	// Send a frame for encoding

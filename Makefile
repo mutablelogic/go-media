@@ -22,7 +22,7 @@ BUILD_DIR := "build"
 CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 
-all: clean cli cmds
+all: clean cmds
 
 cmds: $(CMD_DIR)
 

@@ -131,6 +131,28 @@ func OptStream(stream int, par *Par) Opt {
 	}
 }
 
+// New streams with parameters from the context
+func OptContext(context *Context) Opt {
+	return func(o *opts) error {
+		if context == nil {
+			return ErrBadParameter.With("invalid decoding context")
+		}
+		for stream, decoder := range context.decoders {
+			if _, exists := o.streams[stream]; exists {
+				return ErrDuplicateEntry.Withf("stream %v", stream)
+			}
+			if stream < 0 {
+				return ErrBadParameter.Withf("invalid stream %v", stream)
+			}
+			o.streams[stream] = decoder.par
+		}
+
+		// Return success
+		return nil
+	}
+
+}
+
 // Force resampling and resizing on decode, even if the input and output
 // parameters are the same
 func OptForce() Opt {
