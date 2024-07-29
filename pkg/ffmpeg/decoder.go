@@ -156,8 +156,11 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 		}
 
 		// Copy across the timebase and pts
-		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
-		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
+		// TODO if dest != nil {
+		//	fmt.Println("pts=", d.frame.Pts())
+		//		(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
+		//		(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
+		//}
 
 		// Pass back to the caller
 		if err := fn(d.stream, dest); errors.Is(err, io.EOF) {
