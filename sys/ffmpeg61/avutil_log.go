@@ -61,6 +61,33 @@ const (
 var cbLog AVLogFunc
 
 ////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (v AVLog) String() string {
+	switch v {
+	case AV_LOG_QUIET:
+		return "QUIET"
+	case AV_LOG_PANIC:
+		return "PANIC"
+	case AV_LOG_FATAL:
+		return "FATAL"
+	case AV_LOG_ERROR:
+		return "ERROR"
+	case AV_LOG_WARNING:
+		return "WARN"
+	case AV_LOG_INFO:
+		return "INFO"
+	case AV_LOG_VERBOSE:
+		return "VERBOSE"
+	case AV_LOG_DEBUG:
+		return "DEBUG"
+	case AV_LOG_TRACE:
+		return "TRACE"
+	}
+	return "[?? Invalid AVLog value]"
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
 
 func AVUtil_log_set_level(level AVLog) {
