@@ -146,17 +146,22 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-//func swrConvertFrame_(ctx *ff.SWRContext, src, dest *ff.AVFrame) error {
-//	return ff.SWResample_convert_frame(ctx, src, dest)
-//}
-
 func swrConvertFrame(ctx *ff.SWRContext, src, dest *ff.AVFrame) error {
+	return ff.SWResample_convert_frame(ctx, src, dest)
+}
+
+/*
+func swrConvertFrame(ctx *ff.SWRContext, src, dest *ff.AVFrame) error {
+	fmt.Println("swrConvertFrame", src, "=>", dest)
+	fmt.Println("swrConvertFrame", ff.AVUtil_samples_frame(src), "=>", ff.AVUtil_samples_frame(dest))
+
 	_, err := ff.SWResample_convert(ctx, ff.AVUtil_samples_frame(dest), ff.AVUtil_samples_frame(src))
 	if err != nil {
 		return err
 	}
 	return nil
 }
+*/
 
 func newResampler(dest, src *Frame) (*ff.SWRContext, error) {
 	// Create a new resampler
