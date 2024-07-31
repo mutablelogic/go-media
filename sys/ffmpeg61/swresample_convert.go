@@ -68,6 +68,12 @@ func SWResample_get_out_samples(ctx *SWRContext, in_samples int) (int, error) {
 
 // Convert the samples in the input AVFrame and write them to the output AVFrame.
 func SWResample_convert_frame(ctx *SWRContext, src, dest *AVFrame) error {
+	// TODO: This is likely a terrible idea but the only thing I can get to work
+	// at the moment. Later find out why swr_convert_frame isn't working.
+	// Ref: https://stackoverflow.com/questions/77502983/libswresample-why-does-swr-init-change-in-ch-layout-order-so-it-no-longer-m
+	if err := SWResample_config_frame(ctx, src, dest); err != nil {
+		return err
+	}
 	if err := AVError(C.swr_convert_frame((*C.struct_SwrContext)(ctx), (*C.struct_AVFrame)(dest), (*C.struct_AVFrame)(src))); err != 0 {
 		return err
 	} else {

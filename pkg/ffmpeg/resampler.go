@@ -107,7 +107,7 @@ func (r *resampler) Frame(src *Frame) (*Frame, error) {
 	}
 
 	// Check buffer
-	// TODO UGLY CODE ALERT
+	// TODO: UGLY CODE ALERT
 	if r.dest.NumSamples() < num_samples {
 		sample_fmt := r.dest.SampleFormat()
 		sample_rate := r.dest.SampleRate()
