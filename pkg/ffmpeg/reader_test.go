@@ -168,3 +168,38 @@ func Test_reader_005(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func Test_reader_006(t *testing.T) {
+	assert := assert.New(t)
+
+	// Read a file
+	r, err := os.Open("../../etc/test/jfk.wav")
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer r.Close()
+
+	input, err := ffmpeg.NewReader(r)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	defer input.Close()
+
+	// Map function - only audio streams
+	mapfn := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
+		if par.Type() == media.AUDIO {
+			t.Logf("Stream %v[%d] => %v", par.Type(), stream, par)
+			return par, nil
+		}
+		return nil, nil
+	}
+
+	framefn := func(stream int, frame *ffmpeg.Frame) error {
+		t.Log("Got frame", frame)
+		return nil
+	}
+
+	if err := input.Decode(context.Background(), mapfn, framefn); !assert.NoError(err) {
+		t.FailNow()
+	}
+}

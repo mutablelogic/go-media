@@ -111,13 +111,15 @@ func (d *Decoder) Close() error {
 // Decode a packet into a set of frames to pass back to the
 // DecoderFrameFn. If the packet is nil, then the decoder will
 // flush any remaining frames.
-// TODO: Optionally use the user defined packet function
-// if they want to use AVParser
-// TODO: The frame sent to DecoderFrameFn needs to have the
-// correct timebase, etc set
+// TODO: Optionally use the user defined packet function if they want to use AVParser
 func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 	if fn == nil {
 		return ErrBadParameter.With("DecoderFrameFn is nil")
+	}
+
+	// Set the timebase for the packet
+	if packet != nil {
+		packet.SetTimeBase(d.timeBase)
 	}
 
 	// Submit the packet to the decoder (nil packet will flush the decoder)
@@ -142,6 +144,9 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			return ErrInternalAppError.With("AVCodec_receive_frame:", err)
 		}
 
+		// Set the timebase for the frame
+		d.frame.SetTimeBase(packet.TimeBase())
+
 		// Obtain the output frame. If a new frame is returned, it is
 		// managed by the rescaler/resizer and no need to unreference it
 		// later.
@@ -160,12 +165,6 @@ func (d *Decoder) decode(packet *ff.AVPacket, fn DecoderFrameFn) error {
 			ff.AVUtil_frame_unref(d.frame)
 			continue
 		}
-
-		// Copy across the timebase and pts
-		// TODO
-		//	fmt.Println("pts=", d.frame.Pts())
-		//	(*ff.AVFrame)(dest).SetPts(d.frame.Pts())
-		//	(*ff.AVFrame)(dest).SetTimeBase(d.timeBase)
 
 		// Pass back to the caller
 		if err := fn(d.stream, dest); errors.Is(err, io.EOF) {
