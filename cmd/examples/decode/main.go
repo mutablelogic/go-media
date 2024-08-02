@@ -31,7 +31,7 @@ func main() {
 	mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
 		if stream == input.BestStream(VIDEO) {
 			// Convert frame to yuv420p if needed, but use the same size and frame rate
-			return ffmpeg.VideoPar("yuv420p", par.WidthHeight(), par.FrameRate()), nil
+			return ffmpeg.NewVideoPar("yuv420p", par.WidthHeight(), par.FrameRate())
 		}
 		// Ignore other streams
 		return nil, nil
