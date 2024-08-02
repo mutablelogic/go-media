@@ -22,14 +22,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer input.Close()
 
-	// Make a map function which can be used to decode the streams and set
-	// the parameters we want each audio and video stream to have.
-	// The audio and video streams are resampled and resized to fit the
-	// parameters we pass to the decoder.
+	// Make a map function which can be used to determine the parameters of 
+	// decoded streams. The audio/video frames are resampled and resized to fit
+	// these parameters. Return the existing parameters to pass through the
+	// decoded frames, or nil to ignore the stream in decoding.
 	mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
 		if stream == input.BestStream(VIDEO) {
-			// Convert frame to yuv420p as needed
+			// Convert frame to yuv420p if needed, but use the same size and frame rate
 			return ffmpeg.VideoPar("yuv420p", par.WidthHeight(), par.FrameRate()), nil
 		}
 		// Ignore other streams
