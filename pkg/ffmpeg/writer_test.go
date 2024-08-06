@@ -86,8 +86,8 @@ func Test_writer_002(t *testing.T) {
 	}
 	defer audio.Close()
 
-	// Write 15 mins of frames
-	duration := float64(15 * 60)
+	// Write 15 secs of frames
+	duration := float64(15)
 	assert.NoError(writer.Encode(context.Background(), func(stream int) (*ffmpeg.Frame, error) {
 		frame := audio.Frame()
 		if frame.Ts() >= duration {
@@ -166,7 +166,7 @@ func Test_writer_004(t *testing.T) {
 	}
 	defer w.Close()
 
-	// Create a writer with an audio stream
+	// Create a writer with an audio and video stream
 	writer, err := ffmpeg.Create(w.Name(),
 		ffmpeg.OptMetadata(ffmpeg.NewMetadata("title", t.Name())),
 		ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "640x480", 30)),
@@ -200,6 +200,7 @@ func Test_writer_004(t *testing.T) {
 		case 2:
 			frame = audio.Frame()
 		}
+		t.Log("frame = ", stream, frame)
 		if frame.Ts() >= duration {
 			t.Log("Frame time is EOF", frame.Ts())
 			return nil, io.EOF

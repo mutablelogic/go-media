@@ -230,7 +230,7 @@ func (w *Writer) String() string {
 // Return a "stream" for encoding
 func (w *Writer) Stream(stream int) *Encoder {
 	for _, encoder := range w.encoders {
-		if encoder.stream.Index() == stream {
+		if encoder.stream.Id() == stream {
 			return encoder
 		}
 	}
@@ -327,21 +327,18 @@ func encode(in EncoderFrameFn, out EncoderPacketFn, encoders map[int]*Encoder) e
 	var frame *Frame
 	var err error
 	if !next_encoder.eof {
-		frame, err = in(next_stream)
+		// Get the frame based on the id (rather than index) of the stream
+		frame, err = in(next_encoder.stream.Id())
 		if errors.Is(err, io.EOF) {
 			next_encoder.eof = true
 		} else if err != nil {
-			return fmt.Errorf("stream %v: %w", next_stream, err)
+			return fmt.Errorf("stream %v: %w", next_encoder.stream.Id(), err)
 		}
-	}
-	// If frame not ready, try again
-	if frame == nil {
-		return nil
 	}
 
 	// Send a frame for encoding
 	if err := next_encoder.Encode(frame, out); err != nil {
-		return fmt.Errorf("stream %v: %w", next_stream, err)
+		return fmt.Errorf("stream %v: %w", next_encoder.stream.Id(), err)
 	}
 
 	// If eof then delete the encoder
@@ -351,7 +348,11 @@ func encode(in EncoderFrameFn, out EncoderPacketFn, encoders map[int]*Encoder) e
 	}
 
 	// Calculate the next PTS
-	next_encoder.next_pts = next_encoder.next_pts + next_encoder.nextPts(frame)
+	if frame != nil {
+		next_encoder.next_pts = next_encoder.next_pts + next_encoder.nextPts(frame)
+	}
+
+	// Return success
 	return nil
 }
 
