@@ -92,7 +92,7 @@ func main() {
 		}
 
 		// convert to destination format
-		n, err := ff.SWResample_convert(ctx, dest, dest_nb_samples, src, src_nb_samples)
+		n, err := ff.SWResample_convert(ctx, dest, src)
 		if err != nil {
 			log.Fatal(err)
 		}
