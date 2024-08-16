@@ -168,6 +168,29 @@ func (frame *Frame) Float32(plane int) []float32 {
 	return ctx.Float32(plane)
 }
 
+// Set plane data from float32 slice
+func (frame *Frame) SetFloat32(plane int, data []float32) error {
+	if frame.Type() != media.AUDIO {
+		return errors.New("frame is not an audio frame")
+	}
+
+	// If the number of samples is not the same, the re-allocate the frame
+	ctx := (*ff.AVFrame)(frame)
+	if len(data) != frame.NumSamples() {
+		ctx.SetNumSamples(len(data))
+		if err := ff.AVUtil_frame_get_buffer(ctx, false); err != nil {
+			ff.AVUtil_frame_unref(ctx)
+			return err
+		}
+	}
+
+	// Copy data
+	copy(ctx.Float32(plane), data)
+
+	// Return success
+	return nil
+}
+
 // Return plane data as a byte slice
 func (frame *Frame) Bytes(plane int) []byte {
 	return (*ff.AVFrame)(frame).Bytes(plane)
@@ -259,6 +282,17 @@ func (frame *Frame) Ts() float64 {
 		return TS_UNDEFINED
 	}
 	return ff.AVUtil_rational_q2d(tb) * float64(pts)
+}
+
+// Set timestamp in seconds
+func (frame *Frame) SetTs(secs float64) {
+	ctx := (*ff.AVFrame)(frame)
+	tb := ctx.TimeBase()
+	if secs == TS_UNDEFINED || tb.Num() == 0 || tb.Den() == 0 {
+		frame.SetPts(ff.AV_NOPTS_VALUE)
+		return
+	}
+	ctx.SetPts(int64(secs / ff.AVUtil_rational_q2d(tb)))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
