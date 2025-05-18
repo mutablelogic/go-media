@@ -142,16 +142,10 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-ffmpeg test-chromaprint
-
-.PHONY: test-chromaprint
-test-chromaprint: go-dep go-tidy
-	@echo Test
-	@echo ... test sys/chromaprint
-	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/chromaprint
+test: test-ffmpeg
 
 .PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy
+test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
 	@echo Test
 	@echo ... test sys/ffmpeg71
 	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
@@ -176,14 +170,14 @@ test-ffmpeg: go-dep go-tidy
 #	@echo ... test pkg
 #	@${GO} test ./pkg/...
 
-container-test: go-dep go-tidy
+container-test: go-dep go-tidy ffmpeg chromaprint
 	@echo Test
-	@${GO} mod tidy
-	@${GO} test --tags=container ./sys/ffmpeg71
-	@${GO} test --tags=container ./sys/chromaprint
-	@${GO} test --tags=container ./pkg/...
-	@${GO} test --tags=container .
-
+	@echo ... test sys/ffmpeg71
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
+	@echo ... test pkg/segmenter
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/segmenter
+	@echo ... test pkg/chromaprint
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/chromaprint
 
 ###############################################################################
 # DEPENDENCIES, ETC
