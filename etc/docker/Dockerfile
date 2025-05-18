@@ -12,11 +12,12 @@ COPY . .
 RUN set -x \
   && apt update -y \
   && apt install -y ca-certificates lsb-release curl \
-  && apt install -y libfreetype-dev libfdk-aac-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libxml2-dev libzvbi-dev
+  && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev
 
 # Build all the commands
 RUN set -x \
-  && OS=${OS} ARCH=${ARCH} make ffinstall 
+  && OS=${OS} ARCH=${ARCH} make ffinstall \
+  && OS=${OS} ARCH=${ARCH} make cli
 
 # Copy commands to /usr/local/bin
 FROM --platform=${OS}/${ARCH} debian:bookworm-slim
@@ -25,7 +26,9 @@ ARG ARCH
 ARG SOURCE
 RUN set -x \
   && apt update -y \
-  && apt install -y ca-certificates lsb-release
+  && apt install -y ca-certificates lsb-release \
+  && apt install -y libfreetype libmp3lame libopus libvorbis libvpx libx264
+
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 COPY --chmod=755 etc/docker/entrypoint.sh .
 

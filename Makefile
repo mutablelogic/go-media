@@ -74,7 +74,7 @@ ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 .PHONY: ffbuild
 ffbuild: ffmpeg
 	@echo "Building ${FFMPEG_VERSION}"
-	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make
 
 # Install ffmpeg
 .PHONY: ffinstall
