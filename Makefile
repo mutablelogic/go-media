@@ -2,8 +2,10 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 
-# Current ffmpeg version
-VERSION_FFMPEG=ffmpeg-7.1.1
+# Current ffmpeg version and config
+FFMPEG_VERSION=ffmpeg-7.1.1
+# Empty variable to collect FFmpeg configuration options - will be populated dynamically
+FFMPEG_CONFIG=
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -48,38 +50,37 @@ $(CMD_DIR): go-dep mkdir
 # FFMPEG
 
 # Download ffmpeg sources
-${BUILD_DIR}/${VERSION_FFMPEG}:
-	@if [ ! -d "$(BUILD_DIR)/$(VERSION_FFMPEG)" ]; then \
-		echo "Downloading $(VERSION_FFMPEG)"; \
-		mkdir -p $(BUILD_DIR)/${VERSION_FFMPEG}; \
-		curl -L -o $(BUILD_DIR)/ffmpeg.tar.gz https://ffmpeg.org/releases/$(VERSION_FFMPEG).tar.gz; \
+${BUILD_DIR}/${FFMPEG_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
+		echo "Downloading $(FFMPEG_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/${FFMPEG_VERSION}; \
+		curl -L -o $(BUILD_DIR)/ffmpeg.tar.gz https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/ffmpeg.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/ffmpeg.tar.gz; \
 	fi
 
 # Configure ffmpeg
 .PHONY: ffmpeg
-ffmpeg: mkdir ${BUILD_DIR}/${VERSION_FFMPEG}
-	@echo "Configuring ${VERSION_FFMPEG} => ${PREFIX}"	
-	@cd ${BUILD_DIR}/${VERSION_FFMPEG} && ./configure \
+ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
+	@echo "Configuring ${FFMPEG_VERSION} => ${PREFIX}"	
+	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
 		--enable-static --disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
 	  	--pkg-config-flags="--static" \
 		--extra-libs="-lpthread" \
-		--extra-cflags="-fno-common" \
-		--enable-gpl 
+		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg
 .PHONY: ffbuild
 ffbuild: ffmpeg
-	@echo "Building ${VERSION_FFMPEG}"
-	@cd $(BUILD_DIR)/$(VERSION_FFMPEG) && make -j
+	@echo "Building ${FFMPEG_VERSION}"
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j
 
 # Install ffmpeg
 .PHONY: ffinstall
 ffinstall: ffbuild
-	@echo "Installing ${VERSION_FFMPEG}"
-	@cd $(BUILD_DIR)/$(VERSION_FFMPEG) && make install
+	@echo "Installing ${FFMPEG_VERSION}"
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
 
 ###############################################################################
 # DOCKER
@@ -149,3 +150,20 @@ clean:
 	@rm -fr $(BUILD_DIR)
 	@${GO} mod tidy
 	@${GO} clean
+
+# Check for FFmpeg dependencies
+.PHONY: ffmpeg-dep
+ffmpeg-dep:
+	@echo "Checking for FFmpeg dependencies..."
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists libass && echo "--enable-libass"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists fdk-aac && echo "--enable-libfdk-aac"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists lame && echo "--enable-libmp3lame"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists freetype2 && echo "--enable-libfreetype"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists theora && echo "--enable-libtheora"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vorbis && echo "--enable-libvorbis"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vpx && echo "--enable-libvpx"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x264 && echo "--enable-libx264"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x265 && echo "--enable-libx265"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists opus && echo "--enable-libopus"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists xvid && echo "--enable-libxvid"))
+	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
