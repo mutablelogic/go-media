@@ -11,14 +11,12 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-media"
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	file "github.com/mutablelogic/go-media/pkg/file"
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
-
-// Packages
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
