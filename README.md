@@ -330,7 +330,7 @@ repository for more information:
 
 > __go-media__\
 > [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)\
-> Copyright (c) 2021-2024 David Thorpe, All rights reserved.
+> Copyright (c) 2021-2025 David Thorpe, All rights reserved.
 
 This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under
 the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
