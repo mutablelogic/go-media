@@ -2,9 +2,9 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 
-# Current ffmpeg version and config
+# Source version
 FFMPEG_VERSION=ffmpeg-7.1.1
-FFMPEG_CONFIG=
+CHROMAPRINT_VERSION=chromaprint-1.5.1
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -82,6 +82,46 @@ ffmpeg: ffmpeg-build
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
 
 ###############################################################################
+# CHROMAPRINT
+
+# Download ffmpeg sources
+${BUILD_DIR}/${CHROMAPRINT_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/$(CHROMAPRINT_VERSION)" ]; then \
+		echo "Downloading $(CHROMAPRINT_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/${CHROMAPRINT_VERSION}; \
+		curl -L -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.5.1/$(CHROMAPRINT_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/chromaprint.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
+	fi
+
+
+# Configure chromaprint
+.PHONY: chromaprint-configure
+chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
+	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
+	cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=0 \
+		-DBUILD_TESTS=0 \
+		-DBUILD_TOOLS=0 \
+		--install-prefix "$(shell realpath ${PREFIX})" \
+		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
+		-B ${BUILD_DIR}
+
+# Build chromaprint
+.PHONY: chromaprint-build
+chromaprint-build: chromaprint-configure
+	@echo "Building ${CHROMAPRINT_VERSION}"
+	@cd $(BUILD_DIR) && make -j2
+
+# Install chromaprint
+.PHONY: chromaprint
+chromaprint: chromaprint-build
+	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR) && make install
+
+###############################################################################
 # DOCKER
 
 docker: docker-dep
@@ -101,11 +141,26 @@ docker-push: docker-dep
 ###############################################################################
 # TESTS
 
-test: go-dep go-tidy
+.PHONY: test
+test: test-ffmpeg test-chromaprint
+
+.PHONY: test-chromaprint
+test-chromaprint: go-dep go-tidy
 	@echo Test
-	@${GO} mod tidy
+	@echo ... test sys/chromaprint
+	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/chromaprint
+
+.PHONY: test-ffmpeg
+test-ffmpeg: go-dep go-tidy
+	@echo Test
 	@echo ... test sys/ffmpeg71
-	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/ffmpeg71
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
+	@echo ... test pkg/segmenter
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/segmenter
+	@echo ... test pkg/chromaprint
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/chromaprint
+
+
 #	@echo ... test pkg/ffmpeg
 #	@${GO} test -v ./pkg/ffmpeg
 #	@echo ... test sys/chromaprint
