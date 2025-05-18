@@ -191,7 +191,7 @@ func (cmd *ExtractThumbnails) Run(app server.Cmd) error {
 		}
 
 		// Skip if ts is too soon after the last frame
-		if cmd.Delta > 0 && ts-oldts < cmd.Delta {
+		if cmd.Delta > 0 && oldts > 0 && ts-oldts < cmd.Delta {
 			return nil
 		} else {
 			oldts = ts
@@ -223,6 +223,17 @@ func (cmd *ExtractThumbnails) Run(app server.Cmd) error {
 		// Check maximum number of frames
 		if cmd.N > 0 && uint64(nframe) >= cmd.N {
 			return io.EOF
+		}
+
+		// Seek to the next frame - actually the keyframe just
+		// before the next frame, so we can skip a few frames
+		if cmd.Delta > 0 {
+			newts := ts + cmd.Delta
+			if newts < input.(*ffmpeg.Reader).Duration() {
+				if err := input.(*ffmpeg.Reader).Seek(stream, newts.Truncate(time.Second).Seconds()); err != nil {
+					return err
+				}
+			}
 		}
 
 		// Return for next frame

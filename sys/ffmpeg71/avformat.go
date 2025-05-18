@@ -27,6 +27,7 @@ type (
 	AVIOContext     C.struct_AVIOContext
 	AVIOFlag        C.int
 	AVOutputFormat  C.struct_AVOutputFormat
+	AVSeekFlag      C.int
 	AVStream        C.struct_AVStream
 	AVTimestamp     C.int64_t
 )
@@ -88,6 +89,14 @@ const (
 	AV_DISPOSITION_METADATA         AVDisposition = C.AV_DISPOSITION_METADATA
 	AV_DISPOSITION_MIN                            = AV_DISPOSITION_DEFAULT
 	AV_DISPOSITION_MAX                            = AV_DISPOSITION_METADATA
+)
+
+const (
+	AVSEEK_FLAG_NONE     AVSeekFlag = 0                      ///< no special flags
+	AVSEEK_FLAG_BACKWARD AVSeekFlag = C.AVSEEK_FLAG_BACKWARD ///< seek backward
+	AVSEEK_FLAG_BYTE     AVSeekFlag = C.AVSEEK_FLAG_BYTE     ///< seek by byte
+	AVSEEK_FLAG_ANY      AVSeekFlag = C.AVSEEK_FLAG_ANY      ///< seek to any frame
+	AVSEEK_FLAG_FRAME    AVSeekFlag = C.AVSEEK_FLAG_FRAME    ///< seek to frame
 )
 
 ////////////////////////////////////////////////////////////////////////////////

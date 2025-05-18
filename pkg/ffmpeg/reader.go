@@ -235,6 +235,17 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 	return result
 }
 
+// Seek to a specific time in the media stream, in seconds
+func (r *Reader) Seek(stream int, secs float64) error {
+	ctx := r.input.Stream(stream)
+	if ctx == nil {
+		return media.ErrBadParameter.With("stream not found")
+	}
+	// At the moment, it seeks to the previous keyframe
+	tb := int64(secs / ff.AVUtil_rational_q2d(ctx.TimeBase()))
+	return ff.AVFormat_seek_frame(r.input, ctx.Index(), tb, ff.AVSEEK_FLAG_BACKWARD)
+}
+
 func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
 	// Create a decoding context
 	decoders, err := newContext(r, mapfn)
