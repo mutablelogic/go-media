@@ -2,10 +2,9 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 
-# Current ffmpeg version and config
+# Source version
 FFMPEG_VERSION=ffmpeg-7.1.1
-# Empty variable to collect FFmpeg configuration options - will be populated dynamically
-FFMPEG_CONFIG=
+CHROMAPRINT_VERSION=chromaprint-1.5.1
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -32,17 +31,17 @@ PREFIX ?= ${BUILD_DIR}/install
 # TARGETS
 
 .PHONY: all
-all: clean ffinstall cli
+all: clean ffmpeg cli
 
 .PHONY: cmds
 cmds: $(CMD_DIR)
 
 .PHONY: cli
-cli: go-dep mkdir
+cli: go-dep go-tidy mkdir
 	@echo Build media tool
 	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
 
-$(CMD_DIR): go-dep mkdir
+$(CMD_DIR): go-dep go-tidy mkdir
 	@echo Build cmd $(notdir $@)
 	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -60,8 +59,8 @@ ${BUILD_DIR}/${FFMPEG_VERSION}:
 	fi
 
 # Configure ffmpeg
-.PHONY: ffmpeg
-ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
+.PHONY: ffmpeg-configure
+ffmpeg-configure: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 	@echo "Configuring ${FFMPEG_VERSION} => ${PREFIX}"	
 	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
 		--enable-static --disable-doc --disable-programs \
@@ -71,16 +70,56 @@ ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg
-.PHONY: ffbuild
-ffbuild: ffmpeg
+.PHONY: ffmpeg-build
+ffmpeg-build: ffmpeg-configure
 	@echo "Building ${FFMPEG_VERSION}"
-	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j2
 
 # Install ffmpeg
-.PHONY: ffinstall
-ffinstall: ffbuild
-	@echo "Installing ${FFMPEG_VERSION}"
+.PHONY: ffmpeg
+ffmpeg: ffmpeg-build
+	@echo "Installing ${FFMPEG_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
+
+###############################################################################
+# CHROMAPRINT
+
+# Download ffmpeg sources
+${BUILD_DIR}/${CHROMAPRINT_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/$(CHROMAPRINT_VERSION)" ]; then \
+		echo "Downloading $(CHROMAPRINT_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/${CHROMAPRINT_VERSION}; \
+		curl -L -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.5.1/$(CHROMAPRINT_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/chromaprint.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
+	fi
+
+
+# Configure chromaprint
+.PHONY: chromaprint-configure
+chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
+	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
+	cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=0 \
+		-DBUILD_TESTS=0 \
+		-DBUILD_TOOLS=0 \
+		--install-prefix "$(shell realpath ${PREFIX})" \
+		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
+		-B ${BUILD_DIR}
+
+# Build chromaprint
+.PHONY: chromaprint-build
+chromaprint-build: chromaprint-configure
+	@echo "Building ${CHROMAPRINT_VERSION}"
+	@cd $(BUILD_DIR) && make -j2
+
+# Install chromaprint
+.PHONY: chromaprint
+chromaprint: chromaprint-build
+	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR) && make install
 
 ###############################################################################
 # DOCKER
@@ -102,11 +141,26 @@ docker-push: docker-dep
 ###############################################################################
 # TESTS
 
-test: go-dep
+.PHONY: test
+test: test-ffmpeg test-chromaprint
+
+.PHONY: test-chromaprint
+test-chromaprint: go-dep go-tidy
 	@echo Test
-	@${GO} mod tidy
+	@echo ... test sys/chromaprint
+	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/chromaprint
+
+.PHONY: test-ffmpeg
+test-ffmpeg: go-dep go-tidy
+	@echo Test
 	@echo ... test sys/ffmpeg71
-	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/ffmpeg71
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
+	@echo ... test pkg/segmenter
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/segmenter
+	@echo ... test pkg/chromaprint
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/chromaprint
+
+
 #	@echo ... test pkg/ffmpeg
 #	@${GO} test -v ./pkg/ffmpeg
 #	@echo ... test sys/chromaprint
@@ -122,7 +176,7 @@ test: go-dep
 #	@echo ... test pkg
 #	@${GO} test ./pkg/...
 
-container-test: go-dep
+container-test: go-dep go-tidy
 	@echo Test
 	@${GO} mod tidy
 	@${GO} test --tags=container ./sys/ffmpeg71
@@ -134,22 +188,30 @@ container-test: go-dep
 ###############################################################################
 # DEPENDENCIES, ETC
 
+.PHONY: go-dep
 go-dep:
 	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
 
+.PHONY: docker-dep
 docker-dep:
 	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
 
+.PHONY: mkdir
 mkdir:
 	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
 	@install -d ${PREFIX}
 
-clean:
+.PHONY: go-tidy
+go-tidy:
+	@echo Tidy
+	@${GO} mod tidy
+
+.PHONY: clean
+clean: go-tidy
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} mod tidy
-	@${GO} clean
+	@${GO} clean -cache
 
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep

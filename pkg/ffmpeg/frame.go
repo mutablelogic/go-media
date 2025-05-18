@@ -191,6 +191,12 @@ func (frame *Frame) SetFloat32(plane int, data []float32) error {
 	return nil
 }
 
+// Return plane data as a  int16 slice
+func (frame *Frame) Int16(plane int) []int16 {
+	ctx := (*ff.AVFrame)(frame)
+	return ctx.Int16(plane)
+}
+
 // Return plane data as a byte slice
 func (frame *Frame) Bytes(plane int) []byte {
 	return (*ff.AVFrame)(frame).Bytes(plane)

@@ -1,12 +1,18 @@
 package chromaprint
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"time"
+	"unsafe"
 
 	// Packages
 	"github.com/mutablelogic/go-client"
+	"github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media/pkg/segmenter"
+	"github.com/mutablelogic/go-media/sys/chromaprint"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -83,4 +89,49 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 	} else {
 		return response.Results, nil
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FINGERPRINT
+
+// Match a media file and lookup any matches
+func (c *Client) Match(ctx context.Context, r io.Reader) ([]*ResponseMatch, error) {
+	// Create a segmenter
+	segmenter, err := segmenter.NewReader(r, 0, 32000)
+	if err != nil {
+		return nil, err
+	}
+	defer segmenter.Close()
+
+	// Create a fingerprinting context
+	fp := chromaprint.NewChromaprint(chromaprint.ALGORITHM_DEFAULT)
+	if fp == nil {
+		return nil, media.ErrInternalError.With("chromaprint.NewChromaprint")
+	}
+	defer fp.Free()
+
+	// Start the fingerprinting
+	if err := fp.Start(32000, 1); err != nil {
+		return nil, err
+	}
+
+	// Perform fingerprinting
+	if err := segmenter.DecodeInt16(ctx, func(timestamp time.Duration, data []int16) error {
+		return fp.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data))
+	}); err != nil {
+		return nil, err
+	}
+
+	// Complete fingerprinting
+	if err := fp.Finish(); err != nil {
+		return nil, err
+	}
+
+	value, err := fp.GetFingerprint()
+	if err != nil {
+		return nil, err
+	}
+
+	// Lookup fingerprint
+	return c.Lookup(value, segmenter.Duration(), META_ALL)
 }

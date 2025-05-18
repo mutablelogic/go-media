@@ -9,22 +9,19 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Install dependencies
-RUN set -x \
-  && apt update -y \
+RUN set -x && apt update -y \
   && apt install -y ca-certificates lsb-release nasm curl \
   && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
 
 # Build all the commands
-RUN set -x \
-  && OS=${OS} ARCH=${ARCH} make ffinstall cli
+RUN set -x && OS=${OS} ARCH=${ARCH} make all
 
 # Copy commands to /usr/local/bin
 FROM --platform=${OS}/${ARCH} debian:bookworm-slim
 ARG OS
 ARG ARCH
 ARG SOURCE
-RUN set -x \
-  && apt update -y \
+RUN set -x && apt update -y \
   && apt install -y ca-certificates lsb-release \
   && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
 
