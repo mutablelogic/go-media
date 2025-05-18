@@ -6,7 +6,6 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	version "github.com/mutablelogic/go-media/pkg/version"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 
 	// Namespace imports
@@ -391,18 +390,6 @@ func (manager *Manager) Codecs(t media.Type, name ...string) []media.Metadata {
 	}
 
 	// Return matched codecs
-	return result
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - VERSION
-
-// Return version information as metadata key/value pairs
-func (manager *Manager) Version() []media.Metadata {
-	var result []media.Metadata
-	for _, v := range version.Version() {
-		result = append(result, NewMetadata(v.Key, v.Value))
-	}
 	return result
 }
 

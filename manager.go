@@ -87,10 +87,6 @@ type Manager interface {
 	// with those names are returned.
 	Codecs(Type, ...string) []Metadata
 
-	// Return version information for the media manager as a set of
-	// metadata
-	Version() []Metadata
-
 	// Log error messages with arguments
 	Errorf(string, ...any)
 

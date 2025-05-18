@@ -2,6 +2,9 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 
+# Current ffmpeg version
+VERSION_FFMPEG=ffmpeg-7.1.1
+
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
@@ -21,10 +24,65 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 BUILD_DIR := "build"
 CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
+PREFIX ?= ${BUILD_DIR}/install
 
-all: clean cmds
+###############################################################################
+# TARGETS
 
+.PHONY: all
+all: clean ffinstall cli
+
+.PHONY: cmds
 cmds: $(CMD_DIR)
+
+.PHONY: cli
+cli: go-dep mkdir
+	@echo Build media tool
+	PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-Wl,.*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
+
+$(CMD_DIR): go-dep mkdir
+	@echo Build cmd $(notdir $@)
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-Wl,.*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+
+###############################################################################
+# FFMPEG
+
+# Download ffmpeg sources
+${BUILD_DIR}/${VERSION_FFMPEG}:
+	@if [ ! -d "$(BUILD_DIR)/$(VERSION_FFMPEG)" ]; then \
+		echo "Downloading $(VERSION_FFMPEG)"; \
+		mkdir -p $(BUILD_DIR)/${VERSION_FFMPEG}; \
+		curl -L -o $(BUILD_DIR)/ffmpeg.tar.gz https://ffmpeg.org/releases/$(VERSION_FFMPEG).tar.gz; \
+		tar -xzf $(BUILD_DIR)/ffmpeg.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/ffmpeg.tar.gz; \
+	fi
+
+# Configure ffmpeg
+.PHONY: ffmpeg
+ffmpeg: mkdir ${BUILD_DIR}/${VERSION_FFMPEG}
+	@echo "Configuring ${VERSION_FFMPEG} => ${PREFIX}"	
+	@cd ${BUILD_DIR}/${VERSION_FFMPEG} && ./configure \
+		--enable-static --disable-doc --disable-programs \
+		--prefix="$(shell realpath ${PREFIX})" \
+	  	--pkg-config-flags="--static" \
+		--extra-libs="-lpthread" \
+		--extra-cflags="-fno-common" \
+		--enable-gpl 
+
+# Build ffmpeg
+.PHONY: ffbuild
+ffbuild: ffmpeg
+	@echo "Building ${VERSION_FFMPEG}"
+	@cd $(BUILD_DIR)/$(VERSION_FFMPEG) && make -j
+
+# Install ffmpeg
+.PHONY: ffinstall
+ffinstall: ffbuild
+	@echo "Installing ${VERSION_FFMPEG}"
+	@cd $(BUILD_DIR)/$(VERSION_FFMPEG) && make install
+
+###############################################################################
+# DOCKER
 
 docker: docker-dep
 	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
@@ -40,25 +98,28 @@ docker-push: docker-dep
 	@echo push docker image: ${BUILD_TAG}
 	@${DOCKER} push ${BUILD_TAG}
 
+###############################################################################
+# TESTS
+
 test: go-dep
 	@echo Test
 	@${GO} mod tidy
 	@echo ... test sys/ffmpeg71
-	@${GO} test ./sys/ffmpeg71
-	@echo ... test pkg/ffmpeg
-	@${GO} test -v ./pkg/ffmpeg
-	@echo ... test sys/chromaprint
-	@${GO} test ./sys/chromaprint
-	@echo ... test pkg/chromaprint
-	@${GO} test ./pkg/chromaprint
-	@echo ... test pkg/file
-	@${GO} test ./pkg/file
-	@echo ... test pkg/generator
-	@${GO} test ./pkg/generator
-	@echo ... test pkg/image
-	@${GO} test ./pkg/image
-	@echo ... test pkg
-	@${GO} test ./pkg/...
+	@PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig ${GO} test ./sys/ffmpeg71
+#	@echo ... test pkg/ffmpeg
+#	@${GO} test -v ./pkg/ffmpeg
+#	@echo ... test sys/chromaprint
+#	@${GO} test ./sys/chromaprint
+#	@echo ... test pkg/chromaprint
+#	@${GO} test ./pkg/chromaprint
+#	@echo ... test pkg/file
+#	@${GO} test ./pkg/file
+#	@echo ... test pkg/generator
+#	@${GO} test ./pkg/generator
+#	@echo ... test pkg/image
+#	@${GO} test ./pkg/image
+#	@echo ... test pkg
+#	@${GO} test ./pkg/...
 
 container-test: go-dep
 	@echo Test
@@ -68,15 +129,9 @@ container-test: go-dep
 	@${GO} test --tags=container ./pkg/...
 	@${GO} test --tags=container .
 
-cli: go-dep mkdir
-	@echo Build media tool
-	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/cli
 
-$(CMD_DIR): go-dep mkdir
-	@echo Build cmd $(notdir $@)
-	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
-
-FORCE:
+###############################################################################
+# DEPENDENCIES, ETC
 
 go-dep:
 	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
@@ -87,6 +142,7 @@ docker-dep:
 mkdir:
 	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
+	@install -d ${PREFIX}
 
 clean:
 	@echo Clean

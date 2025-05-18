@@ -38,6 +38,10 @@ const (
 	pathSeparator = string(os.PathSeparator)
 )
 
+var (
+	SkipDir = filepath.SkipDir
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
