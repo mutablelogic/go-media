@@ -43,8 +43,8 @@ docker-push: docker-dep
 test: go-dep
 	@echo Test
 	@${GO} mod tidy
-	@echo ... test sys/ffmpeg61
-	@${GO} test ./sys/ffmpeg61
+	@echo ... test sys/ffmpeg71
+	@${GO} test ./sys/ffmpeg71
 	@echo ... test pkg/ffmpeg
 	@${GO} test -v ./pkg/ffmpeg
 	@echo ... test sys/chromaprint
@@ -63,7 +63,7 @@ test: go-dep
 container-test: go-dep
 	@echo Test
 	@${GO} mod tidy
-	@${GO} test --tags=container ./sys/ffmpeg61
+	@${GO} test --tags=container ./sys/ffmpeg71
 	@${GO} test --tags=container ./sys/chromaprint
 	@${GO} test --tags=container ./pkg/...
 	@${GO} test --tags=container .

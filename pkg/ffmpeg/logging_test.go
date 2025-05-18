@@ -5,7 +5,7 @@ import (
 
 	// Packages
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
 
 func Test_logging_001(t *testing.T) {

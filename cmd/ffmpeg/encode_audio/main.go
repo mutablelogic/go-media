@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	// Packages
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
 
 func main() {

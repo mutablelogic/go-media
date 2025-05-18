@@ -10,7 +10,7 @@ import (
 	"sort"
 
 	// Packages
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 	maps "golang.org/x/exp/maps"
 
 	// Namespace imports

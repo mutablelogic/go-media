@@ -3,7 +3,7 @@
 
 This module provides an interface for media services, including:
 
-* Bindings in golang for [FFmpeg 6.1](https://ffmpeg.org/);
+* Bindings in golang for [FFmpeg 7.1](https://ffmpeg.org/);
 * Opening media files, devices and network sockets for reading and writing;
 * Retrieving metadata and artwork from audio and video media;
 * Re-multiplexing media files from one format to another;
@@ -16,8 +16,8 @@ you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
-In order to build the examples, you'll need the library and header files 
-for [FFmpeg 6](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also 
+In order to build the examples, you'll need the library and header files
+for [FFmpeg 7.1](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also
 required for fingerprinting audio files and SDL2 for the video player.
 
 ### MacOS
@@ -25,8 +25,7 @@ required for fingerprinting audio files and SDL2 for the video player.
 On Macintosh with [homebrew](http://bew.sh/), for example:
 
 ```bash
-brew install ffmpeg@6 chromaprint make
-brew link ffmpeg@6
+brew install ffmpeg chromaprint make
 ```
 
 ### Debian

@@ -6,7 +6,7 @@ import (
 	// Packages
 	media "github.com/mutablelogic/go-media"
 	imagex "github.com/mutablelogic/go-media/pkg/image"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
