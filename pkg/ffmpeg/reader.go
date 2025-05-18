@@ -117,7 +117,6 @@ func (r *Reader) open(options *opts) (*Reader, error) {
 	// Find stream information
 	if err := ff.AVFormat_find_stream_info(r.input, nil); err != nil {
 		ff.AVFormat_free_context(r.input)
-		ff.AVFormat_avio_context_free(r.avio)
 		return nil, err
 	}
 

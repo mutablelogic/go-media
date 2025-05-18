@@ -40,11 +40,11 @@ cmds: $(CMD_DIR)
 .PHONY: cli
 cli: go-dep mkdir
 	@echo Build media tool
-	PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-Wl,.*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build cmd $(notdir $@)
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-Wl,.*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
 ###############################################################################
 # FFMPEG
