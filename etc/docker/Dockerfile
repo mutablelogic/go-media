@@ -11,7 +11,7 @@ COPY . .
 # Install dependencies
 RUN set -x \
   && apt update -y \
-  && apt install -y ca-certificates lsb-release curl \
+  && apt install -y ca-certificates lsb-release nasm curl \
   && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
 
 # Build all the commands
