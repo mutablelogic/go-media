@@ -19,5 +19,6 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - name: Run tests
         run: |
+          apt -y update && apt -y install nasm
           make container-test
 
