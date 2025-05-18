@@ -3,7 +3,7 @@ package ffmpeg
 import (
 	// Package imports
 	media "github.com/mutablelogic/go-media"
-	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ffmpeg "github.com/mutablelogic/go-media/sys/ffmpeg71"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"

@@ -7,7 +7,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

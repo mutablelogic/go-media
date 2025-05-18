@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	// Packages
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg61"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
 
 var (
@@ -22,7 +22,7 @@ type Metadata struct {
 }
 
 // Return version information as a set of metadata
-func Version() []Metadata {
+func Map() []Metadata {
 	metadata := []Metadata{
 		{"libavcodec_version", ffVersionAsString(ff.AVCodec_version())},
 		{"libavformat_version", ffVersionAsString(ff.AVFormat_version())},
