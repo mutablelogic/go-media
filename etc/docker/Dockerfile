@@ -27,7 +27,7 @@ ARG SOURCE
 RUN set -x \
   && apt update -y \
   && apt install -y ca-certificates lsb-release \
-  && apt install -y libfreetype libmp3lame libopus libvorbis libvpx libx264
+  && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev
 
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 COPY --chmod=755 etc/docker/entrypoint.sh .
