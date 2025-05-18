@@ -122,15 +122,6 @@ func AVFormat_read_frame(ctx *AVFormatContext, packet *AVPacket) error {
 	return nil
 }
 
-// Return the next frame of a stream.
-func AVFormat_seek_frame(ctx *AVFormatContext, stream_index int, timestamp int64, flags int) error {
-	if err := AVError(C.av_seek_frame((*C.struct_AVFormatContext)(ctx), C.int(stream_index), C.int64_t(timestamp), C.int(flags))); err != 0 {
-		return err
-	}
-	// Return success
-	return nil
-}
-
 // Discard all internally buffered data.
 func AVFormat_flush(ctx *AVFormatContext) error {
 	if err := AVError(C.avformat_flush((*C.struct_AVFormatContext)(ctx))); err != 0 {
