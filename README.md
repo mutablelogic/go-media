@@ -16,78 +16,49 @@ you are interested in, please see below "Contributing & Distribution" below.
 
 ## Requirements
 
-In order to build the examples, you'll need the library and header files
-for [FFmpeg 7.1](https://ffmpeg.org/download.html) installed.The `chromaprint` library is also
-required for fingerprinting audio files and SDL2 for the video player.
-
-### MacOS
-
-On Macintosh with [homebrew](http://bew.sh/), for example:
+If you're building for docker, then you can simply run the following command. This creates a docker
+image with all the dependencies installed.
 
 ```bash
-brew install ffmpeg chromaprint make
+DOCKER_REGISTRY=docker.io/user make docker
 ```
 
-### Debian
-
-If you're using Debian you may not be able to get the ffmpeg 6 unless you first of all add the debi-multimedia repository. 
-You can do this by adding the following line to your `/etc/apt/sources.list` file:
+However, it's more likely that you want to build the bindings. To do so, compile the FFmpeg libraries
+first:
 
 ```bash
-# Run commands as privileged user
-echo "deb https://www.deb-multimedia.org $(lsb_release -sc) main" >> /etc/apt/sources.list
-apt update -y -oAcquire::AllowInsecureRepositories=true
-apt install -y --force-yes deb-multimedia-keyring
-```
-
-Then you can proceed to install the ffmpeg 6 and the other dependencies:
-
-```bash
-# Run commands as privileged user
-apt install -y libavcodec-dev libavdevice-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev
-apt install -y libchromaprint-dev
-apt install -y libsdl2-dev
-```
-
-### Docker Container
-
-TODO
-
-## Examples
-
-There are some examples in the `cmd` folder of the main repository on how to use
-the package. The various make targets are:
-
-* `make all` will perform tests, build all examples and the backend API;
-* `make test` will perform tests;
-* `make cmd` will build example command-line tools into the `build` folder;
-* `make clean` will remove all build artifacts.
-
-There are also some targets to build a docker image:
-
-* `DOCKER_REGISTRY=docker.io/user make docker` will build a docker image;
-* `DOCKER_REGISTRY=docker.io/user make docker-push` will push the docker image to the registry.
-
-For example,
-
-```bash
-git clone git@github.com:djthorpe/go-media.git
+# Debian/Ubuntu
+apt install libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
+git clone github.com/mutablelogic/go-media
 cd go-media
-DOCKER_REGISTRY=ghcr.io/mutablelogic make docker
+make ffmpeg
 ```
 
-There are a variety of types of object needed as part of media processing.
-All examples require a `Manager` to be created, which is used to enumerate all supported formats
-and open media files and byte streams.
+```bash
+# Fedora
+dnf install freetype-devel lame-devel opus-devel libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel
+git clone github.com/mutablelogic/go-media
+cd go-media
+make ffmpeg
+```
 
-* `Manager` is the main entry point for the package. It is used to open media files and byte streams,
-  and enumerate supported formats, codecs, pixel formats, etc.
-* `Media` is a hardware device, file or byte stream. It contains metadata, artwork, and streams.
-* `Decoder` is used to demultiplex media streams. Create a decoder and enumerate the streams which
-  you'd like to demultiplex. Provide the audio and video parameters if you want to resample or
-  reformat the streams.
-* `Encoder` is used to multiplex media streams. Create an encoder and send the output of the
-  decoder to reencode the streams.
+```bash
+# Homebrew
+brew install freetype lame opus libvorbis libvpx x264 x265
+git clone github.com/mutablelogic/go-media
+cd go-media
+make ffmpeg
+```
+
+This will place the static libraries in the `build/install` folder which you can refer to when compiling your
+golang code. For example, here's a typical compile or run command on a Mac:
+
+```bash
+PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig" \
+  LD_LIBRARY_PATH="/opt/homebrew/lib" \
+  CGO_LDFLAGS_ALLOW="-(W|D).*" \
+  go build -o build/media ./cmd/media
+```
 
 ### Demultiplexing
 
@@ -366,5 +337,5 @@ the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
 
 ## References
 
-* https://ffmpeg.org/doxygen/6.1/index.html
-* https://pkg.go.dev/github.com/mutablelogic/go-media
+* <https://ffmpeg.org/doxygen/7.0/index.html>
+* <https://pkg.go.dev/github.com/mutablelogic/go-media>
