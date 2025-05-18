@@ -4,7 +4,6 @@ DOCKER=$(shell which docker)
 
 # Current ffmpeg version and config
 FFMPEG_VERSION=ffmpeg-7.1.1
-# Empty variable to collect FFmpeg configuration options - will be populated dynamically
 FFMPEG_CONFIG=
 
 # Build flags
@@ -60,8 +59,8 @@ ${BUILD_DIR}/${FFMPEG_VERSION}:
 	fi
 
 # Configure ffmpeg
-.PHONY: ffmpeg
-ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
+.PHONY: ffmpeg-configure
+ffmpeg-configure: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 	@echo "Configuring ${FFMPEG_VERSION} => ${PREFIX}"	
 	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
 		--enable-static --disable-doc --disable-programs \
@@ -71,14 +70,14 @@ ffmpeg: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg
-.PHONY: ffbuild
-ffbuild: ffmpeg
+.PHONY: ffmpeg-build
+ffmpeg-build: ffmpeg-configure
 	@echo "Building ${FFMPEG_VERSION}"
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make
 
 # Install ffmpeg
-.PHONY: ffinstall
-ffinstall: ffbuild
+.PHONY: ffmpeg
+ffmpeg: ffmpeg-build
 	@echo "Installing ${FFMPEG_VERSION}"
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
 
