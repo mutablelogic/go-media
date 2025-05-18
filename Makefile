@@ -37,11 +37,11 @@ all: clean ffmpeg cli
 cmds: $(CMD_DIR)
 
 .PHONY: cli
-cli: go-dep mkdir
+cli: go-dep go-tidy mkdir
 	@echo Build media tool
 	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
 
-$(CMD_DIR): go-dep mkdir
+$(CMD_DIR): go-dep go-tidy mkdir
 	@echo Build cmd $(notdir $@)
 	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -73,12 +73,12 @@ ffmpeg-configure: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 .PHONY: ffmpeg-build
 ffmpeg-build: ffmpeg-configure
 	@echo "Building ${FFMPEG_VERSION}"
-	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j2
 
 # Install ffmpeg
 .PHONY: ffmpeg
 ffmpeg: ffmpeg-build
-	@echo "Installing ${FFMPEG_VERSION} => ${PREFIX}""
+	@echo "Installing ${FFMPEG_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
 
 ###############################################################################
@@ -101,7 +101,7 @@ docker-push: docker-dep
 ###############################################################################
 # TESTS
 
-test: go-dep
+test: go-dep go-tidy
 	@echo Test
 	@${GO} mod tidy
 	@echo ... test sys/ffmpeg71
@@ -121,7 +121,7 @@ test: go-dep
 #	@echo ... test pkg
 #	@${GO} test ./pkg/...
 
-container-test: go-dep
+container-test: go-dep go-tidy
 	@echo Test
 	@${GO} mod tidy
 	@${GO} test --tags=container ./sys/ffmpeg71
@@ -133,22 +133,30 @@ container-test: go-dep
 ###############################################################################
 # DEPENDENCIES, ETC
 
+.PHONY: go-dep
 go-dep:
 	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
 
+.PHONY: docker-dep
 docker-dep:
 	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
 
+.PHONY: mkdir
 mkdir:
 	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
 	@install -d ${PREFIX}
 
-clean:
+.PHONY: go-tidy
+go-tidy:
+	@echo Tidy
+	@${GO} mod tidy
+
+.PHONY: clean
+clean: go-tidy
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} mod tidy
-	@${GO} clean
+	@${GO} clean -cache
 
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep
