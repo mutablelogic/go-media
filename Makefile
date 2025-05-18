@@ -31,7 +31,7 @@ PREFIX ?= ${BUILD_DIR}/install
 # TARGETS
 
 .PHONY: all
-all: clean ffinstall cli
+all: clean ffmpeg cli
 
 .PHONY: cmds
 cmds: $(CMD_DIR)
@@ -78,7 +78,7 @@ ffmpeg-build: ffmpeg-configure
 # Install ffmpeg
 .PHONY: ffmpeg
 ffmpeg: ffmpeg-build
-	@echo "Installing ${FFMPEG_VERSION}"
+	@echo "Installing ${FFMPEG_VERSION} => ${PREFIX}""
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
 
 ###############################################################################
