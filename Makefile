@@ -154,7 +154,6 @@ clean:
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep
 ffmpeg-dep:
-	@echo "Checking for FFmpeg dependencies..."
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists libass && echo "--enable-libass"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists fdk-aac && echo "--enable-libfdk-aac"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists lame && echo "--enable-libmp3lame"))

@@ -11,12 +11,12 @@ COPY . .
 # Install dependencies
 RUN set -x \
   && apt update -y \
-  && apt install -y ca-certificates lsb-release curl
+  && apt install -y ca-certificates lsb-release curl \
+  && apt install -y libfreetype-dev libfdk-aac-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libxml2-dev libzvbi-dev
 
 # Build all the commands
 RUN set -x \
-  && OS=${OS} ARCH=${ARCH} make ffinstall \
-  && OS=${OS} ARCH=${ARCH} make cli
+  && OS=${OS} ARCH=${ARCH} make ffinstall 
 
 # Copy commands to /usr/local/bin
 FROM --platform=${OS}/${ARCH} debian:bookworm-slim
