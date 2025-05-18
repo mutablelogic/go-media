@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"image/jpeg"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Packages
 	"github.com/mutablelogic/go-media"
@@ -21,8 +24,9 @@ import (
 // TYPES
 
 type MetadataCommands struct {
-	Meta    ListMetadata `cmd:"" group:"METADATA" help:"Examine metadata"`
-	Artwork ListArtwork  `cmd:"" group:"METADATA" help:"Extract artwork"`
+	Meta       ListMetadata      `cmd:"" group:"METADATA" help:"Examine metadata"`
+	Artwork    ExtractArtwork    `cmd:"" group:"METADATA" help:"Extract artwork"`
+	Thumbnails ExtractThumbnails `cmd:"" group:"METADATA" help:"Extract video thumbnails"`
 }
 
 type ListMetadata struct {
@@ -30,10 +34,17 @@ type ListMetadata struct {
 	Recursive bool   `short:"r" help:"Recursively examine files"`
 }
 
-type ListArtwork struct {
+type ExtractArtwork struct {
 	Path      string `arg:"" type:"path" help:"File or directory"`
 	Recursive bool   `short:"r" help:"Recursively examine files"`
 	Out       string `required:"" help:"Output filename for artwork, relative to the source path. Use {count} {hash} {path} {name} or {ext} for placeholders" default:"{hash}{ext}"`
+}
+
+type ExtractThumbnails struct {
+	Path  string        `arg:"" type:"path" help:"File"`
+	Out   string        `required:"" help:"Output filename for thumbnail, relative to the source path. Use {timestamp} {frame} {path} {name} or {ext} for placeholders" default:"{frame}{ext}"`
+	N     uint64        `short:"n" help:"Maxumum number of frames to extract"`
+	Delta time.Duration `short:"d" help:"Time between frames" default:"1s"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -82,7 +93,7 @@ func (cmd *ListMetadata) Run(app server.Cmd) error {
 	return walker.Walk(app.Context(), cmd.Path)
 }
 
-func (cmd *ListArtwork) Run(app server.Cmd) error {
+func (cmd *ExtractArtwork) Run(app server.Cmd) error {
 	// Create the media manager
 	manager, err := ffmpeg.NewManager(ffmpeg.OptLog(false, nil))
 	if err != nil {
@@ -115,7 +126,7 @@ func (cmd *ListArtwork) Run(app server.Cmd) error {
 				return err
 			}
 
-			// Output the file
+			// Determine the output filename
 			out := template(cmd.Out, "hash", types.Hash(data), "path", filepath.Dir(relpath), "name", info.Name(), "mimetype", mimetype, "ext", ext, "count", count)
 
 			// If the filename is relative, make it absolute
@@ -146,6 +157,83 @@ func (cmd *ListArtwork) Run(app server.Cmd) error {
 	// Perform the walk, return any errors
 	return walker.Walk(app.Context(), cmd.Path)
 }
+
+func (cmd *ExtractThumbnails) Run(app server.Cmd) error {
+	// Create the media manager
+	manager, err := ffmpeg.NewManager(ffmpeg.OptLog(false, nil))
+	if err != nil {
+		return err
+	}
+
+	// Open file
+	input, err := manager.Open(cmd.Path, nil)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
+		if stream == input.(*ffmpeg.Reader).BestStream(media.VIDEO) {
+			// Convert frame to yuv420p if needed, but use the same size and frame rate
+			return ffmpeg.NewVideoPar("yuv420p", par.WidthHeight(), par.FrameRate())
+		}
+		// Ignore other streams
+		return nil, nil
+	}
+
+	// Decode the streams and receive the video frame
+	nframe := 0
+	var oldts time.Duration
+	return input.(*ffmpeg.Reader).Decode(app.Context(), mapfunc, func(stream int, frame *ffmpeg.Frame) error {
+		nframe++
+		ts := time.Duration(frame.Ts()*1000) * time.Millisecond
+		if ts < 0 {
+			// Packets being flushed?
+			return nil
+		}
+
+		// Skip if ts is too soon after the last frame
+		if cmd.Delta > 0 && ts-oldts < cmd.Delta {
+			return nil
+		} else {
+			oldts = ts
+		}
+
+		// Determine the output filename
+		out := template(cmd.Out, "frame", nframe, "ext", ".jpg", "timestamp", ts)
+
+		// Make the directory if it doesn't exist
+		if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
+			return err
+		}
+
+		// Write the frame to a file
+		fmt.Println("Writing", out)
+		w, err := os.Create(out)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+
+		// Convert to an image and encode a JPEG
+		if image, err := frame.Image(); err != nil {
+			return err
+		} else if err := jpeg.Encode(w, image, nil); err != nil {
+			return err
+		}
+
+		// Check maximum number of frames
+		if cmd.N > 0 && uint64(nframe) >= cmd.N {
+			return io.EOF
+		}
+
+		// Return for next frame
+		return nil
+	})
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
 func template(tmpl string, args ...any) string {
 	for i := 0; i < len(args); i += 2 {

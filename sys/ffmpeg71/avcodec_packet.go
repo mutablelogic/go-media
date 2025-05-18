@@ -117,6 +117,9 @@ func (ctx *AVPacket) SetStreamIndex(index int) {
 }
 
 func (ctx *AVPacket) TimeBase() AVRational {
+	if ctx == nil {
+		return AVRational{}
+	}
 	return AVRational(ctx.time_base)
 }
 
