@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -416,6 +417,21 @@ func (manager *Manager) Codecs(t media.Type, name ...string) []media.Metadata {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - CODEC PARAMETERS
+
+// Create new audio parameters with sample format, channel layout and sample rate
+// plus any additional options which is used for creating a stream
+func (manager *Manager) AudioPar(samplefmt, channellayout string, samplerate uint) (media.Par, error) {
+	return NewAudioPar(samplefmt, channellayout, int(samplerate))
+}
+
+// Create new audio parameters with sample format, channel layout and sample rate
+// plus any additional options which is used for creating a stream
+func (manager *Manager) VideoPar(pixelfmt string, width, height uint, framerate float64) (media.Par, error) {
+	return NewVideoPar(pixelfmt, fmt.Sprint("%dx%d", width, height), framerate)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - LOGGING
 
 // Log error messages
@@ -436,7 +452,7 @@ func (manager *Manager) Infof(v string, args ...any) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - DECODING
 
-func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media.MapFunc, frameFunc media.FrameFunc) error {
+func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media.MapFunc, frameFunc media.DecodeFrameFunc) error {
 	return media.ErrNotImplemented.With("decoding not implemented")
 }
 
@@ -454,3 +470,10 @@ func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media
 	return reader.Decode(ctx, mapFunc, frameFunc)
 }
 */
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - ENCODING
+
+func (manager *Manager) Encode(ctx context.Context, m media.Media, frameFunc media.EncodeFrameFn) error {
+	return media.ErrNotImplemented.With("encoding not implemented")
+}
