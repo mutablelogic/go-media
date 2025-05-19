@@ -211,6 +211,38 @@ func (r *Reader) BestStream(t media.Type) int {
 	return -1
 }
 
+// Return all streams of a specific type (video, audio, subtitle, data)
+func (r *Reader) Streams(t media.Type) []*Stream {
+	var result []*Stream
+	for _, stream := range r.input.Streams() {
+		switch stream.CodecPar().CodecType() {
+		case ff.AVMEDIA_TYPE_VIDEO:
+			if t.Is(media.VIDEO) || t == media.ANY {
+				result = append(result, newStream(stream))
+			}
+		case ff.AVMEDIA_TYPE_AUDIO:
+			if t.Is(media.AUDIO) || t == media.ANY {
+				result = append(result, newStream(stream))
+			}
+		case ff.AVMEDIA_TYPE_SUBTITLE:
+			if t.Is(media.SUBTITLE) || t == media.ANY {
+				result = append(result, newStream(stream))
+			}
+		case ff.AVMEDIA_TYPE_DATA:
+			if t.Is(media.DATA) || t == media.ANY {
+				result = append(result, newStream(stream))
+			}
+		case ff.AVMEDIA_TYPE_ATTACHMENT:
+			if t.Is(media.DATA) || t == media.ANY {
+				result = append(result, newStream(stream))
+			}
+		}
+	}
+
+	// Return the streams
+	return result
+}
+
 // Return the metadata for the media stream, filtering by the specified keys
 // if there are any. Artwork is returned with the "artwork" key.
 func (r *Reader) Metadata(keys ...string) []*Metadata {

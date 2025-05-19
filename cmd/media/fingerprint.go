@@ -6,7 +6,7 @@ import (
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	"github.com/mutablelogic/go-media/pkg/ffmpeg"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	server "github.com/mutablelogic/go-server"
 )
 

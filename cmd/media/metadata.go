@@ -24,6 +24,7 @@ import (
 type MetadataCommands struct {
 	Meta       ListMetadata      `cmd:"" group:"METADATA" help:"Examine metadata"`
 	Artwork    ExtractArtwork    `cmd:"" group:"METADATA" help:"Extract artwork"`
+	Streams    ListStreams       `cmd:"" group:"METADATA" help:"List streams"`
 	Thumbnails ExtractThumbnails `cmd:"" group:"METADATA" help:"Extract video thumbnails"`
 }
 
@@ -38,6 +39,11 @@ type ExtractArtwork struct {
 	Out       string `required:"" help:"Output filename for artwork, relative to the source path. Use {count} {hash} {path} {name} or {ext} for placeholders" default:"{hash}{ext}"`
 }
 
+type ListStreams struct {
+	Path      string `arg:"" type:"path" help:"File or directory"`
+	Recursive bool   `short:"r" help:"Recursively examine files"`
+}
+
 type ExtractThumbnails struct {
 	Path  string        `arg:"" type:"path" help:"File"`
 	Out   string        `required:"" help:"Output filename for thumbnail, relative to the source path. Use {timestamp} {frame} {path} {name} or {ext} for placeholders" default:"{frame}{ext}"`
@@ -47,6 +53,44 @@ type ExtractThumbnails struct {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (cmd *ListStreams) Run(app server.Cmd) error {
+	// Create the media manager
+	manager, err := ffmpeg.NewManager(ffmpeg.OptLog(false, nil))
+	if err != nil {
+		return err
+	}
+
+	// Create a new file walker
+	walker := file.NewWalker(func(ctx context.Context, root, relpath string, info os.FileInfo) error {
+		if info.IsDir() {
+			if !cmd.Recursive && relpath != "." {
+				return file.SkipDir
+			}
+			return nil
+		}
+
+		// Open file
+		f, err := manager.Open(filepath.Join(root, relpath), nil)
+		if err != nil {
+			return fmt.Errorf("%s: %w", info.Name(), err)
+		}
+		defer f.Close()
+
+		// Enumerate streams
+		streams := f.(*ffmpeg.Reader).Streams(media.ANY)
+		result := make([]media.Metadata, 0, len(streams))
+		result = append(result, ffmpeg.NewMetadata("path", filepath.Join(root, relpath)))
+		for _, meta := range streams {
+			result = append(result, ffmpeg.NewMetadata(fmt.Sprint(meta.Index()), meta))
+		}
+
+		return write(os.Stdout, result, nil)
+	})
+
+	// Perform the walk, return any errors
+	return walker.Walk(app.Context(), cmd.Path)
+}
 
 func (cmd *ListMetadata) Run(app server.Cmd) error {
 	// Create the media manager

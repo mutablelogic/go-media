@@ -31,7 +31,7 @@ PREFIX ?= ${BUILD_DIR}/install
 # TARGETS
 
 .PHONY: all
-all: clean ffmpeg cli
+all: clean ffmpeg chromaprint cli
 
 .PHONY: cmds
 cmds: $(CMD_DIR)

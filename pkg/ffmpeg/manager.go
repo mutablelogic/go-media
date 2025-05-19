@@ -7,9 +7,6 @@ import (
 	// Packages
 	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -106,7 +103,7 @@ func (manager *Manager) Open(url string, format media.Format, opts ...string) (m
 		if format_, ok := format.(*Format); ok && format_.Input != nil {
 			o = append(o, optInputFormat(format_))
 		} else {
-			return nil, ErrBadParameter.With("invalid input format")
+			return nil, media.ErrBadParameter.With("invalid input format")
 		}
 	}
 	if len(opts) > 0 {
