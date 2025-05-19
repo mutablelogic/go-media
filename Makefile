@@ -7,7 +7,7 @@ FFMPEG_VERSION=ffmpeg-7.1.1
 CHROMAPRINT_VERSION=chromaprint-1.5.1
 
 # CGO configuration - set CGO vars for C++ libraries
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -lavutil"
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -87,7 +87,7 @@ ffmpeg: ffmpeg-build
 ###############################################################################
 # CHROMAPRINT
 
-# Download ffmpeg sources
+# Download chromaprint sources
 ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(CHROMAPRINT_VERSION)" ]; then \
 		echo "Downloading $(CHROMAPRINT_VERSION)"; \
@@ -100,7 +100,7 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 
 # Configure chromaprint
 .PHONY: chromaprint-configure
-chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
+chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
 	cmake \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
@@ -108,6 +108,8 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTS=0 \
 		-DBUILD_TOOLS=0 \
+		-DFFT_LIB=avfft \
+		-DCMAKE_PREFIX_PATH="$(shell realpath ${PREFIX})" \
 		--install-prefix "$(shell realpath ${PREFIX})" \
 		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
 		-B ${BUILD_DIR}
@@ -124,7 +126,7 @@ chromaprint-build: chromaprint-configure
 chromaprint: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR) && make install
-	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
+	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
 ###############################################################################
