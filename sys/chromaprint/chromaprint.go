@@ -11,7 +11,6 @@ import (
 
 /*
 #cgo pkg-config: libchromaprint
-#cgo LDFLAGS: -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
 #include <chromaprint.h>
 */

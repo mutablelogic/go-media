@@ -101,6 +101,18 @@ func optInputFormat(format *Format) Opt {
 	}
 }
 
+// Output format from ff.AVInputFormat
+func optOutputFormat(format *Format) Opt {
+	return func(o *opts) error {
+		if format != nil && format.Output != nil {
+			o.oformat = format.Output
+		} else {
+			return ErrBadParameter.With("invalid output format")
+		}
+		return nil
+	}
+}
+
 // Input format options
 func OptInputOpt(opt ...string) Opt {
 	return func(o *opts) error {

@@ -6,6 +6,9 @@ DOCKER=$(shell which docker)
 FFMPEG_VERSION=ffmpeg-7.1.1
 CHROMAPRINT_VERSION=chromaprint-1.5.1
 
+# CGO configuration - set CGO vars for C++ libraries
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
@@ -39,11 +42,11 @@ cmds: $(CMD_DIR)
 .PHONY: cli
 cli: go-dep go-tidy mkdir
 	@echo Build media tool
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
+	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
 
 $(CMD_DIR): go-dep go-tidy mkdir
 	@echo Build cmd $(notdir $@)
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
 ###############################################################################
 # FFMPEG
@@ -100,6 +103,7 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
 	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
 	cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTS=0 \
@@ -115,10 +119,13 @@ chromaprint-build: chromaprint-configure
 	@cd $(BUILD_DIR) && make -j2
 
 # Install chromaprint
+# Create a modified pkg-config file that ensures correct linking order for C++
 .PHONY: chromaprint
 chromaprint: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR) && make install
+	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
+	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
 ###############################################################################
 # DOCKER
@@ -147,11 +154,11 @@ test: test-ffmpeg
 test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
 	@echo Test
 	@echo ... test sys/ffmpeg71
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
+	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
 	@echo ... test pkg/segmenter
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ./pkg/segmenter
 	@echo ... test pkg/chromaprint
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
 
 #	@echo ... test pkg/ffmpeg
@@ -172,11 +179,11 @@ test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
 container-test: go-dep go-tidy ffmpeg chromaprint
 	@echo Test
 	@echo ... test sys/ffmpeg71
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./sys/ffmpeg71
+	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
 	@echo ... test pkg/segmenter
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ./pkg/segmenter
 	@echo ... test pkg/chromaprint
-	@PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" ${GO} test ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
 ###############################################################################
 # DEPENDENCIES, ETC

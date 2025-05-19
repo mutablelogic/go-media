@@ -1,6 +1,8 @@
 package ffmpeg
 
 import (
+	"context"
+	"io"
 	"slices"
 	"strings"
 
@@ -69,31 +71,6 @@ func NewManager(opt ...Opt) (*Manager, error) {
 	return manager, nil
 }
 
-// Open a media file or device for reading, from a path or url.
-// If a format is specified, then the format will be used to open
-// the file. You can add additional options to the open call as
-// key=value pairs
-/*
-func (manager *Manager) Open(url string, format media.Format, opts ...string) (media.Media, error) {
-	opt := append([]Opt{OptInputOpt(opts...)}, manager.opts...)
-	if format != nil {
-		opt = append(opt, OptInputFormat(format.Name()))
-	}
-	return Open(url, opt...)
-}
-
-// Open an io.Reader for reading. If a format is specified, then the
-// format will be used to open the file. You can add additional options
-// to the open call as key=value pairs
-func (manager *Manager) NewReader(r io.Reader, format media.Format, opts ...string) (media.Media, error) {
-	opt := append([]Opt{OptInputOpt(opts...)}, manager.opts...)
-	if format != nil {
-		opt = append(opt, OptInputFormat(format.Name()))
-	}
-	return NewReader(r, opt...)
-}
-*/
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
@@ -110,6 +87,54 @@ func (manager *Manager) Open(url string, format media.Format, opts ...string) (m
 		o = append(o, OptInputOpt(opts...))
 	}
 	return Open(url, o...)
+}
+
+func (manager *Manager) Read(r io.Reader, format media.Format, opts ...string) (media.Media, error) {
+	o := append([]Opt{}, manager.opts[:]...)
+	if format != nil {
+		if format_, ok := format.(*Format); ok && format_.Input != nil {
+			o = append(o, optInputFormat(format_))
+		} else {
+			return nil, media.ErrBadParameter.With("invalid input format")
+		}
+	}
+	if len(opts) > 0 {
+		o = append(o, OptInputOpt(opts...))
+	}
+	return NewReader(r, o...)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - WRITER
+
+func (manager *Manager) Create(url string, format media.Format, meta []media.Metadata, streams ...media.Par) (media.Media, error) {
+	o := slices.Clone(manager.opts[:])
+
+	// Append format
+	if format != nil {
+		if format_, ok := format.(*Format); ok && format_.Output != nil {
+			o = append(o, optOutputFormat(format_))
+		} else {
+			return nil, media.ErrBadParameter.With("invalid output format")
+		}
+	}
+
+	// Append metadata
+	for _, m := range meta {
+		o = append(o, OptMetadata(NewMetadata(m.Key(), m.Any())))
+	}
+
+	// Append streams
+	for i, stream := range streams {
+		par, ok := stream.(*Par)
+		if !ok || par == nil {
+			return nil, media.ErrBadParameter.With("invalid stream parameters")
+		}
+		o = append(o, OptStream(i, par))
+	}
+
+	// Create the writer
+	return Create(url, o...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -407,3 +432,25 @@ func (manager *Manager) Warningf(v string, args ...any) {
 func (manager *Manager) Infof(v string, args ...any) {
 	ff.AVUtil_log(nil, ff.AV_LOG_INFO, v, args...)
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - DECODING
+
+func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media.MapFunc, frameFunc media.FrameFunc) error {
+	return media.ErrNotImplemented.With("decoding not implemented")
+}
+
+/*
+	// Check if the media is valid
+	if m == nil || !m.Type().Is(media.INPUT) {
+		return media.ErrBadParameter.With("invalid media, cannot decode")
+	}
+	// Get the concrete reader object
+	reader, ok := m.(*Reader)
+	if !ok || reader == nil {
+		return media.ErrBadParameter.With("invalid media, cannot decode")
+	}
+	// Perform the decode
+	return reader.Decode(ctx, mapFunc, frameFunc)
+}
+*/
