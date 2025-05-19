@@ -1,38 +1,73 @@
 
 # go-media
 
-This module provides an interface for media services, including:
+This module provides an interface for media services, mostly based on bindings
+for [FFmpeg](https://ffmpeg.org/). It is designed to be used in a pipeline
+for processing media files, and is not a standalone application.
 
-* Bindings in golang for [FFmpeg 7.1](https://ffmpeg.org/);
-* Opening media files, devices and network sockets for reading and writing;
-* Retrieving metadata and artwork from audio and video media;
-* Re-multiplexing media files from one format to another;
-* Fingerprinting audio files to identify music.
+You'd want to use this module if you want to integrate media processing into an
+existing pipeline, not necessarily to build a standalone application, where
+you can already use a command like [FFmpeg](https://ffmpeg.org/) or 
+[GStreamer](https://gstreamer.freedesktop.org/).
 
 ## Current Status
 
 This module is currently in development and subject to change. If there are any specific features
 you are interested in, please see below "Contributing & Distribution" below.
 
+## What do you want to do?
+
+Here is some examples of how you might want to use this module:
+
+| Use Case | Examples        |
+|----------|-----------------|
+| Use low-level bindings in golang for [FFmpeg 7.1](https://ffmpeg.org/) | [here]() |
+| Opening media files, devices and network sockets for reading and writing | [here]() |
+| Retrieving metadata, artwork or thumbnails from audio and video media |  [here]() |
+| Re-multiplexing media files from one format to another |  [here]() |
+| Encoding and decoding audio, video and subtitle streams |  [here]() |
+| Resampling audio and resizing video streams |  [here]() |
+| Applying filters and effects to audio and video streams |  [here]() |
+| Fingerprinting audio files to identify music |  [here]() |
+| Creating an audio or video player | [here]() |
+
 ## Requirements
 
-If you're building for docker, then you can simply run the following command. This creates a docker
-image with all the dependencies installed.
+There are two ways to satisfy the dependencies on FFmpeg:
+
+1. The module is based on [FFmpeg 7.1](https://ffmpeg.org/) and requires you to have installed the libraries
+   and headers for FFmpeg. You can install the libraries using your package manager.
+2. The module can download the source code for FFmpeg and build static libraries and headers
+   for you. This is done using the `make` command.
+
+Either way, in order to integrate the module into your golang code, you need to have satisfied these
+dependencies and use a specific set of flags to compile your code.
+
+### Building FFmpeg
+
+To build FFmpeg, you need to have a compiler, nasm, pkg-config and make.
+
+#### Debian/Ubuntu
 
 ```bash
-DOCKER_REGISTRY=docker.io/user make docker
-```
+# Required
+apt install \
+  build-essential cmake nasm curl
 
-However, it's more likely that you want to build the bindings. To do so, compile the FFmpeg libraries
-first:
+# Optional
+apt install \
+  libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev \
+  libx264-dev libx265-dev libnuma-dev
 
-```bash
-# Debian/Ubuntu
-apt install libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
+# Make ffmpeg
 git clone github.com/mutablelogic/go-media
 cd go-media
 make ffmpeg
 ```
+
+#### Fedora
+
+TODO
 
 ```bash
 # Fedora
@@ -41,6 +76,11 @@ git clone github.com/mutablelogic/go-media
 cd go-media
 make ffmpeg
 ```
+
+
+#### MacOS Homebrew
+
+TODO
 
 ```bash
 # Homebrew
@@ -51,7 +91,11 @@ make ffmpeg
 ```
 
 This will place the static libraries in the `build/install` folder which you can refer to when compiling your
-golang code. For example, here's a typical compile or run command on a Mac:
+golang code. 
+
+## Linking to FFmpeg
+
+For example, here's a typical compile or run command on a Mac:
 
 ```bash
 PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig" \
@@ -59,7 +103,6 @@ PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig" \
   CGO_LDFLAGS_ALLOW="-(W|D).*" \
   go build -o build/media ./cmd/media
 ```
-
 ### Demultiplexing
 
 ```go
