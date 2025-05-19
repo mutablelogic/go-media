@@ -95,7 +95,7 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 // FINGERPRINT
 
 // Match a media file and lookup any matches
-func (c *Client) Match(ctx context.Context, r io.Reader) ([]*ResponseMatch, error) {
+func (c *Client) Match(ctx context.Context, r io.Reader, flags Meta) ([]*ResponseMatch, error) {
 	// Create a segmenter
 	segmenter, err := segmenter.NewReader(r, 0, 32000)
 	if err != nil {
@@ -133,5 +133,5 @@ func (c *Client) Match(ctx context.Context, r io.Reader) ([]*ResponseMatch, erro
 	}
 
 	// Lookup fingerprint
-	return c.Lookup(value, segmenter.Duration(), META_ALL)
+	return c.Lookup(value, segmenter.Duration(), flags)
 }
