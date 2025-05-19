@@ -100,7 +100,6 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION}
 	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
 	cmake \
-		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTS=0 \
@@ -216,9 +215,9 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists freetype2 && echo "--enable-libfreetype"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists theora && echo "--enable-libtheora"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vorbis && echo "--enable-libvorbis"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vpx && echo "--enable-libvpx"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists opus && echo "--enable-libopus"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x264 && echo "--enable-libx264"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x265 && echo "--enable-libx265"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists opus && echo "--enable-libopus"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists xvid && echo "--enable-libxvid"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vpx && echo "--enable-libvpx"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"

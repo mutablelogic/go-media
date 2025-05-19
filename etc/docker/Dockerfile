@@ -10,7 +10,7 @@ COPY . .
 
 # Install dependencies
 RUN set -x && apt update -y \
-  && apt install -y ca-certificates lsb-release cmake nasm curl \
+  && apt install -y ca-certificates lsb-release build-essential cmake nasm curl \
   && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
 
 # Build all the commands
