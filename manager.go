@@ -140,6 +140,6 @@ type Media interface {
 	io.Closer
 
 	// The type of the format, which can be combinations of
-	// INPUT, OUTPUT, DEVICE
+	// INPUT or OUTPUT
 	Type() Type
 }
