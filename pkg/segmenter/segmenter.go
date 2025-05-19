@@ -87,7 +87,7 @@ func (s *Segmenter) Close() error {
 
 // Return current timestamp
 func (s *Segmenter) Duration() time.Duration {
-	return s.ts
+	return s.reader.Duration()
 }
 
 // Segments are output through a callback, with the samples and a timestamp
@@ -109,7 +109,7 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 
 	// Allocate the buffer
 	if s.n > 0 {
-		s.buf_flt = make([]float32, s.n)
+		s.buf_flt = make([]float32, 0, s.n)
 	}
 
 	// Decode samples and segment
@@ -174,7 +174,7 @@ func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error 
 
 	// Allocate the buffer
 	if s.n > 0 {
-		s.buf_s16 = make([]int16, s.n)
+		s.buf_s16 = make([]int16, 0, s.n)
 	}
 
 	// Decode samples and segment
