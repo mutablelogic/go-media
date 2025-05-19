@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
@@ -18,10 +19,11 @@ type FingerprintCommands struct {
 }
 
 type MatchMusic struct {
-	Path   string   `arg:"" type:"path" help:"File"`
-	APIKey string   `env:"CHROMAPRINT_KEY" help:"API key for the music matching service (https://acoustid.org/login)"`
-	Type   []string `cmd:"" help:"Type of match to perform" enum:"any,recording,release,releasegroup,track" default:"any"`
-	Score  float64  `cmd:"" help:"Minimum match scoreto perform" default:"0.9"`
+	Path     string        `arg:"" type:"path" help:"File"`
+	APIKey   string        `env:"CHROMAPRINT_KEY" help:"API key for the music matching service (https://acoustid.org/login)"`
+	Type     []string      `cmd:"" help:"Type of match to perform" enum:"any,recording,release,releasegroup,track" default:"any"`
+	Score    float64       `cmd:"" help:"Minimum match scoreto perform" default:"0.9"`
+	Duration time.Duration `cmd:"" help:"Length of audio to use for fingerprinting" default:"30s"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -62,7 +64,7 @@ func (cmd *MatchMusic) Run(app server.Cmd) error {
 	}
 
 	// Create the matches
-	matches, err := client.Match(app.Context(), r, meta)
+	matches, err := client.Match(app.Context(), r, cmd.Duration, meta)
 	if err != nil {
 		return err
 	}
@@ -78,17 +80,3 @@ func (cmd *MatchMusic) Run(app server.Cmd) error {
 	fmt.Println(result)
 	return nil
 }
-
-/*
-
-	META_RECORDING Meta = (1 << iota)
-	META_RECORDINGID
-	META_RELEASE
-	META_RELEASEID
-	META_RELEASEGROUP
-	META_RELEASEGROUPID
-	META_TRACK
-	META_COMPRESS
-	META_USERMETA
-	META_SOURCE
-*/

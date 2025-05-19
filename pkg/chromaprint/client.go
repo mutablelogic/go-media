@@ -38,6 +38,9 @@ const (
 
 	// defaultQps rate limits number of requests per second
 	defaultQps = 3
+
+	// sample rate used for fingerprinting
+	sampleRate = 32000
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,10 +97,11 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 ////////////////////////////////////////////////////////////////////////////////
 // FINGERPRINT
 
-// Match a media file and lookup any matches
-func (c *Client) Match(ctx context.Context, r io.Reader, flags Meta) ([]*ResponseMatch, error) {
+// Match a media file and lookup any matches, using up to "dur" seconds
+// to fingerprint (or zero for no limit). The fingerprint is calculated
+func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flags Meta) ([]*ResponseMatch, error) {
 	// Create a segmenter
-	segmenter, err := segmenter.NewReader(r, 0, 32000)
+	segmenter, err := segmenter.NewReader(r, dur, sampleRate)
 	if err != nil {
 		return nil, err
 	}
@@ -111,13 +115,17 @@ func (c *Client) Match(ctx context.Context, r io.Reader, flags Meta) ([]*Respons
 	defer fp.Free()
 
 	// Start the fingerprinting
-	if err := fp.Start(32000, 1); err != nil {
+	if err := fp.Start(sampleRate, 1); err != nil {
 		return nil, err
 	}
 
-	// Perform fingerprinting
+	// Perform fingerprinting. Segment the audio into 'dur' segments, only feed
+	// the fingerprinter when the timestamp is less than 'dur'
 	if err := segmenter.DecodeInt16(ctx, func(timestamp time.Duration, data []int16) error {
-		return fp.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data))
+		if dur == 0 || timestamp < dur {
+			return fp.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data))
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -127,6 +135,7 @@ func (c *Client) Match(ctx context.Context, r io.Reader, flags Meta) ([]*Respons
 		return nil, err
 	}
 
+	// Get fingerprint value
 	value, err := fp.GetFingerprint()
 	if err != nil {
 		return nil, err
