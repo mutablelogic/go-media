@@ -10,7 +10,7 @@ import (
 // CGO
 
 /*
-#cgo pkg-config: libchromaprint
+#cgo pkg-config: libchromaprint libavcodec
 #cgo LDFLAGS: -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
 #include <chromaprint.h>

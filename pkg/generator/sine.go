@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-media"
+	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )

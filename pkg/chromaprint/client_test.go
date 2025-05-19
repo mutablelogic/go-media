@@ -89,7 +89,7 @@ func Test_client_004(t *testing.T) {
 	}
 	defer r.Close()
 
-	matches, err := client.Match(context.Background(), r)
+	matches, err := client.Match(context.Background(), r, META_ALL)
 	assert.NoError(err)
 	t.Log(matches)
 }

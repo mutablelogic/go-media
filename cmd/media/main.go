@@ -14,6 +14,7 @@ import (
 type CLI struct {
 	MetadataCommands
 	CodecCommands
+	FingerprintCommands
 	VersionCommands
 }
 

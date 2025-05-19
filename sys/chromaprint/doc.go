@@ -13,9 +13,6 @@ package chromaprint
 
 	% sudo apt install libchromaprint-dev
 
-	You will also need to use -tags chromaprint when testing, building or
-	installing.
-
 	API Documentation Sources:
 	https://github.com/acoustid/chromaprint
 

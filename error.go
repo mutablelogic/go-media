@@ -14,8 +14,9 @@ type Err uint
 // GLOBALS
 
 const (
-	ErrBadParameter  Err = http.StatusBadRequest
-	ErrInternalError Err = http.StatusInternalServerError
+	ErrBadParameter   Err = http.StatusBadRequest
+	ErrInternalError  Err = http.StatusInternalServerError
+	ErrNotImplemented Err = http.StatusNotImplemented
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,6 +32,8 @@ func (code Err) Error() string {
 		return "bad parameter"
 	case ErrInternalError:
 		return "internal error"
+	case ErrNotImplemented:
+		return "not implemented"
 	default:
 		return fmt.Sprintf("error code %d", code.Code())
 	}

@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	// Packages
+	"github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 	maps "golang.org/x/exp/maps"
 
@@ -226,6 +227,11 @@ func (w *Writer) String() string {
 
 //////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Return a "stream" for encoding
+func (w *Writer) Type() media.Type {
+	return media.OUTPUT
+}
 
 // Return a "stream" for encoding
 func (w *Writer) Stream(stream int) *Encoder {
