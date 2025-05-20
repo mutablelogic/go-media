@@ -52,13 +52,19 @@ type Manager interface {
 	// of the caller to also close the writer when done.
 	//Write(io.Writer, Format, []Metadata, ...Par) (Media, error)
 
-	// Return audio parameters for encoding
-	// SampleFormat, ChannelLayout, Samplerate
+	// Return audio parameters for encoding with SampleFormat, ChannelLayout, Samplerate
 	AudioPar(string, string, uint) (Par, error)
 
-	// Return video parameters for encoding
-	// PixelFormat, Width, Height, Framerate
+	// Return audio parameters for encoding with SampleFormat, ChannelLayout, Samplerate,
+	// panics on error
+	MustAudioPar(string, string, uint) Par
+
+	// Return video parameters for encoding with PixelFormat, Width, Height, Framerate
 	VideoPar(string, uint, uint, float64) (Par, error)
+
+	// Return video parameters for encoding with PixelFormat, Width, Height, Framerate,
+	// panics on error
+	MustVideoPar(string, uint, uint, float64) Par
 
 	// Return codec parameters for audio encoding
 	// Codec name and AudioParameters

@@ -16,6 +16,7 @@ type CLI struct {
 	CodecCommands
 	FingerprintCommands
 	VersionCommands
+	EncodeCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////

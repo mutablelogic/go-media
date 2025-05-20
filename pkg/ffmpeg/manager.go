@@ -131,7 +131,7 @@ func (manager *Manager) Create(url string, format media.Format, meta []media.Met
 		if !ok || par == nil {
 			return nil, media.ErrBadParameter.With("invalid stream parameters")
 		}
-		o = append(o, OptStream(i, par))
+		o = append(o, OptStream(i+1, par))
 	}
 
 	// Create the writer
@@ -420,15 +420,31 @@ func (manager *Manager) Codecs(t media.Type, name ...string) []media.Metadata {
 // PUBLIC METHODS - CODEC PARAMETERS
 
 // Create new audio parameters with sample format, channel layout and sample rate
-// plus any additional options which is used for creating a stream
 func (manager *Manager) AudioPar(samplefmt, channellayout string, samplerate uint) (media.Par, error) {
 	return NewAudioPar(samplefmt, channellayout, int(samplerate))
 }
 
 // Create new audio parameters with sample format, channel layout and sample rate
-// plus any additional options which is used for creating a stream
+func (manager *Manager) MustAudioPar(samplefmt, channellayout string, samplerate uint) media.Par {
+	par, err := manager.AudioPar(samplefmt, channellayout, samplerate)
+	if err != nil {
+		panic(err)
+	}
+	return par
+}
+
+// Create new video parameters with pixel format, width, height and frame rate
 func (manager *Manager) VideoPar(pixelfmt string, width, height uint, framerate float64) (media.Par, error) {
-	return NewVideoPar(pixelfmt, fmt.Sprint("%dx%d", width, height), framerate)
+	return NewVideoPar(pixelfmt, fmt.Sprintf("%dx%d", width, height), framerate)
+}
+
+// Create new video parameters with pixel format, width, height and frame rate
+func (manager *Manager) MustVideoPar(pixelfmt string, width, height uint, framerate float64) media.Par {
+	par, err := manager.VideoPar(pixelfmt, width, height, framerate)
+	if err != nil {
+		panic(err)
+	}
+	return par
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -457,15 +473,6 @@ func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media
 }
 
 /*
-	// Check if the media is valid
-	if m == nil || !m.Type().Is(media.INPUT) {
-		return media.ErrBadParameter.With("invalid media, cannot decode")
-	}
-	// Get the concrete reader object
-	reader, ok := m.(*Reader)
-	if !ok || reader == nil {
-		return media.ErrBadParameter.With("invalid media, cannot decode")
-	}
 	// Perform the decode
 	return reader.Decode(ctx, mapFunc, frameFunc)
 }
@@ -475,5 +482,20 @@ func (manager *Manager) Decode(ctx context.Context, m media.Media, mapFunc media
 // PUBLIC METHODS - ENCODING
 
 func (manager *Manager) Encode(ctx context.Context, m media.Media, frameFunc media.EncodeFrameFn) error {
-	return media.ErrNotImplemented.With("encoding not implemented")
+	// Get the concrete writer object
+	writer, ok := m.(*Writer)
+	if !ok || writer == nil || !m.Type().Is(media.OUTPUT) {
+		return media.ErrBadParameter.With("invalid media, cannot encode")
+	}
+	if frameFunc == nil {
+		return media.ErrBadParameter.With("nil frame function")
+	}
+	return writer.Encode(ctx, func(stream int) (*Frame, error) {
+		frame, err := frameFunc(stream)
+		if frame, ok := frame.(*Frame); !ok {
+			return nil, media.ErrBadParameter.With("invalid frame: ", frame)
+		} else {
+			return frame, err
+		}
+	}, nil)
 }
