@@ -22,6 +22,7 @@ type (
 	AVFilter        C.AVFilter
 	AVFilterFlag    C.int
 	AVFilterGraph   C.AVFilterGraph
+	AVFilterInOut   C.AVFilterInOut
 )
 
 ////////////////////////////////////////////////////////////////////////////////
