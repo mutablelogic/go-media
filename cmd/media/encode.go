@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -33,6 +34,13 @@ func (cmd *EncodeTest) Run(app server.Cmd) error {
 		return err
 	}
 
+	// TODO: Guess the output format
+	formats := manager.Formats(media.OUTPUT, cmd.Out)
+	if len(formats) == 0 {
+		return media.ErrBadParameter.With("unable to guess the output format for %q", cmd.Out)
+	}
+	fmt.Println(formats)
+
 	// Streams
 	streams := []media.Par{
 		manager.MustVideoPar("yuv420p", 1280, 720, 25),
@@ -62,8 +70,8 @@ func (cmd *EncodeTest) Run(app server.Cmd) error {
 	defer audio.Close()
 
 	// Write until CTRL+C or duration is reached
-	manager.Errorf("Press CTRL+C to stop encoding\n")
 	var ts uint
+	manager.Errorf("Press CTRL+C to stop encoding\n")
 	return manager.Encode(app.Context(), writer, func(stream int) (media.Frame, error) {
 		var frame *ffmpeg.Frame
 		switch stream {

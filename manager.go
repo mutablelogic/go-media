@@ -130,7 +130,7 @@ type EncodeFrameFn func(int) (Frame, error)
 
 // Parameters for a stream or frame
 type Par interface {
-	// The type of the format, which can be AUDIO or VIDEO
+	// The type of the parameters, which can be AUDIO, VIDEO or SUBTITLE
 	Type() Type
 }
 
@@ -148,6 +148,9 @@ type Format interface {
 
 	// Description of the format
 	Description() string
+
+	// Return AUDIO, VIDEO or SUBTITLE codec parameters
+	CodecPar(Type) Par
 }
 
 // A container format for a media file, reader, device or

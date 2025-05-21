@@ -156,3 +156,14 @@ func (f *Format) Description() string {
 		return f.metaFormat.Name
 	}
 }
+
+// Return AUDIO, VIDEO or SUBTITLE codec parameters
+func (f *Format) CodecPar(t media.Type) media.Par {
+	switch {
+	case f.Output != nil:
+		// TODO
+	case f.Input != nil:
+		// TODO
+	}
+	return nil
+}

@@ -271,6 +271,15 @@ func (manager *Manager) Formats(t media.Type, name ...string) []media.Format {
 		}
 	}
 
+	// Specifically determine an output by guessing filename
+	if t.Is(media.OUTPUT) && !t.Is(media.ANY) {
+		for _, name := range name {
+			if ofmt := ff.AVFormat_guess_format("", name, ""); ofmt != nil {
+				result = append(result, newOutputFormats(ofmt, media.OUTPUT)...)
+			}
+		}
+	}
+
 	// Return if DEVICE is not requested
 	if !t.Is(media.DEVICE) && !t.Is(media.ANY) {
 		return result
