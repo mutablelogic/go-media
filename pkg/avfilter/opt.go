@@ -18,13 +18,13 @@ type Opt func(*opt) error
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func WithInput(filter string) Opt {
+func WithInput(filter, name string) Opt {
 	return func(o *opt) error {
 		return media.ErrNotImplemented
 	}
 }
 
-func WithOutput(filter string) Opt {
+func WithOutput(filter, name string) Opt {
 	return func(o *opt) error {
 		return media.ErrNotImplemented
 	}
