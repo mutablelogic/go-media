@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"syscall"
 
 	// Packages
@@ -48,7 +49,8 @@ func main() {
 	defer audio.Close()
 
 	// Bail out when we receive a signal
-	ctx := ContextForSignal(os.Interrupt, syscall.SIGQUIT)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGQUIT)
+	defer cancel()
 
 	// Write 90 seconds, passing video and audio frames to the encoder
 	// and returning io.EOF when the duration is reached
