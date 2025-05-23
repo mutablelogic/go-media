@@ -2,9 +2,9 @@ package avcodec
 
 import (
 	"encoding/json"
+	"fmt"
 
 	// Packages
-
 	media "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/pkg/metadata"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
@@ -57,63 +57,59 @@ func Codecs(t media.Type) []media.Metadata {
 	return result
 }
 
-// Return an encoder by name, with additional options. Call Close() to
-// release the codec context. Codec options are listed at
+// NewEncodingCodec returns an encoder by name. Options for encoding can be passed.
+// Call Close() to release the codec. Codec options are listed at
 // <https://ffmpeg.org/ffmpeg-codecs.html>
-func NewEncoder(name string, opts ...Opt) (*Codec, error) {
-	ctx := new(Codec)
-
-	// Options
-	o, err := applyOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Codec context
-	if codec := ff.AVCodec_find_encoder_by_name(name); codec == nil {
-		return nil, media.ErrBadParameter.Withf("unknown codec %q", name)
-	} else if context := ff.AVCodec_alloc_context(codec); context == nil {
-		return nil, media.ErrInternalError.Withf("failed to allocate codec context for %q", name)
-	} else if err := set_par(context, codec, o); err != nil {
-		ff.AVCodec_free_context(context)
-		return nil, err
-	} else if ff.AVCodec_open(context, codec, nil); err != nil {
-		ff.AVCodec_free_context(context)
-		return nil, err
-	} else {
-		ctx.context = context
-	}
-
-	// Return success
-	return ctx, nil
+func NewEncodingCodec(name string, opts ...Opt) (*Codec, error) {
+	return newCodec(ff.AVCodec_find_encoder_by_name(name), opts...)
 }
 
-// Return a decoder by name, with additional options. Call Close() to
-// release the codec context. Codec options are listed at
+// NewDecodingCodec returns a decoder by name. Options for decoding can be passed.
+// Call Close() to release the codec context. Codec options are listed at
 // <https://ffmpeg.org/ffmpeg-codecs.html>
-func NewDecoder(name string, opts ...Opt) (*Codec, error) {
+func NewDecodingCodec(name string, opts ...Opt) (*Codec, error) {
+	return newCodec(ff.AVCodec_find_decoder_by_name(name), opts...)
+}
+
+func newCodec(codec *ff.AVCodec, opts ...Opt) (*Codec, error) {
 	ctx := new(Codec)
 
-	// Options
+	// Check parameters
+	if codec == nil {
+		return nil, media.ErrBadParameter.Withf("unknown codec %q", codec.Name())
+	}
+
+	// Apply options
 	o, err := applyOptions(opts)
 	if err != nil {
 		return nil, err
 	}
 
+	// Create a dictionary of codec options
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	for _, opt := range o.meta {
+		if err := ff.AVUtil_dict_set(dict, opt.Key(), opt.Value(), ff.AV_DICT_APPEND); err != nil {
+			ff.AVUtil_dict_free(dict)
+			return nil, err
+		}
+	}
+
 	// Codec context
-	if codec := ff.AVCodec_find_decoder_by_name(name); codec == nil {
-		return nil, media.ErrBadParameter.Withf("unknown codec %q", name)
-	} else if context := ff.AVCodec_alloc_context(codec); context == nil {
-		return nil, media.ErrInternalError.Withf("failed to allocate codec context for %q", name)
+	if context := ff.AVCodec_alloc_context(codec); context == nil {
+		return nil, media.ErrInternalError.Withf("failed to allocate codec context for %q", codec.Name())
 	} else if err := set_par(context, codec, o); err != nil {
 		ff.AVCodec_free_context(context)
 		return nil, err
-	} else if ff.AVCodec_open(context, codec, nil); err != nil {
+	} else if err := ff.AVCodec_open(context, codec, dict); err != nil {
 		ff.AVCodec_free_context(context)
 		return nil, err
 	} else {
 		ctx.context = context
 	}
+
+	// TODO: Get the options which were not consumed
+	fmt.Println("TODO: Codec options not consumed:", dict)
 
 	// Return success
 	return ctx, nil

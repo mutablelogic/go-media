@@ -3,6 +3,7 @@ package avcodec
 import (
 	// Packages
 	media "github.com/mutablelogic/go-media"
+	metadata "github.com/mutablelogic/go-media/pkg/metadata"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
 
@@ -20,6 +21,9 @@ type opt struct {
 	pixel_format  ff.AVPixelFormat
 	frame_rate    ff.AVRational
 	pixel_ratio   ff.AVRational
+
+	// Codec options
+	meta []*metadata.Metadata
 }
 
 type Opt func(*opt) error
@@ -41,6 +45,13 @@ func applyOptions(opts []Opt) (*opt, error) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func WithOpt(key string, value any) Opt {
+	return func(o *opt) error {
+		o.meta = append(o.meta, metadata.New(key, value))
+		return nil
+	}
+}
 
 func WithChannelLayout(v string) Opt {
 	return func(o *opt) error {
@@ -92,6 +103,19 @@ func WithFrameSize(v string) Opt {
 		} else {
 			o.width = width
 			o.height = height
+		}
+		return nil
+	}
+}
+
+func WithFrameRate(num, den int) Opt {
+	return func(o *opt) error {
+		o.frame_rate = ff.AVUtil_rational(num, den)
+		if o.frame_rate.IsZero() {
+			return media.ErrBadParameter.Withf("zero frame rate %v/%v", num, den)
+		}
+		if o.frame_rate.Num() <= 0 || o.frame_rate.Den() <= 0 {
+			return media.ErrBadParameter.Withf("negative frame rate %v/%v", num, den)
 		}
 		return nil
 	}
