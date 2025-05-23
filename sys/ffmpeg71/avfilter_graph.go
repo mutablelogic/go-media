@@ -73,16 +73,16 @@ func AVFilterGraph_create_filter(graph *AVFilterGraph, filter *AVFilter, name, a
 func AVFilterGraph_parse(graph *AVFilterGraph, filters string) ([]*AVFilterInOut, []*AVFilterInOut, error) {
 	var ins, outs *AVFilterInOut
 
+	// Allocate cstring for the filter spec
 	cFilters := C.CString(filters)
 	defer C.free(unsafe.Pointer(cFilters))
+
+	// First attempt to parse the filter graph: returns any inputs and outputs
 	if err := AVError(C.avfilter_graph_parse_ptr((*C.AVFilterGraph)(graph), cFilters, (**C.AVFilterInOut)(unsafe.Pointer(&ins)), (**C.AVFilterInOut)(unsafe.Pointer(&outs)), nil)); err != 0 {
 		AVFilterInOut_free(ins)
 		AVFilterInOut_free(outs)
 		return nil, nil, fmt.Errorf("avfilter_graph_parse: %w", err)
 	}
-
-	// TODO: If ins is 0 and outs is 0, we return the linked list of inputs and outputs
-	// Or else we try again with the ins and outs
 
 	// Return success
 	return AVFilterInOut_list(ins), AVFilterInOut_list(outs), nil

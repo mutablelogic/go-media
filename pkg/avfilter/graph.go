@@ -2,6 +2,7 @@ package avfilter
 
 import (
 	"errors"
+	"fmt"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
@@ -47,6 +48,8 @@ func ParseGraph(desc string) (*Graph, error) {
 		graph.in = in
 		graph.out = out
 	}
+
+	fmt.Println("graph=", graph)
 
 	// Validate the graph
 	if err := ff.AVFilterGraph_config(graph.ctx); err != nil {

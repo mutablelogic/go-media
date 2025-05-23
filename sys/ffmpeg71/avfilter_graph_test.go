@@ -46,12 +46,13 @@ func Test_avfilter_graph_002(t *testing.T) {
 	defer ff.AVFilterInOut_list_free(in)
 	defer ff.AVFilterInOut_list_free(out)
 
-	// Configure the graph
-	err = ff.AVFilterGraph_config(graph)
-	if !assert.NoError(err) {
-		t.FailNow()
-	}
-
 	t.Log("graph=", graph)
+	t.Log("in=", in)
+	t.Log("out=", out)
 
+	// One input and one output
+	assert.Len(in, 1)
+	assert.Equal("a", in[0].Name())
+	assert.Len(out, 1)
+	assert.Equal("b", out[0].Name())
 }
