@@ -1,9 +1,9 @@
 package avfilter
 
 import (
-	// Packages
 	"errors"
 
+	// Packages
 	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
