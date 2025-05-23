@@ -2,6 +2,8 @@ package avfilter
 
 import (
 	// Packages
+	"errors"
+
 	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
 )
@@ -40,7 +42,7 @@ func ParseGraph(desc string) (*Graph, error) {
 	// Parse the graph, and set the inputs and outputs
 	in, out, err := ff.AVFilterGraph_parse(graph.ctx, desc)
 	if err != nil {
-		return nil, graph.Close()
+		return nil, errors.Join(err, graph.Close())
 	} else {
 		graph.in = in
 		graph.out = out
@@ -48,7 +50,7 @@ func ParseGraph(desc string) (*Graph, error) {
 
 	// Validate the graph
 	if err := ff.AVFilterGraph_config(graph.ctx); err != nil {
-		return nil, graph.Close()
+		return nil, errors.Join(err, graph.Close())
 	}
 
 	// Return the graph
@@ -60,9 +62,11 @@ func (g *Graph) Close() error {
 	// Free the inputs and outputs
 	if g.in != nil {
 		ff.AVFilterInOut_list_free(g.in)
+		g.in = nil
 	}
 	if g.out != nil {
 		ff.AVFilterInOut_list_free(g.out)
+		g.out = nil
 	}
 	if g.ctx != nil {
 		ff.AVFilterGraph_free(g.ctx)
