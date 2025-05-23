@@ -161,14 +161,12 @@ test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
 	@${CGO_ENV} ${GO} test ./pkg/segmenter
 	@echo ... test pkg/chromaprint
 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+	@echo ... test pkg/avcodec
+	${CGO_ENV} ${GO} test ./pkg/avcodec
 
 
 #	@echo ... test pkg/ffmpeg
 #	@${GO} test -v ./pkg/ffmpeg
-#	@echo ... test sys/chromaprint
-#	@${GO} test ./sys/chromaprint
-#	@echo ... test pkg/chromaprint
-#	@${GO} test ./pkg/chromaprint
 #	@echo ... test pkg/file
 #	@${GO} test ./pkg/file
 #	@echo ... test pkg/generator
