@@ -25,7 +25,7 @@ VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
 DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # Paths to locations, etc
-BUILD_DIR := "build"
+BUILD_DIR ?= "build"
 CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 PREFIX ?= ${BUILD_DIR}/install
