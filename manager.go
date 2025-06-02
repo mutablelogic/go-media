@@ -52,13 +52,19 @@ type Manager interface {
 	// of the caller to also close the writer when done.
 	//Write(io.Writer, Format, []Metadata, ...Par) (Media, error)
 
-	// Return audio parameters for encoding
-	// ChannelLayout, SampleFormat, Samplerate
-	//AudioPar(string, string, int) (Par, error)
+	// Return audio parameters for encoding with SampleFormat, ChannelLayout, Samplerate
+	AudioPar(string, string, uint) (Par, error)
 
-	// Return video parameters for encoding
-	// Width, Height, PixelFormat
-	//VideoPar(int, int, string) (Par, error)
+	// Return audio parameters for encoding with SampleFormat, ChannelLayout, Samplerate,
+	// panics on error
+	MustAudioPar(string, string, uint) Par
+
+	// Return video parameters for encoding with PixelFormat, Width, Height, Framerate
+	VideoPar(string, uint, uint, float64) (Par, error)
+
+	// Return video parameters for encoding with PixelFormat, Width, Height, Framerate,
+	// panics on error
+	MustVideoPar(string, uint, uint, float64) Par
 
 	// Return codec parameters for audio encoding
 	// Codec name and AudioParameters
@@ -102,7 +108,10 @@ type Manager interface {
 	// Decode an input stream, determining the streams to be decoded
 	// and the function to accept the decoded frames. If MapFunc is nil,
 	// all streams are passed through (demultiplexing).
-	Decode(context.Context, Media, MapFunc, FrameFunc) error
+	Decode(context.Context, Media, MapFunc, DecodeFrameFunc) error
+
+	// Encode an output stream
+	Encode(context.Context, Media, EncodeFrameFn) error
 }
 
 // MapFunc return parameters if a stream should be decoded,
@@ -113,10 +122,17 @@ type MapFunc func(int, Par) (Par, error)
 
 // FrameFunc is a function which is called to send a frame after decoding. It should
 // return nil to continue decoding or io.EOF to stop.
-type FrameFunc func(int, Frame) error
+type DecodeFrameFunc func(int, Frame) error
+
+// EncodeFrameFn is a function which is called to receive a frame to encode. It should
+// return nil to continue encoding or io.EOF to stop encoding.
+type EncodeFrameFn func(int) (Frame, error)
 
 // Parameters for a stream or frame
-type Par interface{}
+type Par interface {
+	// The type of the parameters, which can be AUDIO, VIDEO or SUBTITLE
+	Type() Type
+}
 
 // A frame of decoded data
 type Frame interface{}
@@ -132,6 +148,9 @@ type Format interface {
 
 	// Description of the format
 	Description() string
+
+	// Return AUDIO, VIDEO or SUBTITLE codec parameters
+	CodecPar(Type) Par
 }
 
 // A container format for a media file, reader, device or
