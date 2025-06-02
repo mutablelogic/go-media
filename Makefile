@@ -1,6 +1,7 @@
 # Paths to packages
 GO=$(shell which go)
 DOCKER=$(shell which docker)
+PKG_CONFIG=$(shell which pkg-config)
 
 # Source version
 FFMPEG_VERSION=ffmpeg-7.1.1
@@ -63,13 +64,12 @@ ${BUILD_DIR}/${FFMPEG_VERSION}:
 
 # Configure ffmpeg
 .PHONY: ffmpeg-configure
-ffmpeg-configure: mkdir ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
+ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 	@echo "Configuring ${FFMPEG_VERSION} => ${PREFIX}"	
 	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
-		--enable-static --disable-doc --disable-programs \
+		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
-	  	--pkg-config-flags="--static" \
-		--extra-libs="-lpthread" \
+		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" \
 		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg
@@ -161,14 +161,12 @@ test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
 	@${CGO_ENV} ${GO} test ./pkg/segmenter
 	@echo ... test pkg/chromaprint
 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+	@echo ... test pkg/avcodec
+	${CGO_ENV} ${GO} test ./pkg/avcodec
 
 
 #	@echo ... test pkg/ffmpeg
 #	@${GO} test -v ./pkg/ffmpeg
-#	@echo ... test sys/chromaprint
-#	@${GO} test ./sys/chromaprint
-#	@echo ... test pkg/chromaprint
-#	@${GO} test ./pkg/chromaprint
 #	@echo ... test pkg/file
 #	@${GO} test ./pkg/file
 #	@echo ... test pkg/generator
@@ -198,6 +196,11 @@ go-dep:
 docker-dep:
 	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
 
+.PHONY: pkconfig-dep
+pkconfig-dep:
+	@test -f "${PKG_CONFIG}" && test -x "${PKG_CONFIG}"  || (echo "Missing pkg-config binary" && exit 1)
+
+
 .PHONY: mkdir
 mkdir:
 	@echo Mkdir ${BUILD_DIR}
@@ -218,15 +221,18 @@ clean: go-tidy
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep
 ffmpeg-dep:
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists libass && echo "--enable-libass"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists fdk-aac && echo "--enable-libfdk-aac"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists lame && echo "--enable-libmp3lame"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists freetype2 && echo "--enable-libfreetype"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists theora && echo "--enable-libtheora"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vorbis && echo "--enable-libvorbis"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists opus && echo "--enable-libopus"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x264 && echo "--enable-libx264"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists x265 && echo "--enable-libx265"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists xvid && echo "--enable-libxvid"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell pkg-config --exists vpx && echo "--enable-libvpx"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libass && echo "--enable-libass"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fdk-aac && echo "--enable-libfdk-aac"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lame && echo "--enable-libmp3lame"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists freetype2 && echo "--enable-libfreetype"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vorbis && echo "--enable-libvorbis"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opus && echo "--enable-libopus"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists x264 && echo "--enable-libx264"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists x265 && echo "--enable-libx265"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xvid && echo "--enable-libxvid"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vpx && echo "--enable-libvpx"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libgcrypt && echo "--enable-gcrypt"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists aom && echo "--enable-libaom"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libbluray && echo "--enable-libbluray"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists dav1d && echo "--enable-libdav1d"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"

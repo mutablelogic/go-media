@@ -22,6 +22,7 @@ type (
 	AVFilter        C.AVFilter
 	AVFilterFlag    C.int
 	AVFilterGraph   C.AVFilterGraph
+	AVFilterInOut   C.AVFilterInOut
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,8 +49,8 @@ func (ctx *AVFilter) MarshalJSON() ([]byte, error) {
 		Name        string       `json:"name"`
 		Description string       `json:"description"`
 		Flags       AVFilterFlag `json:"flags,omitzero"`
-		Inputs      uint         `json:"inputs,omitempty"`
-		Outputs     uint         `json:"outputs,omitempty"`
+		Inputs      uint         `json:"num_inputs,omitempty"`
+		Outputs     uint         `json:"num_outputs,omitempty"`
 	}
 	if ctx == nil {
 		return json.Marshal(nil)
@@ -58,12 +59,74 @@ func (ctx *AVFilter) MarshalJSON() ([]byte, error) {
 		Name:        ctx.Name(),
 		Description: ctx.Description(),
 		Flags:       ctx.Flags(),
-		Inputs:      ctx.Inputs(),
-		Outputs:     ctx.Outputs(),
+		Inputs:      ctx.NumInputs(),
+		Outputs:     ctx.NumOutputs(),
 	})
 }
 
+func (ctx *AVFilterContext) MarshalJSON() ([]byte, error) {
+	type j struct {
+		Name    string    `json:"name"`
+		Filter  *AVFilter `json:"filter"`
+		Inputs  uint      `json:"num_inputs,omitempty"`
+		Outputs uint      `json:"num_outputs,omitempty"`
+	}
+	if ctx == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(j{
+		Name:    ctx.Name(),
+		Filter:  ctx.Filter(),
+		Inputs:  ctx.NumInputs(),
+		Outputs: ctx.NumOutputs(),
+	})
+}
+
+func (ctx *AVFilterInOut) MarshalJSON() ([]byte, error) {
+	type j struct {
+		Name   string           `json:"name"`
+		Filter *AVFilterContext `json:"filter"`
+		Pad    int              `json:"pad"`
+	}
+	if ctx == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(j{
+		Name:   ctx.Name(),
+		Filter: ctx.Filter(),
+		Pad:    ctx.Pad(),
+	})
+}
+
+func (ctx *AVFilterGraph) MarshalJSON() ([]byte, error) {
+	type j struct {
+		Graph string `json:"graph"`
+	}
+	if ctx == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(j{
+		Graph: AVFilterGraph_dump(ctx),
+	})
+}
+
+func (ctx *AVFilterGraph) String() string {
+	data, err := json.MarshalIndent(ctx, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 func (ctx *AVFilter) String() string {
+	data, err := json.MarshalIndent(ctx, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (ctx *AVFilterInOut) String() string {
 	data, err := json.MarshalIndent(ctx, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -86,12 +149,31 @@ func (c *AVFilter) Flags() AVFilterFlag {
 	return AVFilterFlag(c.flags)
 }
 
-func (c *AVFilter) Inputs() uint {
+func (c *AVFilter) NumInputs() uint {
 	return AVFilter_inputs(c)
 }
 
-func (c *AVFilter) Outputs() uint {
+func (c *AVFilter) NumOutputs() uint {
 	return AVFilter_outputs(c)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVFilterContext
+
+func (c *AVFilterContext) Name() string {
+	return C.GoString(c.name)
+}
+
+func (c *AVFilterContext) Filter() *AVFilter {
+	return (*AVFilter)(c.filter)
+}
+
+func (c *AVFilterContext) NumInputs() uint {
+	return uint(c.nb_inputs)
+}
+
+func (c *AVFilterContext) NumOutputs() uint {
+	return uint(c.nb_outputs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,4 +217,27 @@ func (v AVFilterFlag) FlagString() string {
 	default:
 		return fmt.Sprintf("AVFilterFlag(0x%08X)", uint32(v))
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVFilterInOut
+
+func (c *AVFilterInOut) Name() string {
+	return C.GoString(c.name)
+}
+
+func (c *AVFilterInOut) Filter() *AVFilterContext {
+	return (*AVFilterContext)(c.filter_ctx)
+}
+
+func (c *AVFilterInOut) Pad() int {
+	return int(c.pad_idx)
+}
+
+func (c *AVFilterInOut) Next() *AVFilterInOut {
+	return (*AVFilterInOut)(c.next)
+}
+
+func (c *AVFilterInOut) SetNext(next *AVFilterInOut) {
+	c.next = (*C.AVFilterInOut)(next)
 }

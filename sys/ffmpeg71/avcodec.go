@@ -56,11 +56,11 @@ type jsonAVCodecContext struct {
 	PixelFormat       AVPixelFormat   `json:"pix_fmt,omitempty"`
 	Width             int             `json:"width,omitempty"`
 	Height            int             `json:"height,omitempty"`
-	SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitempty"`
-	Framerate         AVRational      `json:"framerate,omitempty"`
+	SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitzero"`
+	Framerate         AVRational      `json:"framerate,omitzero"`
 	SampleFormat      AVSampleFormat  `json:"sample_fmt,omitempty"`
 	SampleRate        int             `json:"sample_rate,omitempty"`
-	ChannelLayout     AVChannelLayout `json:"channel_layout,omitempty"`
+	ChannelLayout     AVChannelLayout `json:"channel_layout,omitzero"`
 	FrameSize         int             `json:"frame_size,omitempty"`
 	TimeBase          AVRational      `json:"time_base,omitempty"`
 }
