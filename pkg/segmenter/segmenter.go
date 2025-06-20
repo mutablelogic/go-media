@@ -46,14 +46,20 @@ const (
 //////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new segmenter with a reader r which segments into raw audio of 'dur'
-// length. If dur is zero then no segmenting is performed, the whole
-// audio file is read and output in one go, which could cause some memory issues.
+// Create a new segmenter with a reader r which segments into raw audio.
 // The sample rate is the number of samples per second.
 //
+// Setting option WithSegmentSize will cause the segmenter to segment the audio
+// into fixed-size chunks approximately of the specified duration.
+//
+// Setting option WithDefaultSilenceThreshold will cause the segmenter to break
+// into smaller chunks, if silence is detected. The length of the silence is
+// specified by the WithSilenceDuration option, which defaults to 2 seconds.
+//
 // At the moment, the audio format is auto-detected, but there should be
-// a way to specify the audio format.
-func NewReader(r io.Reader, dur time.Duration, sample_rate int, opts ...Opt) (*Segmenter, error) {
+// a way to specify the audio format. The output samples are always single-channel
+// (mono).
+func NewReader(r io.Reader, sample_rate int, opts ...Opt) (*Segmenter, error) {
 	segmenter := new(Segmenter)
 
 	// Apply options
@@ -64,14 +70,14 @@ func NewReader(r io.Reader, dur time.Duration, sample_rate int, opts ...Opt) (*S
 	}
 
 	// Check arguments
-	if dur < 0 || sample_rate <= 0 {
+	if sample_rate <= 0 {
 		return nil, media.ErrBadParameter.With("invalid duration or sample rate arguments")
 	} else {
 		segmenter.sample_rate = sample_rate
 	}
 
 	// Sample buffer is duration * sample rate, assuming mono
-	segmenter.n = int(dur.Seconds() * float64(sample_rate))
+	segmenter.n = int(segmenter.opts.SegmentSize.Seconds() * float64(sample_rate))
 
 	// Open the file
 	media, err := ffmpeg.NewReader(r)
@@ -143,32 +149,19 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 			return nil
 		}
 
-		// Calculate the energy of the frame - root mean squared and normalize between 0 and 1
-		var sum float32
-		var energy float64
-		for _, sample := range data {
-			sum += float32(sample) * float32(sample)
-		}
-		energy = math.Sqrt(float64(sum)/float64(len(data))) / float64(math.MaxInt16)
-
-		// If silence detection is enabled, check if the energy is below the threshold
-		var cut bool
-		if s.SilenceThreshold > 0 && energy < s.SilenceThreshold {
-			// If the energy is below the threshold, we consider it silence
-			if s.sts == -1 {
-				// If this is the first silence, set the timestamp
-				s.sts = frame.Ts()
-			} else if frame.Ts()-s.sts >= s.SilenceDuration.Seconds() {
-				// Cut when the buffer size is greater than 10 seconds
-				if len(s.buf_flt) >= s.sample_rate*10 {
-					cut = true
-				}
-				s.sts = -1 // Reset the silence timestamp
+		// Calculate the energy of the frame and determine if we should "cut" the segment
+		_, cut := s.detect_silence(frame.Ts(), func() float64 {
+			var sum float32
+			for _, sample := range data {
+				sum += float32(sample) * float32(sample)
 			}
-		}
+			return math.Sqrt(float64(sum)/float64(len(data))) / float64(math.MaxInt16)
+		})
 
 		// Append float32 samples from plane 0 to buffer
 		s.buf_flt = append(s.buf_flt, frame.Float32(0)...)
+
+		// TODO: If we don't have enough samples for a segment, or we are not cutting,
 
 		// n != 0 and len(buf) >= n we have a segment to process
 		if (s.n != 0 && len(s.buf_flt) >= s.n) || cut {
@@ -201,6 +194,32 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 
 	// Return success
 	return nil
+}
+
+func (s *Segmenter) detect_silence(ts float64, energy_fn func() float64) (float64, bool) {
+	energy := energy_fn()
+
+	// Segmenting or Silence detection is not enabled
+	if s.SegmentSize == 0 || s.SilenceThreshold == 0 {
+		return energy, false
+	}
+
+	// If energy is above the threshold, reset the silence timestamp
+	if energy >= s.SilenceThreshold {
+		s.sts = -1
+		return energy, false
+	}
+
+	// Set the first frame of silence
+	if s.sts == -1 {
+		s.sts = ts
+		return energy, false
+	}
+
+	// Calculate the silence duration, and consider whether we consider this
+	// a segment boundary.
+	silence_duration := ts - s.sts
+	return energy, silence_duration >= s.SilenceSize.Seconds()
 }
 
 // Segments are output through a callback, with the samples and a timestamp
@@ -239,32 +258,22 @@ func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error 
 			return nil
 		}
 
-		// Calculate the energy of the frame - root mean squared and normalize between 0 and 1
-		var sum float32
-		var energy float64
-		for _, sample := range data {
-			sum += float32(sample) * float32(sample)
-		}
-		energy = math.Sqrt(float64(sum)/float64(len(data))) / float64(math.MaxInt16)
-
-		// If silence detection is enabled, check if the energy is below the threshold
-		var cut bool
-		if s.SilenceThreshold > 0 && energy < s.SilenceThreshold {
-			// If the energy is below the threshold, we consider it silence
-			if s.sts == -1 {
-				// If this is the first silence, set the timestamp
-				s.sts = frame.Ts()
-			} else if frame.Ts()-s.sts >= s.SilenceDuration.Seconds() {
-				// Cut when the buffer size is greater than 10 seconds
-				if len(s.buf_s16) >= s.sample_rate*10 {
-					cut = true
-				}
-				s.sts = -1 // Reset the silence timestamp
+		// Calculate the energy of the frame and determine if we should "cut" the segment
+		_, cut := s.detect_silence(frame.Ts(), func() float64 {
+			var sum float32
+			for _, sample := range data {
+				sum += float32(sample) * float32(sample)
 			}
-		}
+			return math.Sqrt(float64(sum)/float64(len(data))) / float64(math.MaxInt16)
+		})
 
 		// Append int16 samples from plane 0 to buffer
 		s.buf_s16 = append(s.buf_s16, data...)
+
+		// TODO: If we don't have enough samples for a segment, or we are not cutting
+		if cut && len(s.buf_s16) < (s.n>>1) {
+			cut = false
+		}
 
 		// n != 0 and len(buf) >= n we have a segment to process
 		if (s.n != 0 && len(s.buf_s16) >= s.n) || cut {
@@ -303,11 +312,9 @@ func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error 
 // PRIVATE METHODS
 
 func (s *Segmenter) segment_flt(fn SegmentFuncFloat32) error {
-	// TODO: Pad any remaining samples with zeros if the buffer is not full
 	return fn(s.ts, s.buf_flt)
 }
 
 func (s *Segmenter) segment_s16(fn SegmentFuncInt16) error {
-	// TODO: Pad any remaining samples with zeros if the buffer is not full
 	return fn(s.ts, s.buf_s16)
 }

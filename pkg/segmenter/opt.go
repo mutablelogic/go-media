@@ -13,16 +13,18 @@ import (
 type Opt func(*opts) error
 
 type opts struct {
+	SegmentSize      time.Duration // Segment size, zero means no segmenting
+	SilenceSize      time.Duration // Size of silence to consider a segment boundary
 	SilenceThreshold float64       // Silence threshold
-	SilenceDuration  time.Duration // Duration of silence to consider a segment boundary
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	DefaultSilenceThreshold = 0.0005          // Default silence threshold
-	DefaultSilenceDuration  = time.Second * 2 // Default silence duration
+	DefaultSilenceThreshold = 0.01                   // Default silence threshold
+	DefaultSilenceDuration  = time.Millisecond * 500 // Default silence duration
+	MinDuration             = time.Millisecond * 250 // Minimum duration
 )
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -41,21 +43,32 @@ func applyOpts(opt ...Opt) (*opts, error) {
 ///////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-func WithDefaultSilenceThreshold() Opt {
+func WithSegmentSize(v time.Duration) Opt {
 	return func(o *opts) error {
-		o.SilenceThreshold = DefaultSilenceThreshold
-		o.SilenceDuration = DefaultSilenceDuration
+		if v < MinDuration {
+			return media.ErrBadParameter.Withf("segment duration is too short, must be at least %v", MinDuration)
+		} else {
+			o.SegmentSize = v
+		}
 		return nil
 	}
 }
 
-func WithSilenceDuration(v time.Duration) Opt {
+func WithSilenceSize(v time.Duration) Opt {
 	return func(o *opts) error {
-		if v < time.Millisecond*100 {
-			return media.ErrBadParameter.Withf("silence duration %s is too short, must be at least 100ms", v)
+		if v < MinDuration {
+			return media.ErrBadParameter.Withf("silence duration is too short, must be at least %v", MinDuration)
 		} else {
-			o.SilenceDuration = v
+			o.SilenceSize = v
 		}
+		return nil
+	}
+}
+
+func WithDefaultSilenceThreshold() Opt {
+	return func(o *opts) error {
+		o.SilenceThreshold = DefaultSilenceThreshold
+		o.SilenceSize = DefaultSilenceDuration
 		return nil
 	}
 }
