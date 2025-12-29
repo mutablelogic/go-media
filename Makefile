@@ -153,13 +153,16 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-ffmpeg
+test: test-sys
+	@echo ... test pkg/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}
 
-.PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy 
+.PHONY: test-sys
+test-sys: go-dep go-tidy 
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
+
 
 #	@echo ... test pkg/segmenter
 #	@${CGO_ENV} ${GO} test ./pkg/segmenter
@@ -167,8 +170,6 @@ test-ffmpeg: go-dep go-tidy
 # 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 # 	@echo ... test pkg/avcodec
 # 	${CGO_ENV} ${GO} test ./pkg/avcodec
-#	@echo ... test pkg/ffmpeg
-#	@${GO} test -v ./pkg/ffmpeg
 #	@echo ... test pkg/file
 #	@${GO} test ./pkg/file
 #	@echo ... test pkg/generator

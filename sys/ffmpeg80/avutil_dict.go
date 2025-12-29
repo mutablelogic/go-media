@@ -29,6 +29,9 @@ type (
 // CONSTANTS
 
 const (
+	// No flags
+	AV_DICT_NONE AVDictionaryFlag = 0
+
 	// Only get an entry with exact-case key match.
 	AV_DICT_MATCH_CASE AVDictionaryFlag = C.AV_DICT_MATCH_CASE
 

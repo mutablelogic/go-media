@@ -23,6 +23,7 @@ type (
 
 const (
 	AV_NOPTS_VALUE AVTimestamp = C.AV_NOPTS_VALUE
+	AV_TIME_BASE                = C.AV_TIME_BASE // Internal time base
 )
 
 ////////////////////////////////////////////////////////////////////////////////
