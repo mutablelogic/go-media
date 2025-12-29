@@ -8,6 +8,9 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
+/*
+#include <stdint.h>
+*/
 import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,19 +127,33 @@ func cAVStreamSlice(p unsafe.Pointer, sz C.int) []*AVStream {
 	return (*[1 << 30]*AVStream)(p)[:int(sz)]
 }
 
-/*
-
 func cAVDeviceInfoSlice(p unsafe.Pointer, sz C.int) []*AVDeviceInfo {
-	if p == nil {
+	if p == nil || sz <= 0 {
 		return nil
 	}
 	return (*[1 << 30]*AVDeviceInfo)(p)[:int(sz)]
 }
 
 func cAVMediaTypeSlice(p unsafe.Pointer, sz C.int) []AVMediaType {
-	if p == nil {
+	if p == nil || sz <= 0 {
 		return nil
 	}
 	return (*[1 << 30]AVMediaType)(p)[:int(sz)]
 }
-*/
+
+// Convert Go image slices to C pointers for swscale operations
+func avutil_image_ptr(data [][]byte, stride []int) ([4]*C.uint8_t, [4]C.int) {
+	var ptrs [4]*C.uint8_t
+	var strides [4]C.int
+	for i := 0; i < 4; i++ {
+		if i < len(data) && len(data[i]) > 0 {
+			ptrs[i] = (*C.uint8_t)(unsafe.Pointer(&data[i][0]))
+		} else {
+			ptrs[i] = nil
+		}
+		if i < len(stride) {
+			strides[i] = C.int(stride[i])
+		}
+	}
+	return ptrs, strides
+}

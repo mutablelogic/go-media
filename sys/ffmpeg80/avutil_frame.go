@@ -217,6 +217,10 @@ func (ctx *AVFrame) ChannelLayout() AVChannelLayout {
 	return AVChannelLayout(ctx.ch_layout)
 }
 
+func (ctx *AVFrame) NumChannels() int {
+	return int(ctx.ch_layout.nb_channels)
+}
+
 func (ctx *AVFrame) SetChannelLayout(src AVChannelLayout) error {
 	// Copy the new layout first to avoid leaving struct in invalid state on error
 	var temp C.struct_AVChannelLayout
@@ -251,6 +255,22 @@ func (ctx *AVFrame) PixFmt() AVPixelFormat {
 
 func (ctx *AVFrame) SetPixFmt(format AVPixelFormat) {
 	ctx.format = C.int(format)
+}
+
+func (ctx *AVFrame) Colorspace() AVColorSpace {
+	return AVColorSpace(ctx.colorspace)
+}
+
+func (ctx *AVFrame) SetColorspace(colorspace AVColorSpace) {
+	ctx.colorspace = C.enum_AVColorSpace(colorspace)
+}
+
+func (ctx *AVFrame) ColorRange() AVColorRange {
+	return AVColorRange(ctx.color_range)
+}
+
+func (ctx *AVFrame) SetColorRange(color_range AVColorRange) {
+	ctx.color_range = C.enum_AVColorRange(color_range)
 }
 
 func (ctx *AVFrame) Pts() int64 {

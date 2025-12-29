@@ -22,6 +22,8 @@ import "C"
 type (
 	AVPixelFormat      C.enum_AVPixelFormat
 	AVPixFmtDescriptor C.AVPixFmtDescriptor
+	AVColorSpace       C.enum_AVColorSpace
+	AVColorRange       C.enum_AVColorRange
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +303,30 @@ const (
 	AV_PIX_FMT_OHCODEC        AVPixelFormat = C.AV_PIX_FMT_OHCODEC        ///< hardware decoding through openharmony
 )
 
+const (
+	AVCOL_SPC_RGB               AVColorSpace = C.AVCOL_SPC_RGB         ///< order of coefficients is actually GBR
+	AVCOL_SPC_BT709             AVColorSpace = C.AVCOL_SPC_BT709       ///< also ITU-R BT1361
+	AVCOL_SPC_UNSPECIFIED       AVColorSpace = C.AVCOL_SPC_UNSPECIFIED
+	AVCOL_SPC_RESERVED          AVColorSpace = C.AVCOL_SPC_RESERVED
+	AVCOL_SPC_FCC               AVColorSpace = C.AVCOL_SPC_FCC
+	AVCOL_SPC_BT470BG           AVColorSpace = C.AVCOL_SPC_BT470BG
+	AVCOL_SPC_SMPTE170M         AVColorSpace = C.AVCOL_SPC_SMPTE170M
+	AVCOL_SPC_SMPTE240M         AVColorSpace = C.AVCOL_SPC_SMPTE240M
+	AVCOL_SPC_YCGCO             AVColorSpace = C.AVCOL_SPC_YCGCO
+	AVCOL_SPC_BT2020_NCL        AVColorSpace = C.AVCOL_SPC_BT2020_NCL
+	AVCOL_SPC_BT2020_CL         AVColorSpace = C.AVCOL_SPC_BT2020_CL
+	AVCOL_SPC_SMPTE2085         AVColorSpace = C.AVCOL_SPC_SMPTE2085
+	AVCOL_SPC_CHROMA_DERIVED_NCL AVColorSpace = C.AVCOL_SPC_CHROMA_DERIVED_NCL
+	AVCOL_SPC_CHROMA_DERIVED_CL AVColorSpace = C.AVCOL_SPC_CHROMA_DERIVED_CL
+	AVCOL_SPC_ICTCP             AVColorSpace = C.AVCOL_SPC_ICTCP
+)
+
+const (
+	AVCOL_RANGE_UNSPECIFIED AVColorRange = C.AVCOL_RANGE_UNSPECIFIED ///< Unspecified
+	AVCOL_RANGE_MPEG        AVColorRange = C.AVCOL_RANGE_MPEG        ///< Narrow or limited range (16-235)
+	AVCOL_RANGE_JPEG        AVColorRange = C.AVCOL_RANGE_JPEG        ///< Full range (0-255)
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -313,6 +339,56 @@ func (v AVPixelFormat) String() string {
 		return f
 	}
 	return fmt.Sprintf("AVPixelFormat(%d)", int(v))
+}
+
+func (v AVColorSpace) String() string {
+	switch v {
+	case AVCOL_SPC_RGB:
+		return "AVCOL_SPC_RGB"
+	case AVCOL_SPC_BT709:
+		return "AVCOL_SPC_BT709"
+	case AVCOL_SPC_UNSPECIFIED:
+		return "AVCOL_SPC_UNSPECIFIED"
+	case AVCOL_SPC_RESERVED:
+		return "AVCOL_SPC_RESERVED"
+	case AVCOL_SPC_FCC:
+		return "AVCOL_SPC_FCC"
+	case AVCOL_SPC_BT470BG:
+		return "AVCOL_SPC_BT470BG"
+	case AVCOL_SPC_SMPTE170M:
+		return "AVCOL_SPC_SMPTE170M"
+	case AVCOL_SPC_SMPTE240M:
+		return "AVCOL_SPC_SMPTE240M"
+	case AVCOL_SPC_YCGCO:
+		return "AVCOL_SPC_YCGCO"
+	case AVCOL_SPC_BT2020_NCL:
+		return "AVCOL_SPC_BT2020_NCL"
+	case AVCOL_SPC_BT2020_CL:
+		return "AVCOL_SPC_BT2020_CL"
+	case AVCOL_SPC_SMPTE2085:
+		return "AVCOL_SPC_SMPTE2085"
+	case AVCOL_SPC_CHROMA_DERIVED_NCL:
+		return "AVCOL_SPC_CHROMA_DERIVED_NCL"
+	case AVCOL_SPC_CHROMA_DERIVED_CL:
+		return "AVCOL_SPC_CHROMA_DERIVED_CL"
+	case AVCOL_SPC_ICTCP:
+		return "AVCOL_SPC_ICTCP"
+	default:
+		return fmt.Sprintf("AVColorSpace(%d)", int(v))
+	}
+}
+
+func (v AVColorRange) String() string {
+	switch v {
+	case AVCOL_RANGE_UNSPECIFIED:
+		return "AVCOL_RANGE_UNSPECIFIED"
+	case AVCOL_RANGE_MPEG:
+		return "AVCOL_RANGE_MPEG"
+	case AVCOL_RANGE_JPEG:
+		return "AVCOL_RANGE_JPEG"
+	default:
+		return fmt.Sprintf("AVColorRange(%d)", int(v))
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

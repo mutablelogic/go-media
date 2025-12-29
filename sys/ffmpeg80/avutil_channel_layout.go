@@ -176,3 +176,126 @@ func (ctx AVChannelLayout) NumChannels() int {
 func (ctx AVChannelLayout) Order() AVChannelOrder {
 	return AVChannelOrder(ctx.order)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// CHANNEL LAYOUT CONSTANTS
+
+func AV_CHANNEL_LAYOUT_MONO() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_MONO)
+}
+
+func AV_CHANNEL_LAYOUT_STEREO() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_STEREO)
+}
+
+func AV_CHANNEL_LAYOUT_2POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_2POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_2_1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_2_1)
+}
+
+func AV_CHANNEL_LAYOUT_SURROUND() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_SURROUND)
+}
+
+func AV_CHANNEL_LAYOUT_3POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_3POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_4POINT0() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_4POINT0)
+}
+
+func AV_CHANNEL_LAYOUT_4POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_4POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_2_2() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_2_2)
+}
+
+func AV_CHANNEL_LAYOUT_QUAD() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_QUAD)
+}
+
+func AV_CHANNEL_LAYOUT_5POINT0() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_5POINT0)
+}
+
+func AV_CHANNEL_LAYOUT_5POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_5POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_5POINT0_BACK() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_5POINT0_BACK)
+}
+
+func AV_CHANNEL_LAYOUT_5POINT1_BACK() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_5POINT1_BACK)
+}
+
+func AV_CHANNEL_LAYOUT_6POINT0() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_6POINT0)
+}
+
+func AV_CHANNEL_LAYOUT_6POINT0_FRONT() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_6POINT0_FRONT)
+}
+
+func AV_CHANNEL_LAYOUT_HEXAGONAL() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_HEXAGONAL)
+}
+
+func AV_CHANNEL_LAYOUT_6POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_6POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_6POINT1_BACK() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_6POINT1_BACK)
+}
+
+func AV_CHANNEL_LAYOUT_6POINT1_FRONT() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_6POINT1_FRONT)
+}
+
+func AV_CHANNEL_LAYOUT_7POINT0() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_7POINT0)
+}
+
+func AV_CHANNEL_LAYOUT_7POINT0_FRONT() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_7POINT0_FRONT)
+}
+
+func AV_CHANNEL_LAYOUT_7POINT1() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_7POINT1)
+}
+
+func AV_CHANNEL_LAYOUT_7POINT1_WIDE() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_7POINT1_WIDE)
+}
+
+func AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK)
+}
+
+func AV_CHANNEL_LAYOUT_OCTAGONAL() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_OCTAGONAL)
+}
+
+func AV_CHANNEL_LAYOUT_HEXADECAGONAL() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_HEXADECAGONAL)
+}
+
+func AV_CHANNEL_LAYOUT_STEREO_DOWNMIX() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_STEREO_DOWNMIX)
+}
+
+func AV_CHANNEL_LAYOUT_22POINT2() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_22POINT2)
+}
+
+func AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER() AVChannelLayout {
+	return AVChannelLayout(C._AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER)
+}
