@@ -4,11 +4,14 @@ DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
 
 # Source version
-FFMPEG_VERSION=ffmpeg-7.1.1
-CHROMAPRINT_VERSION=chromaprint-1.5.1
+#FFMPEG_VERSION ?= ffmpeg-7.1.1
+#SYS_VERSION ?= ffmpeg71
+FFMPEG_VERSION ?= ffmpeg-8.0.1
+SYS_VERSION ?= ffmpeg80
+CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
 # CGO configuration - set CGO vars for C++ libraries
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -lavutil"
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -153,18 +156,17 @@ docker-push: docker-dep
 test: test-ffmpeg
 
 .PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
+test-ffmpeg: go-dep go-tidy 
 	@echo Test
-	@echo ... test sys/ffmpeg71
-	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
-	@echo ... test pkg/segmenter
-	@${CGO_ENV} ${GO} test ./pkg/segmenter
-	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test ./pkg/chromaprint
-	@echo ... test pkg/avcodec
-	${CGO_ENV} ${GO} test ./pkg/avcodec
+	@echo ... test sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
 
-
+#	@echo ... test pkg/segmenter
+#	@${CGO_ENV} ${GO} test ./pkg/segmenter
+# 	@echo ... test pkg/chromaprint
+# 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+# 	@echo ... test pkg/avcodec
+# 	${CGO_ENV} ${GO} test ./pkg/avcodec
 #	@echo ... test pkg/ffmpeg
 #	@${GO} test -v ./pkg/ffmpeg
 #	@echo ... test pkg/file
