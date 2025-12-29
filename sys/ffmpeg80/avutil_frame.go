@@ -96,8 +96,7 @@ func (ctx *AVFrame) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVFrame) String() string {
-	data, _ := json.MarshalIndent(ctx, "", "  ")
-	return string(data)
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,9 +218,14 @@ func (ctx *AVFrame) ChannelLayout() AVChannelLayout {
 }
 
 func (ctx *AVFrame) SetChannelLayout(src AVChannelLayout) error {
-	if ret := AVError(C.av_channel_layout_copy((*C.struct_AVChannelLayout)(&ctx.ch_layout), (*C.struct_AVChannelLayout)(&src))); ret != 0 {
+	// Copy the new layout first to avoid leaving struct in invalid state on error
+	var temp C.struct_AVChannelLayout
+	if ret := AVError(C.av_channel_layout_copy(&temp, (*C.struct_AVChannelLayout)(&src))); ret != 0 {
 		return ret
 	}
+	// Now free the existing layout and replace it
+	C.av_channel_layout_uninit((*C.struct_AVChannelLayout)(&ctx.ch_layout))
+	ctx.ch_layout = temp
 	return nil
 }
 

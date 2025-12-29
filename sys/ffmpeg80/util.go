@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"unsafe"
 )
 
@@ -11,6 +12,16 @@ import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
 // UTILITY FUNCTIONS
+
+// Marshal a value to JSON string with indentation.
+// Returns error message if marshaling fails.
+func marshalToString(v interface{}) string {
+	if str, err := json.MarshalIndent(v, "", "  "); err != nil {
+		return err.Error()
+	} else {
+		return string(str)
+	}
+}
 
 // Convert a Go bool to a C int (0 or 1)
 func boolToInt(v bool) C.int {

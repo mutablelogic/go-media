@@ -42,8 +42,7 @@ func (ctx *AVInputFormat) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVInputFormat) String() string {
-	str, _ := json.MarshalIndent(ctx, "", "  ")
-	return string(str)
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

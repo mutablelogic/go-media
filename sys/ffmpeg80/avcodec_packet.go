@@ -53,11 +53,7 @@ func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
 // STRINGIFY
 
 func (ctx *AVPacket) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

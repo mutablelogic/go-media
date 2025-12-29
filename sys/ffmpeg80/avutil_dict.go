@@ -207,9 +207,5 @@ func (ctx *AVDictionaryEntry) MarshalJSON() ([]byte, error) {
 // STRINGIFY
 
 func (ctx *AVDictionary) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }

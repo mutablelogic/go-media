@@ -202,27 +202,15 @@ func (v AVCodecID) MarshalJSON() ([]byte, error) {
 // STRINGIFY
 
 func (ctx *AVCodec) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }
 
 func (ctx *AVCodecContext) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }
 
 func (ctx AVProfile) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -458,9 +446,14 @@ func (ctx *AVCodecContext) ChannelLayout() AVChannelLayout {
 }
 
 func (ctx *AVCodecContext) SetChannelLayout(src AVChannelLayout) error {
-	if ret := AVError(C.av_channel_layout_copy((*C.struct_AVChannelLayout)(&ctx.ch_layout), (*C.struct_AVChannelLayout)(&src))); ret != 0 {
+	// Copy the new layout first to avoid leaving struct in invalid state on error
+	var temp C.struct_AVChannelLayout
+	if ret := AVError(C.av_channel_layout_copy(&temp, (*C.struct_AVChannelLayout)(&src))); ret != 0 {
 		return ret
 	}
+	// Now free the existing layout and replace it
+	C.av_channel_layout_uninit((*C.struct_AVChannelLayout)(&ctx.ch_layout))
+	ctx.ch_layout = temp
 	return nil
 }
 

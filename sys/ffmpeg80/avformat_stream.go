@@ -47,8 +47,7 @@ func (ctx *AVStream) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVStream) String() string {
-	data, _ := json.MarshalIndent(ctx, "", "  ")
-	return string(data)
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

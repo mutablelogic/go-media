@@ -48,11 +48,7 @@ func (ctx *AVOutputFormat) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVOutputFormat) String() string {
-	if str, err := json.MarshalIndent(ctx, "", "  "); err != nil {
-		return err.Error()
-	} else {
-		return string(str)
-	}
+	return marshalToString(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,15 +99,38 @@ func AVFormat_guess_format(format, filename, mimetype string) *AVOutputFormat {
 	var cFilename, cFormat, cMimeType *C.char
 	if format != "" {
 		cFormat = C.CString(format)
+		defer C.free(unsafe.Pointer(cFormat))
 	}
 	if filename != "" {
 		cFilename = C.CString(filename)
+		defer C.free(unsafe.Pointer(cFilename))
 	}
 	if mimetype != "" {
 		cMimeType = C.CString(mimetype)
+		defer C.free(unsafe.Pointer(cMimeType))
 	}
-	defer C.free(unsafe.Pointer(cFormat))
-	defer C.free(unsafe.Pointer(cFilename))
-	defer C.free(unsafe.Pointer(cMimeType))
 	return (*AVOutputFormat)(C.av_guess_format(cFormat, cFilename, cMimeType))
+}
+
+// Write a packet to an output media file ensuring correct interleaving.
+// This function will buffer the packets internally as needed to make sure the
+// packets in the output file are properly interleaved, usually ordered by
+// increasing dts. Callers doing their own interleaving should call
+// AVFormat_write_frame() instead of this function.
+func AVFormat_interleaved_write_frame(ctx *AVFormatContext, pkt *AVPacket) error {
+	if err := AVError(C.av_interleaved_write_frame((*C.AVFormatContext)(ctx), (*C.AVPacket)(pkt))); err != 0 {
+		return err
+	}
+	return nil
+}
+
+// Write a packet to an output media file without interleaving.
+// The caller is responsible for correctly interleaving the packets if the
+// codec requires it. Most callers should use AVFormat_interleaved_write_frame()
+// instead for proper interleaving.
+func AVFormat_write_frame(ctx *AVFormatContext, pkt *AVPacket) error {
+	if err := AVError(C.av_write_frame((*C.AVFormatContext)(ctx), (*C.AVPacket)(pkt))); err != 0 {
+		return err
+	}
+	return nil
 }

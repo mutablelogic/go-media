@@ -46,11 +46,7 @@ func (r AVRational) MarshalJSON() ([]byte, error) {
 }
 
 func (r AVRational) String() string {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return err.Error()
-	}
-	return string(data)
+	return marshalToString(r)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

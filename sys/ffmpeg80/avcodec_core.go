@@ -132,32 +132,3 @@ func AVCodec_supported_pixelformat(codec *AVCodec, pixelfmt AVPixelFormat) (AVPi
 	// Return an error and the first supported sample format
 	return first, fmt.Errorf("pixel format %v is not supported by codec %q", pixelfmt, codec.Name())
 }
-
-/*
-// Return a supported sample rate that is closest to the given sample rate.
-func AVCodec_supported_samplerate(codec *AVCodec, samplerate int) (int, error) {
-	max := 0
-	for _, rate := range codec.SupportedSamplerates() {
-		if rate == samplerate {
-			return samplerate, nil
-		}
-		if rate > max {
-			max = rate
-		}
-	}
-	if max > 0 {
-		return max, nil
-	} else {
-		return 0, fmt.Errorf("sample rate %v is not supported by codec %q", samplerate, codec.Name())
-	}
-}
-
-// Return a supported channel layout that is closest to the given channel layout.
-func AVCodec_supported_channellayout(codec *AVCodec, channellayout AVChannelLayout) (AVChannelLayout, error) {
-	for _, layout := range codec.ChannelLayouts() {
-		if C.av_channel_layout_compare(&layout, &channellayout) == 0 {
-			return channellayout, nil
-		}
-	}
-}
-*/
