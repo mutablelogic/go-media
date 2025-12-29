@@ -21,22 +21,21 @@ type (
 	AVPacket C.struct_AVPacket
 )
 
-type jsonAVPacket struct {
-	Pts           int64      `json:"pts,omitempty"`
-	Dts           int64      `json:"dts,omitempty"`
-	Size          int        `json:"size,omitempty"`
-	StreamIndex   int        `json:"stream_index"`
-	Flags         int        `json:"flags,omitempty"`
-	SideDataElems int        `json:"side_data_elems,omitempty"`
-	Duration      int64      `json:"duration,omitempty"`
-	TimeBase      AVRational `json:"time_base,omitempty"`
-	Pos           int64      `json:"pos,omitempty"`
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // JSON OUTPUT
 
 func (ctx *AVPacket) MarshalJSON() ([]byte, error) {
+	type jsonAVPacket struct {
+		Pts           int64      `json:"pts,omitempty"`
+		Dts           int64      `json:"dts,omitempty"`
+		Size          int        `json:"size,omitempty"`
+		StreamIndex   int        `json:"stream_index"`
+		Flags         int        `json:"flags,omitempty"`
+		SideDataElems int        `json:"side_data_elems,omitempty"`
+		Duration      int64      `json:"duration,omitempty"`
+		TimeBase      AVRational `json:"time_base,omitempty"`
+		Pos           int64      `json:"pos,omitempty"`
+	}
 	return json.Marshal(jsonAVPacket{
 		Pts:           int64(ctx.pts),
 		Dts:           int64(ctx.dts),
@@ -72,6 +71,17 @@ func AVCodec_packet_alloc() *AVPacket {
 // Free the packet, if the packet is reference counted, it will be unreferenced first.
 func AVCodec_packet_free(packet *AVPacket) {
 	C.av_packet_free((**C.struct_AVPacket)(unsafe.Pointer(&packet)))
+}
+
+// Free the packet and set the caller's pointer to nil.
+//
+// Prefer this over AVCodec_packet_free when you want to avoid accidental
+// use-after-free of a stale Go pointer.
+func AVCodec_packet_freep(packet **AVPacket) {
+	if packet == nil {
+		return
+	}
+	C.av_packet_free((**C.struct_AVPacket)(unsafe.Pointer(packet)))
 }
 
 // Wipe the packet and unreference any buffer.
@@ -153,9 +163,15 @@ func (ctx *AVPacket) SetPos(pos int64) {
 }
 
 func (ctx *AVPacket) Bytes() []byte {
+	if ctx == nil || ctx.size <= 0 || ctx.data == nil {
+		return nil
+	}
 	return C.GoBytes(unsafe.Pointer(ctx.data), C.int(ctx.size))
 }
 
 func (ctx *AVPacket) Size() int {
+	if ctx == nil {
+		return 0
+	}
 	return int(ctx.size)
 }

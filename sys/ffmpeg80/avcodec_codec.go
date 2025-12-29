@@ -30,37 +30,6 @@ type (
 	AVProfile         C.struct_AVProfile
 )
 
-type jsonAVCodec struct {
-	Type           AVMediaType       `json:"type"`
-	Name           string            `json:"name,omitempty"`
-	LongName       string            `json:"long_name,omitempty"`
-	ID             AVCodecID         `json:"id,omitempty"`
-	Capabilities   AVCodecCap        `json:"capabilities,omitempty"`
-	Framerates     []AVRational      `json:"supported_framerates,omitempty"`
-	SampleFormats  []AVSampleFormat  `json:"sample_formats,omitempty"`
-	PixelFormats   []AVPixelFormat   `json:"pixel_formats,omitempty"`
-	Samplerates    []int             `json:"samplerates,omitempty"`
-	Profiles       []AVProfile       `json:"profiles,omitempty"`
-	ChannelLayouts []AVChannelLayout `json:"channel_layouts,omitempty"`
-}
-
-type jsonAVCodecContext struct {
-	CodecType         AVMediaType     `json:"codec_type,omitempty"`
-	Codec             *AVCodec        `json:"codec,omitempty"`
-	BitRate           int64           `json:"bit_rate,omitempty"`
-	BitRateTolerance  int             `json:"bit_rate_tolerance,omitempty"`
-	PixelFormat       AVPixelFormat   `json:"pix_fmt,omitempty"`
-	Width             int             `json:"width,omitempty"`
-	Height            int             `json:"height,omitempty"`
-	SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitzero"`
-	Framerate         AVRational      `json:"framerate,omitzero"`
-	SampleFormat      AVSampleFormat  `json:"sample_fmt,omitempty"`
-	SampleRate        int             `json:"sample_rate,omitempty"`
-	ChannelLayout     AVChannelLayout `json:"channel_layout,omitzero"`
-	FrameSize         int             `json:"frame_size,omitempty"`
-	TimeBase          AVRational      `json:"time_base,omitempty"`
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
@@ -135,6 +104,19 @@ const (
 // JSON OUTPUT
 
 func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
+	type jsonAVCodec struct {
+		Type           AVMediaType       `json:"type"`
+		Name           string            `json:"name,omitempty"`
+		LongName       string            `json:"long_name,omitempty"`
+		ID             AVCodecID         `json:"id,omitempty"`
+		Capabilities   AVCodecCap        `json:"capabilities,omitempty"`
+		Framerates     []AVRational      `json:"supported_framerates,omitempty"`
+		SampleFormats  []AVSampleFormat  `json:"sample_formats,omitempty"`
+		PixelFormats   []AVPixelFormat   `json:"pixel_formats,omitempty"`
+		Samplerates    []int             `json:"samplerates,omitempty"`
+		Profiles       []AVProfile       `json:"profiles,omitempty"`
+		ChannelLayouts []AVChannelLayout `json:"channel_layouts,omitempty"`
+	}
 	return json.Marshal(jsonAVCodec{
 		Name:           C.GoString(ctx.name),
 		LongName:       C.GoString(ctx.long_name),
@@ -151,6 +133,22 @@ func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 }
 
 func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
+	type jsonAVCodecContext struct {
+		CodecType         AVMediaType     `json:"codec_type,omitempty"`
+		Codec             *AVCodec        `json:"codec,omitempty"`
+		BitRate           int64           `json:"bit_rate,omitempty"`
+		BitRateTolerance  int             `json:"bit_rate_tolerance,omitempty"`
+		PixelFormat       AVPixelFormat   `json:"pix_fmt,omitempty"`
+		Width             int             `json:"width,omitempty"`
+		Height            int             `json:"height,omitempty"`
+		SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitzero"`
+		Framerate         AVRational      `json:"framerate,omitzero"`
+		SampleFormat      AVSampleFormat  `json:"sample_fmt,omitempty"`
+		SampleRate        int             `json:"sample_rate,omitempty"`
+		ChannelLayout     AVChannelLayout `json:"channel_layout,omitzero"`
+		FrameSize         int             `json:"frame_size,omitempty"`
+		TimeBase          AVRational      `json:"time_base,omitempty"`
+	}
 	switch ctx.codec_type {
 	case C.AVMEDIA_TYPE_VIDEO:
 		return json.Marshal(jsonAVCodecContext{
@@ -359,12 +357,28 @@ func (ctx *AVCodecContext) Codec() *AVCodec {
 	return (*AVCodec)(ctx.codec)
 }
 
+func (ctx *AVCodecContext) CodecType() AVMediaType {
+	return AVMediaType(ctx.codec_type)
+}
+
+func (ctx *AVCodecContext) CodecID() AVCodecID {
+	return AVCodecID(ctx.codec_id)
+}
+
+func (ctx *AVCodecContext) CodecTag() uint32 {
+	return uint32(ctx.codec_tag)
+}
+
 func (ctx *AVCodecContext) BitRate() int64 {
 	return int64(ctx.bit_rate)
 }
 
 func (ctx *AVCodecContext) SetBitRate(bit_rate int64) {
 	ctx.bit_rate = C.int64_t(bit_rate)
+}
+
+func (ctx *AVCodecContext) Delay() int {
+	return int(ctx.delay)
 }
 
 func (ctx *AVCodecContext) Width() int {
@@ -381,6 +395,14 @@ func (ctx *AVCodecContext) Height() int {
 
 func (ctx *AVCodecContext) SetHeight(height int) {
 	ctx.height = C.int(height)
+}
+
+func (ctx *AVCodecContext) CodedWidth() int {
+	return int(ctx.coded_width)
+}
+
+func (ctx *AVCodecContext) CodedHeight() int {
+	return int(ctx.coded_height)
 }
 
 func (ctx *AVCodecContext) SampleAspectRatio() AVRational {
@@ -415,8 +437,8 @@ func (ctx *AVCodecContext) SetSampleFormat(sample_fmt AVSampleFormat) {
 	ctx.sample_fmt = C.enum_AVSampleFormat(sample_fmt)
 }
 
-func (ctx *AVCodecContext) FrameNum() int {
-	return int(ctx.frame_num)
+func (ctx *AVCodecContext) FrameNum() int64 {
+	return int64(ctx.frame_num)
 }
 
 func (ctx *AVCodecContext) SampleRate() int {
