@@ -836,3 +836,59 @@ func Test_Demux_015(t *testing.T) {
 	t.Logf("Decoded %d video frames and %d audio frames", videoFrames, audioFrames)
 	assert.Greater(videoFrames+audioFrames, 0)
 }
+
+func Test_Demux_016(t *testing.T) {
+	assert := assert.New(t)
+
+	// Open video file
+	reader, err := ffmpeg.Open(TEST_MP4)
+	assert.NoError(err)
+	assert.NotNil(reader)
+	defer reader.Close()
+
+	// Map function that returns same parameters (no resampling needed)
+	ctx := context.Background()
+	frameCount := 0
+	err = reader.Demux(ctx, func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
+		// Return the same parameters - decoder should NOT create a resampler
+		return par, nil
+	}, func(stream int, frame *ffmpeg.Frame) error {
+		frameCount++
+		if frameCount >= 10 {
+			return io.EOF
+		}
+		return nil
+	})
+
+	assert.NoError(err)
+	assert.Equal(10, frameCount)
+	t.Logf("Decoded %d frames without resampling (passthrough)", frameCount)
+}
+
+func Test_Demux_017(t *testing.T) {
+	assert := assert.New(t)
+
+	// Open video file with force flag
+	reader, err := ffmpeg.Open(TEST_MP4, ffmpeg.OptForce())
+	assert.NoError(err)
+	assert.NotNil(reader)
+	defer reader.Close()
+
+	// Map function that returns same parameters but force is set
+	ctx := context.Background()
+	frameCount := 0
+	err = reader.Demux(ctx, func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
+		// Return the same parameters - but with force=true, resampler should still be created
+		return par, nil
+	}, func(stream int, frame *ffmpeg.Frame) error {
+		frameCount++
+		if frameCount >= 10 {
+			return io.EOF
+		}
+		return nil
+	})
+
+	assert.NoError(err)
+	assert.Equal(10, frameCount)
+	t.Logf("Decoded %d frames with force flag (resampler created even for matching formats)", frameCount)
+}

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	// Packages
+	media "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -256,7 +257,7 @@ func (d *decoder) mapStreams(fn DecoderMapFunc) error {
 		}
 
 		// Create decoder for this stream
-		dec, err := newStreamDecoder(stream, destPar, d.reader.force)
+		dec, err := newStreamDecoder(stream, srcPar, destPar, d.reader.force)
 		if err != nil {
 			result = errors.Join(result, err)
 			continue
@@ -279,7 +280,7 @@ func (d *decoder) mapStreams(fn DecoderMapFunc) error {
 // PRIVATE METHODS - STREAM DECODER
 
 // Create a new stream decoder
-func newStreamDecoder(stream *ff.AVStream, destPar *Par, force bool) (*streamDecoder, error) {
+func newStreamDecoder(stream *ff.AVStream, srcPar, destPar *Par, force bool) (*streamDecoder, error) {
 	dec := &streamDecoder{
 		stream:   stream.Index(),
 		timeBase: stream.TimeBase(),
@@ -317,8 +318,8 @@ func newStreamDecoder(stream *ff.AVStream, destPar *Par, force bool) (*streamDec
 		return nil, err
 	}
 
-	// Create resampler if destination parameters differ
-	if destPar != nil {
+	// Create resampler if destination parameters differ from source or force is set
+	if destPar != nil && (force || parametersNeedResampling(srcPar, destPar)) {
 		resampler, err := NewResampler(destPar, force)
 		if err != nil {
 			dec.close()
@@ -328,6 +329,44 @@ func newStreamDecoder(stream *ff.AVStream, destPar *Par, force bool) (*streamDec
 	}
 
 	return dec, nil
+}
+
+// Check if two parameter sets require resampling/rescaling
+func parametersNeedResampling(src, dest *Par) bool {
+	if src == nil || dest == nil {
+		return false
+	}
+
+	// Must be same type to compare
+	if src.Type() != dest.Type() {
+		return true
+	}
+
+	// Check based on type
+	switch src.Type() {
+	case media.AUDIO:
+		// Audio needs resampling if format, rate, or channels differ
+		if src.SampleFormat() != dest.SampleFormat() {
+			return true
+		}
+		if src.SampleRate() != dest.SampleRate() {
+			return true
+		}
+		srcCh := src.ChannelLayout()
+		destCh := dest.ChannelLayout()
+		return !ff.AVUtil_channel_layout_compare(&srcCh, &destCh)
+	case media.VIDEO:
+		// Video needs rescaling if format, width, or height differ
+		if src.PixelFormat() != dest.PixelFormat() {
+			return true
+		}
+		if src.Width() != dest.Width() || src.Height() != dest.Height() {
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 // Close and free stream decoder resources
