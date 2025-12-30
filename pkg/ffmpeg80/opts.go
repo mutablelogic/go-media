@@ -29,6 +29,12 @@ type opts struct {
 	t       media.Type
 	iformat *ffmpeg.AVInputFormat
 	opts    []string // These are key=value pairs
+
+	// Writer options
+	oformat  *ffmpeg.AVOutputFormat
+	streams  map[int]*Par
+	metadata []*Metadata
+	copy     bool // If true, copy streams without encoding
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +48,9 @@ const (
 // LIFECYCLE
 
 func newOpts() *opts {
-	return new(opts)
+	return &opts{
+		streams: make(map[int]*Par),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +86,64 @@ func OptInputFormat(name string) Opt {
 func OptInputOpt(opt ...string) Opt {
 	return func(o *opts) error {
 		o.opts = append(o.opts, opt...)
+		return nil
+	}
+}
+
+// Output format from name or url
+func OptOutputFormat(name string) Opt {
+	return func(o *opts) error {
+		// By name
+		if oformat := ffmpeg.AVFormat_guess_format(name, name, ""); oformat != nil {
+			o.oformat = oformat
+		} else {
+			return errors.New("invalid output format")
+		}
+		return nil
+	}
+}
+
+// New stream with parameters
+func OptStream(stream int, par *Par) Opt {
+	return func(o *opts) error {
+		if par == nil {
+			return errors.New("invalid parameters")
+		}
+		if stream == 0 {
+			stream = len(o.streams) + 1
+		}
+		if _, exists := o.streams[stream]; exists {
+			return errors.New("duplicate stream")
+		}
+		if stream < 0 {
+			return errors.New("invalid stream")
+		}
+		o.streams[stream] = par
+		return nil
+	}
+}
+
+// Append metadata to the output file, including artwork
+func OptMetadata(entry ...*Metadata) Opt {
+	return func(o *opts) error {
+		o.metadata = append(o.metadata, entry...)
+		return nil
+	}
+}
+
+// Enable stream copying mode (remuxing without encoding)
+func OptCopy() Opt {
+	return func(o *opts) error {
+		o.copy = true
+		return nil
+	}
+}
+
+// Force resampling and resizing on decode, even if the input and output
+// parameters are the same
+func OptForce() Opt {
+	return func(o *opts) error {
+		o.force = true
 		return nil
 	}
 }

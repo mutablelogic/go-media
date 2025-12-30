@@ -27,7 +27,7 @@ func (packet *Packet) String() string {
 // PUBLIC METHODS
 
 // Return stream index for this packet
-func (packet *Packet) StreamIndex() int {
+func (packet *Packet) Stream() int {
 	if packet == nil {
 		return -1
 	}
@@ -90,4 +90,12 @@ func (packet *Packet) Bytes() []byte {
 		return nil
 	}
 	return (*ff.AVPacket)(packet).Bytes()
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// Create a new packet wrapper from an AVPacket pointer
+func newPacket(pkt *ff.AVPacket) *Packet {
+	return (*Packet)(pkt)
 }

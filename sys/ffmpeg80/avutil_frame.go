@@ -249,6 +249,14 @@ func (ctx *AVFrame) SetHeight(height int) {
 	ctx.height = C.int(height)
 }
 
+func (ctx *AVFrame) Duration() int64 {
+	return int64(ctx.duration)
+}
+
+func (ctx *AVFrame) SetDuration(duration int64) {
+	ctx.duration = C.int64_t(duration)
+}
+
 func (ctx *AVFrame) PixFmt() AVPixelFormat {
 	return AVPixelFormat(ctx.format)
 }

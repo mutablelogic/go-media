@@ -81,11 +81,21 @@ func (ctx *AVStream) Disposition() AVDisposition {
 	return AVDisposition(ctx.disposition)
 }
 
+func (ctx *AVStream) SetDisposition(disposition AVDisposition) {
+	ctx.disposition = C.int(disposition)
+}
+
 func (ctx *AVStream) AttachedPic() *AVPacket {
 	if ctx.disposition&C.AV_DISPOSITION_ATTACHED_PIC == 0 {
 		return nil
 	} else {
 		return (*AVPacket)(&ctx.attached_pic)
+	}
+}
+
+func (ctx *AVStream) SetAttachedPic(pkt *AVPacket) {
+	if pkt != nil {
+		ctx.attached_pic = *(*C.AVPacket)(pkt)
 	}
 }
 

@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"errors"
 	"unsafe"
 )
 
@@ -11,6 +12,7 @@ import (
 /*
 #cgo pkg-config: libavcodec
 #include <libavcodec/packet.h>
+#include <string.h>
 */
 import "C"
 
@@ -57,6 +59,14 @@ func (ctx *AVPacket) String() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+const (
+	AV_PKT_FLAG_KEY     = C.AV_PKT_FLAG_KEY     // Packet contains a keyframe
+	AV_PKT_FLAG_CORRUPT = C.AV_PKT_FLAG_CORRUPT // Packet is corrupted
+)
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 
 // Allocate an AVPacket and set its fields to default values.
@@ -83,6 +93,15 @@ func AVCodec_packet_freep(packet **AVPacket) {
 // Wipe the packet and unreference any buffer.
 func AVCodec_packet_unref(packet *AVPacket) {
 	C.av_packet_unref((*C.struct_AVPacket)(packet))
+}
+
+// Setup dst as a reference to src (increment reference count without copying data).
+// More efficient than clone when you just need another reference to the same data.
+func AVCodec_packet_ref(dst, src *AVPacket) error {
+	if err := AVError(C.av_packet_ref((*C.struct_AVPacket)(dst), (*C.struct_AVPacket)(src))); err != 0 {
+		return err
+	}
+	return nil
 }
 
 // Create a new packet that references the same data as src.
@@ -114,6 +133,22 @@ func AVCodec_grow_packet(pkt *AVPacket, size int) error {
 // Convert valid timing fields (timestamps / durations) in a packet from one timebase to another.
 func AVCodec_packet_rescale_ts(pkt *AVPacket, tb_src, tb_dst AVRational) {
 	C.av_packet_rescale_ts((*C.struct_AVPacket)(pkt), (C.struct_AVRational)(tb_src), (C.struct_AVRational)(tb_dst))
+}
+
+// Create a new packet with a copy of the provided data
+func AVCodec_packet_from_data(pkt *AVPacket, data []byte) error {
+	if pkt == nil {
+		return errors.New("nil packet")
+	}
+	if len(data) == 0 {
+		return errors.New("empty data")
+	}
+	// Allocate buffer and copy data
+	if err := C.av_new_packet((*C.struct_AVPacket)(pkt), C.int(len(data))); err < 0 {
+		return AVError(err)
+	}
+	C.memcpy(unsafe.Pointer(pkt.data), unsafe.Pointer(&data[0]), C.size_t(len(data)))
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,12 +185,24 @@ func (ctx *AVPacket) Duration() int64 {
 	return int64(ctx.duration)
 }
 
+func (ctx *AVPacket) SetDuration(duration int64) {
+	ctx.duration = C.int64_t(duration)
+}
+
 func (ctx *AVPacket) Pos() int64 {
 	return int64(ctx.pos)
 }
 
 func (ctx *AVPacket) SetPos(pos int64) {
 	ctx.pos = C.int64_t(pos)
+}
+
+func (ctx *AVPacket) Flags() int {
+	return int(ctx.flags)
+}
+
+func (ctx *AVPacket) SetFlags(flags int) {
+	ctx.flags = C.int(flags)
 }
 
 func (ctx *AVPacket) Bytes() []byte {

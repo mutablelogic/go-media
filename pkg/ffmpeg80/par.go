@@ -57,6 +57,7 @@ func NewAudioPar(samplefmt string, channellayout string, samplerate int, opts ..
 		return nil, fmt.Errorf("invalid samplerate %d: must be positive", samplerate)
 	}
 	par.SetSampleRate(samplerate)
+	par.timebase = ff.AVUtil_rational(1, samplerate)
 
 	// Return success
 	return par, nil
@@ -305,6 +306,9 @@ func (par *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
 	codec.SetHeight(par.Height())
 	codec.SetSampleAspectRatio(par.SampleAspectRatio())
 	codec.SetTimeBase(par.timebase)
+	if par.timebase.Num() != 0 && par.timebase.Den() != 0 {
+		codec.SetFramerate(ff.AVUtil_rational_invert(par.timebase))
+	}
 	return nil
 }
 

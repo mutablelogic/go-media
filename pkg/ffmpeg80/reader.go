@@ -1,11 +1,13 @@
 package ffmpeg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	// Packages
@@ -18,6 +20,7 @@ import (
 
 // Media reader which reads from a URL, file path or device
 type Reader struct {
+	mu    sync.Mutex
 	t     media.Type
 	input *ff.AVFormatContext
 	avio  *ff.AVIOContextEx
@@ -27,20 +30,6 @@ type Reader struct {
 type reader_callback struct {
 	r io.Reader
 }
-
-// Return parameters if a stream should be decoded and either resampled or
-// resized. Return nil if you want to ignore the stream, or pass back the
-// stream parameters if you want to copy the stream without any changes.
-type DecoderMapFunc func(int, *Par) (*Par, error)
-
-// DecoderFrameFn is a function which is called to send a frame after decoding. It should
-// return nil to continue decoding or io.EOF to stop.
-type DecoderFrameFn func(int, *Frame) error
-
-// DecoderPacketFn is a function which is called to send a packet after demuxing. It should
-// return nil to continue reading packets or io.EOF to stop. Use this for stream copying
-// without decode/encode overhead.
-type DecoderPacketFn func(int, *Packet) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -133,17 +122,20 @@ func (r *Reader) open(options *opts) (*Reader, error) {
 
 // Close the reader
 func (r *Reader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	var result error
 
 	// Free resources
-	ff.AVFormat_free_context(r.input)
+	if r.input != nil {
+		ff.AVFormat_free_context(r.input)
+		r.input = nil
+	}
 	if r.avio != nil {
 		ff.AVFormat_avio_context_free(r.avio)
+		r.avio = nil
 	}
-
-	// Release resources
-	r.input = nil
-	r.avio = nil
 
 	// Return any errors
 	return result
@@ -274,13 +266,25 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 // The reading can be interrupted by cancelling the context, or by the packetfn
 // returning an error or io.EOF. The latter will end the reading process early but
 // will not return an error.
-// TODO: Uncomment when Packet type is implemented
-/*
 func (r *Reader) Decode(ctx context.Context, packetfn DecoderPacketFn) error {
-	// TODO: Implement packet reading loop
-	return nil
+	// Check reader is valid
+	r.mu.Lock()
+	if r.input == nil {
+		r.mu.Unlock()
+		return errors.New("reader is closed")
+	}
+	r.mu.Unlock()
+
+	// Create decoder
+	dec, err := newDecoder(r)
+	if err != nil {
+		return err
+	}
+	defer dec.free()
+
+	// Read packets
+	return dec.readPackets(ctx, packetfn)
 }
-*/
 
 // Demux and decode the media stream into frames. The map function determines which
 // streams to decode and what output parameters to use. The framefn is called for each
@@ -289,13 +293,25 @@ func (r *Reader) Decode(ctx context.Context, packetfn DecoderPacketFn) error {
 // The decoding can be interrupted by cancelling the context, or by the framefn
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
-// TODO: Uncomment when Par and Frame types are fully implemented
-/*
 func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn) error {
-	// TODO: Implement demux/decode loop
-	return nil
+	// Check reader is valid
+	r.mu.Lock()
+	if r.input == nil {
+		r.mu.Unlock()
+		return errors.New("reader is closed")
+	}
+	r.mu.Unlock()
+
+	// Create decoder
+	dec, err := newDecoder(r)
+	if err != nil {
+		return err
+	}
+	defer dec.free()
+
+	// Decode frames
+	return dec.decodeFrames(ctx, mapfn, framefn)
 }
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - CALLBACK

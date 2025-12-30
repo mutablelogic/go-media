@@ -67,3 +67,8 @@ func (s *Stream) Type() media.Type {
 		return media.UNKNOWN
 	}
 }
+
+// Return the codec parameters
+func (s *Stream) CodecPar() *ff.AVCodecParameters {
+	return s.ctx.CodecPar()
+}

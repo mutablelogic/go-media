@@ -148,7 +148,7 @@ func (frame *Frame) Copy() (*Frame, error) {
 		}
 	}
 
-	// Copy properties (metadata, timestamps, etc.)
+	// Copy properties (timestamps, metadata, side data, etc.)
 	if err := ff.AVUtil_frame_copy_props(copy, (*ff.AVFrame)(frame)); err != nil {
 		ff.AVUtil_frame_free(copy)
 		return nil, fmt.Errorf("AVUtil_frame_copy_props: %w", err)
@@ -165,12 +165,14 @@ func (frame *Frame) copyParameters(dst *ff.AVFrame, frameType media.Type) error 
 		dst.SetChannelLayout(frame.ChannelLayout())
 		dst.SetSampleRate(frame.SampleRate())
 		dst.SetNumSamples(frame.NumSamples())
+		dst.SetTimeBase(frame.TimeBase())
 		return nil
 	case media.VIDEO:
 		dst.SetPixFmt(frame.PixelFormat())
 		dst.SetWidth(frame.Width())
 		dst.SetHeight(frame.Height())
 		dst.SetSampleAspectRatio(frame.SampleAspectRatio())
+		dst.SetTimeBase(frame.TimeBase())
 		return nil
 	default:
 		return errors.New("invalid codec type")
