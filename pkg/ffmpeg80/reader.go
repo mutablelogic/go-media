@@ -163,6 +163,11 @@ func (r *Reader) Type() media.Type {
 	return r.t
 }
 
+// Return the input format (for probing format info)
+func (r *Reader) InputFormat() *ff.AVInputFormat {
+	return r.input.Input()
+}
+
 // Return the duration of the media stream, returns zero if unknown
 func (r *Reader) Duration() time.Duration {
 	duration := r.input.Duration()
@@ -170,6 +175,11 @@ func (r *Reader) Duration() time.Duration {
 		return time.Duration(duration) * time.Second / time.Duration(ff.AV_TIME_BASE)
 	}
 	return 0
+}
+
+// Return the raw AVStream objects for direct access
+func (r *Reader) AVStreams() []*ff.AVStream {
+	return r.input.Streams()
 }
 
 // Return all streams of a specific type (video, audio, subtitle, data)

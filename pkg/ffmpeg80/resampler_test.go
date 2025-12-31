@@ -3,8 +3,9 @@ package ffmpeg
 import (
 	"testing"
 
+	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 )
 
 // helper: make video frame with allocated buffers and black fill

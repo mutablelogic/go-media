@@ -6,7 +6,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

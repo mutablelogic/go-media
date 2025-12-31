@@ -304,21 +304,21 @@ const (
 )
 
 const (
-	AVCOL_SPC_RGB               AVColorSpace = C.AVCOL_SPC_RGB         ///< order of coefficients is actually GBR
-	AVCOL_SPC_BT709             AVColorSpace = C.AVCOL_SPC_BT709       ///< also ITU-R BT1361
-	AVCOL_SPC_UNSPECIFIED       AVColorSpace = C.AVCOL_SPC_UNSPECIFIED
-	AVCOL_SPC_RESERVED          AVColorSpace = C.AVCOL_SPC_RESERVED
-	AVCOL_SPC_FCC               AVColorSpace = C.AVCOL_SPC_FCC
-	AVCOL_SPC_BT470BG           AVColorSpace = C.AVCOL_SPC_BT470BG
-	AVCOL_SPC_SMPTE170M         AVColorSpace = C.AVCOL_SPC_SMPTE170M
-	AVCOL_SPC_SMPTE240M         AVColorSpace = C.AVCOL_SPC_SMPTE240M
-	AVCOL_SPC_YCGCO             AVColorSpace = C.AVCOL_SPC_YCGCO
-	AVCOL_SPC_BT2020_NCL        AVColorSpace = C.AVCOL_SPC_BT2020_NCL
-	AVCOL_SPC_BT2020_CL         AVColorSpace = C.AVCOL_SPC_BT2020_CL
-	AVCOL_SPC_SMPTE2085         AVColorSpace = C.AVCOL_SPC_SMPTE2085
+	AVCOL_SPC_RGB                AVColorSpace = C.AVCOL_SPC_RGB   ///< order of coefficients is actually GBR
+	AVCOL_SPC_BT709              AVColorSpace = C.AVCOL_SPC_BT709 ///< also ITU-R BT1361
+	AVCOL_SPC_UNSPECIFIED        AVColorSpace = C.AVCOL_SPC_UNSPECIFIED
+	AVCOL_SPC_RESERVED           AVColorSpace = C.AVCOL_SPC_RESERVED
+	AVCOL_SPC_FCC                AVColorSpace = C.AVCOL_SPC_FCC
+	AVCOL_SPC_BT470BG            AVColorSpace = C.AVCOL_SPC_BT470BG
+	AVCOL_SPC_SMPTE170M          AVColorSpace = C.AVCOL_SPC_SMPTE170M
+	AVCOL_SPC_SMPTE240M          AVColorSpace = C.AVCOL_SPC_SMPTE240M
+	AVCOL_SPC_YCGCO              AVColorSpace = C.AVCOL_SPC_YCGCO
+	AVCOL_SPC_BT2020_NCL         AVColorSpace = C.AVCOL_SPC_BT2020_NCL
+	AVCOL_SPC_BT2020_CL          AVColorSpace = C.AVCOL_SPC_BT2020_CL
+	AVCOL_SPC_SMPTE2085          AVColorSpace = C.AVCOL_SPC_SMPTE2085
 	AVCOL_SPC_CHROMA_DERIVED_NCL AVColorSpace = C.AVCOL_SPC_CHROMA_DERIVED_NCL
-	AVCOL_SPC_CHROMA_DERIVED_CL AVColorSpace = C.AVCOL_SPC_CHROMA_DERIVED_CL
-	AVCOL_SPC_ICTCP             AVColorSpace = C.AVCOL_SPC_ICTCP
+	AVCOL_SPC_CHROMA_DERIVED_CL  AVColorSpace = C.AVCOL_SPC_CHROMA_DERIVED_CL
+	AVCOL_SPC_ICTCP              AVColorSpace = C.AVCOL_SPC_ICTCP
 )
 
 const (
@@ -400,15 +400,17 @@ func AVUtil_next_pixel_fmt(iterator *uintptr) AVPixelFormat {
 		return AV_PIX_FMT_NONE
 	}
 
-	// Increment the iterator
-	*iterator += 1
-
-	desc := AVUtil_get_pix_fmt_desc(AVPixelFormat(int(*iterator)))
+	// Get current format, then increment
+	pixfmt := AVPixelFormat(int(*iterator))
+	desc := AVUtil_get_pix_fmt_desc(pixfmt)
 	if desc == nil {
 		return AV_PIX_FMT_NONE
-	} else {
-		return AVPixelFormat(int(*iterator))
 	}
+
+	// Increment for next call
+	*iterator += 1
+
+	return pixfmt
 }
 
 func AVUtil_get_pix_fmt_name(pixfmt AVPixelFormat) string {
@@ -430,4 +432,84 @@ func AVUtil_get_pix_fmt_desc(pixfmt AVPixelFormat) *AVPixFmtDescriptor {
 // Return the number of planes in pix_fmt
 func AVUtil_pix_fmt_count_planes(pixfmt AVPixelFormat) int {
 	return int(C.av_pix_fmt_count_planes(C.enum_AVPixelFormat(pixfmt)))
+}
+
+// Return the number of bits per pixel for a pixel format
+func AVUtil_get_bits_per_pixel(pixfmt AVPixelFormat) int {
+	desc := AVUtil_get_pix_fmt_desc(pixfmt)
+	if desc == nil {
+		return 0
+	}
+	return int(C.av_get_bits_per_pixel((*C.AVPixFmtDescriptor)(desc)))
+}
+
+// Return the number of bits per pixel for a pixel format, including padding
+func AVUtil_get_padded_bits_per_pixel(pixfmt AVPixelFormat) int {
+	desc := AVUtil_get_pix_fmt_desc(pixfmt)
+	if desc == nil {
+		return 0
+	}
+	return int(C.av_get_padded_bits_per_pixel((*C.AVPixFmtDescriptor)(desc)))
+}
+
+// Return the number of components for a pixel format
+func AVUtil_pix_fmt_num_components(pixfmt AVPixelFormat) int {
+	desc := AVUtil_get_pix_fmt_desc(pixfmt)
+	if desc == nil {
+		return 0
+	}
+	return int(desc.nb_components)
+}
+
+// Pixel format flag constants
+const (
+	AV_PIX_FMT_FLAG_BE        = 1 << 0  // Big-endian
+	AV_PIX_FMT_FLAG_PAL       = 1 << 1  // Paletted format
+	AV_PIX_FMT_FLAG_BITSTREAM = 1 << 2  // Bitstream format
+	AV_PIX_FMT_FLAG_HWACCEL   = 1 << 3  // Hardware accelerated format
+	AV_PIX_FMT_FLAG_PLANAR    = 1 << 4  // Planar format
+	AV_PIX_FMT_FLAG_RGB       = 1 << 5  // RGB-like format
+	AV_PIX_FMT_FLAG_ALPHA     = 1 << 7  // Has alpha channel
+	AV_PIX_FMT_FLAG_BAYER     = 1 << 8  // Bayer pattern
+	AV_PIX_FMT_FLAG_FLOAT     = 1 << 9  // Floating point format
+	AV_PIX_FMT_FLAG_XYZ       = 1 << 10 // XYZ color space
+)
+
+// Return the flags for a pixel format
+func AVUtil_pix_fmt_flags(pixfmt AVPixelFormat) uint64 {
+	desc := AVUtil_get_pix_fmt_desc(pixfmt)
+	if desc == nil {
+		return 0
+	}
+	return uint64(desc.flags)
+}
+
+// Check if pixel format is planar
+func AVUtil_pix_fmt_is_planar(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_PLANAR != 0
+}
+
+// Check if pixel format is RGB-like
+func AVUtil_pix_fmt_is_rgb(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_RGB != 0
+}
+
+// Check if pixel format has alpha
+func AVUtil_pix_fmt_has_alpha(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_ALPHA != 0
+}
+
+// Check if pixel format is hardware accelerated
+func AVUtil_pix_fmt_is_hwaccel(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_HWACCEL != 0
+}
+
+// Check if pixel format is floating point
+func AVUtil_pix_fmt_is_float(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_FLOAT != 0
+}
+
+// Check if pixel format is big-endian
+func AVUtil_pix_fmt_is_be(pixfmt AVPixelFormat) bool {
+	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_BE != 0
 }

@@ -8,7 +8,8 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	// Packages
+	assert "github.com/stretchr/testify/assert"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

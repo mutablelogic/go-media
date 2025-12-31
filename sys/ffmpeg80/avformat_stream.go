@@ -85,6 +85,18 @@ func (ctx *AVStream) SetDisposition(disposition AVDisposition) {
 	ctx.disposition = C.int(disposition)
 }
 
+func (ctx *AVStream) StartTime() int64 {
+	return int64(ctx.start_time)
+}
+
+func (ctx *AVStream) Duration() int64 {
+	return int64(ctx.duration)
+}
+
+func (ctx *AVStream) NumFrames() int64 {
+	return int64(ctx.nb_frames)
+}
+
 func (ctx *AVStream) AttachedPic() *AVPacket {
 	if ctx.disposition&C.AV_DISPOSITION_ATTACHED_PIC == 0 {
 		return nil

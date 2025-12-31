@@ -20,24 +20,19 @@ type fingerprint struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// CONSTANTS
-
-const (
-	defaultDuration = 2 * time.Minute
-)
-
-////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new fingerprint context, with the expected sample rate,
 // number of channels and the maximum duration of the data to put into
 // the fingerprint. Returns nil if the context could not be created.
+// If duration is zero, defaults to 120 seconds.
 func New(rate, channels int, duration time.Duration) *fingerprint {
 	// Check arguments
-	if rate <= 0 || channels <= 0 || duration <= 0 {
+	if rate <= 0 || channels <= 0 {
 		return nil
-	} else if duration == 0 {
-		duration = defaultDuration
+	}
+	if duration <= 0 {
+		duration = maxFingerprintDuration
 	}
 
 	// Create a context
@@ -72,10 +67,13 @@ func (fingerprint *fingerprint) Close() error {
 // PUBLIC METHODS
 
 // Write 16-bit signed integers with little-endian format, and
-// return the total number of bytes written
+// return the total number of samples written
 func (fingerprint *fingerprint) Write(data []int16) (int64, error) {
 	if fingerprint.ctx == nil {
 		return 0, io.ErrClosedPipe
+	}
+	if len(data) == 0 {
+		return fingerprint.n, nil
 	}
 	if fingerprint.Duration() < fingerprint.duration {
 		if err := fingerprint.ctx.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data)); err != nil {

@@ -177,6 +177,21 @@ func (ctx AVChannelLayout) Order() AVChannelOrder {
 	return AVChannelOrder(ctx.order)
 }
 
+func (o AVChannelOrder) String() string {
+	switch o {
+	case 0:
+		return "unspec"
+	case 1:
+		return "native"
+	case 2:
+		return "custom"
+	case 3:
+		return "ambisonic"
+	default:
+		return "unknown"
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CHANNEL LAYOUT CONSTANTS
 

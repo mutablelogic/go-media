@@ -102,17 +102,28 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 
 
 # Configure chromaprint
+# Note: FFmpeg 8.0 removed avfft API, so we use vDSP on macOS or kissfft on other platforms
+# kissfft is bundled with chromaprint and requires no external dependencies
+ifeq ($(shell uname -s),Darwin)
+    FFT_LIB := vdsp
+else
+    FFT_LIB := kissfft
+endif
+
 .PHONY: chromaprint-configure
 chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
-	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
-	cmake \
+	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX} (FFT_LIB=$(FFT_LIB))"
+	FFMPEG_DIR="$(shell realpath ${PREFIX})" cmake \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTS=0 \
 		-DBUILD_TOOLS=0 \
-		-DFFT_LIB=avfft \
+		-DFFT_LIB=$(FFT_LIB) \
+		-DFFMPEG_ROOT="$(shell realpath ${PREFIX})" \
 		-DCMAKE_PREFIX_PATH="$(shell realpath ${PREFIX})" \
+		-DCMAKE_LIBRARY_PATH="$(shell realpath ${PREFIX})/lib" \
+		-DCMAKE_INCLUDE_PATH="$(shell realpath ${PREFIX})/include" \
 		--install-prefix "$(shell realpath ${PREFIX})" \
 		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
 		-B ${BUILD_DIR}
@@ -153,9 +164,18 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-sys
+test: test-sys test-chromaprint
 	@echo ... test pkg/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}/schema
+	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}/task
+
+.PHONY: test
+test-chromaprint:
+	@echo ... test pkg/chromaprint
+	@${CGO_ENV} ${GO} test ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+
 
 .PHONY: test-sys
 test-sys: go-dep go-tidy 
