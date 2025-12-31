@@ -69,23 +69,26 @@ func OptLog(verbose bool, fn LogFunc) Opt {
 	}
 }
 
-// Input format from name or url
-func OptInputFormat(name string) Opt {
+// WithInput sets the input format and format options for reading.
+// The format parameter specifies the input format name (e.g., "s16le", "mp3").
+// If format is empty, only the options are set without changing the format.
+// Additional options are key=value pairs (e.g., "sample_rate=22050", "channels=1").
+//
+// Example:
+//   WithInput("s16le", "sample_rate=22050", "channels=1", "sample_fmt=s16")
+//   WithInput("", "analyzeduration=1000000") // Only set options
+func WithInput(format string, options ...string) Opt {
 	return func(o *opts) error {
-		// By name
-		if iformat := ffmpeg.AVFormat_find_input_format(name); iformat != nil {
-			o.iformat = iformat
-		} else {
-			return errors.New("invalid input format")
+		// Set input format if provided
+		if format != "" {
+			if iformat := ffmpeg.AVFormat_find_input_format(format); iformat != nil {
+				o.iformat = iformat
+			} else {
+				return errors.New("invalid input format")
+			}
 		}
-		return nil
-	}
-}
-
-// Input format options
-func OptInputOpt(opt ...string) Opt {
-	return func(o *opts) error {
-		o.opts = append(o.opts, opt...)
+		// Set format options
+		o.opts = append(o.opts, options...)
 		return nil
 	}
 }

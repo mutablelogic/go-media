@@ -312,16 +312,21 @@ func Test_Fingerprint_FromRawPCM(t *testing.T) {
 		context.Background(),
 		f,
 		0,
-		segmenter.WithFFMpegOpt(ffmpeg.OptInputFormat("s16le")),
-		segmenter.WithFFMpegOpt(ffmpeg.OptInputOpt(
+		segmenter.WithFFmpegOpt(ffmpeg.WithInput("s16le",
 			"sample_rate=22050",
 			"channels=1",
 			"channel_layout=mono",
 			"sample_fmt=s16",
 		)),
 	)
-	assert.Error(err, "Should return error for invalid input, not panic")
-	assert.Nil(result, "Result should be nil on error")
+	assert.NoError(err, "Should successfully fingerprint raw PCM")
+	assert.NotNil(result, "Result should not be nil")
+	assert.NotEmpty(result.Fingerprint, "Fingerprint should not be empty")
+	assert.True(result.Duration > 0, "Duration should be > 0")
+	assert.True(strings.HasPrefix(result.Fingerprint, "AQAA") || strings.HasPrefix(result.Fingerprint, "AQAB"),
+		"Fingerprint should start with AQA")
+
+	t.Logf("Fingerprinted raw PCM: duration=%v, fingerprint=%s...", result.Duration, result.Fingerprint[:50])
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,10 +428,9 @@ func Test_Lookup_FromRawPCM(t *testing.T) {
 	matches, err := client.Match(
 		context.Background(),
 		f,
-		0,
+		5*time.Minute+35*time.Second, // Full track duration
 		META_ALL,
-		segmenter.WithFFMpegOpt(ffmpeg.OptInputFormat("s16le")),
-		segmenter.WithFFMpegOpt(ffmpeg.OptInputOpt(
+		segmenter.WithFFmpegOpt(ffmpeg.WithInput("s16le",
 			"sample_rate=22050",
 			"channels=1",
 			"channel_layout=mono",
@@ -489,4 +493,4 @@ func Test_ResponseMatch_String(t *testing.T) {
 }
 
 // Helper to wrap ffmpeg.Opt as segmenter.Opt
-// The ffmpegOpt helper is no longer needed as segmenter.WithFFMpegOpt is now used.
+// The ffmpegOpt helper is no longer needed as segmenter.WithFFmpegOpt is now used.

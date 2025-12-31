@@ -105,8 +105,8 @@ func NewFromReader(r io.Reader, sampleRate int, opts ...Opt) (*Segmenter, error)
 		s.segmentSize = int(s.SegmentSize.Seconds() * float64(sampleRate))
 	}
 
-	// Open the reader
-	reader, err := ffmpeg.NewReader(r)
+	// Open the reader with ffmpeg options
+	reader, err := ffmpeg.NewReader(r, s.ffmpegOpts...)
 	if err != nil {
 		return nil, err
 	}

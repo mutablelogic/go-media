@@ -118,14 +118,15 @@ type FingerprintResult struct {
 	Duration    time.Duration
 }
 
-// Fingerprint generates an audio fingerprint from the reader, using up to "dur"
-// seconds of audio (or zero for the default of 120 seconds - the maximum needed
-// for a reliable fingerprint). Returns the fingerprint string and the actual
-// duration of audio processed.
+// Fingerprint generates an audio fingerprint from the reader. The "dur" parameter
+// specifies the full track duration. Only the first 120 seconds (or less) will be
+// fingerprinted, but the returned FingerprintResult.Duration will reflect the full
+// track duration. If dur is zero, the duration will be auto-detected from the file.
 func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...segmenter.Opt) (*FingerprintResult, error) {
-	// Use default max duration if not specified
-	if dur <= 0 {
-		dur = maxFingerprintDuration
+	// Limit fingerprinting to maximum needed for reliable matching
+	fingerprintDur := dur
+	if fingerprintDur <= 0 || fingerprintDur > maxFingerprintDuration {
+		fingerprintDur = maxFingerprintDuration
 	}
 
 	// Always set segment size, allow user to add more options
@@ -151,9 +152,9 @@ func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...se
 	// Track processed duration
 	var processedDuration time.Duration
 
-	// Perform fingerprinting until we reach the duration limit
+	// Perform fingerprinting until we reach the fingerprint duration limit
 	if err := seg.DecodeInt16(ctx, func(timestamp time.Duration, data []int16) error {
-		if timestamp >= dur {
+		if timestamp >= fingerprintDur {
 			// Stop early - we have enough samples
 			return io.EOF
 		}
@@ -181,10 +182,17 @@ func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...se
 		return nil, err
 	}
 
-	// Use processed duration, capped by file duration
-	finalDuration := processedDuration
-	if fileDuration := seg.Duration(); fileDuration > 0 && finalDuration > fileDuration {
-		finalDuration = fileDuration
+	// Determine final duration to report
+	var finalDuration time.Duration
+	if dur > 0 {
+		// Use explicitly provided duration
+		finalDuration = dur
+	} else {
+		// Auto-detect: prefer full file duration, fall back to processed duration
+		finalDuration = seg.Duration()
+		if finalDuration <= 0 {
+			finalDuration = processedDuration
+		}
 	}
 
 	return &FingerprintResult{
@@ -193,9 +201,10 @@ func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...se
 	}, nil
 }
 
-// Match generates a fingerprint from the reader and looks up any matches,
-// using up to "dur" seconds to fingerprint (or zero for the default of 120
-// seconds - the maximum needed for a reliable fingerprint).
+// Match generates a fingerprint from the reader and looks up any matches.
+// The "dur" parameter specifies the full track duration. Only the first 120 seconds
+// (or less) will be fingerprinted for matching, but "dur" will be reported to AcoustID.
+// If dur is zero, the duration will be auto-detected from the file.
 func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flags Meta, opts ...segmenter.Opt) ([]*ResponseMatch, error) {
 	// Generate fingerprint
 	result, err := Fingerprint(ctx, r, dur, opts...)

@@ -763,7 +763,7 @@ func Test_reader_with_input_format(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	r, err := Open(testFile, OptInputFormat("mp4"))
+	r, err := Open(testFile, WithInput("mp4"))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
@@ -781,7 +781,7 @@ func Test_reader_with_invalid_input_format(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	_, err := Open(testFile, OptInputFormat("invalid_format"))
+	_, err := Open(testFile, WithInput("invalid_format"))
 	assert.Error(err)
 }
 
@@ -793,7 +793,7 @@ func Test_reader_with_input_opt(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	r, err := Open(testFile, OptInputOpt("analyzeduration=1000000"))
+	r, err := Open(testFile, WithInput("", "analyzeduration=1000000"))
 	if !assert.NoError(err) {
 		t.FailNow()
 	}

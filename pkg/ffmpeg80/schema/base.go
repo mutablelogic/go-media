@@ -22,7 +22,7 @@ func (r *Request) Open(opt ...ffmpeg.Opt) (*ffmpeg.Reader, error) {
 	// Open by reader if set
 	if r.Reader != nil {
 		if r.Path != "" {
-			opt = append(opt, ffmpeg.OptInputFormat(r.Path))
+			opt = append(opt, ffmpeg.WithInput(r.Path))
 		}
 		return ffmpeg.NewReader(r.Reader, opt...)
 	}
