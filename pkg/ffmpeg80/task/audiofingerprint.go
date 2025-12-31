@@ -7,9 +7,7 @@ import (
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
 	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
-	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,24 +15,12 @@ import (
 
 // AudioFingerprint generates an audio fingerprint and optionally performs AcoustID lookup
 func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerprintRequest) (*schema.AudioFingerprintResponse, error) {
-	// Build segmenter options from Request.Path if it contains format info
-	var opts []segmenter.Opt
-	if req.Path != "" && req.Reader != nil {
-		// When Reader is set and Path is set, Path is interpreted as the format
-		opts = append(opts, segmenter.WithFFmpegOpt(ffmpeg.WithInput(req.Path)))
-	}
-
 	// Open the reader
-	var reader *os.File
-	if req.Reader == nil {
-		// Open from path
-		f, err := os.Open(req.Path)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		reader = f
+	reader, err := req.Open()
+	if err != nil {
+		return nil, err
 	}
+	defer reader.Close()
 
 	// Convert duration
 	var dur time.Duration
