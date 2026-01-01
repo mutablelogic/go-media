@@ -13,7 +13,10 @@ import (
 )
 
 func TestProbe_MP4(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -59,7 +62,10 @@ func TestProbe_MP4(t *testing.T) {
 }
 
 func TestProbe_MP3(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -84,7 +90,10 @@ func TestProbe_MP3(t *testing.T) {
 }
 
 func TestProbe_WAV(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "jfk.wav")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -110,7 +119,10 @@ func TestProbe_WAV(t *testing.T) {
 }
 
 func TestProbe_JPEG(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.jpg")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -134,7 +146,10 @@ func TestProbe_JPEG(t *testing.T) {
 }
 
 func TestProbe_PNG(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.png")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -158,7 +173,10 @@ func TestProbe_PNG(t *testing.T) {
 }
 
 func TestProbe_AllFiles(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testDir := testDataPath(t)
 
 	// List of test files to probe
@@ -186,7 +204,10 @@ func TestProbe_AllFiles(t *testing.T) {
 }
 
 func TestProbe_FileNotFound(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "nonexistent.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -198,7 +219,10 @@ func TestProbe_FileNotFound(t *testing.T) {
 }
 
 func TestProbeStream_MP4(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	f, err := os.Open(testPath)
@@ -215,7 +239,10 @@ func TestProbeStream_MP4(t *testing.T) {
 }
 
 func TestProbeStream_MP3(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	f, err := os.Open(testPath)
@@ -232,7 +259,10 @@ func TestProbeStream_MP3(t *testing.T) {
 }
 
 func TestProbeStream_WAV(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "jfk.wav")
 
 	f, err := os.Open(testPath)
@@ -249,7 +279,10 @@ func TestProbeStream_WAV(t *testing.T) {
 }
 
 func TestProbeStream_AllFiles(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testDir := testDataPath(t)
 
 	// List of test files to probe with their format hints
@@ -282,7 +315,10 @@ func TestProbeStream_AllFiles(t *testing.T) {
 }
 
 func TestProbe_WithMetadata(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -305,7 +341,10 @@ func TestProbe_WithMetadata(t *testing.T) {
 }
 
 func TestProbe_WithoutMetadata(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
@@ -322,7 +361,10 @@ func TestProbe_WithoutMetadata(t *testing.T) {
 }
 
 func TestProbe_MP3_MimeType(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{

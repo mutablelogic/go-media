@@ -12,7 +12,10 @@ import (
 )
 
 func TestListAudioChannelLayout_All(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{})
@@ -30,7 +33,10 @@ func TestListAudioChannelLayout_All(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_FilterByName(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -58,7 +64,10 @@ func TestListAudioChannelLayout_FilterByName(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_FilterByNumChannels(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -100,7 +109,10 @@ func TestListAudioChannelLayout_FilterByNumChannels(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_FilterByNameAndNumChannels(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Filter by both name and numChannels (should match)
@@ -115,7 +127,10 @@ func TestListAudioChannelLayout_FilterByNameAndNumChannels(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_FilterNoMatch(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Non-existent name
@@ -135,7 +150,10 @@ func TestListAudioChannelLayout_FilterNoMatch(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_NilRequest(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Nil request should return all layouts
@@ -145,7 +163,10 @@ func TestListAudioChannelLayout_NilRequest(t *testing.T) {
 }
 
 func TestListAudioChannelLayout_ChannelDetails(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Get stereo layout and verify channel details

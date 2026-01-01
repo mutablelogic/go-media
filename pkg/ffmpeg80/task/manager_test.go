@@ -31,6 +31,7 @@ func testDataPath(t *testing.T) string {
 }
 
 func TestNewManager(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	require.NoError(t, err)
 	assert.NotNil(t, m)
 }

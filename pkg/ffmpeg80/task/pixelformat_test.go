@@ -12,7 +12,10 @@ import (
 )
 
 func TestListPixelFormat_All(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
@@ -33,7 +36,10 @@ func TestListPixelFormat_All(t *testing.T) {
 }
 
 func TestListPixelFormat_FilterByName(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -65,7 +71,10 @@ func TestListPixelFormat_FilterByName(t *testing.T) {
 }
 
 func TestListPixelFormat_FilterByNumPlanes(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -106,7 +115,10 @@ func TestListPixelFormat_FilterByNumPlanes(t *testing.T) {
 }
 
 func TestListPixelFormat_FilterByNameAndNumPlanes(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Filter by both name and numPlanes (should match)
@@ -121,7 +133,10 @@ func TestListPixelFormat_FilterByNameAndNumPlanes(t *testing.T) {
 }
 
 func TestListPixelFormat_FilterNoMatch(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Non-existent name
@@ -141,7 +156,10 @@ func TestListPixelFormat_FilterNoMatch(t *testing.T) {
 }
 
 func TestListPixelFormat_NilRequest(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Nil request should return all formats
@@ -151,7 +169,10 @@ func TestListPixelFormat_NilRequest(t *testing.T) {
 }
 
 func TestListPixelFormat_RGBFormats(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
@@ -169,7 +190,10 @@ func TestListPixelFormat_RGBFormats(t *testing.T) {
 }
 
 func TestListPixelFormat_AlphaFormats(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
@@ -187,7 +211,10 @@ func TestListPixelFormat_AlphaFormats(t *testing.T) {
 }
 
 func TestListPixelFormat_PlanarFormats(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})

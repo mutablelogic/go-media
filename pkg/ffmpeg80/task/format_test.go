@@ -11,7 +11,10 @@ import (
 )
 
 func TestListFormat_All(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{})
@@ -38,7 +41,10 @@ func TestListFormat_All(t *testing.T) {
 }
 
 func TestListFormat_FilterByName(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -68,7 +74,10 @@ func TestListFormat_FilterByName(t *testing.T) {
 }
 
 func TestListFormat_FilterByInput(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isInput := true
@@ -85,7 +94,10 @@ func TestListFormat_FilterByInput(t *testing.T) {
 }
 
 func TestListFormat_FilterByOutput(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isOutput := true
@@ -102,7 +114,10 @@ func TestListFormat_FilterByOutput(t *testing.T) {
 }
 
 func TestListFormat_FilterByDevice(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isDevice := true
@@ -125,7 +140,10 @@ func TestListFormat_FilterByDevice(t *testing.T) {
 }
 
 func TestListFormat_FilterByInputAndNotDevice(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isInput := true
@@ -145,7 +163,10 @@ func TestListFormat_FilterByInputAndNotDevice(t *testing.T) {
 }
 
 func TestListFormat_FilterByOutputAndNotDevice(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isOutput := true
@@ -165,7 +186,10 @@ func TestListFormat_FilterByOutputAndNotDevice(t *testing.T) {
 }
 
 func TestListFormat_FilterNoMatch(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
@@ -176,7 +200,10 @@ func TestListFormat_FilterNoMatch(t *testing.T) {
 }
 
 func TestListFormat_NilRequest(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListFormat(context.Background(), nil)
@@ -186,7 +213,10 @@ func TestListFormat_NilRequest(t *testing.T) {
 }
 
 func TestListFormat_FormatDetails(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Check some common formats for expected properties
@@ -209,7 +239,10 @@ func TestListFormat_FormatDetails(t *testing.T) {
 }
 
 func TestListFormat_ExtensionsAndMimeTypes(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isOutput := true
@@ -234,7 +267,10 @@ func TestListFormat_ExtensionsAndMimeTypes(t *testing.T) {
 }
 
 func TestListFormat_DefaultCodecs(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isOutput := true

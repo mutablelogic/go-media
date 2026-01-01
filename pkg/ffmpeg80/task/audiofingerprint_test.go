@@ -20,7 +20,11 @@ func Test_AudioFingerprint_MP3(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	manager := task.NewManager()
+	manager, err := task.NewManager()
+	if !assert.NoError(err) {
+		return
+	}
+
 	req := &schema.AudioFingerprintRequest{
 		Request: schema.Request{
 			Path: testFile,
@@ -49,7 +53,10 @@ func Test_AudioFingerprint_RawPCM(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	manager := task.NewManager()
+	manager, err := task.NewManager()
+	if !assert.NoError(err) {
+		return
+	}
 
 	// Open file as reader
 	f, err := os.Open(testFile)
@@ -101,7 +108,10 @@ func Test_AudioFingerprint_WithLookup(t *testing.T) {
 		t.Skip("Test file not available:", testFile)
 	}
 
-	manager := task.NewManager()
+	manager, err := task.NewManager()
+	if !assert.NoError(err) {
+		return
+	}
 
 	// TODO: Need to add format/options support to schema.Request
 	// For raw PCM files like this, we need to specify:
@@ -150,7 +160,10 @@ func Test_AudioFingerprint_WithAPIKey(t *testing.T) {
 	}
 
 	// Create manager with API key option
-	manager := task.NewManager(task.WithChromaprintKey(apiKey))
+	manager, err := task.NewManager(task.WithChromaprintKey(apiKey))
+	if !assert.NoError(err) {
+		return
+	}
 
 	req := &schema.AudioFingerprintRequest{
 		Request: schema.Request{

@@ -12,7 +12,10 @@ import (
 )
 
 func TestListSampleFormat_All(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})
@@ -30,7 +33,10 @@ func TestListSampleFormat_All(t *testing.T) {
 }
 
 func TestListSampleFormat_FilterByName(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -66,7 +72,10 @@ func TestListSampleFormat_FilterByName(t *testing.T) {
 }
 
 func TestListSampleFormat_FilterByPlanar(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Filter planar formats
@@ -97,7 +106,10 @@ func TestListSampleFormat_FilterByPlanar(t *testing.T) {
 }
 
 func TestListSampleFormat_FilterByNameAndPlanar(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Filter by both name and isPlanar (should match)
@@ -122,7 +134,10 @@ func TestListSampleFormat_FilterByNameAndPlanar(t *testing.T) {
 }
 
 func TestListSampleFormat_FilterNoMatch(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Non-existent name
@@ -134,7 +149,10 @@ func TestListSampleFormat_FilterNoMatch(t *testing.T) {
 }
 
 func TestListSampleFormat_NilRequest(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Nil request should return all formats
@@ -144,7 +162,10 @@ func TestListSampleFormat_NilRequest(t *testing.T) {
 }
 
 func TestListSampleFormat_PackedPlanarEquivalents(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})
@@ -165,7 +186,10 @@ func TestListSampleFormat_PackedPlanarEquivalents(t *testing.T) {
 }
 
 func TestListSampleFormat_BitDepths(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})

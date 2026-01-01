@@ -11,7 +11,10 @@ import (
 )
 
 func TestListCodec_All(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
@@ -30,7 +33,10 @@ func TestListCodec_All(t *testing.T) {
 }
 
 func TestListCodec_FilterByName(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -59,7 +65,10 @@ func TestListCodec_FilterByName(t *testing.T) {
 }
 
 func TestListCodec_FilterByType(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	tests := []struct {
@@ -100,7 +109,10 @@ func TestListCodec_FilterByType(t *testing.T) {
 }
 
 func TestListCodec_FilterByEncoder(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Get encoders only
@@ -118,7 +130,10 @@ func TestListCodec_FilterByEncoder(t *testing.T) {
 }
 
 func TestListCodec_FilterByDecoder(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Get decoders only
@@ -136,7 +151,10 @@ func TestListCodec_FilterByDecoder(t *testing.T) {
 }
 
 func TestListCodec_FilterByTypeAndEncoder(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	isEncoder := true
@@ -155,7 +173,10 @@ func TestListCodec_FilterByTypeAndEncoder(t *testing.T) {
 }
 
 func TestListCodec_FilterNoMatch(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
@@ -166,7 +187,10 @@ func TestListCodec_FilterNoMatch(t *testing.T) {
 }
 
 func TestListCodec_NilRequest(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListCodec(context.Background(), nil)
@@ -176,7 +200,10 @@ func TestListCodec_NilRequest(t *testing.T) {
 }
 
 func TestListCodec_VideoCodecFormats(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Get a specific video encoder and check its pixel formats
@@ -196,7 +223,10 @@ func TestListCodec_VideoCodecFormats(t *testing.T) {
 }
 
 func TestListCodec_AudioCodecFormats(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Get audio encoders and check their sample formats
@@ -218,7 +248,10 @@ func TestListCodec_AudioCodecFormats(t *testing.T) {
 }
 
 func TestListCodec_Capabilities(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
@@ -247,7 +280,10 @@ func TestListCodec_Capabilities(t *testing.T) {
 }
 
 func TestListCodec_Profiles(t *testing.T) {
-	m := task.NewManager()
+	m, err := task.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
 	require.NotNil(t, m)
 
 	// Find codecs with profiles (like h264)

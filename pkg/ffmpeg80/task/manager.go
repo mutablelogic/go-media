@@ -1,28 +1,44 @@
 package task
 
+import (
+	// Packages
+	client "github.com/mutablelogic/go-client"
+	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Manager struct {
-	chromaprintKey string
+	opts
+	chromaprint *chromaprint.Client
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewManager(opt ...Opt) *Manager {
-	m := &Manager{}
+func NewManager(opt ...Opt) (*Manager, error) {
+	m := new(Manager)
+	if err := applyOpts(&m.opts, opt...); err != nil {
+		return nil, err
+	}
 
-	// Apply options
-	o := &opts{}
-	for _, fn := range opt {
-		if err := fn(o); err != nil {
-			// For now, ignore errors during manager creation
-			// Could be enhanced to return error in the future
-			continue
+	// If there is a trace function, set it
+	if m.tracefn != nil {
+		ffmpeg.SetLogging(m.verbose, ffmpeg.LogFn(m.tracefn))
+	}
+
+	// If a chromaprint key is set, initialize chromaprint
+	if m.chromaprintKey != "" {
+		clientopts := []client.ClientOpt{}
+		if client, err := chromaprint.NewClient(m.chromaprintKey, clientopts...); err != nil {
+			return nil, err
+		} else {
+			m.chromaprint = client
 		}
 	}
 
-	m.chromaprintKey = o.chromaprintKey
-	return m
+	// Success
+	return m, nil
 }

@@ -2,12 +2,15 @@ package task
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"time"
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
 	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
+	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,12 +18,20 @@ import (
 
 // AudioFingerprint generates an audio fingerprint and optionally performs AcoustID lookup
 func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerprintRequest) (*schema.AudioFingerprintResponse, error) {
-	// Open the reader
-	reader, err := req.Open()
-	if err != nil {
-		return nil, err
+	// Build segmenter options from Request if needed
+	var opts []segmenter.Opt
+
+	// Determine input source
+	var inputPath string
+	var reader io.Reader
+
+	if req.Path != "" {
+		inputPath = req.Path
+	} else if req.Reader != nil {
+		reader = req.Reader
+	} else {
+		return nil, fmt.Errorf("either Reader or Path must be set")
 	}
-	defer reader.Close()
 
 	// Convert duration
 	var dur time.Duration
@@ -30,80 +41,69 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 
 	// If lookup is requested, we need a client
 	if req.Lookup {
-		// Get API key from manager or environment
-		apiKey := m.chromaprintKey
-		if apiKey == "" {
-			apiKey = os.Getenv("CHROMAPRINT_KEY")
-		}
-
-		// Create chromaprint client
-		client, err := chromaprint.NewClient(apiKey)
-		if err != nil {
-			return nil, err
-		}
-
 		// Build metadata flags
 		flags := metadataFlags(req.Metadata)
 
-		// Perform match with lookup (this also generates the fingerprint)
+		// Perform match with lookup (using path or reader)
 		var matches []*chromaprint.ResponseMatch
-		if req.Reader != nil {
-			matches, err = client.Match(ctx, req.Reader, dur, flags, opts...)
-		} else {
-			matches, err = client.Match(ctx, reader, dur, flags, opts...)
-		}
-		if err != nil {
-			return nil, err
-		}
 
-		// We need to generate the fingerprint to include it in the response
-		// Reopen the file/reader since it was consumed by Match
-		var fpResult *chromaprint.FingerprintResult
-		if req.Reader == nil {
-			// Reopen file for fingerprinting
-			f2, err := os.Open(req.Path)
+		if inputPath != "" {
+			// Open file for matching
+			f, err := os.Open(inputPath)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+
+			matches, err = m.chromaprint.Match(ctx, f, dur, flags, opts...)
+			if err != nil {
+				return nil, err
+			}
+
+			// Re-open for fingerprint
+			f2, err := os.Open(inputPath)
 			if err != nil {
 				return nil, err
 			}
 			defer f2.Close()
-			fpResult, err = chromaprint.Fingerprint(ctx, f2, dur, opts...)
+
+			fpResult, err := chromaprint.Fingerprint(ctx, f2, dur, opts...)
 			if err != nil {
 				return nil, err
 			}
+
+			// Build response
+			resp := &schema.AudioFingerprintResponse{
+				Fingerprint: fpResult.Fingerprint,
+				Duration:    fpResult.Duration.Seconds(),
+			}
+
+			// Convert matches
+			if len(matches) > 0 {
+				resp.Matches = make([]chromaprint.ResponseMatch, len(matches))
+				for i, m := range matches {
+					resp.Matches[i] = *m
+				}
+			}
+
+			return resp, nil
 		} else {
-			// Reader was already consumed, we can't get the fingerprint again
-			// This is a limitation when using Reader mode with Lookup
-			fpResult = &chromaprint.FingerprintResult{
-				Fingerprint: "", // Cannot regenerate from consumed reader
-				Duration:    dur,
-			}
+			// Using reader - can't re-read for lookup
+			return nil, fmt.Errorf("lookup requires re-reading the file; use Path instead of Reader")
 		}
-
-		// Build response
-		resp := &schema.AudioFingerprintResponse{
-			Fingerprint: fpResult.Fingerprint,
-			Duration:    fpResult.Duration.Seconds(),
-		}
-
-		// Convert matches
-		if len(matches) > 0 {
-			resp.Matches = make([]chromaprint.ResponseMatch, len(matches))
-			for i, m := range matches {
-				resp.Matches[i] = *m
-			}
-		}
-
-		return resp, nil
 	}
 
 	// Just fingerprint, no lookup
-	var result *chromaprint.FingerprintResult
-	var err error
-	if req.Reader != nil {
-		result, err = chromaprint.Fingerprint(ctx, req.Reader, dur, opts...)
-	} else {
-		result, err = chromaprint.Fingerprint(ctx, reader, dur, opts...)
+	if inputPath != "" {
+		f, err := os.Open(inputPath)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		reader = f
 	}
+
+	result, err := chromaprint.Fingerprint(ctx, reader, dur, opts...)
 	if err != nil {
 		return nil, err
 	}
