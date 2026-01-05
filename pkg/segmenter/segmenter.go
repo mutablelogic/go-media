@@ -214,7 +214,7 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 		}
 
 		return nil
-	}); err != nil && !errors.Is(err, io.EOF) {
+	}, nil); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 
@@ -235,7 +235,7 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 // configured sample rate.
 func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error {
 	if fn == nil {
-		return media.ErrBadParameter.With("callback function is nil")
+		return media.ErrBadParameter.With("callback function is nil", nil)
 	}
 
 	// Map function selects best audio stream and converts to int16 mono
@@ -301,7 +301,7 @@ func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error 
 		}
 
 		return nil
-	}); err != nil && !errors.Is(err, io.EOF) {
+	}, nil); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 
@@ -335,7 +335,7 @@ func (s *Segmenter) detectSilence(pts int64, samples []float32) bool {
 		return false
 	}
 
-	// Calculate RMS energy for float32 samples (already in -1.0 to 1.0 range)
+	// Calculate RMS energy for float32 samples (already in -1.0 to 1.0 range, nil)
 	var sum float64
 	for _, sample := range samples {
 		sum += float64(sample) * float64(sample)

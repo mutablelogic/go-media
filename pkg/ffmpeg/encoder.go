@@ -174,6 +174,24 @@ func (e *encoder) Encode(frame *Frame, fn EncoderPacketFn) error {
 	return e.encode(frame, fn)
 }
 
+// EncodeSubtitle encodes a subtitle and passes the packet to the EncoderPacketFn.
+// Subtitles use a legacy encoding API and don't support flushing (nil subtitle will return an error).
+func (e *encoder) EncodeSubtitle(sub *ff.AVSubtitle, fn EncoderPacketFn) error {
+	if fn == nil {
+		return media.ErrBadParameter.With("nil callback function")
+	}
+	if e.ctx == nil {
+		return errors.New("encoder is closed")
+	}
+	if sub == nil {
+		return media.ErrBadParameter.With("subtitle cannot be nil (no flushing support)")
+	}
+	if e.ctx.CodecType() != ff.AVMEDIA_TYPE_SUBTITLE {
+		return media.ErrBadParameter.With("encoder is not configured for subtitles")
+	}
+	return e.encodeSubtitle(sub, fn)
+}
+
 // Return the codec parameters
 func (e *encoder) Par() *Par {
 	if e.ctx == nil {
@@ -285,4 +303,74 @@ func (e *encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 
 	// Return success or EOF
 	return result
+}
+
+func (e *encoder) encodeSubtitle(sub *ff.AVSubtitle, fn EncoderPacketFn) error {
+	// Allocate buffer for subtitle data (subtitles are typically small, 64KB should be sufficient)
+	buf := make([]byte, 65536)
+
+	// Encode subtitle using legacy API
+	bytesWritten, err := ff.AVCodec_encode_subtitle(e.ctx, buf, sub)
+	if err != nil {
+		return err
+	}
+	if bytesWritten == 0 {
+		// No data encoded, nothing to send
+		return nil
+	}
+
+	// Allocate packet to hold the subtitle data
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return errors.New("failed to allocate packet")
+	}
+
+	// Copy subtitle data to packet
+	if err := ff.AVCodec_packet_from_data(packet, buf[:bytesWritten]); err != nil {
+		ff.AVCodec_packet_free(packet)
+		return err
+	}
+
+	// Set packet parameters from subtitle
+	packet.SetStreamIndex(e.stream.Index())
+	packet.SetPts(sub.PTS())
+	packet.SetDts(sub.PTS())
+
+	// Calculate duration from subtitle display times (convert ms to stream timebase)
+	startMs := int64(sub.StartDisplayTime())
+	endMs := int64(sub.EndDisplayTime())
+	durationMs := endMs - startMs
+	if durationMs > 0 {
+		// Convert ms to stream timebase units: duration = (durationMs * timebase.den) / (1000 * timebase.num)
+		streamTb := e.stream.TimeBase()
+		duration := (durationMs * int64(streamTb.Den())) / (1000 * int64(streamTb.Num()))
+		if duration <= 0 {
+			duration = 1
+		}
+		packet.SetDuration(duration)
+	}
+
+	// Set timebase for the packet
+	packet.SetTimeBase(e.stream.TimeBase())
+
+	// DEBUG: Before callback
+	fmt.Printf("SUBTITLE ENCODE: stream=%d pts=%d duration=%d size=%d\n",
+		packet.StreamIndex(), packet.Pts(), packet.Duration(), packet.Size())
+
+	// Pass to callback
+	err = fn((*Packet)(packet))
+
+	// Free the packet
+	ff.AVCodec_packet_free(packet)
+
+	if errors.Is(err, io.EOF) {
+		return io.EOF
+	}
+
+	// Flush packet (send nil to indicate end)
+	if err == nil {
+		err = fn(nil)
+	}
+
+	return err
 }

@@ -172,20 +172,24 @@ func (rect *AVSubtitleRect) Linesize(plane int) int {
 	return int(rect.linesize[plane])
 }
 
-// Get text for SUBTITLE_TEXT type
+// Get text content for SUBTITLE_TEXT or SUBTITLE_ASS types.
+// Returns the text field for SUBTITLE_TEXT or the ass field for SUBTITLE_ASS.
+// Returns empty string for other types (BITMAP, NONE).
 func (rect *AVSubtitleRect) Text() string {
-	if rect.text == nil {
+	switch rect.Type() {
+	case SUBTITLE_TEXT:
+		if rect.text == nil {
+			return ""
+		}
+		return C.GoString(rect.text)
+	case SUBTITLE_ASS:
+		if rect.ass == nil {
+			return ""
+		}
+		return C.GoString(rect.ass)
+	default:
 		return ""
 	}
-	return C.GoString(rect.text)
-}
-
-// Get ASS formatted text for SUBTITLE_ASS type
-func (rect *AVSubtitleRect) ASS() string {
-	if rect.ass == nil {
-		return ""
-	}
-	return C.GoString(rect.ass)
 }
 
 func (rect *AVSubtitleRect) Flags() int {
@@ -231,7 +235,6 @@ func (sub *AVSubtitle) MarshalJSON() ([]byte, error) {
 		Height    int            `json:"height,omitempty"`
 		NumColors int            `json:"num_colors,omitempty"`
 		Text      string         `json:"text,omitempty"`
-		ASS       string         `json:"ass,omitempty"`
 	}
 
 	type jsonAVSubtitle struct {
@@ -264,7 +267,6 @@ func (sub *AVSubtitle) MarshalJSON() ([]byte, error) {
 				Height:    rect.Height(),
 				NumColors: rect.NumColors(),
 				Text:      rect.Text(),
-				ASS:       rect.ASS(),
 			}
 		}
 	}
@@ -285,7 +287,6 @@ func (rect *AVSubtitleRect) MarshalJSON() ([]byte, error) {
 		Height    int            `json:"height,omitempty"`
 		NumColors int            `json:"num_colors,omitempty"`
 		Text      string         `json:"text,omitempty"`
-		ASS       string         `json:"ass,omitempty"`
 		Flags     int            `json:"flags,omitempty"`
 	}
 
@@ -297,7 +298,6 @@ func (rect *AVSubtitleRect) MarshalJSON() ([]byte, error) {
 		Height:    rect.Height(),
 		NumColors: rect.NumColors(),
 		Text:      rect.Text(),
-		ASS:       rect.ASS(),
 		Flags:     rect.Flags(),
 	})
 }
