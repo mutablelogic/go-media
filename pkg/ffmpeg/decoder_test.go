@@ -372,7 +372,7 @@ func Test_Demux_001(t *testing.T) {
 		assert.GreaterOrEqual(stream, 0)
 		frameCount++
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Greater(frameCount, 0)
@@ -394,7 +394,7 @@ func Test_Demux_002(t *testing.T) {
 	err = reader.Demux(ctx, nil, func(stream int, frame *ffmpeg.Frame) error {
 		streamFrames[stream]++
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Greater(len(streamFrames), 0)
@@ -426,7 +426,7 @@ func Test_Demux_003(t *testing.T) {
 		assert.Equal(media.VIDEO, frame.Type())
 		frameCount++
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Greater(frameCount, 0)
@@ -454,7 +454,7 @@ func Test_Demux_004(t *testing.T) {
 		assert.Equal(media.AUDIO, frame.Type())
 		frameCount++
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Greater(frameCount, 0)
@@ -479,7 +479,7 @@ func Test_Demux_005(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Equal(10, frameCount)
@@ -505,7 +505,7 @@ func Test_Demux_006(t *testing.T) {
 		// Slow down to ensure timeout is hit
 		time.Sleep(5 * time.Millisecond)
 		return nil
-	})
+	}, nil)
 
 	assert.Error(err)
 	assert.Equal(context.DeadlineExceeded, err)
@@ -541,7 +541,7 @@ func Test_Demux_007(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.True(foundValidPts, "Should find frames with valid PTS")
@@ -577,7 +577,7 @@ func Test_Demux_008(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.True(foundSamples, "Should find frames with samples")
@@ -621,7 +621,7 @@ func Test_Demux_009(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Equal(5, frameCount)
@@ -669,7 +669,7 @@ func Test_Demux_010(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Equal(5, frameCount)
@@ -693,7 +693,7 @@ func Test_Demux_011(t *testing.T) {
 	err = reader.Demux(ctx, nil, func(stream int, frame *ffmpeg.Frame) error {
 		assert.Fail("Should not be called")
 		return nil
-	})
+	}, nil)
 
 	assert.Error(err)
 	assert.Contains(err.Error(), "closed")
@@ -715,7 +715,7 @@ func Test_Demux_012(t *testing.T) {
 	}, func(stream int, frame *ffmpeg.Frame) error {
 		assert.Fail("Should not be called when no streams mapped")
 		return nil
-	})
+	}, nil)
 
 	// Should get error about no streams to decode
 	assert.Error(err)
@@ -748,7 +748,7 @@ func Test_Demux_013(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Greater(totalFrames, 0)
@@ -775,7 +775,7 @@ func Test_Demux_014(t *testing.T) {
 	}, func(stream int, frame *ffmpeg.Frame) error {
 		firstCount++
 		return nil
-	})
+	}, nil)
 	assert.NoError(err)
 	assert.Greater(firstCount, 0)
 
@@ -796,7 +796,7 @@ func Test_Demux_014(t *testing.T) {
 	}, func(stream int, frame *ffmpeg.Frame) error {
 		secondCount++
 		return nil
-	})
+	}, nil)
 	assert.NoError(err)
 	assert.Greater(secondCount, 0)
 
@@ -830,7 +830,7 @@ func Test_Demux_015(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	t.Logf("Decoded %d video frames and %d audio frames", videoFrames, audioFrames)
@@ -858,7 +858,7 @@ func Test_Demux_016(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Equal(10, frameCount)
@@ -886,7 +886,7 @@ func Test_Demux_017(t *testing.T) {
 			return io.EOF
 		}
 		return nil
-	})
+	}, nil)
 
 	assert.NoError(err)
 	assert.Equal(10, frameCount)

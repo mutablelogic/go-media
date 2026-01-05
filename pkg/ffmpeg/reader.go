@@ -299,14 +299,14 @@ func (r *Reader) Decode(ctx context.Context, packetfn DecoderPacketFn) error {
 	return dec.readPackets(ctx, packetfn)
 }
 
-// Demux and decode the media stream into frames. The map function determines which
+// Demux and decode the media stream into frames and subtitles. The map function determines which
 // streams to decode and what output parameters to use. The framefn is called for each
-// decoded frame from any mapped stream.
+// decoded frame from any mapped stream. The optional subtitlefn is called for each decoded subtitle.
 //
-// The decoding can be interrupted by cancelling the context, or by the framefn
+// The decoding can be interrupted by cancelling the context, or by the framefn/subtitlefn
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
-func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn) error {
+func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn, subtitlefn DecoderSubtitleFn) error {
 	// Check reader is valid
 	r.mu.Lock()
 	if r.input == nil {
@@ -323,7 +323,7 @@ func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn Decode
 	defer dec.free()
 
 	// Decode frames
-	return dec.decodeFrames(ctx, mapfn, framefn)
+	return dec.decodeFrames(ctx, mapfn, framefn, subtitlefn)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

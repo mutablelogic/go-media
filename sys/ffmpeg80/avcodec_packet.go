@@ -177,8 +177,16 @@ func (ctx *AVPacket) Pts() int64 {
 	return int64(ctx.pts)
 }
 
+func (ctx *AVPacket) SetPts(pts int64) {
+	ctx.pts = C.int64_t(pts)
+}
+
 func (ctx *AVPacket) Dts() int64 {
 	return int64(ctx.dts)
+}
+
+func (ctx *AVPacket) SetDts(dts int64) {
+	ctx.dts = C.int64_t(dts)
 }
 
 func (ctx *AVPacket) Duration() int64 {

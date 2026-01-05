@@ -24,6 +24,10 @@ type DecoderMapFunc func(int, *Par) (*Par, error)
 // return nil to continue decoding or io.EOF to stop.
 type DecoderFrameFn func(int, *Frame) error
 
+// DecoderSubtitleFn is a function which is called to send a decoded subtitle. It should
+// return nil to continue decoding or io.EOF to stop.
+type DecoderSubtitleFn func(int, *ff.AVSubtitle) error
+
 // DecoderPacketFn is a function which is called to send a packet after demuxing. It should
 // return nil to continue reading packets or io.EOF to stop. Use this for stream copying
 // without decode/encode overhead.
@@ -40,11 +44,11 @@ type decoder struct {
 
 // Per-stream decoder that handles individual stream decoding
 type streamDecoder struct {
-	stream     int
-	codec      *ff.AVCodecContext
-	resampler  *Resampler
-	frame      *ff.AVFrame
-	timeBase   ff.AVRational
+	stream    int
+	codec     *ff.AVCodecContext
+	resampler *Resampler
+	frame     *ff.AVFrame
+	timeBase  ff.AVRational
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,10 +142,10 @@ func (d *decoder) readPackets(ctx context.Context, packetfn DecoderPacketFn) err
 	}
 }
 
-// Decode and demux the media stream into frames. The map function determines which
+// Decode and demux the media stream into frames and subtitles. The map function determines which
 // streams to decode and what output parameters to use. The framefn is called for each
-// decoded frame from any mapped stream.
-func (d *decoder) decodeFrames(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn) error {
+// decoded frame from any mapped stream. The subtitlefn is called for each decoded subtitle.
+func (d *decoder) decodeFrames(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn, subtitlefn DecoderSubtitleFn) error {
 	d.mu.Lock()
 	if d.busy {
 		d.mu.Unlock()
@@ -200,7 +204,7 @@ func (d *decoder) decodeFrames(ctx context.Context, mapfn DecoderMapFunc, framef
 		}
 
 		// Decode this packet
-		if err := dec.decode(d.pkt, framefn); err != nil {
+		if err := dec.decode(d.pkt, framefn, subtitlefn); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -210,7 +214,7 @@ func (d *decoder) decodeFrames(ctx context.Context, mapfn DecoderMapFunc, framef
 
 	// Flush all decoders
 	for streamIndex, dec := range d.decoders {
-		if err := dec.decode(nil, framefn); err != nil && !errors.Is(err, io.EOF) {
+		if err := dec.decode(nil, framefn, subtitlefn); err != nil && !errors.Is(err, io.EOF) {
 			return err
 		}
 		// Mark this decoder as flushed by removing it
@@ -385,8 +389,13 @@ func (dec *streamDecoder) close() {
 	}
 }
 
-// Decode a packet and emit frames via the callback
-func (dec *streamDecoder) decode(pkt *ff.AVPacket, framefn DecoderFrameFn) error {
+// Decode a packet and emit frames or subtitles via the callbacks
+func (dec *streamDecoder) decode(pkt *ff.AVPacket, framefn DecoderFrameFn, subtitlefn DecoderSubtitleFn) error {
+	// Handle subtitle decoding separately (uses legacy API)
+	if dec.codec.CodecType() == ff.AVMEDIA_TYPE_SUBTITLE {
+		return dec.decodeSubtitle(pkt, subtitlefn)
+	}
+
 	// Set packet timebase
 	if pkt != nil {
 		pkt.SetTimeBase(dec.timeBase)
@@ -435,4 +444,34 @@ func (dec *streamDecoder) decode(pkt *ff.AVPacket, framefn DecoderFrameFn) error
 	}
 
 	return nil
+}
+
+// Decode a subtitle packet using the legacy subtitle API
+func (dec *streamDecoder) decodeSubtitle(pkt *ff.AVPacket, subtitlefn DecoderSubtitleFn) error {
+	// Subtitles don't support flushing (nil packet)
+	if pkt == nil {
+		return nil
+	}
+
+	// Skip if no callback provided
+	if subtitlefn == nil {
+		return nil
+	}
+
+	// Set packet timebase
+	pkt.SetTimeBase(dec.timeBase)
+
+	// Decode subtitle using legacy API
+	sub, err := ff.AVCodec_decode_subtitle(dec.codec, pkt)
+	if err != nil {
+		return err
+	}
+	if sub == nil {
+		// No subtitle in this packet
+		return nil
+	}
+	defer ff.AVSubtitle_free(sub)
+
+	// Call user callback with decoded subtitle
+	return subtitlefn(dec.stream, sub)
 }
