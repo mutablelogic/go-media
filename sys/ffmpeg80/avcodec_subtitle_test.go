@@ -85,7 +85,8 @@ func Test_subtitle_codec_iterate_001(t *testing.T) {
 	encoders := 0
 	decoders := 0
 
-	codec := ff.AVCodec_iterate(nil)
+	var opaque uintptr
+	codec := ff.AVCodec_iterate(&opaque)
 	for codec != nil {
 		if codec.Type() == ff.AVMEDIA_TYPE_SUBTITLE {
 			count++
@@ -103,7 +104,7 @@ func Test_subtitle_codec_iterate_001(t *testing.T) {
 				ff.AVCodec_is_decoder(codec),
 			)
 		}
-		codec = ff.AVCodec_iterate(codec)
+		codec = ff.AVCodec_iterate(&opaque)
 	}
 
 	if count == 0 {
@@ -228,16 +229,16 @@ func Test_subtitle_decode_api_001(t *testing.T) {
 	// This just ensures the binding compiles and links correctly
 
 	var ctx ff.AVCodecContext
-	var sub ff.AVSubtitle
-	var got_sub int
 	var pkt ff.AVPacket
 
 	// This will fail, but we're just testing the API exists
-	err := ff.AVCodec_decode_subtitle2(&ctx, &sub, &got_sub, &pkt)
-	if err == nil {
-		t.Log("Unexpected success - should fail with invalid context")
-	} else {
+	sub, err := ff.AVCodec_decode_subtitle(&ctx, &pkt)
+	if err == nil && sub == nil {
+		t.Log("No subtitle decoded (expected with invalid context)")
+	} else if err != nil {
 		t.Logf("Expected error: %v", err)
+	} else {
+		t.Logf("Decoded subtitle: %v", sub)
 	}
 }
 
@@ -246,14 +247,12 @@ func Test_subtitle_encode_api_001(t *testing.T) {
 	// We can't actually encode without a proper context and subtitle
 	// This just ensures the binding compiles and links correctly
 
-	var ctx ff.AVCodecContext
-	var sub ff.AVSubtitle
-	buf := make([]byte, 1024)
-
-	// This will fail/return error, but we're just testing the API exists
-	ret, err := ff.AVCodec_encode_subtitle(&ctx, buf, &sub)
-	if err != nil {
-		t.Logf("Expected error: %v", err)
+	// Just verify the function signature exists by calling it
+	// with nil context (will return error, not crash)
+	buf := make([]byte, 0) // Empty buffer should return EINVAL
+	ret, err := ff.AVCodec_encode_subtitle(nil, buf, nil)
+	if err == nil {
+		t.Error("Expected error with nil context, got success")
 	}
-	t.Logf("Encode returned: %d bytes (expected failure with invalid context)", ret)
+	t.Logf("Encode returned: %d bytes, error: %v (expected error with nil context)", ret, err)
 }

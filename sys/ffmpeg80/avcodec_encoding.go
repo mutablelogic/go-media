@@ -16,7 +16,7 @@ import (
 import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
-// ENCODING
+// AUDIO/VIDEO ENCODING
 
 // Supply a raw video or audio frame to the encoder.
 // Pass nil to flush the encoder and signal end of stream.

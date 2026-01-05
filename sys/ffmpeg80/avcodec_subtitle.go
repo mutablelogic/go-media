@@ -158,6 +158,10 @@ func (rect *AVSubtitleRect) Data(plane int) []byte {
 	}
 	// Return a slice view of the C memory (be careful with lifetime)
 	size := linesize * height
+	// Sanity check: prevent unreasonably large allocations (> 100MB)
+	if size < 0 || size > 100*1024*1024 {
+		return nil
+	}
 	return unsafe.Slice((*byte)(rect.data[plane]), size)
 }
 
@@ -219,15 +223,6 @@ func (sub *AVSubtitle) String() string {
 }
 
 func (sub *AVSubtitle) MarshalJSON() ([]byte, error) {
-	type jsonAVSubtitle struct {
-		Format           uint16             `json:"format"`
-		StartDisplayTime uint32             `json:"start_display_time_ms"`
-		EndDisplayTime   uint32             `json:"end_display_time_ms"`
-		NumRects         uint               `json:"num_rects"`
-		PTS              int64              `json:"pts"`
-		Rects            []jsonSubtitleRect `json:"rects,omitempty"`
-	}
-
 	type jsonSubtitleRect struct {
 		Type      AVSubtitleType `json:"type"`
 		X         int            `json:"x,omitempty"`
@@ -237,6 +232,15 @@ func (sub *AVSubtitle) MarshalJSON() ([]byte, error) {
 		NumColors int            `json:"num_colors,omitempty"`
 		Text      string         `json:"text,omitempty"`
 		ASS       string         `json:"ass,omitempty"`
+	}
+
+	type jsonAVSubtitle struct {
+		Format           uint16             `json:"format"`
+		StartDisplayTime uint32             `json:"start_display_time_ms"`
+		EndDisplayTime   uint32             `json:"end_display_time_ms"`
+		NumRects         uint               `json:"num_rects"`
+		PTS              int64              `json:"pts"`
+		Rects            []jsonSubtitleRect `json:"rects,omitempty"`
 	}
 
 	result := jsonAVSubtitle{

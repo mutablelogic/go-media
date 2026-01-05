@@ -16,7 +16,7 @@ import (
 import "C"
 
 ////////////////////////////////////////////////////////////////////////////////
-// DECODING
+// AUDIO/VIDEO DECODING
 
 // Return decoded output data from a decoder.
 // Returns syscall.EAGAIN if more input is needed to produce output.
@@ -59,11 +59,10 @@ func AVCodec_send_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 ////////////////////////////////////////////////////////////////////////////////
 // SUBTITLE DECODING
 
-// Decode a subtitle message. Return a negative value on error, otherwise
-// return the number of bytes used. If no subtitle could be decompressed,
-// got_sub_ptr is zero. Otherwise, the subtitle is stored in *sub.
-// Note: Subtitles use a legacy API and don't support the send/receive pattern.
-func AVCodec_decode_subtitle2(ctx *AVCodecContext, sub *AVSubtitle, got_sub_ptr *int, pkt *AVPacket) error {
+// Decode a subtitle message. Returns the decoded subtitle or nil if no subtitle
+// could be decompressed. Returns an error on failure.
+func AVCodec_decode_subtitle(ctx *AVCodecContext, pkt *AVPacket) (*AVSubtitle, error) {
+	sub := &AVSubtitle{}
 	var got_sub C.int
 	if err := AVError(C.avcodec_decode_subtitle2(
 		(*C.AVCodecContext)(ctx),
@@ -71,12 +70,12 @@ func AVCodec_decode_subtitle2(ctx *AVCodecContext, sub *AVSubtitle, got_sub_ptr 
 		&got_sub,
 		(*C.AVPacket)(pkt),
 	)); err != 0 {
-		return err
+		return nil, err
 	}
-	if got_sub_ptr != nil {
-		*got_sub_ptr = int(got_sub)
+	if got_sub == 0 {
+		return nil, nil
 	}
-	return nil
+	return sub, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
