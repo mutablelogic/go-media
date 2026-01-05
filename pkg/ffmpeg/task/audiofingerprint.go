@@ -9,49 +9,15 @@ import (
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
+	chromaprintschema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
 	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
 )
-
-////////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-type Manager struct {
-	chromaprint *chromaprint.Client
-}
-
-type Opt func(*Manager) error
-
-////////////////////////////////////////////////////////////////////////////////
-// LIFECYCLE
-
-func NewManager(opts ...Opt) (*Manager, error) {
-	m := &Manager{}
-	for _, opt := range opts {
-		if err := opt(m); err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
-}
-
-// WithChromaprintKey sets the AcoustID API key for lookups
-func WithChromaprintKey(key string) Opt {
-	return func(m *Manager) error {
-		client, err := chromaprint.NewClient(key)
-		if err != nil {
-			return err
-		}
-		m.chromaprint = client
-		return nil
-	}
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // AudioFingerprint generates an audio fingerprint and optionally performs AcoustID lookup
-func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerprintRequest) (*schema.AudioFingerprintResponse, error) {
+func (m *Manager) AudioFingerprint(ctx context.Context, req *chromaprintschema.AudioFingerprintRequest) (*chromaprintschema.AudioFingerprintResponse, error) {
 	// Ensure chromaprint client is available if lookup is requested
 	if req.Lookup && m.chromaprint == nil {
 		return nil, fmt.Errorf("lookup requested but no AcoustID API key configured")
@@ -83,7 +49,7 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 		flags := metadataFlags(req.Metadata)
 
 		// Perform match with lookup (using path or reader)
-		var matches []*chromaprint.ResponseMatch
+		var matches []*chromaprintschema.ResponseMatch
 
 		if inputPath != "" {
 			// Open file for matching
@@ -105,27 +71,15 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 				return nil, err
 			}
 
-			// Re-open for fingerprint
-			f2, err := os.Open(inputPath)
-			if err != nil {
-				return nil, err
-			}
-			defer f2.Close()
-
-			fpResult, err := chromaprint.Fingerprint(ctx, f2, dur, opts...)
-			if err != nil {
-				return nil, err
-			}
-
 			// Build response
-			resp := &schema.AudioFingerprintResponse{
+			resp := &chromaprintschema.AudioFingerprintResponse{
 				Fingerprint: fpResult.Fingerprint,
-				Duration:    fpResult.Duration.Seconds(),
+				Duration:    fpResult.Duration,
 			}
 
 			// Add matches directly
 			if len(matches) > 0 {
-				resp.Matches = [][]*chromaprint.ResponseMatch{matches}
+				resp.Matches = [][]*chromaprintschema.ResponseMatch{matches}
 			}
 
 			return resp, nil
@@ -150,9 +104,9 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 		return nil, err
 	}
 
-	return &schema.AudioFingerprintResponse{
+	return &chromaprintschema.AudioFingerprintResponse{
 		Fingerprint: result.Fingerprint,
-		Duration:    result.Duration.Seconds(),
+		Duration:    result.Duration,
 	}, nil
 }
 

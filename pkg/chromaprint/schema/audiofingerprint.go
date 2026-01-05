@@ -13,8 +13,8 @@ import (
 type AudioFingerprintRequest struct {
 	ffschema.Request
 	Duration float64  `json:"duration,omitempty"` // Full track duration in seconds (0 = auto-detect)
-	Lookup   bool     `json:"lookup,omitempty"`   // Perform AcoustID lookup
-	Metadata []string `json:"metadata,omitempty"` // Metadata to request: "recordings", "recordingids", "releases", "releaseids", "releasegroups", "releasegroupids", "tracks", "compress", "usermeta", "sources"
+	Lookup   bool     `json:"lookup,omitempty" help:"Perform AcoustID lookup"`
+	Metadata []string `json:"metadata,omitempty" help:"Metadata to request" enum:"recordings, recordingids, releases, releaseids, releasegroups, releasegroupids, tracks, compress, usermeta, sources"`
 }
 
 type AudioFingerprintResponse struct {

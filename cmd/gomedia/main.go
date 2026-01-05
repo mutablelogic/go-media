@@ -7,17 +7,18 @@ import (
 	"os/signal"
 
 	// Packages
-	"github.com/alecthomas/kong"
-	"github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
-	"github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+	kong "github.com/alecthomas/kong"
+	chromaprintschema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Globals struct {
-	// Debug option
-	Debug bool `name:"debug" help:"Enable debug logging"`
+	Debug          bool   `name:"debug" help:"Enable debug logging"`
+	ChromaprintKey string `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
 
 	// Private fields
 	ctx     context.Context
@@ -33,6 +34,7 @@ type CLI struct {
 	ListPixelFormats  ListPixelFormatsCommand  `cmd:"" help:"List pixel formats" group:"LIST"`
 	ListSampleFormats ListSampleFormatsCommand `cmd:"" help:"List sample formats" group:"LIST"`
 	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
+	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
 }
 
 type ListAudioChannelsCommand struct {
@@ -57,6 +59,10 @@ type ListSampleFormatsCommand struct {
 
 type ProbeCommand struct {
 	schema.ProbeRequest
+}
+
+type AudioLookupCommand struct {
+	chromaprintschema.AudioFingerprintRequest
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -140,6 +146,24 @@ func (cmd *ProbeCommand) Run(globals *Globals) error {
 	return nil
 }
 
+func (cmd *AudioLookupCommand) Run(globals *Globals) error {
+	// If the path is "-", use stdin
+	if cmd.Path == "-" {
+		cmd.Reader = os.Stdin
+		cmd.Path = ""
+	}
+
+	// Call manager method
+	response, err := globals.manager.AudioFingerprint(globals.ctx, &cmd.AudioFingerprintRequest)
+	if err != nil {
+		return err
+	}
+
+	// Print response
+	fmt.Println(response)
+	return nil
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -166,6 +190,9 @@ func main() {
 	opts = append(opts, task.WithTraceFn(func(msg string) {
 		fmt.Fprintln(os.Stderr, msg)
 	}, cli.Globals.Debug))
+	if cli.Globals.ChromaprintKey != "" {
+		opts = append(opts, task.WithChromaprintKey(cli.Globals.ChromaprintKey))
+	}
 
 	// Create manager
 	manager, err := task.NewManager(opts...)

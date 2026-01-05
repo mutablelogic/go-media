@@ -8,7 +8,7 @@ import (
 
 	// Packages
 	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
-	task "github.com/mutablelogic/go-media/pkg/chromaprint/task"
+	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 	assert "github.com/stretchr/testify/assert"
 )
 

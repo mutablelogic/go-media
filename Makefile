@@ -38,17 +38,12 @@ PREFIX ?= ${BUILD_DIR}/install
 # TARGETS
 
 .PHONY: all
-all: clean ffmpeg chromaprint cli
+all: clean cmd
 
-.PHONY: cmds
-cmds: $(CMD_DIR)
+.PHONY: cmd
+cmd: ffmpeg chromaprint $(CMD_DIR)
 
-.PHONY: cli
-cli: go-dep go-tidy mkdir
-	@echo Build media tool
-	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
-
-$(CMD_DIR): go-dep go-tidy mkdir
+$(CMD_DIR): go-dep go-tidy mkdir 
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
