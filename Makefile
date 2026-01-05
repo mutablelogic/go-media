@@ -228,4 +228,5 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists aom && echo "--enable-libaom"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libbluray && echo "--enable-libbluray"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists dav1d && echo "--enable-libdav1d"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vulkan && echo "--enable-vulkan"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
