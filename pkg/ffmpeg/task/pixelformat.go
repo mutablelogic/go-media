@@ -4,7 +4,7 @@ import (
 	"context"
 
 	// Packages
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 

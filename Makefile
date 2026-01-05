@@ -166,9 +166,7 @@ docker-push: docker-dep
 .PHONY: test
 test: test-sys test-chromaprint
 	@echo ... test pkg/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}/schema
-	@${CGO_ENV} ${GO} test ./pkg/${SYS_VERSION}/task
+	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
 
 .PHONY: test
 test-chromaprint:
@@ -178,7 +176,7 @@ test-chromaprint:
 
 
 .PHONY: test-sys
-test-sys: go-dep go-tidy 
+test-sys: go-dep go-tidy ffmpeg-build
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}

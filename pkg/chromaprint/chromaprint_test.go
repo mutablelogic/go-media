@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
-	"github.com/mutablelogic/go-media/pkg/segmenter"
-
-	"github.com/stretchr/testify/assert"
+	// Packages
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
+	assert "github.com/stretchr/testify/assert"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/pkg/chromaprint"

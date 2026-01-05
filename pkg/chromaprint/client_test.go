@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	// Packages
+	assert "github.com/stretchr/testify/assert"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/pkg/chromaprint"

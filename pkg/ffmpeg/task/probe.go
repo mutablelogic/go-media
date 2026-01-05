@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +16,17 @@ import (
 func (m *Manager) Probe(_ context.Context, req *schema.ProbeRequest) (*schema.ProbeResponse, error) {
 	// The context is unused in this implementation
 	// Open the file
-	reader, err := req.Open()
+	var reader *ffmpeg.Reader
+	var err error
+	if req.Reader != nil {
+		if req.Path != "" {
+			reader, err = ffmpeg.NewReader(req.Reader, ffmpeg.WithInput(req.Path))
+		} else {
+			reader, err = ffmpeg.NewReader(req.Reader)
+		}
+	} else {
+		reader, err = ffmpeg.Open(req.Path)
+	}
 	if err != nil {
 		return nil, err
 	}

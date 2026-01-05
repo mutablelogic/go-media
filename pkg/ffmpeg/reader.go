@@ -12,6 +12,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -184,22 +185,24 @@ func (r *Reader) AVStreams() []*ff.AVStream {
 
 // Return all streams of a specific type (video, audio, subtitle, data)
 // Use media.ANY to return all streams regardless of type
-func (r *Reader) Streams(t media.Type) []*Stream {
+func (r *Reader) Streams(t media.Type) []*schema.Stream {
 	streams := r.input.Streams()
-	result := make([]*Stream, 0, len(streams))
+	result := make([]*schema.Stream, 0, len(streams))
 
 	// If ANY is requested, return all streams
 	if t == media.ANY {
 		for _, stream := range streams {
-			result = append(result, newStream(stream))
+			if s := schema.NewStream(stream); s != nil {
+				result = append(result, s)
+			}
 		}
 		return result
 	}
 
 	// Otherwise filter by type using Stream.Type() which handles all the mapping
 	for _, stream := range streams {
-		s := newStream(stream)
-		if s.Type().Is(t) {
+		s := schema.NewStream(stream)
+		if s != nil && s.Type().Is(t) {
 			result = append(result, s)
 		}
 	}

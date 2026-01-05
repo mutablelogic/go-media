@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
-	"github.com/mutablelogic/go-media/pkg/ffmpeg80/task"
+	// Packages
+	"github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	"github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,19 +44,18 @@ func TestProbe_MP4(t *testing.T) {
 	// Check video stream
 	var hasVideo, hasAudio bool
 	for _, s := range resp.Streams {
-		t.Logf("  Stream %d: %s codec=%s", s.Index, s.Type, s.Codec)
-		if s.Type == "video" {
+		t.Logf("  Stream %d: type=%v", s.Index(), s.Type())
+		if s.Type().Is(media.VIDEO) {
 			hasVideo = true
-			assert.Greater(t, s.Width, 0)
-			assert.Greater(t, s.Height, 0)
-			assert.NotEmpty(t, s.PixelFormat)
-			t.Logf("    Video: %dx%d %s", s.Width, s.Height, s.PixelFormat)
+			codecPar := s.CodecPar()
+			assert.Greater(t, codecPar.Width(), 0)
+			assert.Greater(t, codecPar.Height(), 0)
 		}
-		if s.Type == "audio" {
+		if s.Type().Is(media.AUDIO) {
 			hasAudio = true
-			assert.Greater(t, s.SampleRate, 0)
-			assert.Greater(t, s.Channels, 0)
-			t.Logf("    Audio: %dHz %dch %s", s.SampleRate, s.Channels, s.ChannelLayout)
+			codecPar := s.CodecPar()
+			assert.Greater(t, codecPar.SampleRate(), 0)
+			assert.Greater(t, codecPar.ChannelLayout().NumChannels(), 0)
 		}
 	}
 	assert.True(t, hasVideo, "expected video stream")
@@ -83,10 +84,10 @@ func TestProbe_MP3(t *testing.T) {
 	// Check audio stream
 	require.NotEmpty(t, resp.Streams)
 	audioStream := resp.Streams[0]
-	assert.Equal(t, "audio", audioStream.Type)
-	assert.NotEmpty(t, audioStream.Codec)
-	assert.Greater(t, audioStream.SampleRate, 0)
-	t.Logf("Audio: %s %dHz %dch", audioStream.Codec, audioStream.SampleRate, audioStream.Channels)
+	assert.True(t, audioStream.Type().Is(media.AUDIO))
+	codecPar := audioStream.CodecPar()
+	assert.Greater(t, codecPar.SampleRate(), 0)
+	t.Logf("Audio: %dHz %dch", codecPar.SampleRate(), codecPar.ChannelLayout().NumChannels())
 }
 
 func TestProbe_WAV(t *testing.T) {
@@ -111,11 +112,10 @@ func TestProbe_WAV(t *testing.T) {
 	// Check audio stream
 	require.NotEmpty(t, resp.Streams)
 	audioStream := resp.Streams[0]
-	assert.Equal(t, "audio", audioStream.Type)
-	assert.NotEmpty(t, audioStream.Codec)
-	assert.Greater(t, audioStream.SampleRate, 0)
-	assert.NotEmpty(t, audioStream.SampleFormat)
-	t.Logf("Audio: %s %dHz %s", audioStream.Codec, audioStream.SampleRate, audioStream.SampleFormat)
+	assert.True(t, audioStream.Type().Is(media.AUDIO))
+	codecPar := audioStream.CodecPar()
+	assert.Greater(t, codecPar.SampleRate(), 0)
+	t.Logf("Audio: %dHz", codecPar.SampleRate())
 }
 
 func TestProbe_JPEG(t *testing.T) {
@@ -139,10 +139,11 @@ func TestProbe_JPEG(t *testing.T) {
 	// Check video stream (images appear as video)
 	require.NotEmpty(t, resp.Streams)
 	videoStream := resp.Streams[0]
-	assert.Equal(t, "video", videoStream.Type)
-	assert.Greater(t, videoStream.Width, 0)
-	assert.Greater(t, videoStream.Height, 0)
-	t.Logf("Image: %dx%d %s", videoStream.Width, videoStream.Height, videoStream.PixelFormat)
+	assert.True(t, videoStream.Type().Is(media.VIDEO))
+	codecPar := videoStream.CodecPar()
+	assert.Greater(t, codecPar.Width(), 0)
+	assert.Greater(t, codecPar.Height(), 0)
+	t.Logf("Image: %dx%d", codecPar.Width(), codecPar.Height())
 }
 
 func TestProbe_PNG(t *testing.T) {
@@ -166,10 +167,11 @@ func TestProbe_PNG(t *testing.T) {
 	// Check video stream (images appear as video)
 	require.NotEmpty(t, resp.Streams)
 	videoStream := resp.Streams[0]
-	assert.Equal(t, "video", videoStream.Type)
-	assert.Greater(t, videoStream.Width, 0)
-	assert.Greater(t, videoStream.Height, 0)
-	t.Logf("Image: %dx%d %s", videoStream.Width, videoStream.Height, videoStream.PixelFormat)
+	assert.True(t, videoStream.Type().Is(media.VIDEO))
+	codecPar := videoStream.CodecPar()
+	assert.Greater(t, codecPar.Width(), 0)
+	assert.Greater(t, codecPar.Height(), 0)
+	t.Logf("Image: %dx%d", codecPar.Width(), codecPar.Height())
 }
 
 func TestProbe_AllFiles(t *testing.T) {

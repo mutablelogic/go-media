@@ -8,7 +8,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	assert "github.com/stretchr/testify/assert"
 )

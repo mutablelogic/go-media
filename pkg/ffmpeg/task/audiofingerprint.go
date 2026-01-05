@@ -9,7 +9,7 @@ import (
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
 )
 
@@ -80,9 +80,9 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 
 			// Convert matches
 			if len(matches) > 0 {
-				resp.Matches = make([]chromaprint.ResponseMatch, len(matches))
+				resp.Matches = make([]schema.AudioFingerprintMatch, len(matches))
 				for i, m := range matches {
-					resp.Matches[i] = *m
+					resp.Matches[i] = convertMatch(m)
 				}
 			}
 
@@ -150,4 +150,81 @@ func metadataFlags(metadata []string) chromaprint.Meta {
 	}
 
 	return flags
+}
+
+// convertMatch converts chromaprint.ResponseMatch to schema.AudioFingerprintMatch
+func convertMatch(m *chromaprint.ResponseMatch) schema.AudioFingerprintMatch {
+	match := schema.AudioFingerprintMatch{
+		Id:    m.Id,
+		Score: m.Score,
+	}
+
+	if len(m.Recordings) > 0 {
+		match.Recordings = make([]schema.AudioFingerprintRecording, len(m.Recordings))
+		for i, r := range m.Recordings {
+			rec := schema.AudioFingerprintRecording{
+				Id:       r.Id,
+				Title:    r.Title,
+				Duration: r.Duration,
+			}
+
+			if len(r.Artists) > 0 {
+				rec.Artists = make([]schema.AudioFingerprintArtist, len(r.Artists))
+				for j, a := range r.Artists {
+					rec.Artists[j] = schema.AudioFingerprintArtist{
+						Id:   a.Id,
+						Name: a.Name,
+					}
+				}
+			}
+
+			if len(r.ReleaseGroups) > 0 {
+				rec.ReleaseGroups = make([]schema.AudioFingerprintGroup, len(r.ReleaseGroups))
+				for j, g := range r.ReleaseGroups {
+					group := schema.AudioFingerprintGroup{
+						Id:    g.Id,
+						Type:  g.Type,
+						Title: g.Title,
+					}
+
+					if len(g.Releases) > 0 {
+						group.Releases = make([]schema.AudioFingerprintRelease, len(g.Releases))
+						for k, rel := range g.Releases {
+							release := schema.AudioFingerprintRelease{
+								Id: rel.Id,
+							}
+
+							if len(rel.Mediums) > 0 {
+								release.Mediums = make([]schema.AudioFingerprintMedium, len(rel.Mediums))
+								for l, med := range rel.Mediums {
+									medium := schema.AudioFingerprintMedium{
+										Position: med.Position,
+									}
+
+									if len(med.Tracks) > 0 {
+										medium.Tracks = make([]schema.AudioFingerprintTrack, len(med.Tracks))
+										for n, t := range med.Tracks {
+											medium.Tracks[n] = schema.AudioFingerprintTrack{
+												Position: t.Position,
+											}
+										}
+									}
+
+									release.Mediums[l] = medium
+								}
+							}
+
+							group.Releases[k] = release
+						}
+					}
+
+					rec.ReleaseGroups[j] = group
+				}
+			}
+
+			match.Recordings[i] = rec
+		}
+	}
+
+	return match
 }

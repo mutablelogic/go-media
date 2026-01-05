@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg80/schema"
-	task "github.com/mutablelogic/go-media/pkg/ffmpeg80/task"
+	// Packages
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_AudioFingerprint_MP3(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	// Packages
-	"github.com/mutablelogic/go-media/pkg/ffmpeg80/task"
+	"github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

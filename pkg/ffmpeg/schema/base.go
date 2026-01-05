@@ -2,9 +2,6 @@ package schema
 
 import (
 	"io"
-
-	// Packages
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,19 +23,4 @@ type Writer interface {
 	io.Writer
 	Progress(current, total int64) // Report progress (units depends on task)
 	Log(message string)            // Receive log messages
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-func (r *Request) Open(opt ...ffmpeg.Opt) (*ffmpeg.Reader, error) {
-	// Open by reader if set
-	if r.Reader != nil {
-		if r.Path != "" {
-			opt = append(opt, ffmpeg.WithInput(r.Path))
-		}
-		return ffmpeg.NewReader(r.Reader, opt...)
-	}
-	// Open by path otherwise
-	return ffmpeg.Open(r.Path, opt...)
 }

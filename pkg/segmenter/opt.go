@@ -5,7 +5,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 )
 
 // WithFFmpegOpt wraps an ffmpeg.Opt as a segmenter.Opt for use with segmenter.NewFromReader
@@ -23,10 +23,10 @@ func WithFFmpegOpt(opt ffmpeg.Opt) Opt {
 type Opt func(*opts) error
 
 type opts struct {
-	SegmentSize      time.Duration  // Segment size, zero means no fixed segmenting
-	SilenceSize      time.Duration  // Size of silence to consider a segment boundary
-	SilenceThreshold float64        // Silence threshold (RMS energy 0.0-1.0)
-	ffmpegOpts       []ffmpeg.Opt // FFmpeg reader options
+	SegmentSize      time.Duration // Segment size, zero means no fixed segmenting
+	SilenceSize      time.Duration // Size of silence to consider a segment boundary
+	SilenceThreshold float64       // Silence threshold (RMS energy 0.0-1.0)
+	ffmpegOpts       []ffmpeg.Opt  // FFmpeg reader options
 }
 
 ///////////////////////////////////////////////////////////////////////////////

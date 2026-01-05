@@ -4,7 +4,7 @@ import (
 	// Packages
 	client "github.com/mutablelogic/go-client"
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg80"
+	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
