@@ -8,8 +8,8 @@ import (
 // TYPES
 
 type Request struct {
-	Path   string    `json:"path"` // Path to media file
-	Reader io.Reader `json:"-"`    // Reader for media data
+	Path   string    `json:"path" arg:""` // Path to media file
+	Reader io.Reader `json:"-" kong:"-"`  // Reader for media data
 }
 
 type Output struct {

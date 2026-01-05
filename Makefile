@@ -30,7 +30,7 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # Paths to locations, etc
 BUILD_DIR := "build"
-CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
+CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 PREFIX ?= ${BUILD_DIR}/install
 
@@ -167,6 +167,8 @@ docker-push: docker-dep
 test: test-sys test-chromaprint
 	@echo ... test pkg/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+	@echo ... test pkg/file
+	@${GO} test ./pkg/file
 
 .PHONY: test
 test-chromaprint:
@@ -180,31 +182,6 @@ test-sys: go-dep go-tidy ffmpeg-build
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
-
-
-#	@echo ... test pkg/segmenter
-#	@${CGO_ENV} ${GO} test ./pkg/segmenter
-# 	@echo ... test pkg/chromaprint
-# 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
-# 	@echo ... test pkg/avcodec
-# 	${CGO_ENV} ${GO} test ./pkg/avcodec
-#	@echo ... test pkg/file
-#	@${GO} test ./pkg/file
-#	@echo ... test pkg/generator
-#	@${GO} test ./pkg/generator
-#	@echo ... test pkg/image
-#	@${GO} test ./pkg/image
-#	@echo ... test pkg
-#	@${GO} test ./pkg/...
-
-container-test: go-dep go-tidy ffmpeg chromaprint
-	@echo Test
-	@echo ... test sys/ffmpeg71
-	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
-	@echo ... test pkg/segmenter
-	@${CGO_ENV} ${GO} test ./pkg/segmenter
-	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
 ###############################################################################
 # DEPENDENCIES, ETC

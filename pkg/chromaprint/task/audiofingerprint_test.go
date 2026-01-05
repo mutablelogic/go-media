@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	// Packages
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
-	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
+	task "github.com/mutablelogic/go-media/pkg/chromaprint/task"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -25,12 +25,9 @@ func Test_AudioFingerprint_MP3(t *testing.T) {
 		return
 	}
 
-	req := &schema.AudioFingerprintRequest{
-		Request: schema.Request{
-			Path: testFile,
-		},
-		Lookup: false,
-	}
+	req := &schema.AudioFingerprintRequest{}
+	req.Path = testFile
+	req.Lookup = false
 
 	resp, err := manager.AudioFingerprint(context.Background(), req)
 	if !assert.NoError(err) {
@@ -65,14 +62,11 @@ func Test_AudioFingerprint_RawPCM(t *testing.T) {
 	}
 	defer f.Close()
 
-	req := &schema.AudioFingerprintRequest{
-		Request: schema.Request{
-			Reader: f,
-			Path:   "s16le", // Format specification
-		},
-		Duration: 335.0, // 5m35s
-		Lookup:   false,
-	}
+	req := &schema.AudioFingerprintRequest{}
+	req.Reader = f
+	req.Path = "s16le"   // Format specification
+	req.Duration = 335.0 // 5m35s
+	req.Lookup = false
 
 	// Need to add format options via ffmpeg opts
 	// This test shows we need to enhance the schema to support format options
@@ -117,14 +111,11 @@ func Test_AudioFingerprint_WithLookup(t *testing.T) {
 	// For raw PCM files like this, we need to specify:
 	// Format: "s16le"
 	// Options: ["sample_rate=22050", "channels=1", "channel_layout=mono", "sample_fmt=s16"]
-	req := &schema.AudioFingerprintRequest{
-		Request: schema.Request{
-			Path: testFile,
-		},
-		Duration: 335.0,
-		Lookup:   true,
-		Metadata: []string{"recordings", "tracks"},
-	}
+	req := &schema.AudioFingerprintRequest{}
+	req.Path = testFile
+	req.Duration = 335.0
+	req.Lookup = true
+	req.Metadata = []string{"recordings", "tracks"}
 
 	resp, err := manager.AudioFingerprint(context.Background(), req)
 
@@ -137,9 +128,9 @@ func Test_AudioFingerprint_WithLookup(t *testing.T) {
 	assert.NotEmpty(resp.Fingerprint)
 	assert.True(resp.Duration > 0)
 
-	if len(resp.Matches) > 0 {
-		t.Logf("Found %d matches", len(resp.Matches))
-		t.Logf("Best match: ID=%s, Score=%.2f", resp.Matches[0].Id, resp.Matches[0].Score)
+	if len(resp.Matches) > 0 && len(resp.Matches[0]) > 0 {
+		t.Logf("Found %d matches in first result set", len(resp.Matches[0]))
+		t.Logf("Best match: ID=%s, Score=%.2f", resp.Matches[0][0].Id, resp.Matches[0][0].Score)
 	} else {
 		t.Log("No matches found")
 	}
@@ -165,13 +156,10 @@ func Test_AudioFingerprint_WithAPIKey(t *testing.T) {
 		return
 	}
 
-	req := &schema.AudioFingerprintRequest{
-		Request: schema.Request{
-			Path: testFile,
-		},
-		Lookup:   true,
-		Metadata: []string{"recordings"},
-	}
+	req := &schema.AudioFingerprintRequest{}
+	req.Path = testFile
+	req.Lookup = true
+	req.Metadata = []string{"recordings"}
 
 	resp, err := manager.AudioFingerprint(context.Background(), req)
 	if !assert.NoError(err) {
@@ -183,9 +171,9 @@ func Test_AudioFingerprint_WithAPIKey(t *testing.T) {
 	assert.True(resp.Duration > 0)
 
 	t.Logf("Fingerprint: %s... (duration: %.2fs)", resp.Fingerprint[:50], resp.Duration)
-	if len(resp.Matches) > 0 {
-		t.Logf("Found %d matches", len(resp.Matches))
-		t.Logf("Best match: ID=%s, Score=%.2f", resp.Matches[0].Id, resp.Matches[0].Score)
+	if len(resp.Matches) > 0 && len(resp.Matches[0]) > 0 {
+		t.Logf("Found %d matches", len(resp.Matches[0]))
+		t.Logf("Best match: ID=%s, Score=%.2f", resp.Matches[0][0].Id, resp.Matches[0][0].Score)
 	} else {
 		t.Log("No matches found (expected for test file)")
 	}

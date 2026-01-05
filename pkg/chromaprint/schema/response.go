@@ -1,4 +1,4 @@
-package chromaprint
+package schema
 
 import (
 	"encoding/json"

@@ -11,6 +11,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-client"
 	"github.com/mutablelogic/go-media"
+	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
 	"github.com/mutablelogic/go-media/pkg/segmenter"
 	"github.com/mutablelogic/go-media/sys/chromaprint"
 
@@ -79,7 +80,7 @@ func NewClient(ApiKey string, opts ...client.ClientOpt) (*Client, error) {
 
 // Lookup a fingerprint with a duration and the metadata that needs to be
 // returned
-func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) ([]*ResponseMatch, error) {
+func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) ([]*schema.ResponseMatch, error) {
 	// Check incoming parameters
 	if fingerprint == "" || duration == 0 || flags == META_NONE {
 		return nil, ErrBadParameter.With("Lookup")
@@ -93,7 +94,7 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 	params.Set("meta", flags.String())
 
 	// Request -> Response
-	var response Response
+	var response schema.Response
 	if err := c.Do(nil, &response, client.OptPath("lookup"), client.OptQuery(params)); err != nil {
 		return nil, err
 	}
@@ -112,17 +113,11 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 ////////////////////////////////////////////////////////////////////////////////
 // FINGERPRINT
 
-// FingerprintResult contains the fingerprint and duration of the audio
-type FingerprintResult struct {
-	Fingerprint string
-	Duration    time.Duration
-}
-
 // Fingerprint generates an audio fingerprint from the reader. The "dur" parameter
 // specifies the full track duration. Only the first 120 seconds (or less) will be
-// fingerprinted, but the returned FingerprintResult.Duration will reflect the full
-// track duration. If dur is zero, the duration will be auto-detected from the file.
-func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...segmenter.Opt) (*FingerprintResult, error) {
+// fingerprinted, but the returned Duration will reflect the full track duration.
+// If dur is zero, the duration will be auto-detected from the file.
+func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...segmenter.Opt) (*schema.AudioFingerprintResponse, error) {
 	// Limit fingerprinting to maximum needed for reliable matching
 	fingerprintDur := dur
 	if fingerprintDur <= 0 || fingerprintDur > maxFingerprintDuration {
@@ -195,23 +190,8 @@ func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...se
 		}
 	}
 
-	return &FingerprintResult{
+	return &schema.AudioFingerprintResponse{
 		Fingerprint: value,
-		Duration:    finalDuration,
+		Duration:    finalDuration.Seconds(),
 	}, nil
-}
-
-// Match generates a fingerprint from the reader and looks up any matches.
-// The "dur" parameter specifies the full track duration. Only the first 120 seconds
-// (or less) will be fingerprinted for matching, but "dur" will be reported to AcoustID.
-// If dur is zero, the duration will be auto-detected from the file.
-func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flags Meta, opts ...segmenter.Opt) ([]*ResponseMatch, error) {
-	// Generate fingerprint
-	result, err := Fingerprint(ctx, r, dur, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Lookup fingerprint
-	return c.Lookup(result.Fingerprint, result.Duration, flags)
 }

@@ -45,10 +45,10 @@ func (m *Manager) Probe(_ context.Context, req *schema.ProbeRequest) (*schema.Pr
 
 	// Get streams
 	avStreams := reader.AVStreams()
-	streams := make([]schema.Stream, 0, len(avStreams))
+	streams := make([]*schema.Stream, 0, len(avStreams))
 	for _, avStream := range avStreams {
 		if s := schema.NewStream(avStream); s != nil {
-			streams = append(streams, *s)
+			streams = append(streams, s)
 		}
 	}
 

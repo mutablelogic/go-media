@@ -9,15 +9,53 @@ import (
 
 	// Packages
 	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
 	segmenter "github.com/mutablelogic/go-media/pkg/segmenter"
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type Manager struct {
+	chromaprint *chromaprint.Client
+}
+
+type Opt func(*Manager) error
+
+////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func NewManager(opts ...Opt) (*Manager, error) {
+	m := &Manager{}
+	for _, opt := range opts {
+		if err := opt(m); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// WithChromaprintKey sets the AcoustID API key for lookups
+func WithChromaprintKey(key string) Opt {
+	return func(m *Manager) error {
+		client, err := chromaprint.NewClient(key)
+		if err != nil {
+			return err
+		}
+		m.chromaprint = client
+		return nil
+	}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // AudioFingerprint generates an audio fingerprint and optionally performs AcoustID lookup
 func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerprintRequest) (*schema.AudioFingerprintResponse, error) {
+	// Ensure chromaprint client is available if lookup is requested
+	if req.Lookup && m.chromaprint == nil {
+		return nil, fmt.Errorf("lookup requested but no AcoustID API key configured")
+	}
 	// Build segmenter options from Request if needed
 	var opts []segmenter.Opt
 
@@ -55,7 +93,14 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 			}
 			defer f.Close()
 
-			matches, err = m.chromaprint.Match(ctx, f, dur, flags, opts...)
+			// Generate fingerprint
+			fpResult, err := chromaprint.Fingerprint(ctx, f, dur, opts...)
+			if err != nil {
+				return nil, err
+			}
+
+			// Lookup matches
+			matches, err = m.chromaprint.Lookup(fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), flags)
 			if err != nil {
 				return nil, err
 			}
@@ -78,12 +123,9 @@ func (m *Manager) AudioFingerprint(ctx context.Context, req *schema.AudioFingerp
 				Duration:    fpResult.Duration.Seconds(),
 			}
 
-			// Convert matches
+			// Add matches directly
 			if len(matches) > 0 {
-				resp.Matches = make([]schema.AudioFingerprintMatch, len(matches))
-				for i, m := range matches {
-					resp.Matches[i] = convertMatch(m)
-				}
+				resp.Matches = [][]*chromaprint.ResponseMatch{matches}
 			}
 
 			return resp, nil
@@ -150,81 +192,4 @@ func metadataFlags(metadata []string) chromaprint.Meta {
 	}
 
 	return flags
-}
-
-// convertMatch converts chromaprint.ResponseMatch to schema.AudioFingerprintMatch
-func convertMatch(m *chromaprint.ResponseMatch) schema.AudioFingerprintMatch {
-	match := schema.AudioFingerprintMatch{
-		Id:    m.Id,
-		Score: m.Score,
-	}
-
-	if len(m.Recordings) > 0 {
-		match.Recordings = make([]schema.AudioFingerprintRecording, len(m.Recordings))
-		for i, r := range m.Recordings {
-			rec := schema.AudioFingerprintRecording{
-				Id:       r.Id,
-				Title:    r.Title,
-				Duration: r.Duration,
-			}
-
-			if len(r.Artists) > 0 {
-				rec.Artists = make([]schema.AudioFingerprintArtist, len(r.Artists))
-				for j, a := range r.Artists {
-					rec.Artists[j] = schema.AudioFingerprintArtist{
-						Id:   a.Id,
-						Name: a.Name,
-					}
-				}
-			}
-
-			if len(r.ReleaseGroups) > 0 {
-				rec.ReleaseGroups = make([]schema.AudioFingerprintGroup, len(r.ReleaseGroups))
-				for j, g := range r.ReleaseGroups {
-					group := schema.AudioFingerprintGroup{
-						Id:    g.Id,
-						Type:  g.Type,
-						Title: g.Title,
-					}
-
-					if len(g.Releases) > 0 {
-						group.Releases = make([]schema.AudioFingerprintRelease, len(g.Releases))
-						for k, rel := range g.Releases {
-							release := schema.AudioFingerprintRelease{
-								Id: rel.Id,
-							}
-
-							if len(rel.Mediums) > 0 {
-								release.Mediums = make([]schema.AudioFingerprintMedium, len(rel.Mediums))
-								for l, med := range rel.Mediums {
-									medium := schema.AudioFingerprintMedium{
-										Position: med.Position,
-									}
-
-									if len(med.Tracks) > 0 {
-										medium.Tracks = make([]schema.AudioFingerprintTrack, len(med.Tracks))
-										for n, t := range med.Tracks {
-											medium.Tracks[n] = schema.AudioFingerprintTrack{
-												Position: t.Position,
-											}
-										}
-									}
-
-									release.Mediums[l] = medium
-								}
-							}
-
-							group.Releases[k] = release
-						}
-					}
-
-					rec.ReleaseGroups[j] = group
-				}
-			}
-
-			match.Recordings[i] = rec
-		}
-	}
-
-	return match
 }

@@ -15,7 +15,9 @@ import (
 
 // Stream represents an AVStream from a media file
 type Stream struct {
-	ctx *ff.AVStream
+	ctx       *ff.AVStream
+	codecPar  *ff.AVCodecParameters
+	streamIdx int
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +25,14 @@ type Stream struct {
 
 // Create a new stream
 func newStream(ctx *ff.AVStream) *Stream {
-	return &Stream{ctx}
+	if ctx == nil {
+		return nil
+	}
+	return &Stream{
+		ctx:       ctx,
+		codecPar:  ctx.CodecPar(),
+		streamIdx: ctx.Index(),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +166,7 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 
 // Return the stream index
 func (s *Stream) Index() int {
-	return int(s.ctx.Index())
+	return s.streamIdx
 }
 
 // Return the stream type
@@ -165,11 +174,10 @@ func (s *Stream) Type() media.Type {
 	if s.ctx.Disposition()&ff.AV_DISPOSITION_ATTACHED_PIC != 0 {
 		return media.DATA
 	}
-	codecPar := s.ctx.CodecPar()
-	if codecPar == nil {
+	if s.codecPar == nil {
 		return media.UNKNOWN
 	}
-	switch codecPar.CodecType() {
+	switch s.codecPar.CodecType() {
 	case ff.AVMEDIA_TYPE_VIDEO:
 		return media.VIDEO
 	case ff.AVMEDIA_TYPE_AUDIO:
@@ -185,7 +193,7 @@ func (s *Stream) Type() media.Type {
 
 // Return the codec parameters
 func (s *Stream) CodecPar() *ff.AVCodecParameters {
-	return s.ctx.CodecPar()
+	return s.codecPar
 }
 
 // NewStream creates a Stream from an AVStream

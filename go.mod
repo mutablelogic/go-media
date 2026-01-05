@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
+	github.com/alecthomas/kong v1.13.0
 	github.com/djthorpe/go-errors v1.0.3
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/llgcode/draw2d v0.0.0-20240627062922-0ed1ff131195

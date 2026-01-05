@@ -16,6 +16,7 @@ import (
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-media/pkg/chromaprint"
+	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
 )
 
 const (
@@ -425,11 +426,11 @@ func Test_Lookup_FromRawPCM(t *testing.T) {
 		t.Skip("No API key set")
 	}
 
-	matches, err := client.Match(
+	// Generate fingerprint
+	fpResult, err := Fingerprint(
 		context.Background(),
 		f,
 		5*time.Minute+35*time.Second, // Full track duration
-		META_ALL,
 		segmenter.WithFFmpegOpt(ffmpeg.WithInput("s16le",
 			"sample_rate=22050",
 			"channels=1",
@@ -437,6 +438,12 @@ func Test_Lookup_FromRawPCM(t *testing.T) {
 			"sample_fmt=s16",
 		)),
 	)
+	if !assert.NoError(err) {
+		return
+	}
+
+	// Lookup matches
+	matches, err := client.Lookup(fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), META_ALL)
 	if !assert.NoError(err) || !assert.NotNil(matches) || len(matches) == 0 {
 		t.Logf("Match failed: %v", err)
 		return
@@ -474,10 +481,10 @@ func Test_FingerprintResult_Fields(t *testing.T) {
 // RESPONSE TESTS
 
 func Test_ResponseMatch_String(t *testing.T) {
-	match := &ResponseMatch{
+	match := &schema.ResponseMatch{
 		Id:    "test-id",
 		Score: 0.95,
-		Recordings: []ResponseRecording{
+		Recordings: []schema.ResponseRecording{
 			{
 				Id:       "recording-id",
 				Title:    "Test Song",
