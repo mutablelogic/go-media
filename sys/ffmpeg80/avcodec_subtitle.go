@@ -34,45 +34,11 @@ const (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// SUBTITLE DECODING
-
-// Decode a subtitle message. Return a negative value on error, otherwise
-// return the number of bytes used. If no subtitle could be decompressed,
-// got_sub_ptr is zero. Otherwise, the subtitle is stored in *sub.
-func AVCodec_decode_subtitle2(avctx *AVCodecContext, sub *AVSubtitle, got_sub_ptr *int, avpkt *AVPacket) AVError {
-	var got_sub C.int
-	ret := AVError(C.avcodec_decode_subtitle2(
-		(*C.struct_AVCodecContext)(avctx),
-		(*C.struct_AVSubtitle)(sub),
-		&got_sub,
-		(*C.struct_AVPacket)(avpkt),
-	))
-	if got_sub_ptr != nil {
-		*got_sub_ptr = int(got_sub)
-	}
-	return ret
-}
+// SUBTITLE MEMORY MANAGEMENT
 
 // Free all allocated data in the given subtitle struct.
 func AVSubtitle_free(sub *AVSubtitle) {
 	C.avsubtitle_free((*C.struct_AVSubtitle)(sub))
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// SUBTITLE ENCODING
-
-// Encode subtitles to a buffer. Returns the number of bytes written to buf
-// on success, or a negative error code on failure.
-func AVCodec_encode_subtitle(avctx *AVCodecContext, buf []byte, sub *AVSubtitle) int {
-	if len(buf) == 0 {
-		return 0
-	}
-	return int(C.avcodec_encode_subtitle(
-		(*C.struct_AVCodecContext)(avctx),
-		(*C.uint8_t)(unsafe.Pointer(&buf[0])),
-		C.int(len(buf)),
-		(*C.struct_AVSubtitle)(sub),
-	))
 }
 
 ////////////////////////////////////////////////////////////////////////////////

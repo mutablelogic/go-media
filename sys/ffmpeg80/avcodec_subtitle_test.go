@@ -250,7 +250,10 @@ func Test_subtitle_encode_api_001(t *testing.T) {
 	var sub ff.AVSubtitle
 	buf := make([]byte, 1024)
 
-	// This will fail/return 0, but we're just testing the API exists
-	ret := ff.AVCodec_encode_subtitle(&ctx, buf, &sub)
-	t.Logf("Encode returned: %d (expected failure/0 with invalid context)", ret)
+	// This will fail/return error, but we're just testing the API exists
+	ret, err := ff.AVCodec_encode_subtitle(&ctx, buf, &sub)
+	if err != nil {
+		t.Logf("Expected error: %v", err)
+	}
+	t.Logf("Encode returned: %d bytes (expected failure with invalid context)", ret)
 }
