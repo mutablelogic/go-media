@@ -57,6 +57,29 @@ func AVCodec_send_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// SUBTITLE DECODING
+
+// Decode a subtitle message. Return a negative value on error, otherwise
+// return the number of bytes used. If no subtitle could be decompressed,
+// got_sub_ptr is zero. Otherwise, the subtitle is stored in *sub.
+// Note: Subtitles use a legacy API and don't support the send/receive pattern.
+func AVCodec_decode_subtitle2(ctx *AVCodecContext, sub *AVSubtitle, got_sub_ptr *int, pkt *AVPacket) error {
+	var got_sub C.int
+	if err := AVError(C.avcodec_decode_subtitle2(
+		(*C.AVCodecContext)(ctx),
+		(*C.AVSubtitle)(sub),
+		&got_sub,
+		(*C.AVPacket)(pkt),
+	)); err != 0 {
+		return err
+	}
+	if got_sub_ptr != nil {
+		*got_sub_ptr = int(got_sub)
+	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // FLUSH
 
 // Reset the internal codec state and flush internal buffers.

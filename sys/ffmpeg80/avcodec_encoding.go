@@ -55,3 +55,25 @@ func AVCodec_receive_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 	}
 	return nil
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// SUBTITLE ENCODING
+
+// Encode subtitles to a buffer. Returns the number of bytes written to buf
+// on success, or a negative error code on failure.
+// Note: Subtitles use a legacy API and don't support the send/receive pattern.
+func AVCodec_encode_subtitle(ctx *AVCodecContext, buf []byte, sub *AVSubtitle) (int, error) {
+	if len(buf) == 0 {
+		return 0, syscall.EINVAL
+	}
+	ret := int(C.avcodec_encode_subtitle(
+		(*C.AVCodecContext)(ctx),
+		(*C.uint8_t)(&buf[0]),
+		C.int(len(buf)),
+		(*C.AVSubtitle)(sub),
+	))
+	if ret < 0 {
+		return 0, AVError(ret)
+	}
+	return ret, nil
+}
