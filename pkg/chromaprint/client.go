@@ -11,6 +11,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-client"
 	"github.com/mutablelogic/go-media"
+	schema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
 	"github.com/mutablelogic/go-media/pkg/segmenter"
 	"github.com/mutablelogic/go-media/sys/chromaprint"
 
@@ -41,20 +42,27 @@ const (
 
 	// sample rate used for fingerprinting
 	sampleRate = 32000
+
+	// maxFingerprintDuration is the maximum duration to fingerprint
+	// Chromaprint only needs ~120 seconds for a reliable fingerprint
+	maxFingerprintDuration = 120 * time.Second
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new client
+// Create a new client with rate limiting (3 requests per second by default)
 func NewClient(ApiKey string, opts ...client.ClientOpt) (*Client, error) {
 	// Check for missing API key
 	if ApiKey == "" {
 		ApiKey = defaultApiKey
 	}
 
-	// Create client
-	opts = append(opts, client.OptEndpoint(endPoint))
+	// Create client with rate limiting and endpoint
+	opts = append(opts,
+		client.OptEndpoint(endPoint),
+		client.OptRateLimit(defaultQps),
+	)
 	client, err := client.New(opts...)
 	if err != nil {
 		return nil, err
@@ -72,7 +80,7 @@ func NewClient(ApiKey string, opts ...client.ClientOpt) (*Client, error) {
 
 // Lookup a fingerprint with a duration and the metadata that needs to be
 // returned
-func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) ([]*ResponseMatch, error) {
+func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) ([]*schema.ResponseMatch, error) {
 	// Check incoming parameters
 	if fingerprint == "" || duration == 0 || flags == META_NONE {
 		return nil, ErrBadParameter.With("Lookup")
@@ -86,26 +94,43 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 	params.Set("meta", flags.String())
 
 	// Request -> Response
-	var response Response
+	var response schema.Response
 	if err := c.Do(nil, &response, client.OptPath("lookup"), client.OptQuery(params)); err != nil {
 		return nil, err
-	} else {
-		return response.Results, nil
 	}
+
+	// Check for API error
+	if response.Status != "ok" {
+		if response.Error.Message != "" {
+			return nil, ErrBadParameter.Withf("acoustid: %s", response.Error.Message)
+		}
+		return nil, ErrBadParameter.With("acoustid: unknown error")
+	}
+
+	return response.Results, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // FINGERPRINT
 
-// Match a media file and lookup any matches, using up to "dur" seconds
-// to fingerprint (or zero for no limit). The fingerprint is calculated
-func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flags Meta) ([]*ResponseMatch, error) {
-	// Create a segmenter
-	segmenter, err := segmenter.NewReader(r, dur, sampleRate)
+// Fingerprint generates an audio fingerprint from the reader. The "dur" parameter
+// specifies the full track duration. Only the first 120 seconds (or less) will be
+// fingerprinted, but the returned Duration will reflect the full track duration.
+// If dur is zero, the duration will be auto-detected from the file.
+func Fingerprint(ctx context.Context, r io.Reader, dur time.Duration, opts ...segmenter.Opt) (*schema.AudioFingerprintResponse, error) {
+	// Limit fingerprinting to maximum needed for reliable matching
+	fingerprintDur := dur
+	if fingerprintDur <= 0 || fingerprintDur > maxFingerprintDuration {
+		fingerprintDur = maxFingerprintDuration
+	}
+
+	// Always set segment size, allow user to add more options
+	segmenterOpts := append([]segmenter.Opt{segmenter.WithSegmentSize(time.Second)}, opts...)
+	seg, err := segmenter.NewFromReader(r, sampleRate, segmenterOpts...)
 	if err != nil {
 		return nil, err
 	}
-	defer segmenter.Close()
+	defer seg.Close()
 
 	// Create a fingerprinting context
 	fp := chromaprint.NewChromaprint(chromaprint.ALGORITHM_DEFAULT)
@@ -119,12 +144,23 @@ func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flag
 		return nil, err
 	}
 
-	// Perform fingerprinting. Segment the audio into 'dur' segments, only feed
-	// the fingerprinter when the timestamp is less than 'dur'
-	if err := segmenter.DecodeInt16(ctx, func(timestamp time.Duration, data []int16) error {
-		if dur == 0 || timestamp < dur {
-			return fp.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data))
+	// Track processed duration
+	var processedDuration time.Duration
+
+	// Perform fingerprinting until we reach the fingerprint duration limit
+	if err := seg.DecodeInt16(ctx, func(timestamp time.Duration, data []int16) error {
+		if timestamp >= fingerprintDur {
+			// Stop early - we have enough samples
+			return io.EOF
 		}
+
+		if err := fp.WritePtr(uintptr(unsafe.Pointer(&data[0])), len(data)); err != nil {
+			return err
+		}
+
+		// Update processed duration
+		sampleDuration := time.Duration(len(data)) * time.Second / time.Duration(sampleRate)
+		processedDuration = timestamp + sampleDuration
 		return nil
 	}); err != nil {
 		return nil, err
@@ -141,6 +177,21 @@ func (c *Client) Match(ctx context.Context, r io.Reader, dur time.Duration, flag
 		return nil, err
 	}
 
-	// Lookup fingerprint
-	return c.Lookup(value, segmenter.Duration(), flags)
+	// Determine final duration to report
+	var finalDuration time.Duration
+	if dur > 0 {
+		// Use explicitly provided duration
+		finalDuration = dur
+	} else {
+		// Auto-detect: prefer full file duration, fall back to processed duration
+		finalDuration = seg.Duration()
+		if finalDuration <= 0 {
+			finalDuration = processedDuration
+		}
+	}
+
+	return &schema.AudioFingerprintResponse{
+		Fingerprint: value,
+		Duration:    finalDuration.Seconds(),
+	}, nil
 }

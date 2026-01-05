@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	// Packages
 	"github.com/mutablelogic/go-media/pkg/chromaprint"
 	"github.com/stretchr/testify/assert"
 )
