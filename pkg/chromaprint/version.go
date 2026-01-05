@@ -9,5 +9,5 @@ import (
 )
 
 func PrintVersion(w io.Writer) {
-	fmt.Printf("  %-10s %s\n", "chromaprint:", chromaprint.Version())
+	fmt.Fprintf(w, "  %-10s %s\n", "chromaprint:", chromaprint.Version())
 }

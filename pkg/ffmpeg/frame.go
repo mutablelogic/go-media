@@ -7,7 +7,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,36 +35,55 @@ func NewFrame(par *Par) (*Frame, error) {
 
 	// If parameters are nil, then return the frame
 	if par == nil {
+		frame.SetPts(int64(ff.AV_NOPTS_VALUE))
 		return (*Frame)(frame), nil
 	}
 
-	// Set parameters
+	// Set parameters based on codec type
 	switch par.CodecType() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		frame.SetSampleFormat(par.SampleFormat())
-		if err := frame.SetChannelLayout(par.ChannelLayout()); err != nil {
+		if err := (*Frame)(frame).setAudioParams(par); err != nil {
 			ff.AVUtil_frame_free(frame)
 			return nil, err
 		}
-		frame.SetSampleRate(par.Samplerate())
-		frame.SetNumSamples(par.FrameSize())
-		frame.SetTimeBase(ff.AVUtil_rational(1, par.Samplerate()))
 	case ff.AVMEDIA_TYPE_VIDEO:
-		frame.SetPixFmt(par.PixelFormat())
-		frame.SetWidth(par.Width())
-		frame.SetHeight(par.Height())
-		frame.SetSampleAspectRatio(par.SampleAspectRatio())
-		frame.SetTimeBase(par.timebase) // Also sets framerate
+		(*Frame)(frame).setVideoParams(par)
 	default:
 		ff.AVUtil_frame_free(frame)
 		return nil, errors.New("invalid codec type")
 	}
 
 	// Clear Pts
-	frame.SetPts(ff.AV_NOPTS_VALUE)
+	frame.SetPts(int64(ff.AV_NOPTS_VALUE))
 
 	// Return success
 	return (*Frame)(frame), nil
+}
+
+// Helper to set audio parameters on a frame
+func (frame *Frame) setAudioParams(par *Par) error {
+	ctx := (*ff.AVFrame)(frame)
+	ctx.SetSampleFormat(par.SampleFormat())
+	if err := ctx.SetChannelLayout(par.ChannelLayout()); err != nil {
+		return err
+	}
+	ctx.SetSampleRate(par.SampleRate())
+	// Note: NumSamples is not set here - it should be set when allocating buffers
+	ctx.SetTimeBase(ff.AVUtil_rational(1, par.SampleRate()))
+	return nil
+}
+
+// Helper to set video parameters on a frame
+func (frame *Frame) setVideoParams(par *Par) {
+	ctx := (*ff.AVFrame)(frame)
+	ctx.SetPixFmt(par.PixelFormat())
+	ctx.SetWidth(par.Width())
+	ctx.SetHeight(par.Height())
+	ctx.SetSampleAspectRatio(par.SampleAspectRatio())
+	// Use FrameRate to calculate timebase
+	if framerate := par.FrameRate(); framerate > 0 {
+		ctx.SetTimeBase(ff.AVUtil_rational_invert(ff.AVUtil_rational_d2q(framerate, 1<<24)))
+	}
 }
 
 // Release frame resources
@@ -101,26 +120,23 @@ func (frame *Frame) MakeWritable() error {
 
 // Make a copy of the frame, which should be released by the caller
 func (frame *Frame) Copy() (*Frame, error) {
+	if frame == nil {
+		return nil, errors.New("frame is nil")
+	}
+
 	copy := ff.AVUtil_frame_alloc()
 	if copy == nil {
 		return nil, errors.New("failed to allocate frame")
 	}
 
-	switch frame.Type() {
-	case media.AUDIO:
-		copy.SetSampleFormat(frame.SampleFormat())
-		copy.SetChannelLayout(frame.ChannelLayout())
-		copy.SetSampleRate(frame.SampleRate())
-		copy.SetNumSamples(frame.NumSamples())
-	case media.VIDEO:
-		copy.SetPixFmt(frame.PixelFormat())
-		copy.SetWidth(frame.Width())
-		copy.SetHeight(frame.Height())
-		copy.SetSampleAspectRatio(frame.SampleAspectRatio())
-	default:
+	// Copy parameters based on frame type
+	frameType := frame.Type()
+	if err := frame.copyParameters(copy, frameType); err != nil {
 		ff.AVUtil_frame_free(copy)
-		return nil, errors.New("invalid codec type")
+		return nil, err
 	}
+
+	// Allocate and copy buffer data if original has buffers
 	if frame.IsAllocated() {
 		if err := ff.AVUtil_frame_get_buffer(copy, false); err != nil {
 			ff.AVUtil_frame_free(copy)
@@ -131,12 +147,36 @@ func (frame *Frame) Copy() (*Frame, error) {
 			return nil, fmt.Errorf("AVUtil_frame_copy: %w", err)
 		}
 	}
+
+	// Copy properties (timestamps, metadata, side data, etc.)
 	if err := ff.AVUtil_frame_copy_props(copy, (*ff.AVFrame)(frame)); err != nil {
 		ff.AVUtil_frame_free(copy)
 		return nil, fmt.Errorf("AVUtil_frame_copy_props: %w", err)
 	}
 
 	return (*Frame)(copy), nil
+}
+
+// Helper to copy frame parameters based on type
+func (frame *Frame) copyParameters(dst *ff.AVFrame, frameType media.Type) error {
+	switch frameType {
+	case media.AUDIO:
+		dst.SetSampleFormat(frame.SampleFormat())
+		dst.SetChannelLayout(frame.ChannelLayout())
+		dst.SetSampleRate(frame.SampleRate())
+		dst.SetNumSamples(frame.NumSamples())
+		dst.SetTimeBase(frame.TimeBase())
+		return nil
+	case media.VIDEO:
+		dst.SetPixFmt(frame.PixelFormat())
+		dst.SetWidth(frame.Width())
+		dst.SetHeight(frame.Height())
+		dst.SetSampleAspectRatio(frame.SampleAspectRatio())
+		dst.SetTimeBase(frame.TimeBase())
+		return nil
+	default:
+		return errors.New("invalid codec type")
+	}
 }
 
 // Unreference frame buffers
@@ -152,6 +192,9 @@ func (frame *Frame) CopyPropsFromFrame(other *Frame) error {
 // Return frame type - AUDIO or VIDEO. Other types are not yet
 // identified and returned as UNKNOWN
 func (frame *Frame) Type() media.Type {
+	if frame == nil {
+		return media.UNKNOWN
+	}
 	switch {
 	case frame.SampleRate() > 0 && frame.SampleFormat() != ff.AV_SAMPLE_FMT_NONE:
 		return media.AUDIO
@@ -222,10 +265,6 @@ func (frame *Frame) SampleRate() int {
 	return (*ff.AVFrame)(frame).SampleRate()
 }
 
-func (frame *Frame) FrameSize() int {
-	return (*ff.AVFrame)(frame).NumSamples()
-}
-
 func (frame *Frame) NumSamples() int {
 	return (*ff.AVFrame)(frame).NumSamples()
 }
@@ -280,7 +319,7 @@ func (frame *Frame) IncPts(v int64) {
 func (frame *Frame) Ts() float64 {
 	ctx := (*ff.AVFrame)(frame)
 	pts := ctx.Pts()
-	if pts == ff.AV_NOPTS_VALUE {
+	if pts == int64(ff.AV_NOPTS_VALUE) {
 		return TS_UNDEFINED
 	}
 	tb := ctx.TimeBase()
@@ -295,47 +334,58 @@ func (frame *Frame) SetTs(secs float64) {
 	ctx := (*ff.AVFrame)(frame)
 	tb := ctx.TimeBase()
 	if secs == TS_UNDEFINED || tb.Num() == 0 || tb.Den() == 0 {
-		frame.SetPts(ff.AV_NOPTS_VALUE)
+		frame.SetPts(int64(ff.AV_NOPTS_VALUE))
 		return
 	}
 	ctx.SetPts(int64(secs / ff.AVUtil_rational_q2d(tb)))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PUBLIC METHODS - COMPARISON
 
-// Returns true if a AUDIO or VIDEO frame matches the other frame, for
-// resampling and resizing purposes. Note does not check number of samples
-// or framerate
-func (frame *Frame) matchesResampleResize(other *Frame) bool {
-	// Match types
+// Returns true if this frame can be resampled/resized to match the other frame.
+// Checks format compatibility (sample format, pixel format, channel layout, sample rate)
+// but ignores sample count and framerate.
+func (frame *Frame) MatchesFormat(other *Frame) bool {
+	if frame == nil || other == nil {
+		return false
+	}
+
+	// Must be same type
 	if frame.Type() != other.Type() {
 		return false
 	}
+
 	switch frame.Type() {
 	case media.AUDIO:
-		if frame.SampleFormat() != other.SampleFormat() {
-			return false
-		}
-		cha, chb := frame.ChannelLayout(), other.ChannelLayout()
-		if !ff.AVUtil_channel_layout_compare(&cha, &chb) {
-			return false
-		}
-		if frame.SampleRate() != other.SampleRate() {
-			return false
-		}
-		return true
+		return frame.matchesAudioFormat(other)
 	case media.VIDEO:
-		if frame.PixelFormat() != other.PixelFormat() {
-			return false
-		}
-		if frame.Width() != other.Width() || frame.Height() != other.Height() {
-			return false
-		}
-		// We don't need to check the SampleAspectRatio, TimeBase or FrameRate
-		// for the purposes of resampling or resizing
-		return true
+		return frame.matchesVideoFormat(other)
 	default:
 		return false
 	}
+}
+
+// Helper to check audio format compatibility
+func (frame *Frame) matchesAudioFormat(other *Frame) bool {
+	if frame.SampleFormat() != other.SampleFormat() {
+		return false
+	}
+	if frame.SampleRate() != other.SampleRate() {
+		return false
+	}
+	cha, chb := frame.ChannelLayout(), other.ChannelLayout()
+	return ff.AVUtil_channel_layout_compare(&cha, &chb)
+}
+
+// Helper to check video format compatibility
+func (frame *Frame) matchesVideoFormat(other *Frame) bool {
+	if frame.PixelFormat() != other.PixelFormat() {
+		return false
+	}
+	if frame.Width() != other.Width() || frame.Height() != other.Height() {
+		return false
+	}
+	// SampleAspectRatio, TimeBase, and FrameRate don't affect resizing
+	return true
 }

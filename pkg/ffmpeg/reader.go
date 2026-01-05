@@ -7,11 +7,13 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,25 +21,16 @@ import (
 
 // Media reader which reads from a URL, file path or device
 type Reader struct {
-	t       media.Type
-	input   *ff.AVFormatContext
-	avio    *ff.AVIOContextEx
-	force   bool
-	context *Context
+	mu    sync.Mutex
+	t     media.Type
+	input *ff.AVFormatContext
+	avio  *ff.AVIOContextEx
+	force bool
 }
 
 type reader_callback struct {
 	r io.Reader
 }
-
-// Return parameters if a stream should be decoded and either resampled or
-// resized. Return nil if you want to ignore the stream, or pass back the
-// stream parameters if you want to copy the stream without any changes.
-type DecoderMapFunc func(int, *Par) (*Par, error)
-
-// DecoderFrameFn is a function which is called to send a frame after decoding. It should
-// return nil to continue decoding or io.EOF to stop.
-type DecoderFrameFn func(int, *Frame) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -58,7 +51,7 @@ func Open(url string, opt ...Opt) (*Reader, error) {
 	dict := ff.AVUtil_dict_alloc()
 	defer ff.AVUtil_dict_free(dict)
 	if len(options.opts) > 0 {
-		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(options.opts, " "), "=", " ", 0); err != nil {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(options.opts, " "), "=", " ", ff.AV_DICT_NONE); err != nil {
 			return nil, err
 		}
 	}
@@ -90,7 +83,7 @@ func NewReader(r io.Reader, opt ...Opt) (*Reader, error) {
 	dict := ff.AVUtil_dict_alloc()
 	defer ff.AVUtil_dict_free(dict)
 	if len(options.opts) > 0 {
-		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(options.opts, " "), "=", " ", 0); err != nil {
+		if err := ff.AVUtil_dict_parse_string(dict, strings.Join(options.opts, " "), "=", " ", ff.AV_DICT_NONE); err != nil {
 			return nil, err
 		}
 	}
@@ -130,23 +123,20 @@ func (r *Reader) open(options *opts) (*Reader, error) {
 
 // Close the reader
 func (r *Reader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	var result error
 
-	// Free context
-	if ctx := r.context; ctx != nil {
-		result = errors.Join(result, ctx.Close())
-	}
-
 	// Free resources
-	ff.AVFormat_free_context(r.input)
+	if r.input != nil {
+		ff.AVFormat_free_context(r.input)
+		r.input = nil
+	}
 	if r.avio != nil {
 		ff.AVFormat_avio_context_free(r.avio)
+		r.avio = nil
 	}
-
-	// Release resources
-	r.context = nil
-	r.input = nil
-	r.avio = nil
 
 	// Return any errors
 	return result
@@ -174,6 +164,11 @@ func (r *Reader) Type() media.Type {
 	return r.t
 }
 
+// Return the input format (for probing format info)
+func (r *Reader) InputFormat() *ff.AVInputFormat {
+	return r.input.Input()
+}
+
 // Return the duration of the media stream, returns zero if unknown
 func (r *Reader) Duration() time.Duration {
 	duration := r.input.Duration()
@@ -181,6 +176,38 @@ func (r *Reader) Duration() time.Duration {
 		return time.Duration(duration) * time.Second / time.Duration(ff.AV_TIME_BASE)
 	}
 	return 0
+}
+
+// Return the raw AVStream objects for direct access
+func (r *Reader) AVStreams() []*ff.AVStream {
+	return r.input.Streams()
+}
+
+// Return all streams of a specific type (video, audio, subtitle, data)
+// Use media.ANY to return all streams regardless of type
+func (r *Reader) Streams(t media.Type) []*schema.Stream {
+	streams := r.input.Streams()
+	result := make([]*schema.Stream, 0, len(streams))
+
+	// If ANY is requested, return all streams
+	if t == media.ANY {
+		for _, stream := range streams {
+			if s := schema.NewStream(stream); s != nil {
+				result = append(result, s)
+			}
+		}
+		return result
+	}
+
+	// Otherwise filter by type using Stream.Type() which handles all the mapping
+	for _, stream := range streams {
+		s := schema.NewStream(stream)
+		if s != nil && s.Type().Is(t) {
+			result = append(result, s)
+		}
+	}
+
+	return result
 }
 
 // Return the "best stream" for a specific media type, or -1 if there is no
@@ -211,36 +238,15 @@ func (r *Reader) BestStream(t media.Type) int {
 	return -1
 }
 
-// Return all streams of a specific type (video, audio, subtitle, data)
-func (r *Reader) Streams(t media.Type) []*Stream {
-	var result []*Stream
-	for _, stream := range r.input.Streams() {
-		switch stream.CodecPar().CodecType() {
-		case ff.AVMEDIA_TYPE_VIDEO:
-			if t.Is(media.VIDEO) || t == media.ANY {
-				result = append(result, newStream(stream))
-			}
-		case ff.AVMEDIA_TYPE_AUDIO:
-			if t.Is(media.AUDIO) || t == media.ANY {
-				result = append(result, newStream(stream))
-			}
-		case ff.AVMEDIA_TYPE_SUBTITLE:
-			if t.Is(media.SUBTITLE) || t == media.ANY {
-				result = append(result, newStream(stream))
-			}
-		case ff.AVMEDIA_TYPE_DATA:
-			if t.Is(media.DATA) || t == media.ANY {
-				result = append(result, newStream(stream))
-			}
-		case ff.AVMEDIA_TYPE_ATTACHMENT:
-			if t.Is(media.DATA) || t == media.ANY {
-				result = append(result, newStream(stream))
-			}
-		}
+// Seek to a specific time in the media stream, in seconds
+func (r *Reader) Seek(stream int, secs float64) error {
+	ctx := r.input.Stream(stream)
+	if ctx == nil {
+		return media.ErrBadParameter.With("stream not found")
 	}
-
-	// Return the streams
-	return result
+	// At the moment, it seeks to the previous keyframe
+	tb := int64(secs / ff.AVUtil_rational_q2d(ctx.TimeBase()))
+	return ff.AVFormat_seek_frame(r.input, ctx.Index(), tb, ff.AVSEEK_FLAG_BACKWARD)
 }
 
 // Return the metadata for the media stream, filtering by the specified keys
@@ -267,111 +273,58 @@ func (r *Reader) Metadata(keys ...string) []*Metadata {
 	return result
 }
 
-// Seek to a specific time in the media stream, in seconds
-func (r *Reader) Seek(stream int, secs float64) error {
-	ctx := r.input.Stream(stream)
-	if ctx == nil {
-		return media.ErrBadParameter.With("stream not found")
+// Decode packets from the media stream without decoding to frames. The packetfn is called for each
+// packet read from any stream. Use this for stream copying or remuxing without transcoding.
+//
+// The reading can be interrupted by cancelling the context, or by the packetfn
+// returning an error or io.EOF. The latter will end the reading process early but
+// will not return an error.
+func (r *Reader) Decode(ctx context.Context, packetfn DecoderPacketFn) error {
+	// Check reader is valid
+	r.mu.Lock()
+	if r.input == nil {
+		r.mu.Unlock()
+		return errors.New("reader is closed")
 	}
-	// At the moment, it seeks to the previous keyframe
-	tb := int64(secs / ff.AVUtil_rational_q2d(ctx.TimeBase()))
-	return ff.AVFormat_seek_frame(r.input, ctx.Index(), tb, ff.AVSEEK_FLAG_BACKWARD)
-}
+	r.mu.Unlock()
 
-func (r *Reader) Decode(ctx context.Context, mapfn DecoderMapFunc, decodefn DecoderFrameFn) error {
-	// Create a decoding context
-	decoders, err := newContext(r, mapfn)
+	// Create decoder
+	dec, err := newDecoder(r)
 	if err != nil {
 		return err
 	}
-	defer decoders.Close()
+	defer dec.free()
 
-	// Do the decoding
-	return decoders.decode(ctx, decodefn)
+	// Read packets
+	return dec.readPackets(ctx, packetfn)
 }
 
-// Map streams to decoders, and return the decoding context
-// The map function is called for each stream
-// and should return the parameters for the destination frame. If any
-// parameters are returned as null, then that stream is ignored
-func (r *Reader) Map(fn DecoderMapFunc) (*Context, error) {
-	return newContext(r, fn)
-}
-
-// Decode the media stream into frames. The decodefn is called for each
-// frame decoded from the stream.
+// Demux and decode the media stream into frames. The map function determines which
+// streams to decode and what output parameters to use. The framefn is called for each
+// decoded frame from any mapped stream.
 //
-// The decoding can be interrupted by cancelling the context, or by the decodefn
+// The decoding can be interrupted by cancelling the context, or by the framefn
 // returning an error or io.EOF. The latter will end the decoding process early but
 // will not return an error.
-func (r *Reader) DecodeWithContext(ctx context.Context, decoders *Context, decodefn DecoderFrameFn) error {
-	return decoders.decode(ctx, decodefn)
-}
+func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn DecoderFrameFn) error {
+	// Check reader is valid
+	r.mu.Lock()
+	if r.input == nil {
+		r.mu.Unlock()
+		return errors.New("reader is closed")
+	}
+	r.mu.Unlock()
 
-// Transcode the media stream to a writer
-// As per the decode method, the map function is called for each stream and should return the
-// parameters for the destination. If the map function returns nil for a stream, then
-// the stream is ignored.
-/*
-func (r *Reader) Transcode(ctx context.Context, w io.Writer, mapfn DecoderMapFunc, opt ...Opt) error {
-	// Map streams to decoders
-	decoders, err := r.mapStreams(mapfn)
+	// Create decoder
+	dec, err := newDecoder(r)
 	if err != nil {
 		return err
 	}
-	defer decoders.Close()
+	defer dec.free()
 
-	// Add streams to the output
-	for _, decoder := range decoders {
-		opt = append(opt, OptStream(decoder.stream, decoder.par))
-	}
-
-	// Create an output
-	output, err := NewWriter(w, opt...)
-	if err != nil {
-		return err
-	}
-	defer output.Close()
-
-	// One go-routine for decoding, one for encoding
-	var wg sync.WaitGroup
-	var result error
-
-	// Make a channel for transcoding frames. The decoder should
-	// be ahead of the encoder, so there is probably no need to
-	// create a buffered channel.
-	ch := make(chan *Frame)
-
-	// Decoding
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := r.decode(ctx, decoders, func(stream int, frame *Frame) error {
-			ch <- frame
-			return nil
-		}); err != nil {
-			result = err
-		}
-		// Close channel at the end of decoding
-		close(ch)
-	}()
-
-	// Encoding
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for frame := range ch {
-			fmt.Println("TODO: Write frame to output", frame)
-		}
-	}()
-
-	// Wait for the process to finish
-	wg.Wait()
-
-	// Return any errors
-	return result
+	// Decode frames
+	return dec.decodeFrames(ctx, mapfn, framefn)
 }
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - CALLBACK

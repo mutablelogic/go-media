@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	// Packages
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 var (

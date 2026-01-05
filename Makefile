@@ -4,11 +4,14 @@ DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
 
 # Source version
-FFMPEG_VERSION=ffmpeg-7.1.1
-CHROMAPRINT_VERSION=chromaprint-1.5.1
+#FFMPEG_VERSION ?= ffmpeg-7.1.1
+#SYS_VERSION ?= ffmpeg71
+FFMPEG_VERSION ?= ffmpeg-8.0.1
+SYS_VERSION ?= ffmpeg80
+CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
 # CGO configuration - set CGO vars for C++ libraries
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -lavutil"
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -26,8 +29,8 @@ VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
 DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # Paths to locations, etc
-BUILD_DIR ?= "build"
-CMD_DIR := $(filter-out cmd/ffmpeg/README.md, $(wildcard cmd/ffmpeg/*))
+BUILD_DIR := "build"
+CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
 PREFIX ?= ${BUILD_DIR}/install
 
@@ -35,17 +38,12 @@ PREFIX ?= ${BUILD_DIR}/install
 # TARGETS
 
 .PHONY: all
-all: clean ffmpeg chromaprint cli
+all: clean cmd
 
-.PHONY: cmds
-cmds: $(CMD_DIR)
+.PHONY: cmd
+cmd: ffmpeg chromaprint $(CMD_DIR)
 
-.PHONY: cli
-cli: go-dep go-tidy mkdir
-	@echo Build media tool
-	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/media ./cmd/media
-
-$(CMD_DIR): go-dep go-tidy mkdir
+$(CMD_DIR): go-dep go-tidy mkdir 
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -99,17 +97,28 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 
 
 # Configure chromaprint
+# Note: FFmpeg 8.0 removed avfft API, so we use vDSP on macOS or kissfft on other platforms
+# kissfft is bundled with chromaprint and requires no external dependencies
+ifeq ($(shell uname -s),Darwin)
+    FFT_LIB := vdsp
+else
+    FFT_LIB := kissfft
+endif
+
 .PHONY: chromaprint-configure
 chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
-	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX}"	
-	cmake \
+	@echo "Configuring ${CHROMAPRINT_VERSION} => ${PREFIX} (FFT_LIB=$(FFT_LIB))"
+	FFMPEG_DIR="$(shell realpath ${PREFIX})" cmake \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=0 \
 		-DBUILD_TESTS=0 \
 		-DBUILD_TOOLS=0 \
-		-DFFT_LIB=avfft \
+		-DFFT_LIB=$(FFT_LIB) \
+		-DFFMPEG_ROOT="$(shell realpath ${PREFIX})" \
 		-DCMAKE_PREFIX_PATH="$(shell realpath ${PREFIX})" \
+		-DCMAKE_LIBRARY_PATH="$(shell realpath ${PREFIX})/lib" \
+		-DCMAKE_INCLUDE_PATH="$(shell realpath ${PREFIX})/include" \
 		--install-prefix "$(shell realpath ${PREFIX})" \
 		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
 		-B ${BUILD_DIR}
@@ -150,40 +159,24 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-ffmpeg
+test: test-sys test-chromaprint
+	@echo ... test pkg/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+	@echo ... test pkg/file
+	@${GO} test ./pkg/file
 
-.PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy ffmpeg chromaprint
-	@echo Test
-	@echo ... test sys/ffmpeg71
-	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
-	@echo ... test pkg/segmenter
-	@${CGO_ENV} ${GO} test ./pkg/segmenter
+.PHONY: test
+test-chromaprint:
 	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test ./pkg/chromaprint
-	@echo ... test pkg/avcodec
-	${CGO_ENV} ${GO} test ./pkg/avcodec
-
-
-#	@echo ... test pkg/ffmpeg
-#	@${GO} test -v ./pkg/ffmpeg
-#	@echo ... test pkg/file
-#	@${GO} test ./pkg/file
-#	@echo ... test pkg/generator
-#	@${GO} test ./pkg/generator
-#	@echo ... test pkg/image
-#	@${GO} test ./pkg/image
-#	@echo ... test pkg
-#	@${GO} test ./pkg/...
-
-container-test: go-dep go-tidy ffmpeg chromaprint
-	@echo Test
-	@echo ... test sys/ffmpeg71
-	@${CGO_ENV} ${GO} test ./sys/ffmpeg71
-	@echo ... test pkg/segmenter
 	@${CGO_ENV} ${GO} test ./pkg/segmenter
-	@echo ... test pkg/chromaprint
 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+
+
+.PHONY: test-sys
+test-sys: go-dep go-tidy ffmpeg-build
+	@echo Test
+	@echo ... test sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
 
 ###############################################################################
 # DEPENDENCIES, ETC

@@ -48,7 +48,17 @@ func NewMetadata(key string, value any) *Metadata {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+func (m *Metadata) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(m.meta)
+}
+
 func (m *Metadata) String() string {
+	if m == nil {
+		return ""
+	}
 	data, _ := json.MarshalIndent(m, "", "  ")
 	return string(data)
 }
@@ -57,13 +67,16 @@ func (m *Metadata) String() string {
 // PUBLIC METHODS
 
 func (m *Metadata) Key() string {
+	if m == nil {
+		return ""
+	}
 	return m.meta.Key
 }
 
 // Value returns the value as a string. If the value is a byte slice, it will
 // return the mimetype of the byte slice.
 func (m *Metadata) Value() string {
-	if m.meta.Value == nil {
+	if m == nil || m.meta.Value == nil {
 		return ""
 	}
 	switch v := m.meta.Value.(type) {
@@ -82,19 +95,21 @@ func (m *Metadata) Value() string {
 
 // Returns the value as a byte slice
 func (m *Metadata) Bytes() []byte {
-	if m.meta.Value == nil {
+	if m == nil || m.meta.Value == nil {
 		return nil
 	}
 	switch v := m.meta.Value.(type) {
 	case []byte:
 		return v
+	case string:
+		return []byte(v)
 	}
 	return nil
 }
 
 // Returns the value as an image
 func (m *Metadata) Image() image.Image {
-	if m.meta.Value == nil {
+	if m == nil || m.meta.Value == nil {
 		return nil
 	}
 	switch v := m.meta.Value.(type) {
@@ -108,5 +123,8 @@ func (m *Metadata) Image() image.Image {
 
 // Returns the value as an interface
 func (m *Metadata) Any() any {
+	if m == nil {
+		return nil
+	}
 	return m.meta.Value
 }

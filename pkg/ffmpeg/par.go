@@ -2,15 +2,13 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg71"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,7 +38,7 @@ func NewAudioPar(samplefmt string, channellayout string, samplerate int, opts ..
 
 	// Sample Format
 	if samplefmt_ := ff.AVUtil_get_sample_fmt(samplefmt); samplefmt_ == ff.AV_SAMPLE_FMT_NONE {
-		return nil, ErrBadParameter.Withf("unknown sample format %q", samplefmt)
+		return nil, fmt.Errorf("unknown sample format %q", samplefmt)
 	} else {
 		par.SetSampleFormat(samplefmt_)
 	}
@@ -48,17 +46,18 @@ func NewAudioPar(samplefmt string, channellayout string, samplerate int, opts ..
 	// Channel layout
 	var ch ff.AVChannelLayout
 	if err := ff.AVUtil_channel_layout_from_string(&ch, channellayout); err != nil {
-		return nil, ErrBadParameter.Withf("channel layout %q", channellayout)
-	} else if err := par.SetChannelLayout(ch); err != nil {
+		return nil, fmt.Errorf("invalid channel layout %q: %w", channellayout, err)
+	}
+	if err := par.SetChannelLayout(ch); err != nil {
 		return nil, err
 	}
 
 	// Sample rate
 	if samplerate <= 0 {
-		return nil, ErrBadParameter.Withf("negative or zero samplerate %v", samplerate)
-	} else {
-		par.SetSamplerate(samplerate)
+		return nil, fmt.Errorf("invalid samplerate %d: must be positive", samplerate)
 	}
+	par.SetSampleRate(samplerate)
+	par.timebase = ff.AVUtil_rational(1, samplerate)
 
 	// Return success
 	return par, nil
@@ -73,23 +72,24 @@ func NewVideoPar(pixfmt string, size string, framerate float64, opts ...media.Me
 
 	// Pixel Format
 	if pixfmt_ := ff.AVUtil_get_pix_fmt(pixfmt); pixfmt_ == ff.AV_PIX_FMT_NONE {
-		return nil, ErrBadParameter.Withf("unknown pixel format %q", pixfmt)
+		return nil, fmt.Errorf("unknown pixel format %q", pixfmt)
 	} else {
 		par.SetPixelFormat(pixfmt_)
 	}
 
 	// Frame size
-	if w, h, err := ff.AVUtil_parse_video_size(size); err != nil {
-		return nil, ErrBadParameter.Withf("size %q", size)
-	} else {
-		par.SetWidth(w)
-		par.SetHeight(h)
+	w, h, err := ff.AVUtil_parse_video_size(size)
+	if err != nil {
+		return nil, fmt.Errorf("invalid size %q: %w", size, err)
 	}
+	par.SetWidth(w)
+	par.SetHeight(h)
 
 	// Frame rate and timebase
 	if framerate < 0 {
-		return nil, ErrBadParameter.Withf("negative framerate %v", framerate)
-	} else if framerate > 0 {
+		return nil, fmt.Errorf("invalid framerate %v: must be non-negative", framerate)
+	}
+	if framerate > 0 {
 		par.timebase = ff.AVUtil_rational_invert(ff.AVUtil_rational_d2q(framerate, 1<<24))
 	}
 
@@ -121,28 +121,36 @@ func VideoPar(pixfmt string, size string, framerate float64, opts ...media.Metad
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (ctx *Par) MarshalJSON() ([]byte, error) {
+func (par *Par) MarshalJSON() ([]byte, error) {
+	if par == nil {
+		return []byte("null"), nil
+	}
 	return json.Marshal(jsonPar{
-		AVCodecParameters: ctx.AVCodecParameters,
-		Timebase:          ctx.timebase,
-		Opts:              ctx.opts,
+		AVCodecParameters: par.AVCodecParameters,
+		Timebase:          par.timebase,
+		Opts:              par.opts,
 	})
 }
 
-func (ctx *Par) String() string {
-	data, err := json.MarshalIndent(ctx, "", "  ")
+func (par *Par) String() string {
+	if par == nil {
+		return "<nil>"
+	}
+	data, err := json.MarshalIndent(par, "", "  ")
 	if err != nil {
 		return err.Error()
-	} else {
-		return string(data)
 	}
+	return string(data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (ctx *Par) Type() media.Type {
-	switch ctx.CodecType() {
+func (par *Par) Type() media.Type {
+	if par == nil {
+		return media.UNKNOWN
+	}
+	switch par.CodecType() {
 	case ff.AVMEDIA_TYPE_AUDIO:
 		return media.AUDIO
 	case ff.AVMEDIA_TYPE_VIDEO:
@@ -156,33 +164,48 @@ func (ctx *Par) Type() media.Type {
 	}
 }
 
-func (ctx *Par) WidthHeight() string {
-	return fmt.Sprintf("%dx%d", ctx.Width(), ctx.Height())
+func (par *Par) WidthHeight() string {
+	if par == nil {
+		return "0x0"
+	}
+	return fmt.Sprintf("%dx%d", par.Width(), par.Height())
 }
 
-func (ctx *Par) FrameRate() float64 {
-	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
+func (par *Par) FrameRate() float64 {
+	if par == nil || par.timebase.Num() == 0 || par.timebase.Den() == 0 {
 		return 0
 	}
-	return ff.AVUtil_rational_q2d(ff.AVUtil_rational_invert(ctx.timebase))
+	return ff.AVUtil_rational_q2d(ff.AVUtil_rational_invert(par.timebase))
 }
 
-func (ctx *Par) ValidateFromCodec(codec *ff.AVCodec) error {
+func (par *Par) ValidateFromCodec(codec *ff.AVCodec) error {
+	if par == nil {
+		return errors.New("par is nil")
+	}
+	if codec == nil {
+		return errors.New("codec is nil")
+	}
 	switch codec.Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		return ctx.validateAudioCodec(codec)
+		return par.validateAudioCodec(codec)
 	case ff.AVMEDIA_TYPE_VIDEO:
-		return ctx.validateVideoCodec(codec)
+		return par.validateVideoCodec(codec)
 	}
 	return nil
 }
 
-func (ctx *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
+func (par *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
+	if par == nil {
+		return errors.New("par is nil")
+	}
+	if codec == nil {
+		return errors.New("codec is nil")
+	}
 	switch codec.Codec().Type() {
 	case ff.AVMEDIA_TYPE_AUDIO:
-		return ctx.copyAudioCodec(codec)
+		return par.copyAudioCodec(codec)
 	case ff.AVMEDIA_TYPE_VIDEO:
-		return ctx.copyVideoCodec(codec)
+		return par.copyVideoCodec(codec)
 	}
 	return nil
 }
@@ -190,11 +213,10 @@ func (ctx *Par) CopyToCodecContext(codec *ff.AVCodecContext) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// Return options as a dictionary, which needs to be freed after use
-// by the caller method
-func (ctx *Par) newOpts() *ff.AVDictionary {
+// Convert options to a dictionary, which needs to be freed after use by the caller
+func (par *Par) optionsToDict() *ff.AVDictionary {
 	dict := ff.AVUtil_dict_alloc()
-	for _, opt := range ctx.opts {
+	for _, opt := range par.opts {
 		if err := ff.AVUtil_dict_set(dict, opt.Key(), opt.Value(), ff.AV_DICT_APPEND); err != nil {
 			ff.AVUtil_dict_free(dict)
 			return nil
@@ -203,129 +225,157 @@ func (ctx *Par) newOpts() *ff.AVDictionary {
 	return dict
 }
 
-func (ctx *Par) copyAudioCodec(codec *ff.AVCodecContext) error {
-	codec.SetSampleFormat(ctx.SampleFormat())
-	codec.SetSampleRate(ctx.Samplerate())
-	codec.SetTimeBase(ff.AVUtil_rational(1, ctx.Samplerate()))
-	if err := codec.SetChannelLayout(ctx.ChannelLayout()); err != nil {
-		return err
-	}
-	return nil
+func (par *Par) copyAudioCodec(codec *ff.AVCodecContext) error {
+	codec.SetSampleFormat(par.SampleFormat())
+	codec.SetSampleRate(par.SampleRate())
+	codec.SetTimeBase(ff.AVUtil_rational(1, par.SampleRate()))
+	return codec.SetChannelLayout(par.ChannelLayout())
 }
 
-func (ctx *Par) validateAudioCodec(codec *ff.AVCodec) error {
+func (par *Par) validateAudioCodec(codec *ff.AVCodec) error {
 	sampleformats := codec.SampleFormats()
 	samplerates := codec.SupportedSamplerates()
 	channellayouts := codec.ChannelLayouts()
 
-	// First we set params from the codec which are not already set
-	if ctx.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
-		if len(sampleformats) > 0 {
-			ctx.SetSampleFormat(sampleformats[0])
-		}
+	// First set params from the codec which are not already set
+	if par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE && len(sampleformats) > 0 {
+		par.SetSampleFormat(sampleformats[0])
 	}
-	if ctx.Samplerate() == 0 {
-		if len(samplerates) > 0 {
-			ctx.SetSamplerate(samplerates[0])
-		}
+	if par.SampleRate() == 0 && len(samplerates) > 0 {
+		par.SetSampleRate(samplerates[0])
 	}
-	if ctx.ChannelLayout().NumChannels() == 0 {
-		if len(channellayouts) > 0 {
-			ctx.SetChannelLayout(channellayouts[0])
-		}
+	if par.ChannelLayout().NumChannels() == 0 && len(channellayouts) > 0 {
+		par.SetChannelLayout(channellayouts[0])
 	}
 
-	// Then we check to make sure the parameters are compatible with
-	// the codec
-	if len(sampleformats) > 0 {
-		if !slices.Contains(sampleformats, ctx.SampleFormat()) {
-			return ErrBadParameter.Withf("unsupported sample format %v", ctx.SampleFormat())
-		}
-	} else if ctx.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
-		return ErrBadParameter.With("sample format not set")
+	// Then check parameters are compatible with the codec
+	if err := par.validateSampleFormat(sampleformats); err != nil {
+		return err
 	}
-	if len(samplerates) > 0 {
-		if !slices.Contains(samplerates, ctx.Samplerate()) {
-			return ErrBadParameter.Withf("unsupported samplerate %v", ctx.Samplerate())
-		}
-	} else if ctx.Samplerate() == 0 {
-		return ErrBadParameter.With("samplerate not set")
+	if err := par.validateSampleRate(samplerates); err != nil {
+		return err
 	}
-	if len(channellayouts) > 0 {
+	return par.validateChannelLayout(channellayouts)
+}
+
+// Helper methods for audio validation
+func (par *Par) validateSampleFormat(supported []ff.AVSampleFormat) error {
+	if len(supported) > 0 {
+		if !slices.Contains(supported, par.SampleFormat()) {
+			return fmt.Errorf("unsupported sample format %v", par.SampleFormat())
+		}
+	} else if par.SampleFormat() == ff.AV_SAMPLE_FMT_NONE {
+		return errors.New("sample format not set")
+	}
+	return nil
+}
+
+func (par *Par) validateSampleRate(supported []int) error {
+	if len(supported) > 0 {
+		if !slices.Contains(supported, par.SampleRate()) {
+			return fmt.Errorf("unsupported samplerate %v", par.SampleRate())
+		}
+	} else if par.SampleRate() == 0 {
+		return errors.New("samplerate not set")
+	}
+	return nil
+}
+
+func (par *Par) validateChannelLayout(supported []ff.AVChannelLayout) error {
+	if len(supported) > 0 {
 		valid := false
-		for _, ch := range channellayouts {
-			chctx := ctx.ChannelLayout()
-			if ff.AVUtil_channel_layout_compare(&ch, &chctx) {
+		parCh := par.ChannelLayout()
+		for _, ch := range supported {
+			if ff.AVUtil_channel_layout_compare(&ch, &parCh) {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return ErrBadParameter.Withf("unsupported channel layout %v", ctx.ChannelLayout())
+			return fmt.Errorf("unsupported channel layout %v", par.ChannelLayout())
 		}
-	} else if ctx.ChannelLayout().NumChannels() == 0 {
-		return ErrBadParameter.With("channel layout not set")
+	} else if par.ChannelLayout().NumChannels() == 0 {
+		return errors.New("channel layout not set")
 	}
-
-	// Validated
 	return nil
 }
 
-func (ctx *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
-	codec.SetPixFmt(ctx.PixelFormat())
-	codec.SetWidth(ctx.Width())
-	codec.SetHeight(ctx.Height())
-	codec.SetSampleAspectRatio(ctx.SampleAspectRatio())
-	codec.SetTimeBase(ctx.timebase)
+func (par *Par) copyVideoCodec(codec *ff.AVCodecContext) error {
+	codec.SetPixFmt(par.PixelFormat())
+	codec.SetWidth(par.Width())
+	codec.SetHeight(par.Height())
+	codec.SetSampleAspectRatio(par.SampleAspectRatio())
+	codec.SetTimeBase(par.timebase)
+	if par.timebase.Num() != 0 && par.timebase.Den() != 0 {
+		codec.SetFramerate(ff.AVUtil_rational_invert(par.timebase))
+	}
 	return nil
 }
 
-func (ctx *Par) validateVideoCodec(codec *ff.AVCodec) error {
+func (par *Par) validateVideoCodec(codec *ff.AVCodec) error {
 	pixelformats := codec.PixelFormats()
 	framerates := codec.SupportedFramerates()
 
-	// First we set params from the codec which are not already set
-	if ctx.PixelFormat() == ff.AV_PIX_FMT_NONE {
-		if len(pixelformats) > 0 {
-			ctx.SetPixelFormat(pixelformats[0])
-		}
+	// First set params from the codec which are not already set
+	if par.PixelFormat() == ff.AV_PIX_FMT_NONE && len(pixelformats) > 0 {
+		par.SetPixelFormat(pixelformats[0])
 	}
-	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
-		if len(framerates) > 0 {
-			ctx.timebase = ff.AVUtil_rational_invert(framerates[0])
-		}
+	if (par.timebase.Num() == 0 || par.timebase.Den() == 0) && len(framerates) > 0 {
+		par.timebase = ff.AVUtil_rational_invert(framerates[0])
 	}
 
-	// Then we check to make sure the parameters are compatible with
-	// the codec
-	if len(pixelformats) > 0 {
-		if !slices.Contains(pixelformats, ctx.PixelFormat()) {
-			return ErrBadParameter.Withf("unsupported pixel format %v", ctx.PixelFormat())
+	// Then check parameters are compatible with the codec
+	if err := par.validatePixelFormat(pixelformats); err != nil {
+		return err
+	}
+	if err := par.validateDimensions(); err != nil {
+		return err
+	}
+	par.ensureSampleAspectRatio()
+	return par.validateFrameRate(framerates)
+}
+
+// Helper methods for video validation
+func (par *Par) validatePixelFormat(supported []ff.AVPixelFormat) error {
+	if len(supported) > 0 {
+		if !slices.Contains(supported, par.PixelFormat()) {
+			return fmt.Errorf("unsupported pixel format %v", par.PixelFormat())
 		}
-	} else if ctx.PixelFormat() == ff.AV_PIX_FMT_NONE {
-		return ErrBadParameter.With("pixel format not set")
+	} else if par.PixelFormat() == ff.AV_PIX_FMT_NONE {
+		return errors.New("pixel format not set")
 	}
-	if ctx.Width() == 0 || ctx.Height() == 0 {
-		return ErrBadParameter.Withf("invalid width %v or height %v", ctx.Width(), ctx.Height())
+	return nil
+}
+
+func (par *Par) validateDimensions() error {
+	if par.Width() == 0 || par.Height() == 0 {
+		return fmt.Errorf("invalid width %v or height %v", par.Width(), par.Height())
 	}
-	if ctx.SampleAspectRatio().Num() == 0 || ctx.SampleAspectRatio().Den() == 0 {
-		ctx.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+	return nil
+}
+
+func (par *Par) ensureSampleAspectRatio() {
+	if par.SampleAspectRatio().Num() == 0 || par.SampleAspectRatio().Den() == 0 {
+		par.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
 	}
-	if ctx.timebase.Num() == 0 || ctx.timebase.Den() == 0 {
-		return ErrBadParameter.With("framerate not set")
-	} else if len(framerates) > 0 {
+}
+
+func (par *Par) validateFrameRate(supported []ff.AVRational) error {
+	if par.timebase.Num() == 0 || par.timebase.Den() == 0 {
+		return errors.New("framerate not set")
+	}
+	if len(supported) > 0 {
 		valid := false
-		for _, fr := range framerates {
-			if ff.AVUtil_rational_equal(fr, ff.AVUtil_rational_invert(ctx.timebase)) {
+		parFr := ff.AVUtil_rational_invert(par.timebase)
+		for _, fr := range supported {
+			if ff.AVUtil_rational_equal(fr, parFr) {
 				valid = true
 				break
 			}
 		}
 		if !valid {
-			return ErrBadParameter.Withf("unsupported framerate %v", ff.AVUtil_rational_invert(ctx.timebase))
+			return fmt.Errorf("unsupported framerate %v", parFr)
 		}
 	}
-
-	// Return success
 	return nil
 }
