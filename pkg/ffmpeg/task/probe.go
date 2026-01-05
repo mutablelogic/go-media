@@ -19,13 +19,13 @@ func (m *Manager) Probe(_ context.Context, req *schema.ProbeRequest) (*schema.Pr
 	var reader *ffmpeg.Reader
 	var err error
 	if req.Reader != nil {
-		if req.Path != "" {
-			reader, err = ffmpeg.NewReader(req.Reader, ffmpeg.WithInput(req.Path))
+		if req.Input != "" {
+			reader, err = ffmpeg.NewReader(req.Reader, ffmpeg.WithInput(req.Input))
 		} else {
 			reader, err = ffmpeg.NewReader(req.Reader)
 		}
 	} else {
-		reader, err = ffmpeg.Open(req.Path)
+		reader, err = ffmpeg.Open(req.Input)
 	}
 	if err != nil {
 		return nil, err
