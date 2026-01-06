@@ -18,18 +18,16 @@ import (
 
 // Player combines window and audio for easy playback of decoded frames.
 type Player struct {
-	window          *Window
-	audio           *Audio
-	videoResampler  *ffmpeg.Resampler
-	audioResampler  *ffmpeg.Resampler
-	lastFmt         string
-	lastW           int
-	lastH           int
-	lastPTS         float64
-	lastFrameDelay  float64 // Last frame delay in seconds
-	frameTimer      float64 // Accumulated time for frame scheduling
-	audioClock      float64 // Audio PTS at last queue operation
-	audioStarted    bool    // Whether audio playback has been started
+	window         *Window
+	audio          *Audio
+	lastFmt        string
+	lastW          int
+	lastH          int
+	lastPTS        float64
+	lastFrameDelay float64 // Last frame delay in seconds
+	frameTimer     float64 // Accumulated time for frame scheduling
+	audioClock     float64 // Audio PTS at last queue operation
+	audioStarted   bool    // Whether audio playback has been started
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,16 +47,6 @@ func (c *Context) NewPlayer() *Player {
 // Close closes the player and releases all resources.
 func (p *Player) Close() error {
 	var result error
-
-	if p.videoResampler != nil {
-		result = errors.Join(result, p.videoResampler.Close())
-		p.videoResampler = nil
-	}
-
-	if p.audioResampler != nil {
-		result = errors.Join(result, p.audioResampler.Close())
-		p.audioResampler = nil
-	}
 
 	if p.window != nil {
 		if err := p.window.Close(); err != nil {
@@ -135,54 +123,16 @@ func (p *Player) playVideo(ctx *Context, frame *ffmpeg.Frame) error {
 		dbg("window created %dx%d", width, height)
 	}
 
-	// Support yuv420p and rgb24 formats
+	// Frames should already be in SDL-compatible format (yuv420p or rgb24)
+	// due to decoder resampling configured in PlayCommand
 	switch pixFmt {
 	case "yuv420p":
 		return p.playYUV(frame)
 	case "rgb24":
 		return p.playRGB(frame)
 	default:
-		dbg("convert from %s -> yuv420p", pixFmt)
-		converted, err := p.convertVideo(frame, "yuv420p")
-		if err != nil {
-			return fmt.Errorf("convert video: %w", err)
-		}
-		if converted == nil {
-			return nil
-		}
-		return p.playYUV(converted)
+		return fmt.Errorf("unsupported pixel format %q (decoder should output yuv420p or rgb24)", pixFmt)
 	}
-}
-
-// convertVideo converts an incoming frame to a target pixel format for display.
-// It caches a resampler so repeated frames avoid reallocation.
-func (p *Player) convertVideo(frame *ffmpeg.Frame, targetPixFmt string) (*ffmpeg.Frame, error) {
-	if frame == nil {
-		return nil, nil
-	}
-
-	if p.videoResampler == nil {
-		par, err := ffmpeg.NewVideoPar(targetPixFmt, fmt.Sprintf("%dx%d", frame.Width(), frame.Height()), 0)
-		if err != nil {
-			return nil, err
-		}
-		r, err := ffmpeg.NewResampler(par, true)
-		if err != nil {
-			return nil, err
-		}
-		p.videoResampler = r
-	}
-
-	var out *ffmpeg.Frame
-	err := p.videoResampler.Resample(frame, func(f *ffmpeg.Frame) error {
-		out = f
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
 }
 
 func (p *Player) playYUV(frame *ffmpeg.Frame) error {
@@ -250,11 +200,17 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 	p.lastPTS = pts
 
 	// Sync to audio if available
-	if p.audio != nil && p.audioClock != ffmpeg.TS_UNDEFINED {
-		// Get audio clock (pts - buffered duration)
+	if p.audio != nil && p.audioClock != ffmpeg.TS_UNDEFINED && p.audioStarted {
+		// Calculate current audio playback position
+		// audioClock represents the PTS of the last queued audio frame
+		// We need to account for buffered audio that hasn't played yet
 		queuedBytes := p.audio.QueuedSize()
 		bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
 		bufferedDuration := float64(queuedBytes) / bytesPerSec
+
+		// Audio reference clock = last queued PTS + time since queue - buffered duration
+		// Since we can't track time since queue, approximate as: lastPTS + frame duration - buffered
+		// This gives us the estimated current playback position
 		audioRefClock := p.audioClock - bufferedDuration
 
 		// Calculate how far video is from audio
@@ -266,17 +222,17 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 			syncThreshold = 0.010
 		}
 
-		dbg("video PTS=%.3f audio=%.3f diff=%.3f ptsDelay=%.3f sync=%.3f queued=%d",
-			pts, audioRefClock, audioVideoDiff, ptsDelay, syncThreshold, queuedBytes)
+		dbg("video PTS=%.3f audio=%.3f diff=%.3f ptsDelay=%.3f sync=%.3f queued=%d buffered=%.3fs",
+			pts, audioRefClock, audioVideoDiff, ptsDelay, syncThreshold, queuedBytes, bufferedDuration)
 
 		// Only sync if difference is reasonable (< 1 second)
 		if audioVideoDiff < -syncThreshold && audioVideoDiff > -1.0 {
-			// Video is behind audio - don't delay
-			dbg("video behind, skip delay")
+			// Video is behind audio - skip delay to catch up
+			dbg("video behind audio, skip delay")
 			ptsDelay = 0
 		} else if audioVideoDiff >= syncThreshold && audioVideoDiff < 1.0 {
-			// Video is ahead of audio - increase delay
-			dbg("video ahead, double delay")
+			// Video is ahead of audio - increase delay to slow down
+			dbg("video ahead of audio, double delay")
 			ptsDelay = 2 * ptsDelay
 		}
 	}
@@ -342,75 +298,26 @@ func (p *Player) playAudio(ctx *Context, frame *ffmpeg.Frame) error {
 		dbg("audio device created rate=%d channels=%d", sampleRate, channels)
 	}
 
-	// Convert to float32 if needed
+	// Audio should already be in float32 format (flt or fltp)
+	// due to decoder resampling configured in PlayCommand
 	if sampleFmt != "flt" && sampleFmt != "fltp" {
-		converted, err := p.convertAudio(frame)
-		if err != nil {
-			return fmt.Errorf("convert audio: %w", err)
-		}
-		if converted == nil {
-			return nil
-		}
-		frame = converted
-		sampleFmt = frame.SampleFormat().String()
+		return fmt.Errorf("unsupported audio format %q (decoder should output flt or fltp)", sampleFmt)
 	}
 
 	// Queue the audio data
 	return p.queueFloatAudio(frame)
 }
 
-// convertAudio converts audio to float32 planar format for SDL
-func (p *Player) convertAudio(frame *ffmpeg.Frame) (*ffmpeg.Frame, error) {
-	if frame == nil {
-		return nil, nil
-	}
-
-	// Create resampler if needed
-	if p.audioResampler == nil {
-		chLayout := frame.ChannelLayout()
-		channelLayout, err := ff.AVUtil_channel_layout_describe(&chLayout)
-		if err != nil {
-			return nil, err
-		}
-		par, err := ffmpeg.NewAudioPar("fltp", channelLayout, frame.SampleRate())
-		if err != nil {
-			return nil, err
-		}
-		p.audioResampler, err = ffmpeg.NewResampler(par, true)
-		if err != nil {
-			return nil, err
-		}
-		dbg("audio resampler created for conversion to fltp")
-	}
-
-	// Resample the frame - collect resampled frame
-	var resampled *ffmpeg.Frame
-	err := p.audioResampler.Resample(frame, func(f *ffmpeg.Frame) error {
-		// Copy the frame since Resample reuses the frame buffer
-		var err error
-		resampled, err = f.Copy()
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return resampled, nil
-}
-
 func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 	numSamples := frame.NumSamples()
 	channels := frame.ChannelLayout().NumChannels()
 
-	// Update audio clock to the PTS of this audio packet
+	// Update audio clock to the PTS of this audio packet (start of frame)
 	if pts := frame.Ts(); pts != ffmpeg.TS_UNDEFINED {
 		p.audioClock = pts
+		duration := float64(numSamples) / float64(frame.SampleRate())
+		dbg("audio PTS=%.3f duration=%.3fs (%d samples)", pts, duration, numSamples)
 	}
-	// Advance audio clock by the duration of this frame
-	duration := float64(numSamples) / float64(frame.SampleRate())
-	p.audioClock += duration
-	dbg("audio PTS=%.3f -> %.3f (+%.3fs, %d samples)",
-		frame.Ts(), p.audioClock, duration, numSamples)
 
 	// For planar audio, interleave the channels
 	if frame.SampleFormat().String() == "fltp" {
@@ -438,19 +345,16 @@ func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 		}
 	}
 
-	// Start audio playback once we have ~100ms buffered
-	if !p.audioStarted && p.audioClock != ffmpeg.TS_UNDEFINED && p.audioClock >= 0.1 {
+	// Start audio playback once we have ~50ms buffered
+	if !p.audioStarted {
 		queuedBytes := p.audio.QueuedSize()
-		// Only resume if we have actual queued audio (not already playing)
-		if queuedBytes > 0 {
-			// Check if this is the first time we're starting (queued > 50ms worth)
-			bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
-			bufferedDuration := float64(queuedBytes) / bytesPerSec
-			if bufferedDuration > 0.05 {
-				dbg("starting audio playback with %.3fs buffered", bufferedDuration)
-				p.audio.Resume()
-				p.audioStarted = true
-			}
+		// Check if we have enough buffered audio to start smoothly
+		bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
+		bufferedDuration := float64(queuedBytes) / bytesPerSec
+		if bufferedDuration > 0.05 {
+			dbg("starting audio playback with %.3fs buffered (PTS=%.3f)", bufferedDuration, p.audioClock)
+			p.audio.Resume()
+			p.audioStarted = true
 		}
 	}
 
