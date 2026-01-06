@@ -19,6 +19,7 @@ import (
 type Globals struct {
 	Debug          bool   `name:"debug" help:"Enable debug logging"`
 	ChromaprintKey string `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
+	Endpoint       string `name:"url" env:"GOMEDIA_ENDPOINT" help:"Server endpoint URL"`
 
 	// Private fields
 	ctx     context.Context
@@ -36,6 +37,7 @@ type CLI struct {
 	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
 	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
 	Remux             RemuxCommand             `cmd:"" help:"Remux media file or stream" group:"FILE"`
+	Server            ServerCommands           `cmd:"" help:"Run server."`
 }
 
 type ListAudioChannelsCommand struct {
