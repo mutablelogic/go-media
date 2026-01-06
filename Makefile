@@ -159,9 +159,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-sys test-chromaprint
-	@echo ... test pkg/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+test: test-ffmpeg test-chromaprint
 	@echo ... test pkg/file
 	@${GO} test ./pkg/file
 
@@ -171,12 +169,18 @@ test-chromaprint:
 	@${CGO_ENV} ${GO} test ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
-
 .PHONY: test-sys
 test-sys: go-dep go-tidy ffmpeg-build
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
+
+.PHONY: test-ffmpeg
+test-ffmpeg: test-sys
+	@echo Test
+	@echo ... test pkg/ffmpeg/...
+	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+
 
 ###############################################################################
 # DEPENDENCIES, ETC

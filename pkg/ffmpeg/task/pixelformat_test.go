@@ -7,6 +7,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	"github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +27,11 @@ func TestListPixelFormat_All(t *testing.T) {
 	// Verify each format has valid data
 	// Note: Hardware-accelerated formats may have 0 for NumComponents and BitsPerPixel
 	for _, pf := range response {
-		assert.NotEmpty(t, pf.Name)
-		if !pf.IsHWAccel {
+		assert.NotEmpty(t, ff.AVUtil_get_pix_fmt_name(pf.AVPixelFormat))
+		if !ff.AVUtil_pix_fmt_is_hwaccel(pf.AVPixelFormat) {
 			// Only software formats should have these properties
-			assert.Greater(t, pf.NumComponents, 0, "format %s should have components", pf.Name)
-			assert.Greater(t, pf.BitsPerPixel, 0, "format %s should have bits per pixel", pf.Name)
+			assert.Greater(t, ff.AVUtil_pix_fmt_num_components(pf.AVPixelFormat), 0, "format %s should have components", ff.AVUtil_get_pix_fmt_name(pf.AVPixelFormat))
+			assert.Greater(t, ff.AVUtil_get_bits_per_pixel(pf.AVPixelFormat), 0, "format %s should have bits per pixel", ff.AVUtil_get_pix_fmt_name(pf.AVPixelFormat))
 		}
 	}
 }
@@ -60,12 +61,17 @@ func TestListPixelFormat_FilterByName(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, response, 1)
-			assert.Equal(t, tc.name, response[0].Name)
-			assert.Equal(t, tc.bitsPerPixel, response[0].BitsPerPixel)
-			assert.Equal(t, tc.numPlanes, response[0].NumPlanes)
+			name := ff.AVUtil_get_pix_fmt_name(response[0].AVPixelFormat)
+			bpp := ff.AVUtil_get_bits_per_pixel(response[0].AVPixelFormat)
+			numPlanes := ff.AVUtil_pix_fmt_count_planes(response[0].AVPixelFormat)
+			assert.Equal(t, tc.name, name)
+			assert.Equal(t, tc.bitsPerPixel, bpp)
+			assert.Equal(t, tc.numPlanes, numPlanes)
 			t.Logf("%s: %d bpp, %d planes, planar=%v, rgb=%v, alpha=%v",
-				response[0].Name, response[0].BitsPerPixel, response[0].NumPlanes,
-				response[0].IsPlanar, response[0].IsRGB, response[0].HasAlpha)
+				name, bpp, numPlanes,
+				ff.AVUtil_pix_fmt_is_planar(response[0].AVPixelFormat),
+				ff.AVUtil_pix_fmt_is_rgb(response[0].AVPixelFormat),
+				ff.AVUtil_pix_fmt_has_alpha(response[0].AVPixelFormat))
 		})
 	}
 }
@@ -97,13 +103,13 @@ func TestListPixelFormat_FilterByNumPlanes(t *testing.T) {
 
 			// All returned formats should have the requested number of planes
 			for _, pf := range response {
-				assert.Equal(t, tc.numPlanes, pf.NumPlanes)
+				assert.Equal(t, tc.numPlanes, ff.AVUtil_pix_fmt_count_planes(pf.AVPixelFormat))
 			}
 
 			// Check that expected names are present
 			names := make(map[string]bool)
 			for _, pf := range response {
-				names[pf.Name] = true
+				names[ff.AVUtil_get_pix_fmt_name(pf.AVPixelFormat)] = true
 			}
 			for _, expected := range tc.expectedNames {
 				assert.True(t, names[expected], "expected format %q not found", expected)
@@ -128,8 +134,8 @@ func TestListPixelFormat_FilterByNameAndNumPlanes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, response, 1)
-	assert.Equal(t, "yuv420p", response[0].Name)
-	assert.Equal(t, 3, response[0].NumPlanes)
+	assert.Equal(t, "yuv420p", ff.AVUtil_get_pix_fmt_name(response[0].AVPixelFormat))
+	assert.Equal(t, 3, ff.AVUtil_pix_fmt_count_planes(response[0].AVPixelFormat))
 }
 
 func TestListPixelFormat_FilterNoMatch(t *testing.T) {
@@ -181,7 +187,7 @@ func TestListPixelFormat_RGBFormats(t *testing.T) {
 	// Filter RGB formats
 	var rgbCount int
 	for _, pf := range response {
-		if pf.IsRGB {
+		if ff.AVUtil_pix_fmt_is_rgb(pf.AVPixelFormat) {
 			rgbCount++
 		}
 	}
@@ -202,7 +208,7 @@ func TestListPixelFormat_AlphaFormats(t *testing.T) {
 	// Filter formats with alpha
 	var alphaCount int
 	for _, pf := range response {
-		if pf.HasAlpha {
+		if ff.AVUtil_pix_fmt_has_alpha(pf.AVPixelFormat) {
 			alphaCount++
 		}
 	}
@@ -223,7 +229,7 @@ func TestListPixelFormat_PlanarFormats(t *testing.T) {
 	// Filter planar formats
 	var planarCount int
 	for _, pf := range response {
-		if pf.IsPlanar {
+		if ff.AVUtil_pix_fmt_is_planar(pf.AVPixelFormat) {
 			planarCount++
 		}
 	}

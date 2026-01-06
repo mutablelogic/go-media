@@ -61,7 +61,7 @@ func (w *Writer) writeInterleavedPacket(packet *Packet) error {
 	// Use av_write_frame instead of av_interleaved_write_frame
 	// because av_interleaved_write_frame buffers packets and we need
 	// to understand the corruption issue first.
-	err := ff.AVFormat_write_frame(w.output, (*ff.AVPacket)(packet))
+	err := ff.AVFormat_write_frame(w.output, packet.AVPacket)
 	w.writeMutex.Unlock()
 	return err
 }
@@ -454,7 +454,7 @@ func (w *Writer) WritePackets(packets <-chan *Packet) error {
 			return err
 		}
 		// Unref the packet after writing (caller should ref before sending)
-		ff.AVCodec_packet_unref((*ff.AVPacket)(packet))
+		ff.AVCodec_packet_unref(packet.AVPacket)
 	}
 
 	// Return success

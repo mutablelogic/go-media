@@ -7,6 +7,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	"github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,11 +26,13 @@ func TestListCodec_All(t *testing.T) {
 
 	// Verify each codec has valid data
 	for _, c := range response {
-		assert.NotEmpty(t, c.Name)
-		assert.NotEmpty(t, c.Type)
-		assert.NotEmpty(t, c.ID)
+		assert.NotEmpty(t, c.Name())
+		assert.NotEmpty(t, c.Type().String())
+		assert.NotEmpty(t, c.ID())
 		// A codec should be either encoder or decoder (or both)
-		assert.True(t, c.IsEncoder || c.IsDecoder, "codec %s should be encoder or decoder", c.Name)
+		isEncoder := ff.AVCodec_is_encoder(c.AVCodec)
+		isDecoder := ff.AVCodec_is_decoder(c.AVCodec)
+		assert.True(t, isEncoder || isDecoder, "codec %s should be encoder or decoder", c.Name())
 	}
 }
 
@@ -58,8 +61,8 @@ func TestListCodec_FilterByName(t *testing.T) {
 			assert.NotEmpty(t, response, "expected to find codec matching %q", tc.name)
 
 			for _, c := range response {
-				assert.Contains(t, c.Name, tc.name)
-				t.Logf("%s: %s (%s, encoder=%v, decoder=%v)", c.Name, c.LongName, c.Type, c.IsEncoder, c.IsDecoder)
+				assert.Contains(t, c.Name(), tc.name)
+				t.Logf("%s: %s (%s, encoder=%v, decoder=%v)", c.Name(), c.LongName(), c.Type(), ff.AVCodec_is_encoder(c.AVCodec), ff.AVCodec_is_decoder(c.AVCodec))
 			}
 		})
 	}
@@ -91,13 +94,13 @@ func TestListCodec_FilterByType(t *testing.T) {
 
 			// All returned codecs should have the correct type
 			for _, c := range response {
-				assert.Equal(t, tc.mediaType, c.Type)
+				assert.Equal(t, tc.mediaType, c.Type().String())
 			}
 
 			// Check if expected codec is in the list
 			found := false
 			for _, c := range response {
-				if c.Name == tc.expectedCodec || c.ID == tc.expectedCodec {
+				if c.Name() == tc.expectedCodec || c.ID().Name() == tc.expectedCodec {
 					found = true
 					break
 				}
@@ -125,7 +128,7 @@ func TestListCodec_FilterByEncoder(t *testing.T) {
 	assert.NotEmpty(t, response)
 
 	for _, c := range response {
-		assert.True(t, c.IsEncoder, "codec %s should be an encoder", c.Name)
+		assert.True(t, ff.AVCodec_is_encoder(c.AVCodec), "codec %s should be an encoder", c.Name())
 	}
 	t.Logf("Found %d encoders", len(response))
 }
@@ -146,7 +149,7 @@ func TestListCodec_FilterByDecoder(t *testing.T) {
 	assert.NotEmpty(t, response)
 
 	for _, c := range response {
-		assert.True(t, c.IsDecoder, "codec %s should be a decoder", c.Name)
+		assert.True(t, ff.AVCodec_is_decoder(c.AVCodec), "codec %s should be a decoder", c.Name())
 	}
 	t.Logf("Found %d decoders", len(response))
 }
@@ -167,8 +170,8 @@ func TestListCodec_FilterByTypeAndEncoder(t *testing.T) {
 	assert.NotEmpty(t, response)
 
 	for _, c := range response {
-		assert.Equal(t, "video", c.Type)
-		assert.True(t, c.IsEncoder, "codec %s should be an encoder", c.Name)
+		assert.Equal(t, "video", c.Type().String())
+		assert.True(t, ff.AVCodec_is_encoder(c.AVCodec), "codec %s should be an encoder", c.Name())
 	}
 	t.Logf("Found %d video encoders", len(response))
 }
@@ -214,10 +217,11 @@ func TestListCodec_VideoCodecFormats(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, c := range response {
-		if c.IsEncoder && c.Type == "video" {
-			t.Logf("Codec %s supports pixel formats: %v", c.Name, c.PixelFormats)
-			if len(c.PixelFormats) > 0 {
-				assert.NotEmpty(t, c.PixelFormats[0])
+		if ff.AVCodec_is_encoder(c.AVCodec) && c.Type().Equals(ff.AVMEDIA_TYPE_VIDEO) {
+			pixelFormats := c.PixelFormats()
+			t.Logf("Codec %s supports pixel formats: %v", c.Name(), pixelFormats)
+			if len(pixelFormats) > 0 {
+				assert.NotEqual(t, ff.AV_PIX_FMT_NONE, pixelFormats[0])
 			}
 		}
 	}
@@ -240,9 +244,10 @@ func TestListCodec_AudioCodecFormats(t *testing.T) {
 
 	codecsWithFormats := 0
 	for _, c := range response {
-		if len(c.SampleFormats) > 0 {
+		sampleFormats := c.SampleFormats()
+		if len(sampleFormats) > 0 {
 			codecsWithFormats++
-			t.Logf("Codec %s supports sample formats: %v", c.Name, c.SampleFormats)
+			t.Logf("Codec %s supports sample formats: %v", c.Name(), sampleFormats)
 		}
 	}
 	t.Logf("%d audio encoders have sample format info", codecsWithFormats)
@@ -264,13 +269,14 @@ func TestListCodec_Capabilities(t *testing.T) {
 	withCaps := 0
 
 	for _, c := range response {
-		if c.IsHardware {
+		caps := c.Capabilities()
+		if caps&ff.AV_CODEC_CAP_HARDWARE != 0 {
 			hwAccel++
 		}
-		if c.IsExperiment {
+		if caps&ff.AV_CODEC_CAP_EXPERIMENTAL != 0 {
 			experimental++
 		}
-		if len(c.Capabilities) > 0 {
+		if caps != ff.AV_CODEC_CAP_NONE {
 			withCaps++
 		}
 	}
@@ -293,10 +299,11 @@ func TestListCodec_Profiles(t *testing.T) {
 
 	codecsWithProfiles := 0
 	for _, c := range response {
-		if len(c.Profiles) > 0 {
+		profiles := c.Profiles()
+		if len(profiles) > 0 {
 			codecsWithProfiles++
-			if c.Name == "h264" || c.Name == "libx264" {
-				t.Logf("Codec %s profiles: %v", c.Name, c.Profiles)
+			if c.Name() == "h264" || c.Name() == "libx264" {
+				t.Logf("Codec %s profiles: %v", c.Name(), profiles)
 			}
 		}
 	}

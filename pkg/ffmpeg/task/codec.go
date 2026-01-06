@@ -22,17 +22,19 @@ func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecReque
 		if req == nil {
 			return true
 		}
-		if req.Name != "" && !strings.Contains(c.Name, req.Name) {
+		if req.Name != "" && !strings.Contains(c.AVCodec.Name(), req.Name) {
 			return false
 		}
-		if req.Type != "" && c.Type != req.Type {
-			return false
-		}
-		if req.IsEncoder != nil {
-			if *req.IsEncoder && !c.IsEncoder {
+		if req.Type != "" {
+			if schema.MediaTypeString(c.AVCodec.Type()) != req.Type {
 				return false
 			}
-			if !*req.IsEncoder && !c.IsDecoder {
+		}
+		if req.IsEncoder != nil {
+			if *req.IsEncoder && !ff.AVCodec_is_encoder(c.AVCodec) {
+				return false
+			}
+			if !*req.IsEncoder && !ff.AVCodec_is_decoder(c.AVCodec) {
 				return false
 			}
 		}

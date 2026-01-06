@@ -21,10 +21,10 @@ func (manager *Manager) ListPixelFormats(_ context.Context, req *schema.ListPixe
 		if req == nil {
 			return true
 		}
-		if req.Name != "" && pf.Name != req.Name {
+		if req.Name != "" && ff.AVUtil_get_pix_fmt_name(pf.AVPixelFormat) != req.Name {
 			return false
 		}
-		if req.NumPlanes != 0 && pf.NumPlanes != req.NumPlanes {
+		if req.NumPlanes != 0 && ff.AVUtil_pix_fmt_count_planes(pf.AVPixelFormat) != req.NumPlanes {
 			return false
 		}
 		return true
