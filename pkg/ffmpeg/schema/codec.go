@@ -50,6 +50,14 @@ func (r Codec) String() string {
 	return string(data)
 }
 
+func (r ListCodecResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 

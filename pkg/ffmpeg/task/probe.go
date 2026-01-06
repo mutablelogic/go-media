@@ -22,7 +22,8 @@ func (m *Manager) Probe(_ context.Context, req *schema.ProbeRequest) (*schema.Pr
 	if req.Reader != nil {
 		reader, err = ffmpeg.NewReader(req.Reader, opt)
 	} else {
-		reader, err = ffmpeg.Open(req.Input, opt)
+		// Parse URL to support device:// scheme
+		reader, err = OpenReaderFromURL(req.Input)
 	}
 	if err != nil {
 		return nil, err

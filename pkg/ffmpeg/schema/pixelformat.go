@@ -19,9 +19,6 @@ type ListPixelFormatResponse []PixelFormat
 
 type PixelFormat struct {
 	ff.AVPixelFormat
-	IsRGB    bool `json:"is_rgb"`
-	HasAlpha bool `json:"has_alpha"`
-	IsPlanar bool `json:"is_planar"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,9 +30,6 @@ func NewPixelFormat(pixfmt ff.AVPixelFormat) *PixelFormat {
 	}
 	return &PixelFormat{
 		AVPixelFormat: pixfmt,
-		IsRGB:         ff.AVUtil_pix_fmt_is_rgb(pixfmt),
-		HasAlpha:      ff.AVUtil_pix_fmt_has_alpha(pixfmt),
-		IsPlanar:      ff.AVUtil_pix_fmt_is_planar(pixfmt),
 	}
 }
 
@@ -47,6 +41,14 @@ func (r PixelFormat) MarshalJSON() ([]byte, error) {
 }
 
 func (r PixelFormat) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (r ListPixelFormatResponse) String() string {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return err.Error()

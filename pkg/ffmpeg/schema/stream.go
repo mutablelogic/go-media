@@ -41,59 +41,28 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 		return json.Marshal(nil)
 	}
 
-	// Build a proper JSON representation with meaningful fields
-	type streamJSON struct {
-		Index      int     `json:"index"`
-		ID         int     `json:"id"`
-		Type       string  `json:"type"`
-		CodecName  string  `json:"codec_name,omitempty"`
-		CodecType  string  `json:"codec_type,omitempty"`
-		Width      int     `json:"width,omitempty"`
-		Height     int     `json:"height,omitempty"`
-		SampleRate int     `json:"sample_rate,omitempty"`
-		Channels   int     `json:"channels,omitempty"`
-		StartTime  float64 `json:"start_time"`
-		Duration   float64 `json:"duration"`
-		BitRate    int64   `json:"bit_rate,omitempty"`
+	// Build JSON with the saved codec parameters
+	type jsonStream struct {
+		Index       int                   `json:"index"`
+		Id          int                   `json:"id"`
+		CodecPar    *ff.AVCodecParameters `json:"codec_par,omitempty"`
+		StartTime   ff.AVTimestamp        `json:"start_time"`
+		Duration    ff.AVTimestamp        `json:"duration"`
+		NumFrames   int64                 `json:"num_frames,omitempty"`
+		TimeBase    ff.AVRational         `json:"time_base,omitempty"`
+		Disposition ff.AVDisposition      `json:"disposition,omitempty"`
 	}
 
-	obj := streamJSON{
-		Index: s.AVStream.Index(),
-		ID:    s.AVStream.Id(),
-		Type:  s.Type().String(),
-	}
-
-	// Add codec info
-	if codecPar := s.CodecPar(); codecPar != nil {
-		obj.CodecType = codecPar.CodecType().String()
-		if codec := ff.AVCodec_find_decoder(codecPar.CodecID()); codec != nil {
-			obj.CodecName = codec.Name()
-		}
-		obj.BitRate = codecPar.BitRate()
-
-		// Type-specific fields
-		switch codecPar.CodecType() {
-		case ff.AVMEDIA_TYPE_VIDEO:
-			obj.Width = codecPar.Width()
-			obj.Height = codecPar.Height()
-		case ff.AVMEDIA_TYPE_AUDIO:
-			obj.SampleRate = codecPar.SampleRate()
-			obj.Channels = codecPar.ChannelLayout().NumChannels()
-		}
-	}
-
-	// Time information
-	tb := s.AVStream.TimeBase()
-	if tb.Num() > 0 && tb.Den() > 0 {
-		if start := s.AVStream.StartTime(); start != int64(ff.AV_NOPTS_VALUE) {
-			obj.StartTime = float64(start) * ff.AVUtil_rational_q2d(tb)
-		}
-		if duration := s.AVStream.Duration(); duration != int64(ff.AV_NOPTS_VALUE) && duration > 0 {
-			obj.Duration = float64(duration) * ff.AVUtil_rational_q2d(tb)
-		}
-	}
-
-	return json.Marshal(obj)
+	return json.Marshal(jsonStream{
+		Index:       s.AVStream.Index(),
+		Id:          s.AVStream.Id(),
+		CodecPar:    &s.codecPar, // Use saved copy
+		StartTime:   ff.AVTimestamp(s.AVStream.StartTime()),
+		Duration:    ff.AVTimestamp(s.AVStream.Duration()),
+		NumFrames:   s.AVStream.NumFrames(),
+		TimeBase:    s.AVStream.TimeBase(),
+		Disposition: s.AVStream.Disposition(),
+	})
 }
 
 func (s *Stream) String() string {
