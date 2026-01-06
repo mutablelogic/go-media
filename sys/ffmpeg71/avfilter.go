@@ -176,6 +176,11 @@ func (c *AVFilterContext) NumOutputs() uint {
 	return uint(c.nb_outputs)
 }
 
+// Free a filter context. This will also remove the filter from the graph's list of filters.
+func AVFilterContext_free(ctx *AVFilterContext) {
+	C.avfilter_free((*C.AVFilterContext)(ctx))
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // AVFilterFlag
 

@@ -87,7 +87,7 @@ func AVFilterGraph_dump(graph *AVFilterGraph) string {
 	return C.GoString(cStr)
 }
 
-// Allocates and initializes a filter in a single step.
+// Allocate and initialize a filter in a single step.
 // The filter instance is created from the filter and inited with the parameter args.
 func AVFilterGraph_create_filter(graph *AVFilterGraph, filter *AVFilter, name, args string) (*AVFilterContext, error) {
 	var ctx *C.AVFilterContext
@@ -102,7 +102,7 @@ func AVFilterGraph_create_filter(graph *AVFilterGraph, filter *AVFilter, name, a
 	return (*AVFilterContext)(ctx), nil
 }
 
-// Add a graph described by a string to a graph,returning inputs and outputs. Will return an error
+// Add a graph described by a string to a graph, returning inputs and outputs. Will return an error
 // if not all inputs and outputs are specified. The inputs and outputs should be freed
 // with AVFilterInOut_free() when no longer needed.
 func AVFilterGraph_parse(graph *AVFilterGraph, filters string) ([]*AVFilterInOut, []*AVFilterInOut, error) {

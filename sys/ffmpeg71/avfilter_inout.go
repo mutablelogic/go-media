@@ -25,7 +25,10 @@ func AVFilterInOut_alloc(name string, filter *AVFilterContext, pad int) *AVFilte
 	return (*AVFilterInOut)(inout)
 }
 
-// Free a single AVFilterInOut entry, including its name.
+// Free the entire linked list of AVFilterInOut entries starting from the given entry.
+// This calls avfilter_inout_free() which frees the supplied list and all entries
+// linked via the 'next' field. Only call this on the head of a list or on an unlinked
+// entry to avoid double-free issues.
 func AVFilterInOut_free(inout *AVFilterInOut) {
 	ctx := (*C.AVFilterInOut)(inout)
 	C.avfilter_inout_free(&ctx)
@@ -37,13 +40,23 @@ func AVFilterInOut_link(inout ...*AVFilterInOut) *AVFilterInOut {
 	if len(inout) == 0 {
 		return nil
 	}
+	// If the first element is nil, there is no valid head to return.
+	if inout[0] == nil {
+		return nil
+	}
 	for i := 0; i < len(inout)-1; i++ {
-		if inout[i] == nil {
-			return nil
+		// A nil entry after the first acts as a terminator for the chain.
+		// Set the previous entry's next to nil and stop processing.
+		if inout[i+1] == nil {
+			inout[i].SetNext(nil)
+			break
 		}
 		inout[i].SetNext(inout[i+1])
 	}
-	inout[len(inout)-1].SetNext(nil)
+	// Set the last element's next to nil if we processed all entries.
+	if inout[len(inout)-1] != nil {
+		inout[len(inout)-1].SetNext(nil)
+	}
 	return inout[0]
 }
 

@@ -112,3 +112,33 @@ func Test_avfilter_inout_005(t *testing.T) {
 
 	ff.AVFilterInOut_free(inout)
 }
+
+func Test_avfilter_inout_006(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test that nil terminator properly clears the next pointer
+	in1 := ff.AVFilterInOut_alloc("in1", nil, 0)
+	in2 := ff.AVFilterInOut_alloc("in2", nil, 0)
+	in3 := ff.AVFilterInOut_alloc("in3", nil, 0)
+
+	// First link in1 -> in2 -> in3
+	head := ff.AVFilterInOut_link(in1, in2, in3)
+	assert.Equal(in1, head)
+	assert.Equal(in2, in1.Next())
+	assert.Equal(in3, in2.Next())
+	assert.Nil(in3.Next())
+
+	// Now relink with [in1, in2, nil, in3]
+	// This should terminate the chain at in2, ignoring in3
+	head = ff.AVFilterInOut_link(in1, in2, nil, in3)
+	assert.Equal(in1, head)
+	assert.Equal(in2, in1.Next())
+	// The key fix: in2.next should be nil, not still pointing to in3
+	assert.Nil(in2.Next(), "in2.next should be nil after nil terminator, not pointing to old value")
+
+	// Free the entire linked list starting from head
+	// This will free in1 and in2 (the actual linked chain)
+	ff.AVFilterInOut_free(in1)
+	// Free in3 separately since it's not in the chain
+	ff.AVFilterInOut_free(in3)
+}

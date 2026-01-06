@@ -70,3 +70,8 @@ func AVFilterContext_link(src *AVFilterContext, srcpad uint, dst *AVFilterContex
 	}
 	return nil
 }
+
+// Free a filter context. This will also remove the filter from the graph's list of filters.
+func AVFilterContext_free(ctx *AVFilterContext) {
+	C.avfilter_free((*C.AVFilterContext)(ctx))
+}
