@@ -96,7 +96,12 @@ func OpenReader(parsed *ParsedURL) (*ffmpeg.Reader, error) {
 		}
 
 		// For device formats, we need to find the input format via device iteration
-		// since AVFormat_find_input_format may not work for device-only formats
+		// since AVFormat_find_input_format may not work for device-only formats.
+		//
+		// Search precedence: video devices are checked first, then audio devices.
+		// If a format name exists in both video and audio device lists (which is rare),
+		// the video device format will be used. This is intentional as most device formats
+		// are specific to either video (v4l2, avfoundation) or audio (alsa, pulse).
 		var inputFormat *ff.AVInputFormat
 
 		// Try video devices first
