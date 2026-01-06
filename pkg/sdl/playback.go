@@ -171,6 +171,14 @@ func (l *FrameLoop) handleEvent() {
 			}
 		}
 
+		// IMPORTANT: Sleep BEFORE displaying the frame to maintain proper timing
+		// The VideoDelay function calculates when this frame should be shown
+		if delay > 0 {
+			dbg("waiting %.3fs before displaying frame", delay.Seconds())
+			time.Sleep(delay)
+		}
+
+		// Now display the frame at the correct time
 		if err := l.handler(frame); err != nil {
 			dbg("frame handler error: %v", err)
 			l.post(l.retryDelay)
@@ -179,14 +187,8 @@ func (l *FrameLoop) handleEvent() {
 		}
 
 		_ = frame.Close()
-		
-		// IMPORTANT: Wait HERE before posting next event to avoid concurrent sleeps
-		if delay > 0 {
-			dbg("waiting %.3fs before processing next frame", delay.Seconds())
-			time.Sleep(delay)
-		}
-		
-		// Post immediately after sleep (no goroutine)
+
+		// Post next event immediately (no additional delay)
 		if err := l.ctx.Post(l.event, nil); err != nil {
 			dbg("post event error: %v", err)
 		}

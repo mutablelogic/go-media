@@ -333,8 +333,47 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 	// Start decode in background (SDL must run on main thread on macOS)
 	errCh := make(chan error, 1)
 	go func() {
-		// Start decoding
-		err := globals.manager.Decode(globals.ctx, frameWriter, &cmd.DecodeRequest)
+		// Open the input reader for decoding
+		var reader *ffmpeg.Reader
+		var err error
+		opt := ffmpeg.WithInput(cmd.DecodeRequest.InputFormat, cmd.DecodeRequest.InputOpts...)
+		if cmd.Reader != nil {
+			reader, err = ffmpeg.NewReader(cmd.Reader, opt)
+		} else {
+			reader, err = ffmpeg.Open(cmd.Input, opt)
+		}
+		if err != nil {
+			loop.CloseInput()
+			errCh <- fmt.Errorf("open input: %w", err)
+			return
+		}
+		defer reader.Close()
+
+		// Map function to configure decoder output formats for SDL compatibility
+		mapfn := func(streamIndex int, srcPar *ffmpeg.Par) (*ffmpeg.Par, error) {
+			switch srcPar.CodecType() {
+			case media.VIDEO:
+				// Convert video to yuv420p (SDL-compatible)
+				size := fmt.Sprintf("%dx%d", srcPar.Width(), srcPar.Height())
+				return ffmpeg.NewVideoPar("yuv420p", size, 0)
+			case media.AUDIO:
+				// Convert audio to planar float32 (SDL-compatible)
+				chLayout, err := srcPar.ChannelLayout().String()
+				if err != nil {
+					return nil, err
+				}
+				return ffmpeg.NewAudioPar("fltp", chLayout, srcPar.SampleRate())
+			default:
+				// Ignore other streams
+				return nil, nil
+			}
+		}
+
+		// Decode with resampling to SDL formats
+		err = reader.Demux(globals.ctx, mapfn, func(streamIndex int, frame *ffmpeg.Frame) error {
+			return frameWriter.WriteFrame(streamIndex, frame)
+		}, nil)
+
 		loop.CloseInput()
 		errCh <- err
 	}()
