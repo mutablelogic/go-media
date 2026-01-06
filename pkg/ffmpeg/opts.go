@@ -74,9 +74,10 @@ func OptLog(verbose bool, fn LogFunc) Opt {
 // Additional options are key=value pairs (e.g., "sample_rate=22050", "channels=1").
 func WithInputFormat(iformat *ffmpeg.AVInputFormat, options ...string) Opt {
 	return func(o *opts) error {
-		if iformat != nil {
-			o.iformat = iformat
+		if iformat == nil {
+			return errors.New("invalid input format")
 		}
+		o.iformat = iformat
 		// Set format options
 		o.opts = append(o.opts, options...)
 		return nil
