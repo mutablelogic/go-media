@@ -9,6 +9,7 @@ import (
 	// Packages
 	media "github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -66,7 +67,7 @@ func Test_remux_sync_mp4(t *testing.T) {
 	packetCount := 0
 	err = reader.Decode(ctx, func(stream int, pkt *ffmpeg.Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -111,7 +112,7 @@ func Test_remux_sync_mp3(t *testing.T) {
 	packetCount := 0
 	err = reader.Decode(ctx, func(stream int, pkt *ffmpeg.Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -165,15 +166,15 @@ func Test_remux_async_mp4(t *testing.T) {
 		ctx := context.Background()
 		err := reader.Decode(ctx, func(stream int, pkt *ffmpeg.Packet) error {
 			if newStream, ok := streamMap[stream]; ok {
-				(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+				pkt.AVPacket.SetStreamIndex(newStream)
 			}
 			// Ref packet before sending through channel (increment reference count)
 			refPkt := ff.AVCodec_packet_alloc()
-			if err := ff.AVCodec_packet_ref(refPkt, (*ff.AVPacket)(pkt)); err != nil {
+			if err := ff.AVCodec_packet_ref(refPkt, pkt.AVPacket); err != nil {
 				return err
 			}
 			packetCount++
-			packets <- (*ffmpeg.Packet)(refPkt)
+			packets <- schema.NewPacket(refPkt)
 			return nil
 		})
 		errChan <- err
@@ -231,15 +232,15 @@ func Test_remux_async_wav(t *testing.T) {
 		ctx := context.Background()
 		err := reader.Decode(ctx, func(stream int, pkt *ffmpeg.Packet) error {
 			if newStream, ok := streamMap[stream]; ok {
-				(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+				pkt.AVPacket.SetStreamIndex(newStream)
 			}
 			// Ref packet before sending through channel (increment reference count)
 			refPkt := ff.AVCodec_packet_alloc()
-			if err := ff.AVCodec_packet_ref(refPkt, (*ff.AVPacket)(pkt)); err != nil {
+			if err := ff.AVCodec_packet_ref(refPkt, pkt.AVPacket); err != nil {
 				return err
 			}
 			packetCount++
-			packets <- (*ffmpeg.Packet)(refPkt)
+			packets <- schema.NewPacket(refPkt)
 			return nil
 		})
 		errChan <- err

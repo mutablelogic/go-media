@@ -18,16 +18,7 @@ type ListAudioChannelLayoutRequest struct {
 type ListAudioChannelLayoutResponse []AudioChannelLayout
 
 type AudioChannelLayout struct {
-	Name        string         `json:"name"`
-	NumChannels int            `json:"num_channels"`
-	Order       string         `json:"order"`
-	Channels    []AudioChannel `json:"channels"`
-}
-
-type AudioChannel struct {
-	Index       int    `json:"index"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	*ff.AVChannelLayout
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,43 +28,20 @@ func NewAudioChannelLayout(ch *ff.AVChannelLayout) *AudioChannelLayout {
 	if ch == nil || !ff.AVUtil_channel_layout_check(ch) {
 		return nil
 	}
-	name, _ := ff.AVUtil_channel_layout_describe(ch)
-	numChannels := ch.NumChannels()
-	layout := &AudioChannelLayout{
-		Name:        name,
-		NumChannels: numChannels,
-		Order:       ch.Order().String(),
-	}
-	channels := make([]AudioChannel, 0, numChannels)
-	for i := 0; i < numChannels; i++ {
-		channel := ff.AVUtil_channel_layout_channel_from_index(ch, i)
-		channelName, err := ff.AVUtil_channel_name(channel)
-		if err != nil {
-			continue
-		}
-		channelDesc, _ := ff.AVUtil_channel_description(channel)
-		channels = append(channels, AudioChannel{
-			Index:       i,
-			Name:        channelName,
-			Description: channelDesc,
-		})
-	}
-	layout.Channels = channels
-	return layout
+	return &AudioChannelLayout{AVChannelLayout: ch}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (r AudioChannelLayout) String() string {
-	data, err := json.MarshalIndent(r, "", "  ")
-	if err != nil {
-		return err.Error()
+func (r AudioChannelLayout) MarshalJSON() ([]byte, error) {
+	if r.AVChannelLayout == nil {
+		return json.Marshal(nil)
 	}
-	return string(data)
+	return r.AVChannelLayout.MarshalJSON()
 }
 
-func (r AudioChannel) String() string {
+func (r AudioChannelLayout) String() string {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return err.Error()

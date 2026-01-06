@@ -247,7 +247,7 @@ func Test_writer_copy_and_add_metadata_mp3(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -346,7 +346,7 @@ func Test_writer_copy_and_replace_artwork_mp3(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -437,7 +437,7 @@ func Test_writer_copy_all_add_metadata_mp4(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -530,7 +530,7 @@ func Test_writer_add_new_artwork_mp4(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -613,7 +613,7 @@ func Test_artwork_remux_mp3(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -675,7 +675,7 @@ func Test_artwork_remux_mp4(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -731,7 +731,7 @@ func Test_artwork_no_data(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)
@@ -1298,7 +1298,7 @@ func Test_artwork_multiple_mp3(t *testing.T) {
 	ctx := context.Background()
 	err = reader.Decode(ctx, func(stream int, pkt *Packet) error {
 		if newStream, ok := streamMap[stream]; ok {
-			(*ff.AVPacket)(pkt).SetStreamIndex(newStream)
+			pkt.AVPacket.SetStreamIndex(newStream)
 		}
 		packetCount++
 		return writer.Write(pkt)

@@ -22,17 +22,34 @@ func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecReque
 		if req == nil {
 			return true
 		}
-		if req.Name != "" && !strings.Contains(c.Name, req.Name) {
+		if req.Name != "" && !strings.Contains(c.AVCodec.Name(), req.Name) {
 			return false
 		}
-		if req.Type != "" && c.Type != req.Type {
-			return false
-		}
-		if req.IsEncoder != nil {
-			if *req.IsEncoder && !c.IsEncoder {
+		if req.Type != "" {
+			var typeStr string
+			switch c.AVCodec.Type() {
+			case ff.AVMEDIA_TYPE_VIDEO:
+				typeStr = "video"
+			case ff.AVMEDIA_TYPE_AUDIO:
+				typeStr = "audio"
+			case ff.AVMEDIA_TYPE_SUBTITLE:
+				typeStr = "subtitle"
+			case ff.AVMEDIA_TYPE_DATA:
+				typeStr = "data"
+			case ff.AVMEDIA_TYPE_ATTACHMENT:
+				typeStr = "attachment"
+			default:
+				typeStr = "unknown"
+			}
+			if typeStr != req.Type {
 				return false
 			}
-			if !*req.IsEncoder && !c.IsDecoder {
+		}
+		if req.IsEncoder != nil {
+			if *req.IsEncoder && !ff.AVCodec_is_encoder(c.AVCodec) {
+				return false
+			}
+			if !*req.IsEncoder && !ff.AVCodec_is_decoder(c.AVCodec) {
 				return false
 			}
 		}

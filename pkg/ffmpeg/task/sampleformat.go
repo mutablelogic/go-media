@@ -21,10 +21,10 @@ func (manager *Manager) ListSampleFormats(_ context.Context, req *schema.ListSam
 		if req == nil {
 			return true
 		}
-		if req.Name != "" && sf.Name != req.Name {
+		if req.Name != "" && ff.AVUtil_get_sample_fmt_name(sf.AVSampleFormat) != req.Name {
 			return false
 		}
-		if req.IsPlanar != nil && sf.IsPlanar != *req.IsPlanar {
+		if req.IsPlanar != nil && ff.AVUtil_sample_fmt_is_planar(sf.AVSampleFormat) != *req.IsPlanar {
 			return false
 		}
 		return true

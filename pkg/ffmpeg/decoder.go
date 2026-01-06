@@ -9,11 +9,15 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+// Packet is an alias for schema.Packet for backwards compatibility
+type Packet = schema.Packet
 
 // Return parameters if a stream should be decoded and either resampled or
 // resized. Return nil if you want to ignore the stream, or pass back the
@@ -132,7 +136,7 @@ func (d *decoder) readPackets(ctx context.Context, packetfn DecoderPacketFn) err
 		}
 
 		// Wrap the packet and call user function
-		packet := newPacket(d.pkt)
+		packet := schema.NewPacket(d.pkt)
 		if err := packetfn(packet.Stream(), packet); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil

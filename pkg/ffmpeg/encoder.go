@@ -9,6 +9,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
+	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -277,7 +278,7 @@ func (e *encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 			packet.StreamIndex(), packet.Pts(), packet.Dts(), packet.Duration(), packet.Size())
 
 		// Pass back to the caller
-		err := fn((*Packet)(packet))
+		err := fn(schema.NewPacket(packet))
 
 		// DEBUG: After muxer
 		fmt.Printf("AFTER MUXER: stream=%d pts=%d dts=%d duration=%d size=%d\n",
@@ -360,7 +361,7 @@ func (e *encoder) encodeSubtitle(sub *ff.AVSubtitle, fn EncoderPacketFn) error {
 		packet.StreamIndex(), packet.Pts(), packet.Duration(), packet.Size())
 
 	// Pass to callback
-	err = fn((*Packet)(packet))
+	err = fn(schema.NewPacket(packet))
 
 	// Free the packet
 	ff.AVCodec_packet_free(packet)
