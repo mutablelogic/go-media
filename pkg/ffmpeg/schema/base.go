@@ -8,8 +8,10 @@ import (
 // TYPES
 
 type Request struct {
-	Input  string    `json:"input" arg:""` // Input media file path
-	Reader io.Reader `json:"-" kong:"-"`   // Reader for media data
+	Input       string    `json:"input" arg:""` // Input media file path
+	Reader      io.Reader `json:"-" kong:"-"`   // Reader for media data
+	InputFormat string    `json:"input_format,omitempty" name:"input-format" help:"Input format name (e.g. mpegts)"`
+	InputOpts   []string  `json:"input_opts,omitempty" name:"input-opt" help:"Input format option key=value (repeatable)"`
 }
 
 type Output struct {

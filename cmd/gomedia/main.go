@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
-	"sync/atomic"
-	"time"
+	"path/filepath"
+	"strings"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
@@ -176,6 +175,21 @@ func (cmd *ProbeCommand) Run(globals *Globals) error {
 		cmd.Input = ""
 	}
 
+	// Heuristic: if input is MPEG-TS, hint demuxer and enlarge probe/analyze windows for SPS/PPS
+	if cmd.Input != "" && strings.EqualFold(filepath.Ext(cmd.Input), ".ts") {
+		if cmd.ProbeRequest.InputFormat == "" {
+			cmd.ProbeRequest.InputFormat = "mpegts"
+		}
+		if len(cmd.ProbeRequest.InputOpts) == 0 {
+			cmd.ProbeRequest.InputOpts = []string{
+				"probesize=5000000",        // 5MB probe
+				"analyzeduration=10000000", // 10s analyze
+				"fflags=+genpts",
+				"discardcorrupt=1",
+			}
+		}
+	}
+
 	// Call manager method
 	response, err := globals.manager.Probe(globals.ctx, &cmd.ProbeRequest)
 	if err != nil {
@@ -246,6 +260,21 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 		cmd.Input = ""
 	}
 
+	// Heuristic: if input is MPEG-TS, hint demuxer and enlarge probe/analyze windows for SPS/PPS
+	if cmd.Input != "" && strings.EqualFold(filepath.Ext(cmd.Input), ".ts") {
+		if cmd.DecodeRequest.InputFormat == "" {
+			cmd.DecodeRequest.InputFormat = "mpegts"
+		}
+		if len(cmd.DecodeRequest.InputOpts) == 0 {
+			cmd.DecodeRequest.InputOpts = []string{
+				"probesize=5000000",        // 5MB probe
+				"analyzeduration=10000000", // 10s analyze
+				"fflags=+genpts",
+				"discardcorrupt=1",
+			}
+		}
+	}
+
 	// Create SDL context
 	ctx, err := sdl.New(sdlraw.INIT_VIDEO | sdlraw.INIT_AUDIO)
 	if err != nil {
@@ -255,14 +284,11 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 
 	// Open media file to get metadata for window creation
 	var reader *ffmpeg.Reader
+	opt := ffmpeg.WithInput(cmd.DecodeRequest.InputFormat, cmd.DecodeRequest.InputOpts...)
 	if cmd.Reader != nil {
-		if cmd.Input != "" {
-			reader, err = ffmpeg.NewReader(cmd.Reader, ffmpeg.WithInput(cmd.Input))
-		} else {
-			reader, err = ffmpeg.NewReader(cmd.Reader)
-		}
+		reader, err = ffmpeg.NewReader(cmd.Reader, opt)
 	} else {
-		reader, err = ffmpeg.Open(cmd.Input)
+		reader, err = ffmpeg.Open(cmd.Input, opt)
 	}
 	if err != nil {
 		return fmt.Errorf("open input: %w", err)
@@ -293,104 +319,24 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 	}
 	defer player.Close()
 
-	// Create frame queue channel (larger buffer)
-	frameCh := make(chan *ffmpeg.Frame, 100)
-	decodeDone := make(chan struct{})
-	var doneOnce sync.Once
-	frameCount := 0
-	var frameEvent uint32
-
-	// Register SDL event for processing frames on main thread
-	var eventStopped uint32 // atomic flag to stop posting new events
-	frameEvent = ctx.Register(func(userInfo interface{}) {
-		// Check if we should stop
-		if atomic.LoadUint32(&eventStopped) != 0 {
-			return
-		}
-
-		// Process ONE frame per event (not all queued frames)
-		select {
-		case frame, ok := <-frameCh:
-			if !ok {
-				// Channel closed, decode is done
-				atomic.StoreUint32(&eventStopped, 1) // Stop posting events
-				doneOnce.Do(func() { close(decodeDone) })
-				return
-			}
-			frameCount++
-
-			// Process frame on main thread
-			if err := player.PlayFrame(ctx, frame); err != nil {
-				// Skip frames with errors (like invalid planes)
-				// Schedule next frame immediately if not stopped
-				go func() {
-					if atomic.LoadUint32(&eventStopped) == 0 {
-						time.Sleep(1 * time.Millisecond)
-						ctx.Post(frameEvent, nil)
-					}
-				}()
-				return
-			}
-
-			// Render video if we have a window
-			if window := player.Window(); window != nil {
-				if err := window.Render(); err != nil {
-					fmt.Fprintf(os.Stderr, "render error: %v\n", err)
-					atomic.StoreUint32(&eventStopped, 1)
-					doneOnce.Do(func() { close(decodeDone) })
-					return
-				}
-			}
-
-			// Always schedule next frame check with timing delay (~30fps) in background
-			go func() {
-				if atomic.LoadUint32(&eventStopped) == 0 {
-					time.Sleep(33 * time.Millisecond)
-					ctx.Post(frameEvent, nil)
-				}
-			}()
-		default:
-			// No frame ready yet, check again soon
-			go func() {
-				if atomic.LoadUint32(&eventStopped) == 0 {
-					time.Sleep(10 * time.Millisecond)
-					ctx.Post(frameEvent, nil)
-				}
-			}()
-		}
-	})
-
-	// Create frame writer that queues frames
-	frameWriter := &playFrameWriter{
-		ctx:        ctx,
-		frameCh:    frameCh,
-		frameEvent: frameEvent,
+	loop, err := sdl.NewFrameLoop(ctx, func(frame *ffmpeg.Frame) error {
+		return player.PlayFrame(ctx, frame)
+	}, 100, sdl.WithFrameDelayFunc(player.VideoDelay))
+	if err != nil {
+		return fmt.Errorf("frame loop: %w", err)
 	}
+	loop.Start()
+	defer loop.Stop()
+
+	frameWriter := sdl.NewFrameWriter(loop)
 
 	// Start decode in background (SDL must run on main thread on macOS)
 	errCh := make(chan error, 1)
 	go func() {
-		// Wait a bit for SDL event loop to start
-		time.Sleep(100 * time.Millisecond)
-
 		// Start decoding
 		err := globals.manager.Decode(globals.ctx, frameWriter, &cmd.DecodeRequest)
-		close(frameCh) // Signal completion
-
-		// Post one more event to trigger final frame processing
-		ctx.Post(frameEvent, nil)
+		loop.CloseInput()
 		errCh <- err
-	}()
-
-	// Kick off the frame processing loop after SDL starts
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		ctx.Post(frameEvent, nil)
-	}()
-
-	// Wait for decode to finish (but keep window open)
-	go func() {
-		<-decodeDone
 	}()
 
 	// Run SDL event loop on main thread
@@ -405,52 +351,6 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 
 	return nil
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// FRAME WRITER FOR PLAYBACK
-
-type playFrameWriter struct {
-	ctx        *sdl.Context
-	frameCh    chan *ffmpeg.Frame
-	frameEvent uint32
-	frameCount int
-	videoCount int
-	audioCount int
-}
-
-// Write satisfies io.Writer but discards output (we only use WriteFrame for playback)
-func (w *playFrameWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (w *playFrameWriter) WriteFrame(streamIndex int, frame interface{}) error {
-	f, ok := frame.(*ffmpeg.Frame)
-	if !ok {
-		return nil
-	}
-
-	w.frameCount++
-	frameType := f.Type()
-	switch frameType {
-	case 1: // AUDIO
-		w.audioCount++
-	case 2: // VIDEO
-		w.videoCount++
-	}
-
-	// Queue frame for processing on main thread
-	w.frameCh <- f
-
-	// Trigger SDL event to process frames on main thread
-	if err := w.ctx.Post(w.frameEvent, nil); err != nil {
-		return fmt.Errorf("post frame event: %w", err)
-	}
-
-	return nil
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// TYPES
 
 func main() {
 	cli := new(CLI)

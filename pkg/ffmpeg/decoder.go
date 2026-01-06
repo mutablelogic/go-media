@@ -19,6 +19,9 @@ import (
 // Packet is an alias for schema.Packet for backwards compatibility
 type Packet = schema.Packet
 
+// ErrCodecNotFound is returned when a decoder cannot be found for a codec
+var ErrCodecNotFound = errors.New("codec decoder not found")
+
 // Return parameters if a stream should be decoded and either resampled or
 // resized. Return nil if you want to ignore the stream, or pass back the
 // stream parameters if you want to copy the stream without any changes.
@@ -267,6 +270,10 @@ func (d *decoder) mapStreams(fn DecoderMapFunc) error {
 		// Create decoder for this stream
 		dec, err := newStreamDecoder(stream, srcPar, destPar, d.reader.force)
 		if err != nil {
+			// Skip unsupported codecs rather than failing entirely
+			if errors.Is(err, ErrCodecNotFound) {
+				continue
+			}
 			result = errors.Join(result, err)
 			continue
 		}
@@ -301,10 +308,12 @@ func newStreamDecoder(stream *ff.AVStream, srcPar, destPar *Par, force bool) (*s
 	}
 
 	// Find and allocate codec
-	codec := ff.AVCodec_find_decoder(stream.CodecPar().CodecID())
+	codecID := stream.CodecPar().CodecID()
+	codec := ff.AVCodec_find_decoder(codecID)
 	if codec == nil {
 		ff.AVUtil_frame_free(dec.frame)
-		return nil, errors.New("failed to find decoder for codec")
+		// Return a specific error for unsupported codecs that can be handled gracefully
+		return nil, errors.Join(ErrCodecNotFound, errors.New("codec: "+codecID.Name()))
 	}
 
 	ctx := ff.AVCodec_alloc_context(codec)

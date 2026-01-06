@@ -17,6 +17,7 @@ type Window struct {
 	window   *sdl.Window
 	renderer *sdl.Renderer
 	texture  *sdl.Texture
+	format   uint32
 	width    int32
 	height   int32
 }
@@ -65,6 +66,7 @@ func (c *Context) NewWindow(title string, width, height int32) (*Window, error) 
 		window:   window,
 		renderer: renderer,
 		texture:  texture,
+		format:   sdl.PIXELFORMAT_IYUV,
 		width:    width,
 		height:   height,
 	}, nil
@@ -101,9 +103,38 @@ func (w *Window) Close() error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// ensureTexture recreates the streaming texture if the dimensions or pixel format changed.
+func (w *Window) ensureTexture(format uint32, width, height int32) error {
+	if w.texture != nil {
+		if texFormat, _, texW, texH, err := w.texture.Query(); err == nil {
+			if texFormat == format && texW == width && texH == height {
+				return nil
+			}
+		}
+
+		w.texture.Destroy()
+		w.texture = nil
+	}
+
+	texture, err := w.renderer.CreateTexture(format, sdl.TEXTUREACCESS_STREAMING, width, height)
+	if err != nil {
+		return fmt.Errorf("sdl.CreateTexture: %w", err)
+	}
+
+	w.texture = texture
+	w.format = format
+	w.width = width
+	w.height = height
+	return nil
+}
+
 // Update updates the texture with new video frame data.
 // The data should be in YUV420P format with planes laid out sequentially.
-func (w *Window) Update(y, u, v []byte, yPitch, uPitch, vPitch int) error {
+func (w *Window) Update(y, u, v []byte, yPitch, uPitch, vPitch int, width, height int32) error {
+	if err := w.ensureTexture(sdl.PIXELFORMAT_IYUV, width, height); err != nil {
+		return err
+	}
+
 	if err := w.texture.UpdateYUV(nil, y, yPitch, u, uPitch, v, vPitch); err != nil {
 		return fmt.Errorf("texture.UpdateYUV: %w", err)
 	}
@@ -112,7 +143,11 @@ func (w *Window) Update(y, u, v []byte, yPitch, uPitch, vPitch int) error {
 
 // UpdateRGB updates the texture with RGB24 data.
 // The data should be in packed RGB24 format (3 bytes per pixel).
-func (w *Window) UpdateRGB(pixels []byte, pitch int) error {
+func (w *Window) UpdateRGB(pixels []byte, pitch int, width, height int32) error {
+	if err := w.ensureTexture(sdl.PIXELFORMAT_RGB24, width, height); err != nil {
+		return err
+	}
+
 	if err := w.texture.Update(nil, unsafe.Pointer(&pixels[0]), pitch); err != nil {
 		return fmt.Errorf("texture.Update: %w", err)
 	}

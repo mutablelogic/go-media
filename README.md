@@ -32,21 +32,29 @@ The module includes scripts to build FFmpeg with common codecs. Install dependen
 **macOS (Homebrew):**
 
 ```bash
+# Basic dependencies (required)
 brew install pkg-config freetype lame opus libvorbis libvpx x264 x265
+
+# Optional: Install homebrew-ffmpeg tap for more codecs
+brew tap homebrew-ffmpeg/ffmpeg
+brew install homebrew-ffmpeg/ffmpeg/ffmpeg \
+  --with-fdk-aac --with-libbluray --with-libsoxr --with-libvidstab \
+  --with-libvmaf --with-openh264 --with-openjpeg --with-rav1e \
+  --with-srt --with-svt-av1 --with-webp --with-xvid --with-zimg
 ```
 
 **Debian/Ubuntu:**
 
 ```bash
 apt install pkg-config libfreetype-dev libmp3lame-dev libopus-dev \
-  libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
+  libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev libzvbi-dev
 ```
 
 **Fedora:**
 
 ```bash
 dnf install pkg-config freetype-devel lame-devel opus-devel \
-  libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel
+  libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel zvbi-devel
 ```
 
 **Vulkan Hardware Support (Linux):**
