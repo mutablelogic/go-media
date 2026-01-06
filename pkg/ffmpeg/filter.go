@@ -346,7 +346,34 @@ func newVideoFilter(filterSpec string, srcPar, destPar *Par) (*videoFilter, erro
 		return nil, errors.New("filter graph must have exactly one output named 'sink'")
 	}
 
-	// Free the inputs and outputs (they're already linked by parse)
+	// Explicitly link the buffer source and sink to the parsed filter graph.
+	// Connect: src (out pad 0) -> first filter in the graph.
+	if err := ff.AVFilterContext_link(
+		src,
+		0,
+		inputs[0].FilterCtx(),
+		inputs[0].PadIdx(),
+	); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link source filter: %w", err)
+	}
+
+	// Connect: last filter in the graph -> sink (in pad 0).
+	if err := ff.AVFilterContext_link(
+		outputs[0].FilterCtx(),
+		outputs[0].PadIdx(),
+		sink,
+		0,
+	); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link sink filter: %w", err)
+	}
+
+	// Free the inputs and outputs now that they have been linked
 	ff.AVFilterInOut_list_free(inputs)
 	ff.AVFilterInOut_list_free(outputs)
 
