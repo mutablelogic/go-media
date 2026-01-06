@@ -45,3 +45,11 @@ func (r SampleFormat) String() string {
 	}
 	return string(data)
 }
+
+func (r ListSampleFormatResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}

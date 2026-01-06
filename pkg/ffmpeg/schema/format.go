@@ -215,3 +215,11 @@ func (r Device) String() string {
 	}
 	return string(data)
 }
+
+func (r ListFormatResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}

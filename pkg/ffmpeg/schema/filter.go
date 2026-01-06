@@ -47,3 +47,11 @@ func (r Filter) String() string {
 	}
 	return string(data)
 }
+
+func (r ListFilterResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}

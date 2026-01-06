@@ -47,3 +47,11 @@ func (r PixelFormat) String() string {
 	}
 	return string(data)
 }
+
+func (r ListPixelFormatResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
