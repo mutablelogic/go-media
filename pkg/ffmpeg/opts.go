@@ -69,14 +69,29 @@ func OptLog(verbose bool, fn LogFunc) Opt {
 	}
 }
 
+// WithInputFormat sets the input format directly using an AVInputFormat pointer.
+// This is useful for device formats that may not be found via AVFormat_find_input_format.
+// Additional options are key=value pairs (e.g., "sample_rate=22050", "channels=1").
+func WithInputFormat(iformat *ffmpeg.AVInputFormat, options ...string) Opt {
+	return func(o *opts) error {
+		if iformat != nil {
+			o.iformat = iformat
+		}
+		// Set format options
+		o.opts = append(o.opts, options...)
+		return nil
+	}
+}
+
 // WithInput sets the input format and format options for reading.
 // The format parameter specifies the input format name (e.g., "s16le", "mp3").
 // If format is empty, only the options are set without changing the format.
 // Additional options are key=value pairs (e.g., "sample_rate=22050", "channels=1").
 //
 // Example:
-//   WithInput("s16le", "sample_rate=22050", "channels=1", "sample_fmt=s16")
-//   WithInput("", "analyzeduration=1000000") // Only set options
+//
+//	WithInput("s16le", "sample_rate=22050", "channels=1", "sample_fmt=s16")
+//	WithInput("", "analyzeduration=1000000") // Only set options
 func WithInput(format string, options ...string) Opt {
 	return func(o *opts) error {
 		// Set input format if provided

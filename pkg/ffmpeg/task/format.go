@@ -38,15 +38,26 @@ func (manager *Manager) ListFormats(_ context.Context, req *schema.ListFormatReq
 
 	// Helper to add devices to an input format
 	addInputDevices := func(f *schema.Format, input *ff.AVInputFormat) {
+		// Special handling for formats that don't support AVDevice enumeration API
+		if input.Name() == "avfoundation" {
+			devices := enumerateAVFoundationDevices(input)
+			if len(devices) > 0 {
+				f.SetDevices(devices)
+			}
+			return
+		}
+
+		// Standard AVDevice enumeration
 		list, err := ff.AVDevice_list_input_sources(input, "", nil)
 		if err != nil || list == nil {
+			// Device enumeration not supported or failed for this format
 			return
 		}
 		defer ff.AVDevice_free_list_devices(list)
 
 		devices := make([]schema.Device, 0, list.NumDevices())
 		for i, device := range list.Devices() {
-			if d := schema.NewDevice(device, list.Default() == i); d != nil {
+			if d := schema.NewDevice(device, i, list.Default() == i); d != nil {
 				devices = append(devices, *d)
 			}
 		}
@@ -62,7 +73,7 @@ func (manager *Manager) ListFormats(_ context.Context, req *schema.ListFormatReq
 
 		devices := make([]schema.Device, 0, list.NumDevices())
 		for i, device := range list.Devices() {
-			if d := schema.NewDevice(device, list.Default() == i); d != nil {
+			if d := schema.NewDevice(device, i, list.Default() == i); d != nil {
 				devices = append(devices, *d)
 			}
 		}
@@ -77,6 +88,10 @@ func (manager *Manager) ListFormats(_ context.Context, req *schema.ListFormatReq
 			break
 		}
 		if f := schema.NewInputFormat(demuxer, false); f != nil {
+			// Try to enumerate devices for this format if it's a device format
+			if f.IsDevice {
+				addInputDevices(f, demuxer)
+			}
 			if matches(req, f) {
 				result = append(result, *f)
 			}
@@ -91,6 +106,10 @@ func (manager *Manager) ListFormats(_ context.Context, req *schema.ListFormatReq
 			break
 		}
 		if f := schema.NewOutputFormat(muxer, false); f != nil {
+			// Try to enumerate devices for this format if it's a device format
+			if f.IsDevice {
+				addOutputDevices(f, muxer)
+			}
 			if matches(req, f) {
 				result = append(result, *f)
 			}

@@ -41,6 +41,7 @@ type Format struct {
 }
 
 type Device struct {
+	Index       int      `json:"index"`
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	IsDefault   bool     `json:"is_default,omitempty"`
@@ -158,7 +159,7 @@ func NewOutputFormat(output *ff.AVOutputFormat, isDevice bool) *Format {
 	}
 }
 
-func NewDevice(info *ff.AVDeviceInfo, isDefault bool) *Device {
+func NewDevice(info *ff.AVDeviceInfo, index int, isDefault bool) *Device {
 	if info == nil {
 		return nil
 	}
@@ -170,6 +171,7 @@ func NewDevice(info *ff.AVDeviceInfo, isDefault bool) *Device {
 	}
 
 	return &Device{
+		Index:       index,
 		Name:        info.Name(),
 		Description: info.Description(),
 		IsDefault:   isDefault,

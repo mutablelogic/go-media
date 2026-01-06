@@ -331,7 +331,18 @@ const (
 // STRINGIFY
 
 func (v AVPixelFormat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(v.String())
+	type jsonAVPixelFormat struct {
+		Name     string `json:"name"`
+		IsRGB    bool   `json:"is_rgb"`
+		HasAlpha bool   `json:"has_alpha"`
+		IsPlanar bool   `json:"is_planar"`
+	}
+	return json.Marshal(jsonAVPixelFormat{
+		Name:     v.String(),
+		IsRGB:    AVUtil_pix_fmt_is_rgb(v),
+		HasAlpha: AVUtil_pix_fmt_has_alpha(v),
+		IsPlanar: AVUtil_pix_fmt_is_planar(v),
+	})
 }
 
 func (v AVPixelFormat) String() string {

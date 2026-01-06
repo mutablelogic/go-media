@@ -26,7 +26,8 @@ func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecReque
 			return false
 		}
 		if req.Type != "" {
-			if schema.MediaTypeString(c.AVCodec.Type()) != req.Type {
+			mt := schema.MediaType(c.AVCodec.Type())
+			if mt.String() != req.Type {
 				return false
 			}
 		}
