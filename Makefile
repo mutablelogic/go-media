@@ -178,12 +178,17 @@ test-chromaprint:
 .PHONY: test-sys
 test-sys: go-dep go-tidy ffmpeg-build
 	@echo Test
+	@echo "DEBUG: PREFIX=$(shell realpath ${PREFIX})"
+	@echo "DEBUG: PKG_CONFIG_PATH=$${PKG_CONFIG_PATH}"
+	@ls -la $(shell realpath ${PREFIX})/lib/pkgconfig/ || echo "pkgconfig dir not found"
+	@pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo "No FFmpeg packages found"
 	@echo ... test sys/${SYS_VERSION}
 	@${GO} test ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
 	@echo Test
+	@echo "DEBUG: About to run ffmpeg tests with PKG_CONFIG_PATH=$${PKG_CONFIG_PATH}"
 	@echo ... test pkg/ffmpeg/...
 	@${GO} test ./pkg/ffmpeg/...
 
