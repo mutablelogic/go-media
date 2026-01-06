@@ -10,6 +10,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -17,13 +18,18 @@ import (
 
 // Player combines window and audio for easy playback of decoded frames.
 type Player struct {
-	window         *Window
-	audio          *Audio
-	videoResampler *ffmpeg.Resampler
-	lastFmt        string
-	lastW          int
-	lastH          int
-	lastPTS        float64
+	window          *Window
+	audio           *Audio
+	videoResampler  *ffmpeg.Resampler
+	audioResampler  *ffmpeg.Resampler
+	lastFmt         string
+	lastW           int
+	lastH           int
+	lastPTS         float64
+	lastFrameDelay  float64 // Last frame delay in seconds
+	frameTimer      float64 // Accumulated time for frame scheduling
+	audioClock      float64 // Audio PTS at last queue operation
+	audioStarted    bool    // Whether audio playback has been started
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,7 +38,12 @@ type Player struct {
 // NewPlayer creates a new player for displaying video and playing audio.
 // It will auto-setup when the first frame is received.
 func (c *Context) NewPlayer() *Player {
-	return &Player{lastPTS: ffmpeg.TS_UNDEFINED}
+	return &Player{
+		lastPTS:        ffmpeg.TS_UNDEFINED,
+		lastFrameDelay: 0.040, // 40ms default (25fps)
+		frameTimer:     0.0,   // Will be initialized on first frame
+		audioClock:     ffmpeg.TS_UNDEFINED,
+	}
 }
 
 // Close closes the player and releases all resources.
@@ -42,6 +53,11 @@ func (p *Player) Close() error {
 	if p.videoResampler != nil {
 		result = errors.Join(result, p.videoResampler.Close())
 		p.videoResampler = nil
+	}
+
+	if p.audioResampler != nil {
+		result = errors.Join(result, p.audioResampler.Close())
+		p.audioResampler = nil
 	}
 
 	if p.window != nil {
@@ -85,10 +101,11 @@ func (p *Player) PlayFrame(ctx *Context, frame *ffmpeg.Frame) error {
 	}
 
 	frameType := frame.Type()
+	dbg("received frame type=%d", frameType)
 	switch frameType {
-	case 2: // VIDEO
+	case media.VIDEO:
 		return p.playVideo(ctx, frame)
-	case 1: // AUDIO
+	case media.AUDIO:
 		return p.playAudio(ctx, frame)
 	default:
 		// Silently ignore unknown frame types
@@ -196,8 +213,8 @@ func (p *Player) playYUV(frame *ffmpeg.Frame) error {
 	return nil
 }
 
-// VideoDelay returns how long to wait before presenting the next frame based on PTS.
-// If PTS is undefined, returns 0 to present immediately.
+// VideoDelay returns how long to wait before presenting the next frame.
+// Implements A/V sync following the FFmpeg tutorial algorithm.
 func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 	if frame == nil || frame.Type() != media.VIDEO {
 		return 0
@@ -208,22 +225,84 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 		return 0
 	}
 
+	// Initialize frame timer on first frame
+	if p.frameTimer == 0.0 {
+		p.frameTimer = float64(time.Now().UnixMicro()) / 1000000.0
+		p.lastPTS = pts
+		dbg("initialized frameTimer=%.3f firstPTS=%.3f", p.frameTimer, pts)
+		return 0
+	}
+
 	if p.lastPTS == ffmpeg.TS_UNDEFINED {
 		p.lastPTS = pts
 		return 0
 	}
 
-	delta := pts - p.lastPTS
-	if delta < 0 {
-		delta = 0
+	// Calculate PTS delay (time between this frame and last frame)
+	ptsDelay := pts - p.lastPTS
+	if ptsDelay <= 0 || ptsDelay >= 1.0 {
+		// If delay is invalid, use last frame's delay
+		ptsDelay = p.lastFrameDelay
 	}
-	// Clamp to avoid very long sleeps on stalled timestamps
-	if delta > 0.25 {
-		delta = 0.25
-	}
+
+	// Save for next time
+	p.lastFrameDelay = ptsDelay
 	p.lastPTS = pts
 
-	return time.Duration(delta * float64(time.Second))
+	// Sync to audio if available
+	if p.audio != nil && p.audioClock != ffmpeg.TS_UNDEFINED {
+		// Get audio clock (pts - buffered duration)
+		queuedBytes := p.audio.QueuedSize()
+		bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
+		bufferedDuration := float64(queuedBytes) / bytesPerSec
+		audioRefClock := p.audioClock - bufferedDuration
+
+		// Calculate how far video is from audio
+		audioVideoDiff := pts - audioRefClock
+
+		// Sync threshold: use larger of pts_delay or 10ms
+		syncThreshold := ptsDelay
+		if syncThreshold < 0.010 {
+			syncThreshold = 0.010
+		}
+
+		dbg("video PTS=%.3f audio=%.3f diff=%.3f ptsDelay=%.3f sync=%.3f queued=%d",
+			pts, audioRefClock, audioVideoDiff, ptsDelay, syncThreshold, queuedBytes)
+
+		// Only sync if difference is reasonable (< 1 second)
+		if audioVideoDiff < -syncThreshold && audioVideoDiff > -1.0 {
+			// Video is behind audio - don't delay
+			dbg("video behind, skip delay")
+			ptsDelay = 0
+		} else if audioVideoDiff >= syncThreshold && audioVideoDiff < 1.0 {
+			// Video is ahead of audio - increase delay
+			dbg("video ahead, double delay")
+			ptsDelay = 2 * ptsDelay
+		}
+	}
+
+	// Update frame timer
+	p.frameTimer += ptsDelay
+
+	// Calculate actual delay based on real time
+	now := float64(time.Now().UnixMicro()) / 1000000.0
+	realDelay := p.frameTimer - now
+
+	dbg("frameTimer=%.3f now=%.3f realDelay=%.3f ptsDelay=%.3f", p.frameTimer, now, realDelay, ptsDelay)
+
+	// If we're way behind (>100ms), re-sync by resetting frame timer
+	if realDelay < -0.1 {
+		dbg("way behind (%.3fs), resync frame timer", realDelay)
+		p.frameTimer = now
+		realDelay = 0.010
+	}
+
+	// Ensure minimum delay
+	if realDelay < 0.010 {
+		realDelay = 0.010
+	}
+
+	return time.Duration(realDelay * float64(time.Second))
 }
 
 func (p *Player) playRGB(frame *ffmpeg.Frame) error {
@@ -251,6 +330,8 @@ func (p *Player) playAudio(ctx *Context, frame *ffmpeg.Frame) error {
 	channels := frame.ChannelLayout().NumChannels()
 	sampleFmt := frame.SampleFormat().String()
 
+	dbg("audio frame fmt=%s rate=%d channels=%d samples=%d", sampleFmt, sampleRate, channels, frame.NumSamples())
+
 	// Create audio device if needed
 	if p.audio == nil {
 		var err error
@@ -258,22 +339,78 @@ func (p *Player) playAudio(ctx *Context, frame *ffmpeg.Frame) error {
 		if err != nil {
 			return fmt.Errorf("create audio: %w", err)
 		}
-		// Start playback
-		p.audio.Resume()
+		dbg("audio device created rate=%d channels=%d", sampleRate, channels)
 	}
 
-	// Only support flt (planar float) and fltp (planar float) formats
-	switch sampleFmt {
-	case "flt", "fltp":
-		return p.queueFloatAudio(frame)
-	default:
-		return fmt.Errorf("unsupported sample format: %s", sampleFmt)
+	// Convert to float32 if needed
+	if sampleFmt != "flt" && sampleFmt != "fltp" {
+		converted, err := p.convertAudio(frame)
+		if err != nil {
+			return fmt.Errorf("convert audio: %w", err)
+		}
+		if converted == nil {
+			return nil
+		}
+		frame = converted
+		sampleFmt = frame.SampleFormat().String()
 	}
+
+	// Queue the audio data
+	return p.queueFloatAudio(frame)
+}
+
+// convertAudio converts audio to float32 planar format for SDL
+func (p *Player) convertAudio(frame *ffmpeg.Frame) (*ffmpeg.Frame, error) {
+	if frame == nil {
+		return nil, nil
+	}
+
+	// Create resampler if needed
+	if p.audioResampler == nil {
+		chLayout := frame.ChannelLayout()
+		channelLayout, err := ff.AVUtil_channel_layout_describe(&chLayout)
+		if err != nil {
+			return nil, err
+		}
+		par, err := ffmpeg.NewAudioPar("fltp", channelLayout, frame.SampleRate())
+		if err != nil {
+			return nil, err
+		}
+		p.audioResampler, err = ffmpeg.NewResampler(par, true)
+		if err != nil {
+			return nil, err
+		}
+		dbg("audio resampler created for conversion to fltp")
+	}
+
+	// Resample the frame - collect resampled frame
+	var resampled *ffmpeg.Frame
+	err := p.audioResampler.Resample(frame, func(f *ffmpeg.Frame) error {
+		// Copy the frame since Resample reuses the frame buffer
+		var err error
+		resampled, err = f.Copy()
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resampled, nil
 }
 
 func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 	numSamples := frame.NumSamples()
 	channels := frame.ChannelLayout().NumChannels()
+
+	// Update audio clock to the PTS of this audio packet
+	if pts := frame.Ts(); pts != ffmpeg.TS_UNDEFINED {
+		p.audioClock = pts
+	}
+	// Advance audio clock by the duration of this frame
+	duration := float64(numSamples) / float64(frame.SampleRate())
+	p.audioClock += duration
+	dbg("audio PTS=%.3f -> %.3f (+%.3fs, %d samples)",
+		frame.Ts(), p.audioClock, duration, numSamples)
 
 	// For planar audio, interleave the channels
 	if frame.SampleFormat().String() == "fltp" {
@@ -289,13 +426,35 @@ func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 
 		// Convert to bytes
 		audioBytes := (*[1 << 30]byte)(unsafe.Pointer(&interleavedData[0]))[:len(interleavedData)*4]
-		return p.audio.Queue(audioBytes)
+		if err := p.audio.Queue(audioBytes); err != nil {
+			return err
+		}
 	} else {
 		// Non-planar float audio - already interleaved
 		plane := frame.Float32(0)
 		audioBytes := (*[1 << 30]byte)(unsafe.Pointer(&plane[0]))[:len(plane)*4]
-		return p.audio.Queue(audioBytes)
+		if err := p.audio.Queue(audioBytes); err != nil {
+			return err
+		}
 	}
+
+	// Start audio playback once we have ~100ms buffered
+	if !p.audioStarted && p.audioClock != ffmpeg.TS_UNDEFINED && p.audioClock >= 0.1 {
+		queuedBytes := p.audio.QueuedSize()
+		// Only resume if we have actual queued audio (not already playing)
+		if queuedBytes > 0 {
+			// Check if this is the first time we're starting (queued > 50ms worth)
+			bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
+			bufferedDuration := float64(queuedBytes) / bytesPerSec
+			if bufferedDuration > 0.05 {
+				dbg("starting audio playback with %.3fs buffered", bufferedDuration)
+				p.audio.Resume()
+				p.audioStarted = true
+			}
+		}
+	}
+
+	return nil
 }
 
 func dbg(format string, args ...interface{}) {

@@ -163,6 +163,14 @@ func (l *FrameLoop) handleEvent() {
 			return
 		}
 
+		// Calculate delay BEFORE handling the frame
+		delay := l.frameDelay
+		if l.delayFn != nil {
+			if d := l.delayFn(frame); d >= 0 {
+				delay = d
+			}
+		}
+
 		if err := l.handler(frame); err != nil {
 			dbg("frame handler error: %v", err)
 			l.post(l.retryDelay)
@@ -171,15 +179,17 @@ func (l *FrameLoop) handleEvent() {
 		}
 
 		_ = frame.Close()
-
-		delay := l.frameDelay
-		if l.delayFn != nil {
-			if d := l.delayFn(frame); d >= 0 {
-				delay = d
-			}
+		
+		// IMPORTANT: Wait HERE before posting next event to avoid concurrent sleeps
+		if delay > 0 {
+			dbg("waiting %.3fs before processing next frame", delay.Seconds())
+			time.Sleep(delay)
 		}
-
-		l.post(delay)
+		
+		// Post immediately after sleep (no goroutine)
+		if err := l.ctx.Post(l.event, nil); err != nil {
+			dbg("post event error: %v", err)
+		}
 	default:
 		l.post(l.idleDelay)
 	}
@@ -192,6 +202,7 @@ func (l *FrameLoop) post(delay time.Duration) {
 
 	go func() {
 		if delay > 0 {
+			dbg("sleeping for %.3fs before next event", delay.Seconds())
 			time.Sleep(delay)
 		}
 		if err := l.ctx.Post(l.event, nil); err != nil {
