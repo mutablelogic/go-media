@@ -99,6 +99,11 @@ func (f *Filter) Close() error {
 
 // Process applies the filter to one frame and emits zero or more frames via fn.
 // Pass src==nil to flush. fn may receive nil to signal end-of-batch.
+//
+// IMPORTANT: The frame pointer passed to fn is only valid during the callback
+// execution. The frame is freed immediately after fn returns. If you need to
+// retain the frame data, you must clone it within the callback using AVUtil_frame_clone
+// or copy its data. Do not store the frame pointer for later use.
 func (f *Filter) Process(src *Frame, fn func(*Frame) error) error {
 	if fn == nil {
 		return media.ErrBadParameter.With("nil callback")
@@ -191,7 +196,23 @@ func newAudioFilter(filterSpec string, srcPar, destPar *Par) (*audioFilter, erro
 		return nil, errors.New("filter graph must have exactly one output named 'sink'")
 	}
 
-	// Free the inputs and outputs (they're already linked by parse)
+	// Link buffer source output (pad 0) to filter graph input
+	if err := ff.AVFilterContext_link(src, 0, inputs[0].Filter(), uint(inputs[0].Pad())); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link source to filter input: %w", err)
+	}
+
+	// Link filter graph output to buffer sink input (pad 0)
+	if err := ff.AVFilterContext_link(outputs[0].Filter(), uint(outputs[0].Pad()), sink, 0); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link filter output to sink: %w", err)
+	}
+
+	// Free the inputs and outputs (they're now linked)
 	ff.AVFilterInOut_list_free(inputs)
 	ff.AVFilterInOut_list_free(outputs)
 
@@ -255,12 +276,15 @@ func (f *audioFilter) process(src *Frame, fn func(*Frame) error) error {
 			return fmt.Errorf("AVBufferSink_get_frame: %w", err)
 		}
 
-		// Call the callback with the filtered frame
+		// Call the callback with the filtered frame.
+		// CRITICAL: The frame is freed immediately after this callback returns.
+		// The callback must NOT retain the frame pointer for later use.
 		if err := fn((*Frame)(frame)); err != nil {
 			ff.AVUtil_frame_free(frame)
 			return err
 		}
 
+		// Frame is freed here - callback must not have retained the pointer
 		ff.AVUtil_frame_free(frame)
 	}
 }
@@ -346,7 +370,23 @@ func newVideoFilter(filterSpec string, srcPar, destPar *Par) (*videoFilter, erro
 		return nil, errors.New("filter graph must have exactly one output named 'sink'")
 	}
 
-	// Free the inputs and outputs (they're already linked by parse)
+	// Link buffer source output (pad 0) to filter graph input
+	if err := ff.AVFilterContext_link(src, 0, inputs[0].Filter(), uint(inputs[0].Pad())); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link source to filter input: %w", err)
+	}
+
+	// Link filter graph output to buffer sink input (pad 0)
+	if err := ff.AVFilterContext_link(outputs[0].Filter(), uint(outputs[0].Pad()), sink, 0); err != nil {
+		ff.AVFilterInOut_list_free(inputs)
+		ff.AVFilterInOut_list_free(outputs)
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to link filter output to sink: %w", err)
+	}
+
+	// Free the inputs and outputs (they're now linked)
 	ff.AVFilterInOut_list_free(inputs)
 	ff.AVFilterInOut_list_free(outputs)
 
@@ -410,12 +450,15 @@ func (f *videoFilter) process(src *Frame, fn func(*Frame) error) error {
 			return fmt.Errorf("AVBufferSink_get_frame: %w", err)
 		}
 
-		// Call the callback with the filtered frame
+		// Call the callback with the filtered frame.
+		// CRITICAL: The frame is freed immediately after this callback returns.
+		// The callback must NOT retain the frame pointer for later use.
 		if err := fn((*Frame)(frame)); err != nil {
 			ff.AVUtil_frame_free(frame)
 			return err
 		}
 
+		// Frame is freed here - callback must not have retained the pointer
 		ff.AVUtil_frame_free(frame)
 	}
 }

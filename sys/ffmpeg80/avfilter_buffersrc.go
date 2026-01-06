@@ -1,7 +1,5 @@
 package ffmpeg
 
-import "unsafe"
-
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
@@ -128,10 +126,4 @@ func AVBufferSink_get_ch_layout(ctx *AVFilterContext) AVChannelLayout {
 	var layout C.AVChannelLayout
 	C.av_buffersink_get_ch_layout((*C.AVFilterContext)(ctx), &layout)
 	return AVChannelLayout(layout)
-}
-
-// Get the number of available frames in the buffer sink.
-func AVBufferSink_get_nb_available_frames(ctx *AVFilterContext) int {
-	ptr := unsafe.Pointer(ctx)
-	return int(C.av_buffersink_get_frame_rate((*C.AVFilterContext)(ptr)).num)
 }
