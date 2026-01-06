@@ -137,7 +137,7 @@ func (d *decoder) readPackets(ctx context.Context, packetfn DecoderPacketFn) err
 
 		// Wrap the packet and call user function
 		packet := schema.NewPacket(d.pkt)
-		if err := packetfn(packet.Stream(), packet); err != nil {
+		if err := packetfn(packet.StreamIndex(), packet); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}

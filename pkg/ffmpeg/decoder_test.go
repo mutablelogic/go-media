@@ -61,7 +61,7 @@ func Test_Decode_002(t *testing.T) {
 	err = reader.Decode(ctx, func(stream int, pkt *ffmpeg.Packet) error {
 		assert.NotNil(pkt)
 		assert.GreaterOrEqual(stream, 0)
-		assert.Equal(stream, pkt.Stream())
+		assert.Equal(stream, pkt.StreamIndex())
 		streamSet[stream] = true
 		packetCount++
 		return nil

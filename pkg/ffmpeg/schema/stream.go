@@ -87,28 +87,3 @@ func (s *Stream) CodecPar() *ff.AVCodecParameters {
 	}
 	return &s.codecPar
 }
-
-// Index returns the stream index
-func (s *Stream) Index() int {
-	if s == nil || s.AVStream == nil {
-		return -1
-	}
-	return s.AVStream.Index()
-}
-
-// IsDefault returns true if this stream has the default disposition
-func (s *Stream) IsDefault() bool {
-	if s == nil || s.AVStream == nil {
-		return false
-	}
-	return s.AVStream.Disposition()&ff.AV_DISPOSITION_DEFAULT != 0
-}
-
-// IsAttachedPic returns true if this stream is an attached picture (album art)
-func (s *Stream) IsAttachedPic() bool {
-	if s == nil || s.AVStream == nil {
-		return false
-	}
-	return s.AVStream.Disposition()&ff.AV_DISPOSITION_ATTACHED_PIC != 0
-}
-
