@@ -9,3 +9,4 @@ vendor
 go.sum
 tmp
 .claude
+*.test
