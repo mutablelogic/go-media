@@ -10,6 +10,27 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// HELPER FUNCTIONS
+
+// mediaTypeString converts AVMediaType to string representation
+func mediaTypeString(t ff.AVMediaType) string {
+	switch t {
+	case ff.AVMEDIA_TYPE_VIDEO:
+		return "video"
+	case ff.AVMEDIA_TYPE_AUDIO:
+		return "audio"
+	case ff.AVMEDIA_TYPE_SUBTITLE:
+		return "subtitle"
+	case ff.AVMEDIA_TYPE_DATA:
+		return "data"
+	case ff.AVMEDIA_TYPE_ATTACHMENT:
+		return "attachment"
+	default:
+		return "unknown"
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // Return all supported codecs
@@ -26,7 +47,7 @@ func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecReque
 			return false
 		}
 		if req.Type != "" {
-			if schema.MediaTypeString(c.AVCodec.Type()) != req.Type {
+			if mediaTypeString(c.AVCodec.Type()) != req.Type {
 				return false
 			}
 		}

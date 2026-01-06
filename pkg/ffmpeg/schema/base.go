@@ -24,3 +24,10 @@ type Writer interface {
 	Progress(current, total int64) // Report progress (units depends on task)
 	Log(message string)            // Receive log messages
 }
+
+// FrameWriter is an optional interface that writers can implement
+// to receive decoded frames directly instead of JSON output
+type FrameWriter interface {
+	io.Writer
+	WriteFrame(streamIndex int, frame interface{}) error
+}

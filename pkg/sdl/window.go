@@ -3,9 +3,10 @@ package sdl
 import (
 	"errors"
 	"fmt"
+	"unsafe"
 
 	// Packages
-	"github.com/veandco/go-sdl3/sdl"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,6 +34,7 @@ func (c *Context) NewWindow(title string, width, height int32) (*Window, error) 
 	// Create window
 	window, err := sdl.CreateWindow(
 		title,
+		sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
 		width, height,
 		sdl.WINDOW_SHOWN|sdl.WINDOW_RESIZABLE,
 	)
@@ -41,15 +43,14 @@ func (c *Context) NewWindow(title string, width, height int32) (*Window, error) 
 	}
 
 	// Create renderer
-	renderer, err := sdl.CreateRenderer(window, nil)
+	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
 		window.Destroy()
 		return nil, fmt.Errorf("sdl.CreateRenderer: %w", err)
 	}
 
 	// Create texture for video frames (YUV format)
-	texture, err := sdl.CreateTexture(
-		renderer,
+	texture, err := renderer.CreateTexture(
 		sdl.PIXELFORMAT_IYUV,
 		sdl.TEXTUREACCESS_STREAMING,
 		width, height,
@@ -112,7 +113,7 @@ func (w *Window) Update(y, u, v []byte, yPitch, uPitch, vPitch int) error {
 // UpdateRGB updates the texture with RGB24 data.
 // The data should be in packed RGB24 format (3 bytes per pixel).
 func (w *Window) UpdateRGB(pixels []byte, pitch int) error {
-	if err := w.texture.Update(nil, pixels, pitch); err != nil {
+	if err := w.texture.Update(nil, unsafe.Pointer(&pixels[0]), pitch); err != nil {
 		return fmt.Errorf("texture.Update: %w", err)
 	}
 	return nil
@@ -128,9 +129,7 @@ func (w *Window) Render() error {
 		return fmt.Errorf("renderer.Copy: %w", err)
 	}
 
-	if err := w.renderer.Present(); err != nil {
-		return fmt.Errorf("renderer.Present: %w", err)
-	}
+	w.renderer.Present()
 
 	return nil
 }
@@ -141,6 +140,6 @@ func (w *Window) Size() (width, height int32) {
 }
 
 // SetTitle sets the window title.
-func (w *Window) SetTitle(title string) error {
-	return w.window.SetTitle(title)
+func (w *Window) SetTitle(title string) {
+	w.window.SetTitle(title)
 }

@@ -38,6 +38,7 @@ type CLI struct {
 	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
 	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
 	Remux             RemuxCommand             `cmd:"" help:"Remux media file or stream" group:"FILE"`
+	Decode            DecodeCommand            `cmd:"" help:"Decode media file or stream to JSON" group:"FILE"`
 	Server            ServerCommands           `cmd:"" help:"Run server."`
 }
 
@@ -75,6 +76,10 @@ type AudioLookupCommand struct {
 
 type RemuxCommand struct {
 	schema.RemuxRequest
+}
+
+type DecodeCommand struct {
+	schema.DecodeRequest
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -203,6 +208,22 @@ func (cmd *RemuxCommand) Run(globals *Globals) error {
 
 	// Print response
 	fmt.Println(response)
+	return nil
+}
+
+func (cmd *DecodeCommand) Run(globals *Globals) error {
+	// If the path is "-", use stdin
+	if cmd.Input == "-" {
+		cmd.Reader = os.Stdin
+		cmd.Input = ""
+	}
+
+	// Call manager method - outputs JSON to stdout
+	err := globals.manager.Decode(globals.ctx, os.Stdout, &cmd.DecodeRequest)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

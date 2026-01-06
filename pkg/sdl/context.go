@@ -2,11 +2,10 @@ package sdl
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	// Packages
-	"github.com/veandco/go-sdl3/sdl"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14,8 +13,8 @@ import (
 
 // Context manages SDL initialization and the event loop.
 type Context struct {
-	flags  sdl.InitFlags
-	events map[uint32]func(any)
+	flags  uint32
+	events map[uint32]func(interface{})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,14 +22,14 @@ type Context struct {
 
 // New creates a new SDL context with the specified initialization flags.
 // Common flags are sdl.INIT_VIDEO, sdl.INIT_AUDIO, or combine them.
-func New(flags sdl.InitFlags) (*Context, error) {
+func New(flags uint32) (*Context, error) {
 	if err := sdl.Init(flags); err != nil {
 		return nil, fmt.Errorf("sdl.Init: %w", err)
 	}
 
 	return &Context{
 		flags:  flags,
-		events: make(map[uint32]func(any)),
+		events: make(map[uint32]func(interface{})),
 	}, nil
 }
 
@@ -45,18 +44,22 @@ func (c *Context) Close() error {
 
 // Register registers a custom event handler. Returns the event ID that
 // can be used with Post to trigger the handler.
-func (c *Context) Register(fn func(userInfo any)) uint32 {
+func (c *Context) Register(fn func(userInfo interface{})) uint32 {
 	evt := sdl.RegisterEvents(1)
 	c.events[evt] = fn
 	return evt
 }
 
 // Post posts a custom event to the event queue.
-func (c *Context) Post(evt uint32, userInfo any) error {
-	return sdl.PushEvent(&sdl.UserEvent{
+func (c *Context) Post(evt uint32, userInfo interface{}) error {
+	_, err := sdl.PushEvent(&sdl.UserEvent{
 		Type: evt,
-		Data: userInfo,
+		Code: 0,
 	})
+	if err != nil {
+		return fmt.Errorf("sdl.PushEvent: %w", err)
+	}
+	return nil
 }
 
 // Run starts the SDL event loop and blocks until the context is cancelled
@@ -66,7 +69,7 @@ func (c *Context) Run(ctx context.Context) error {
 	evtCancel := sdl.RegisterEvents(1)
 	go func() {
 		<-ctx.Done()
-		sdl.PushEvent(&sdl.UserEvent{
+		_, _ = sdl.PushEvent(&sdl.UserEvent{
 			Type: evtCancel,
 		})
 	}()
@@ -80,13 +83,7 @@ func (c *Context) Run(ctx context.Context) error {
 		}
 
 		// Wait for an event with timeout
-		event, err := sdl.WaitEventTimeout(100)
-		if err != nil {
-			if errors.Is(err, sdl.ErrTimedOut) {
-				continue
-			}
-			return fmt.Errorf("sdl.WaitEventTimeout: %w", err)
-		}
+		event := sdl.WaitEventTimeout(100)
 
 		if event == nil {
 			continue
@@ -101,7 +98,7 @@ func (c *Context) Run(ctx context.Context) error {
 				return ctx.Err()
 			}
 			if handler, exists := c.events[e.Type]; exists {
-				handler(e.Data)
+				handler(nil)
 			}
 		}
 	}
