@@ -15,9 +15,10 @@ import (
 
 // Stream represents an AVStream from a media file
 type Stream struct {
-	ctx       *ff.AVStream
-	codecPar  *ff.AVCodecParameters
-	streamIdx int
+	ctx         *ff.AVStream
+	codecPar    ff.AVCodecParameters // Store a copy, not a pointer
+	streamIdx   int
+	hasCodecPar bool // Track if codecPar is valid
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,11 +29,19 @@ func newStream(ctx *ff.AVStream) *Stream {
 	if ctx == nil {
 		return nil
 	}
-	return &Stream{
+
+	s := &Stream{
 		ctx:       ctx,
-		codecPar:  ctx.CodecPar(),
 		streamIdx: ctx.Index(),
 	}
+
+	// Copy codec parameters so they remain valid after the reader is closed
+	if codecPar := ctx.CodecPar(); codecPar != nil {
+		s.codecPar = *codecPar // Copy the struct
+		s.hasCodecPar = true
+	}
+
+	return s
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,25 +77,24 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 		FrameSize     int    `json:"frame_size,omitempty"`     // Audio frame size
 	}
 
-	codecPar := s.ctx.CodecPar()
-	if codecPar == nil {
+	if !s.hasCodecPar {
 		return json.Marshal(jsonStream{
 			Index: s.Index(),
 		})
 	}
 
-	codecType := codecPar.CodecType()
+	codecType := s.codecPar.CodecType()
 	typeStr := mediaTypeString(codecType)
 
 	// Get codec name from ID
-	codecID := codecPar.CodecID()
+	codecID := s.codecPar.CodecID()
 	var codecName string
 	if codec := ff.AVCodec_find_decoder(codecID); codec != nil {
 		codecName = codec.Name()
 	}
 
 	// Get codec tag as fourcc string
-	codecTag := codecPar.CodecTag()
+	codecTag := s.codecPar.CodecTag()
 	var codecTagStr string
 	if codecTag != 0 {
 		codecTagStr = codecTagToString(codecTag)
@@ -126,7 +134,7 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 		Codec:       codecName,
 		CodecID:     codecID.Name(),
 		CodecTag:    codecTagStr,
-		BitRate:     codecPar.BitRate(),
+		BitRate:     s.codecPar.BitRate(),
 		Duration:    duration,
 		StartTime:   startTime,
 		NumFrames:   s.ctx.NumFrames(),
@@ -137,25 +145,25 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 	// Add type-specific fields
 	switch codecType {
 	case ff.AVMEDIA_TYPE_VIDEO:
-		result.Width = codecPar.Width()
-		result.Height = codecPar.Height()
-		if pf := codecPar.PixelFormat(); pf != ff.AV_PIX_FMT_NONE {
+		result.Width = s.codecPar.Width()
+		result.Height = s.codecPar.Height()
+		if pf := s.codecPar.PixelFormat(); pf != ff.AV_PIX_FMT_NONE {
 			result.PixelFormat = ff.AVUtil_get_pix_fmt_name(pf)
 		}
-		if sar := codecPar.SampleAspectRatio(); sar.Num() != 0 || sar.Den() != 0 {
+		if sar := s.codecPar.SampleAspectRatio(); sar.Num() != 0 || sar.Den() != 0 {
 			result.SampleAspectRatio = rationalToString(sar)
 		}
 	case ff.AVMEDIA_TYPE_AUDIO:
-		result.SampleRate = codecPar.SampleRate()
-		if sf := codecPar.SampleFormat(); sf != ff.AV_SAMPLE_FMT_NONE {
+		result.SampleRate = s.codecPar.SampleRate()
+		if sf := s.codecPar.SampleFormat(); sf != ff.AV_SAMPLE_FMT_NONE {
 			result.SampleFormat = ff.AVUtil_get_sample_fmt_name(sf)
 		}
-		layout := codecPar.ChannelLayout()
+		layout := s.codecPar.ChannelLayout()
 		result.Channels = layout.NumChannels()
 		if name, err := ff.AVUtil_channel_layout_describe(&layout); err == nil && name != "" {
 			result.ChannelLayout = name
 		}
-		result.FrameSize = codecPar.FrameSize()
+		result.FrameSize = s.codecPar.FrameSize()
 	}
 
 	return json.Marshal(result)
@@ -174,7 +182,7 @@ func (s *Stream) Type() media.Type {
 	if s.ctx.Disposition()&ff.AV_DISPOSITION_ATTACHED_PIC != 0 {
 		return media.DATA
 	}
-	if s.codecPar == nil {
+	if !s.hasCodecPar {
 		return media.UNKNOWN
 	}
 	switch s.codecPar.CodecType() {
@@ -193,7 +201,10 @@ func (s *Stream) Type() media.Type {
 
 // Return the codec parameters
 func (s *Stream) CodecPar() *ff.AVCodecParameters {
-	return s.codecPar
+	if !s.hasCodecPar {
+		return nil
+	}
+	return &s.codecPar
 }
 
 // NewStream creates a Stream from an AVStream

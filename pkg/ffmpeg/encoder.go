@@ -125,14 +125,16 @@ func newEncoder(ctx *ff.AVFormatContext, stream int, par *Par) (*encoder, error)
 
 // Close the encoder and release resources
 func (e *encoder) Close() error {
-	// Free resources
-	if e.ctx != nil {
-		ff.AVCodec_free_context(e.ctx)
-		e.ctx = nil
-	}
-	// Packet is now local to encode loop
+	// NOTE: Do NOT free e.ctx here! The AVCodecContext is owned by the AVStream,
+	// and will be freed automatically when avformat_free_context() is called.
+	// Freeing it here causes a double-free crash.
+	//
+	// The encoder context is stored in the stream's internal FFStream->avctx field,
+	// and ff_free_stream() (called by avformat_free_context) will call
+	// avcodec_free_context() on it.
 
-	// Release stream reference (owned by format context)
+	// Just nil out our references
+	e.ctx = nil
 	e.stream = nil
 
 	// Return success

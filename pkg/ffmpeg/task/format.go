@@ -13,7 +13,7 @@ import (
 // PUBLIC METHODS
 
 // Return all supported formats (input/output formats and devices)
-func (manager *Manager) ListFormat(_ context.Context, req *schema.ListFormatRequest) (schema.ListFormatResponse, error) {
+func (manager *Manager) ListFormats(_ context.Context, req *schema.ListFormatRequest) (schema.ListFormatResponse, error) {
 	result := make(schema.ListFormatResponse, 0, 256)
 
 	// Filter function

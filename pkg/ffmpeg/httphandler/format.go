@@ -39,7 +39,7 @@ func formatList(w http.ResponseWriter, r *http.Request, manager *task.Manager) e
 	}
 
 	// List the objects
-	response, err := manager.ListFormat(r.Context(), &req)
+	response, err := manager.ListFormats(r.Context(), &req)
 	if err != nil {
 		return httpresponse.Error(w, httperr(err))
 	}

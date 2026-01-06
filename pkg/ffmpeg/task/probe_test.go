@@ -22,7 +22,7 @@ func TestProbe_MP4(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestProbe_MP3(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestProbe_WAV(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "jfk.wav")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestProbe_JPEG(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.jpg")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestProbe_PNG(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.png")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestProbe_AllFiles(t *testing.T) {
 			testPath := filepath.Join(testDir, file)
 
 			resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-				Request: schema.Request{Path: testPath},
+				Request: schema.Request{Input: testPath},
 			})
 
 			require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestProbe_FileNotFound(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "nonexistent.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Path: testPath},
+		Request: schema.Request{Input: testPath},
 	})
 
 	assert.Error(t, err)
@@ -232,7 +232,7 @@ func TestProbeStream_MP4(t *testing.T) {
 	defer f.Close()
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Reader: f, Path: "mp4"},
+		Request: schema.Request{Reader: f, Input: "mp4"},
 	})
 
 	require.NoError(t, err)
@@ -252,7 +252,7 @@ func TestProbeStream_MP3(t *testing.T) {
 	defer f.Close()
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Reader: f, Path: "mp3"},
+		Request: schema.Request{Reader: f, Input: "mp3"},
 	})
 
 	require.NoError(t, err)
@@ -272,7 +272,7 @@ func TestProbeStream_WAV(t *testing.T) {
 	defer f.Close()
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request: schema.Request{Reader: f, Path: "wav"},
+		Request: schema.Request{Reader: f, Input: "wav"},
 	})
 
 	require.NoError(t, err)
@@ -306,7 +306,7 @@ func TestProbeStream_AllFiles(t *testing.T) {
 			defer f.Close()
 
 			resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-				Request: schema.Request{Reader: f, Path: tc.format},
+				Request: schema.Request{Reader: f, Input: tc.format},
 			})
 
 			require.NoError(t, err)
@@ -324,7 +324,7 @@ func TestProbe_WithMetadata(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Path: testPath},
+		Request:  schema.Request{Input: testPath},
 		Metadata: true,
 	})
 
@@ -350,7 +350,7 @@ func TestProbe_WithoutMetadata(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp4")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Path: testPath},
+		Request:  schema.Request{Input: testPath},
 		Metadata: false,
 	})
 
@@ -370,7 +370,7 @@ func TestProbe_MP3_MimeType(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Path: testPath},
+		Request:  schema.Request{Input: testPath},
 		Metadata: true,
 	})
 

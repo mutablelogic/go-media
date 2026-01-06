@@ -12,7 +12,7 @@ import (
 // PUBLIC METHODS
 
 // Return all supported sample formats
-func (manager *Manager) ListSampleFormat(_ context.Context, req *schema.ListSampleFormatRequest) (schema.ListSampleFormatResponse, error) {
+func (manager *Manager) ListSampleFormats(_ context.Context, req *schema.ListSampleFormatRequest) (schema.ListSampleFormatResponse, error) {
 	var opaque uintptr
 	result := make(schema.ListSampleFormatResponse, 0, 16)
 

@@ -12,7 +12,7 @@ import (
 // PUBLIC METHODS
 
 // Probe a media file or stream and return information about its format and streams
-func (m *Manager) ListAudioChannelLayout(_ context.Context, req *schema.ListAudioChannelLayoutRequest) (schema.ListAudioChannelLayoutResponse, error) {
+func (m *Manager) ListAudioChannelLayouts(_ context.Context, req *schema.ListAudioChannelLayoutRequest) (schema.ListAudioChannelLayoutResponse, error) {
 	var iter uintptr
 	response := make(schema.ListAudioChannelLayoutResponse, 0, 32)
 

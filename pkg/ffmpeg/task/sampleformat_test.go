@@ -18,7 +18,7 @@ func TestListSampleFormat_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d sample formats", len(response))
@@ -56,7 +56,7 @@ func TestListSampleFormat_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+			response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestListSampleFormat_FilterByPlanar(t *testing.T) {
 
 	// Filter planar formats
 	isPlanar := true
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 		IsPlanar: &isPlanar,
 	})
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestListSampleFormat_FilterByPlanar(t *testing.T) {
 
 	// Filter packed formats
 	isPacked := false
-	response, err = m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+	response, err = m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 		IsPlanar: &isPacked,
 	})
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestListSampleFormat_FilterByNameAndPlanar(t *testing.T) {
 
 	// Filter by both name and isPlanar (should match)
 	isPlanar := true
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 		Name:     "fltp",
 		IsPlanar: &isPlanar,
 	})
@@ -125,7 +125,7 @@ func TestListSampleFormat_FilterByNameAndPlanar(t *testing.T) {
 
 	// Mismatched filter (should not match)
 	isPacked := false
-	response, err = m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+	response, err = m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 		Name:     "fltp", // planar format
 		IsPlanar: &isPacked,
 	})
@@ -141,7 +141,7 @@ func TestListSampleFormat_FilterNoMatch(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Non-existent name
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{
 		Name: "nonexistent_format",
 	})
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestListSampleFormat_NilRequest(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Nil request should return all formats
-	response, err := m.ListSampleFormat(context.Background(), nil)
+	response, err := m.ListSampleFormats(context.Background(), nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 }
@@ -168,7 +168,7 @@ func TestListSampleFormat_PackedPlanarEquivalents(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{})
 	require.NoError(t, err)
 
 	// Check that packed/planar equivalents are set
@@ -192,7 +192,7 @@ func TestListSampleFormat_BitDepths(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListSampleFormat(context.Background(), &schema.ListSampleFormatRequest{})
+	response, err := m.ListSampleFormats(context.Background(), &schema.ListSampleFormatRequest{})
 	require.NoError(t, err)
 
 	// Group by bit depth

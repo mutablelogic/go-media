@@ -82,7 +82,7 @@ type RemuxCommand struct {
 
 func (cmd *ListAudioChannelsCommand) Run(globals *Globals) error {
 	// Call manager method
-	response, err := globals.manager.ListAudioChannelLayout(globals.ctx, &cmd.ListAudioChannelLayoutRequest)
+	response, err := globals.manager.ListAudioChannelLayouts(globals.ctx, &cmd.ListAudioChannelLayoutRequest)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (cmd *ListFiltersCommand) Run(globals *Globals) error {
 
 func (cmd *ListFormatsCommand) Run(globals *Globals) error {
 	// Call manager method
-	response, err := globals.manager.ListFormat(globals.ctx, &cmd.ListFormatRequest)
+	response, err := globals.manager.ListFormats(globals.ctx, &cmd.ListFormatRequest)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (cmd *ListFormatsCommand) Run(globals *Globals) error {
 
 func (cmd *ListPixelFormatsCommand) Run(globals *Globals) error {
 	// Call manager method
-	response, err := globals.manager.ListPixelFormat(globals.ctx, &cmd.ListPixelFormatRequest)
+	response, err := globals.manager.ListPixelFormats(globals.ctx, &cmd.ListPixelFormatRequest)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (cmd *ListPixelFormatsCommand) Run(globals *Globals) error {
 
 func (cmd *ListSampleFormatsCommand) Run(globals *Globals) error {
 	// Call manager method
-	response, err := globals.manager.ListSampleFormat(globals.ctx, &cmd.ListSampleFormatRequest)
+	response, err := globals.manager.ListSampleFormats(globals.ctx, &cmd.ListSampleFormatRequest)
 	if err != nil {
 		return err
 	}

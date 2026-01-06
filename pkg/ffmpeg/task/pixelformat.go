@@ -12,7 +12,7 @@ import (
 // PUBLIC METHODS
 
 // Return all supported pixel formats
-func (manager *Manager) ListPixelFormat(_ context.Context, req *schema.ListPixelFormatRequest) (schema.ListPixelFormatResponse, error) {
+func (manager *Manager) ListPixelFormats(_ context.Context, req *schema.ListPixelFormatRequest) (schema.ListPixelFormatResponse, error) {
 	var opaque uintptr
 	result := make(schema.ListPixelFormatResponse, 0, 256)
 

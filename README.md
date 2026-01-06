@@ -183,10 +183,10 @@ The task manager (`pkg/ffmpeg/task.Manager`) provides these methods:
 
 * `ListCodecs(ctx, *ListCodecRequest) (ListCodecResponse, error)` - List available codecs
 * `ListFilters(ctx, *ListFilterRequest) (ListFilterResponse, error)` - List available filters
-* `ListFormat(ctx, *ListFormatRequest) (ListFormatResponse, error)` - List formats and devices
-* `ListPixelFormat(ctx, *ListPixelFormatRequest) (ListPixelFormatResponse, error)` - List pixel formats
-* `ListSampleFormat(ctx, *ListSampleFormatRequest) (ListSampleFormatResponse, error)` - List sample formats
-* `ListAudioChannelLayout(ctx, *ListAudioChannelLayoutRequest) (ListAudioChannelLayoutResponse, error)` - List audio layouts
+* `ListFormats(ctx, *ListFormatRequest) (ListFormatResponse, error)` - List formats and devices
+* `ListPixelFormats(ctx, *ListPixelFormatRequest) (ListPixelFormatResponse, error)` - List pixel formats
+* `ListSampleFormats(ctx, *ListSampleFormatRequest) (ListSampleFormatResponse, error)` - List sample formats
+* `ListAudioChannelLayouts(ctx, *ListAudioChannelLayoutRequest) (ListAudioChannelLayoutResponse, error)` - List audio layouts
 
 **Media Operations:**
 
