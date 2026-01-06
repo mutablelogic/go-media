@@ -60,7 +60,14 @@ func ParseMediaURL(input string) (*ParsedURL, error) {
 
 		// Path contains the device identifier
 		// For device URLs like device://avfoundation/0:0, u.Path will be "/0:0"
-		result.Path = strings.TrimPrefix(u.Path, "/")
+		// Use EscapedPath() to preserve URL encoding if present
+		path := u.EscapedPath()
+		if path == "" && u.RawPath != "" {
+			path = u.RawPath
+		} else if path == "" {
+			path = u.Path
+		}
+		result.Path = strings.TrimPrefix(path, "/")
 
 		// Parse query parameters as device options
 		for key, values := range u.Query() {
