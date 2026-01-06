@@ -49,12 +49,24 @@ dnf install pkg-config freetype-devel lame-devel opus-devel \
   libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel
 ```
 
+**Vulkan Hardware Support (Linux):**
+
+For Vulkan-based hardware acceleration on Linux, install:
+
+```bash
+# Debian/Ubuntu
+apt install libvulkan-dev
+
+# Fedora
+dnf install vulkan-loader-devel
+```
+
 Then build FFmpeg:
 
 ```bash
 git clone https://github.com/mutablelogic/go-media
 cd go-media
-make ffmpeg
+make ffmpeg chromaprint
 ```
 
 This creates static libraries in `build/install` with the necessary pkg-config files.
