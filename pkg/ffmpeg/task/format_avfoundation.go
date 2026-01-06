@@ -36,10 +36,19 @@ func enumerateAVFoundationDevices(format *ff.AVInputFormat) []schema.Device {
 	defer ff.AVUtil_log_set_level(oldLevel)
 
 	ff.AVUtil_log_set_callback(func(level ff.AVLog, message string, userInfo any) {
+		// Filter by log level to reduce unrelated messages
+		if level < ff.AV_LOG_INFO || level > ff.AV_LOG_VERBOSE {
+			return
+		}
+
+		// Further restrict to AVFoundation-related messages
+		if !strings.Contains(message, "AVFoundation") {
+			return
+		}
+
 		mu.Lock()
-		defer mu.Unlock()
-		// Capture all messages
 		capturedLines = append(capturedLines, message)
+		mu.Unlock()
 	})
 	defer ff.AVUtil_log_set_callback(nil)
 
