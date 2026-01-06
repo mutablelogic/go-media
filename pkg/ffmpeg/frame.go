@@ -100,6 +100,11 @@ func (frame *Frame) String() string {
 	return string(data)
 }
 
+// MarshalJSON implements json.Marshaler by delegating to the underlying AVFrame
+func (frame *Frame) MarshalJSON() ([]byte, error) {
+	return json.Marshal((*ff.AVFrame)(frame))
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - FRAME
 

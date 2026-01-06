@@ -12,6 +12,7 @@ require (
 	github.com/mutablelogic/go-client v1.2.2
 	github.com/mutablelogic/go-server v1.5.17
 	github.com/stretchr/testify v1.11.1
+	github.com/veandco/go-sdl2 v0.4.40
 )
 
 require (
