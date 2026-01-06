@@ -14,14 +14,14 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// RegisterCodecHandlers registers HTTP handlers for codec listing and retrieval
+// RegisterFilterHandlers registers HTTP handlers for filter listing and retrieval
 // on the provided router with the given path prefix. The manager must be non-nil.
-func RegisterCodecHandlers(router *http.ServeMux, prefix string, manager *task.Manager) {
+func RegisterFilterHandlers(router *http.ServeMux, prefix string, manager *task.Manager) {
 	// List objects across all databases
-	router.HandleFunc(types.JoinPath(prefix, "codec"), func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc(types.JoinPath(prefix, "filter"), func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			_ = codecList(w, r, manager)
+			_ = filterList(w, r, manager)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -31,15 +31,15 @@ func RegisterCodecHandlers(router *http.ServeMux, prefix string, manager *task.M
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func codecList(w http.ResponseWriter, r *http.Request, manager *task.Manager) error {
+func filterList(w http.ResponseWriter, r *http.Request, manager *task.Manager) error {
 	// Parse request
-	var req schema.ListCodecRequest
+	var req schema.ListFilterRequest
 	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
 
 	// List the objects
-	response, err := manager.ListCodecs(r.Context(), &req)
+	response, err := manager.ListFilters(r.Context(), &req)
 	if err != nil {
 		return httpresponse.Error(w, httperr(err))
 	}

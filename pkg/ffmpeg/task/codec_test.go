@@ -18,7 +18,7 @@ func TestListCodec_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d codecs", len(response))
@@ -51,7 +51,7 @@ func TestListCodec_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+			response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestListCodec_FilterByType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.mediaType, func(t *testing.T) {
-			response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+			response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 				Type: tc.mediaType,
 			})
 			require.NoError(t, err)

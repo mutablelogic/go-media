@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	// Packages
-
 	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
@@ -16,6 +15,7 @@ import (
 func RegisterHandlers(router *http.ServeMux, prefix string, manager *task.Manager) {
 	RegisterAudioChannelLayoutHandlers(router, prefix, manager)
 	RegisterCodecHandlers(router, prefix, manager)
+	RegisterFilterHandlers(router, prefix, manager)
 	RegisterFormatHandlers(router, prefix, manager)
 	RegisterPixelFormatHandlers(router, prefix, manager)
 	RegisterSampleFormatHandlers(router, prefix, manager)

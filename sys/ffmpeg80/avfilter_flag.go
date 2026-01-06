@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -36,6 +37,10 @@ const (
 
 ////////////////////////////////////////////////////////////////////////////////
 // AVFilterFlag
+
+func (v AVFilterFlag) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.String())
+}
 
 func (v AVFilterFlag) Is(f AVFilterFlag) bool {
 	return v&f == f

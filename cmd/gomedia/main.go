@@ -34,6 +34,7 @@ type CLI struct {
 	ListFormats       ListFormatsCommand       `cmd:"" help:"List input, output formats and devices" group:"LIST"`
 	ListPixelFormats  ListPixelFormatsCommand  `cmd:"" help:"List pixel formats" group:"LIST"`
 	ListSampleFormats ListSampleFormatsCommand `cmd:"" help:"List sample formats" group:"LIST"`
+	ListFilters       ListFiltersCommand       `cmd:"" help:"List filters" group:"LIST"`
 	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
 	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
 	Remux             RemuxCommand             `cmd:"" help:"Remux media file or stream" group:"FILE"`
@@ -46,6 +47,10 @@ type ListAudioChannelsCommand struct {
 
 type ListCodecsCommand struct {
 	schema.ListCodecRequest
+}
+
+type ListFiltersCommand struct {
+	schema.ListFilterRequest
 }
 
 type ListFormatsCommand struct {
@@ -89,7 +94,19 @@ func (cmd *ListAudioChannelsCommand) Run(globals *Globals) error {
 
 func (cmd *ListCodecsCommand) Run(globals *Globals) error {
 	// Call manager method
-	response, err := globals.manager.ListCodec(globals.ctx, &cmd.ListCodecRequest)
+	response, err := globals.manager.ListCodecs(globals.ctx, &cmd.ListCodecRequest)
+	if err != nil {
+		return err
+	}
+
+	// Print response
+	fmt.Println(response)
+	return nil
+}
+
+func (cmd *ListFiltersCommand) Run(globals *Globals) error {
+	// Call manager method
+	response, err := globals.manager.ListFilters(globals.ctx, &cmd.ListFilterRequest)
 	if err != nil {
 		return err
 	}

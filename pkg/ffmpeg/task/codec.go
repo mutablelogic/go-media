@@ -13,7 +13,7 @@ import (
 // PUBLIC METHODS
 
 // Return all supported codecs
-func (manager *Manager) ListCodec(_ context.Context, req *schema.ListCodecRequest) (schema.ListCodecResponse, error) {
+func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecRequest) (schema.ListCodecResponse, error) {
 	var opaque uintptr
 	result := make(schema.ListCodecResponse, 0, 512)
 

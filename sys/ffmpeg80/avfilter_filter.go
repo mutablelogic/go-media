@@ -26,9 +26,9 @@ func (ctx *AVFilter) MarshalJSON() ([]byte, error) {
 	type j struct {
 		Name        string       `json:"name"`
 		Description string       `json:"description"`
-		Flags       AVFilterFlag `json:"flags,omitzero"`
-		Inputs      uint         `json:"num_inputs,omitempty"`
-		Outputs     uint         `json:"num_outputs,omitempty"`
+		Flags       AVFilterFlag `json:"flags,omitempty"`
+		Inputs      uint         `json:"num_inputs"`
+		Outputs     uint         `json:"num_outputs"`
 	}
 	if ctx == nil {
 		return json.Marshal(nil)
