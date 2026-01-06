@@ -95,9 +95,3 @@ func AVFilter_outputs(filter *AVFilter) uint {
 	ctx := (*C.AVFilter)(filter)
 	return uint(C.avfilter_filter_pad_count(ctx, 1))
 }
-
-// Free a filter context. This will also remove the filter from graph's list of filters.
-func AVFilter_free(filter *AVFilterContext) {
-	ctx := (*C.AVFilterContext)(filter)
-	C.avfilter_free(ctx)
-}
