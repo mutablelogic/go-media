@@ -76,6 +76,9 @@ func enumerateAVFoundationDevices(format *ff.AVInputFormat) []schema.Device {
 	defer mu.Unlock()
 
 	var currentType string
+	// Track if we've seen device index 0 for each type
+	defaultSeen := make(map[string]bool)
+
 	for _, line := range capturedLines {
 		line = strings.TrimSpace(line)
 
@@ -103,12 +106,20 @@ func enumerateAVFoundationDevices(format *ff.AVInputFormat) []schema.Device {
 				}
 			}
 
+			// Determine if this is the default device for its type
+			// Only the first device (index 0) of each type is default
+			isDefault := false
+			if deviceIndex == 0 && currentType != "" && !defaultSeen[currentType] {
+				isDefault = true
+				defaultSeen[currentType] = true
+			}
+
 			// Create device entry
 			device := schema.Device{
 				Index:       deviceIndex,
 				Name:        deviceName,
 				Description: deviceName,
-				IsDefault:   matches[1] == "0", // First device is typically default
+				IsDefault:   isDefault,
 			}
 
 			// Add media type if we captured it
