@@ -127,6 +127,7 @@ func Test_resampler_video_passthrough(t *testing.T) {
 		return nil
 	})
 	assert.NoError(err)
+	// When passthrough, out is the same object as src, so don't close it separately
 	assert.Same(src, out)
 }
 
