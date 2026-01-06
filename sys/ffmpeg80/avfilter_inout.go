@@ -85,18 +85,24 @@ func AVFilterInOut_free(inout *AVFilterInOut) {
 }
 
 // Link an array of AVFilterInOut entries together, and return the first entry.
-// If the array is empty, or any entry is nil, nil is returned.
+// If the array is empty, or the first entry is nil, nil is returned. A nil entry
+// after the first acts as a terminator for the chain and subsequent entries are ignored.
 func AVFilterInOut_link(inout ...*AVFilterInOut) *AVFilterInOut {
 	if len(inout) == 0 {
 		return nil
 	}
+	// If the first element is nil, there is no valid head to return.
+	if inout[0] == nil {
+		return nil
+	}
 	for i := 0; i < len(inout)-1; i++ {
+		// A nil entry terminates the chain; do not attempt to dereference it.
 		if inout[i] == nil {
-			return nil
+			break
 		}
 		inout[i].SetNext(inout[i+1])
 	}
-	// Set the last element's next to nil, but only if it's not nil itself
+	// Set the last element's next to nil, but only if it's not nil itself.
 	if inout[len(inout)-1] != nil {
 		inout[len(inout)-1].SetNext(nil)
 	}
