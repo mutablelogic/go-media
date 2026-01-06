@@ -11,12 +11,10 @@ SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
 # CGO configuration - set CGO vars for C++ libraries
-export PKG_CONFIG_PATH=$(shell realpath ${PREFIX})/lib/pkgconfig
-export CGO_LDFLAGS_ALLOW=-(W|D).*
 ifeq ($(OS),darwin)
-export CGO_LDFLAGS=-lstdc++ -Wl,-no_warn_duplicate_libraries
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
 else
-export CGO_LDFLAGS=-lstdc++
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
 
 # Build flags
@@ -51,7 +49,7 @@ cmd: ffmpeg chromaprint $(CMD_DIR)
 
 $(CMD_DIR): go-dep go-tidy mkdir 
 	@echo Build cmd $(notdir $@)
-	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
 ###############################################################################
 # FFMPEG
@@ -172,25 +170,20 @@ test: test-ffmpeg test-chromaprint
 .PHONY: test
 test-chromaprint:
 	@echo ... test pkg/chromaprint
-	@${GO} test ./pkg/segmenter
-	@${GO} test ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
 .PHONY: test-sys
-test-sys: go-dep go-tidy ffmpeg-build
+test-sys: go-dep go-tidy ffmpeg
 	@echo Test
-	@echo "DEBUG: PREFIX=$(shell realpath ${PREFIX})"
-	@echo "DEBUG: PKG_CONFIG_PATH=$${PKG_CONFIG_PATH}"
-	@ls -la $(shell realpath ${PREFIX})/lib/pkgconfig/ || echo "pkgconfig dir not found"
-	@pkg-config --list-all | grep -E '(libav|ffmpeg)' || echo "No FFmpeg packages found"
 	@echo ... test sys/${SYS_VERSION}
-	@${GO} test ./sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
 	@echo Test
-	@echo "DEBUG: About to run ffmpeg tests with PKG_CONFIG_PATH=$${PKG_CONFIG_PATH}"
 	@echo ... test pkg/ffmpeg/...
-	@${GO} test ./pkg/ffmpeg/...
+	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
 
 
 ###############################################################################
