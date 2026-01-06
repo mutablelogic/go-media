@@ -149,7 +149,11 @@ func newAudioFilter(filterSpec string, srcPar, destPar *Par) (*audioFilter, erro
 
 	// Create buffer source arguments
 	ch := srcPar.ChannelLayout()
-	chLayout, _ := ff.AVUtil_channel_layout_describe(&ch)
+	chLayout, err := ff.AVUtil_channel_layout_describe(&ch)
+	if err != nil {
+		ff.AVFilterGraph_free(graph)
+		return nil, fmt.Errorf("failed to describe channel layout: %w", err)
+	}
 	// Get timebase - use a default if not set
 	tb := ff.AVUtil_rational(1, srcPar.SampleRate())
 	srcArgs := fmt.Sprintf("sample_rate=%d:sample_fmt=%s:channel_layout=%s:time_base=%d/%d",
