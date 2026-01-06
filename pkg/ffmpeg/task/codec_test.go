@@ -18,7 +18,7 @@ func TestListCodec_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d codecs", len(response))
@@ -51,7 +51,7 @@ func TestListCodec_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+			response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestListCodec_FilterByType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.mediaType, func(t *testing.T) {
-			response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+			response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 				Type: tc.mediaType,
 			})
 			require.NoError(t, err)
@@ -118,7 +118,7 @@ func TestListCodec_FilterByEncoder(t *testing.T) {
 
 	// Get encoders only
 	isEncoder := true
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		IsEncoder: &isEncoder,
 	})
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestListCodec_FilterByDecoder(t *testing.T) {
 
 	// Get decoders only
 	isEncoder := false
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		IsEncoder: &isEncoder,
 	})
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestListCodec_FilterByTypeAndEncoder(t *testing.T) {
 	require.NotNil(t, m)
 
 	isEncoder := true
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		Type:      "video",
 		IsEncoder: &isEncoder,
 	})
@@ -180,7 +180,7 @@ func TestListCodec_FilterNoMatch(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		Name: "nonexistent_codec_xyz",
 	})
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestListCodec_NilRequest(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListCodec(context.Background(), nil)
+	response, err := m.ListCodecs(context.Background(), nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d codecs with nil request", len(response))
@@ -208,7 +208,7 @@ func TestListCodec_VideoCodecFormats(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Get a specific video encoder and check its pixel formats
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		Name: "libx264",
 	})
 	require.NoError(t, err)
@@ -232,7 +232,7 @@ func TestListCodec_AudioCodecFormats(t *testing.T) {
 
 	// Get audio encoders and check their sample formats
 	isEncoder := true
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{
 		Type:      "audio",
 		IsEncoder: &isEncoder,
 	})
@@ -255,7 +255,7 @@ func TestListCodec_Capabilities(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{})
 	require.NoError(t, err)
 
 	// Count codecs with various capabilities
@@ -288,7 +288,7 @@ func TestListCodec_Profiles(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Find codecs with profiles (like h264)
-	response, err := m.ListCodec(context.Background(), &schema.ListCodecRequest{})
+	response, err := m.ListCodecs(context.Background(), &schema.ListCodecRequest{})
 	require.NoError(t, err)
 
 	codecsWithProfiles := 0

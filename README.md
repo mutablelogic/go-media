@@ -1,341 +1,286 @@
 
 # go-media
 
-This module provides an interface for media services, including:
+This module provides Go bindings and utilities for FFmpeg, including:
 
-* Bindings in golang for [FFmpeg 7.1](https://ffmpeg.org/);
-* Opening media files, devices and network sockets for reading and writing;
-* Retrieving metadata and artwork from audio and video media;
-* Re-multiplexing media files from one format to another;
-* Fingerprinting audio files to identify music.
+* Low-level CGO bindings for [FFmpeg 8.0](https://ffmpeg.org/) (in `sys/ffmpeg80`)
+* High-level Go API for media operations (in `pkg/ffmpeg`)
+* Task manager for common media operations (in `pkg/ffmpeg/task`)
+* Audio fingerprinting with Chromaprint/AcoustID (in `pkg/chromaprint`)
+* Command-line tool `gomedia` for media inspection and manipulation
+* HTTP server for media services
 
 ## Current Status
 
-This module is currently in development and subject to change. If there are any specific features
-you are interested in, please see below "Contributing & Distribution" below.
+This module is in development (meaning the API might change).
+FFmpeg 8.0 bindings are complete with support for:
+
+* Codecs, formats, filters, pixel formats, sample formats
+* Audio channel layouts
+* Demuxing, muxing, remuxing
+* Audio and video decoding/encoding (transcoding is TBC)
+* Filtering and resampling
+* Metadata extraction
+* Hardware acceleration support
 
 ## Requirements
 
-If you're building for docker, then you can simply run the following command. This creates a docker
-image with all the dependencies installed.
+### Building FFmpeg
+
+The module includes scripts to build FFmpeg with common codecs. Install dependencies first:
+
+**macOS (Homebrew):**
+
+```bash
+brew install pkg-config freetype lame opus libvorbis libvpx x264 x265
+```
+
+**Debian/Ubuntu:**
+
+```bash
+apt install pkg-config libfreetype-dev libmp3lame-dev libopus-dev \
+  libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
+```
+
+**Fedora:**
+
+```bash
+dnf install pkg-config freetype-devel lame-devel opus-devel \
+  libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel
+```
+
+**Vulkan Hardware Support (Linux):**
+
+For Vulkan-based hardware acceleration on Linux, install:
+
+```bash
+# Debian/Ubuntu
+apt install libvulkan-dev
+
+# Fedora
+dnf install vulkan-loader-devel
+```
+
+Then build FFmpeg:
+
+```bash
+git clone https://github.com/mutablelogic/go-media
+cd go-media
+make ffmpeg chromaprint
+```
+
+This creates static libraries in `build/install` with the necessary pkg-config files.
+
+### Building the Go Module
+
+The module uses CGO and requires the FFmpeg libraries. The Makefile handles the necessary
+environment variables:
+
+```bash
+make              # Build the gomedia command-line tool
+make test         # Run all tests
+make test-sys     # Run system/FFmpeg binding tests only
+```
+
+To build manually:
+
+```bash
+export PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig"
+export CGO_LDFLAGS_ALLOW="-(W|D).*"
+export CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+go build -o build/gomedia ./cmd/gomedia
+```
+
+## Usage
+
+### Command-Line Tool
+
+The `gomedia` tool provides various media operations:
+
+```bash
+# List available codecs
+gomedia list-codecs
+
+# List available filters  
+gomedia list-filters
+
+# List supported formats
+gomedia list-formats
+
+# List pixel/sample formats
+gomedia list-pixel-formats
+gomedia list-sample-formats
+
+# Probe a media file
+gomedia probe <file>
+
+# Remux a file (change container without re-encoding)
+gomedia remux --input <input> --output <output>
+
+# Audio fingerprinting and lookup (requires AcoustID API key)
+export CHROMAPRINT_KEY=<your-key>
+gomedia audio-lookup <file>
+
+# Run HTTP server
+gomedia server run
+```
+
+### Go API - Task Manager
+
+The task manager provides a high-level API for media operations:
+
+```go
+package main
+
+import (
+ "context"
+ "fmt"
+ 
+ task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
+ schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+)
+
+func main() {
+ // Create a task manager
+ manager, err := task.NewManager()
+ if err != nil {
+  panic(err)
+ }
+
+ // List all video codecs
+ codecs, err := manager.ListCodecs(context.Background(), &schema.ListCodecRequest{
+  Type: "video",
+ })
+ if err != nil {
+  panic(err)
+ }
+ 
+ for _, codec := range codecs {
+  fmt.Printf("%s: %s\n", codec.Name, codec.LongName)
+ }
+
+ // Probe a media file
+ info, err := manager.Probe(context.Background(), &schema.ProbeRequest{
+  Input: "video.mp4",
+ })
+ if err != nil {
+  panic(err)
+ }
+ 
+ fmt.Printf("Format: %s\n", info.Format)
+ fmt.Printf("Duration: %v\n", info.Duration)
+ for _, stream := range info.Streams {
+  fmt.Printf("Stream %d: %s\n", stream.Index, stream.Type)
+ }
+}
+```
+
+### Available Task Manager Methods
+
+The task manager (`pkg/ffmpeg/task.Manager`) provides these methods:
+
+**Query Operations:**
+
+* `ListCodecs(ctx, *ListCodecRequest) (ListCodecResponse, error)` - List available codecs
+* `ListFilters(ctx, *ListFilterRequest) (ListFilterResponse, error)` - List available filters
+* `ListFormats(ctx, *ListFormatRequest) (ListFormatResponse, error)` - List formats and devices
+* `ListPixelFormats(ctx, *ListPixelFormatRequest) (ListPixelFormatResponse, error)` - List pixel formats
+* `ListSampleFormats(ctx, *ListSampleFormatRequest) (ListSampleFormatResponse, error)` - List sample formats
+* `ListAudioChannelLayouts(ctx, *ListAudioChannelLayoutRequest) (ListAudioChannelLayoutResponse, error)` - List audio layouts
+
+**Media Operations:**
+
+* `Probe(ctx, *ProbeRequest) (*ProbeResponse, error)` - Inspect media files
+* `Remux(ctx, *RemuxRequest) error` - Remux media without re-encoding
+* `AudioFingerprint(ctx, *AudioFingerprintRequest) (*AudioFingerprintResponse, error)` - Generate fingerprints and lookup
+
+### Low-Level FFmpeg Bindings
+
+For direct FFmpeg access, use the `sys/ffmpeg80` package:
+
+```go
+import (
+ ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
+)
+
+// Low-level FFmpeg operations
+filter := ff.AVFilter_get_by_name("scale")
+graph := ff.AVFilterGraph_alloc()
+// ... etc
+```
+
+### HTTP Server
+
+The module includes an HTTP server exposing the task manager via REST API:
+
+```bash
+# Start server
+gomedia server run --url http://localhost:8080/api
+
+# Query endpoints
+curl http://localhost:8080/api/codec
+curl http://localhost:8080/api/filter?name=scale
+curl http://localhost:8080/api/format?type=muxer
+```
+
+### Audio Fingerprinting
+
+```go
+import (
+ chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
+)
+
+// Requires CHROMAPRINT_KEY environment variable or explicit API key
+client, err := chromaprint.NewClient(apiKey)
+if err != nil {
+ panic(err)
+}
+
+// Generate fingerprint and lookup
+result, err := client.Lookup(context.Background(), "audio.mp3")
+if err != nil {
+ panic(err)
+}
+
+fmt.Printf("Title: %s\n", result.Title)
+fmt.Printf("Artist: %s\n", result.Artist)
+```
+
+## Docker
+
+Build a Docker image with all dependencies:
 
 ```bash
 DOCKER_REGISTRY=docker.io/user make docker
 ```
 
-However, it's more likely that you want to build the bindings. To do so, compile the FFmpeg libraries
-first:
+## Project Structure
 
-```bash
-# Debian/Ubuntu
-apt install libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev
-git clone github.com/mutablelogic/go-media
-cd go-media
-make ffmpeg
 ```
-
-```bash
-# Fedora
-dnf install freetype-devel lame-devel opus-devel libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel
-git clone github.com/mutablelogic/go-media
-cd go-media
-make ffmpeg
+sys/ffmpeg80/          # Low-level CGO FFmpeg bindings
+pkg/ffmpeg/            # High-level Go API
+  task/                # Task manager for common operations
+  schema/              # Request/response schemas
+  httphandler/         # HTTP handlers
+pkg/chromaprint/       # Audio fingerprinting
+cmd/gomedia/           # Command-line tool
 ```
-
-```bash
-# Homebrew
-brew install freetype lame opus libvorbis libvpx x264 x265
-git clone github.com/mutablelogic/go-media
-cd go-media
-make ffmpeg
-```
-
-This will place the static libraries in the `build/install` folder which you can refer to when compiling your
-golang code. For example, here's a typical compile or run command on a Mac:
-
-```bash
-PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig" \
-  LD_LIBRARY_PATH="/opt/homebrew/lib" \
-  CGO_LDFLAGS_ALLOW="-(W|D).*" \
-  go build -o build/media ./cmd/media
-```
-
-### Demultiplexing
-
-```go
-package main
-
-import (
-  media "github.com/mutablelogic/go-media"
-)
-
-func main() {
-  manager, err := media.NewManager()
-  if err != nil {
-    log.Fatal(err)
-  }
-
-  // Open a media file for reading. The format of the file is guessed.
-  // Alteratively, you can pass a format as the second argument. Further optional
-  // arguments can be used to set the format options.
-  file, err := manager.Open(os.Args[1], nil)
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer file.Close()
-
-  // Choose which streams to demultiplex - pass the stream parameters
-  // to the decoder. If you don't want to resample or reformat the streams,
-  // then you can pass nil as the function and all streams will be demultiplexed.
-  decoder, err := file.Decoder(func (stream media.Stream) (media.Parameters, error) {
-    return stream.Parameters(), nil
-  }
-  if err != nil {
-    log.Fatal(err)
-  }
-
-  // Demuliplex the stream and receive the packets. If you don't want to
-  // process the packets yourself, then you can pass nil as the function
-  if err := decoder.Demux(context.Background(), func(_ media.Packet) error {
-    // Each packet is specific to a stream. It can be processed here
-    // to receive audio or video frames, then resize or resample them,
-    // for example. Alternatively, you can pass the packet to an encoder
-    // to remultiplex the streams without processing them.
-    return nil
-  }); err != nil {
-    log.Fatal(err)  
-  })
-}
-```
-
-### Decoding - Video
-
-This example shows you how to decode video frames from a media file into images, and
-encode those images to JPEG format.
-
-```go
-package main
-
-import (
-  "context"
-  "fmt"
-  "image/jpeg"
-  "io"
-  "log"
-  "os"
-  "path/filepath"
-
-  // Packages
-  ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-
-  // Namespace imports
-  . "github.com/mutablelogic/go-media"
-)
-
-func main() {
-  // Open a media file for reading. The format of the file is guessed.
-  input, err := ffmpeg.Open(os.Args[1])
-  if err != nil {
-    log.Fatal(err)
-  }
-
-  // Make a map function which can be used to decode the streams and set
-  // the parameters we want from the decode. The audio and video streams
-  // are resampled and resized to fit the parameters we pass back the decoder.
-  mapfunc := func(stream int, par *ffmpeg.Par) (*ffmpeg.Par, error) {
-    if par.Type() == VIDEO {
-      // Convert frame to yuv420p to frame size and rate as source
-      return ffmpeg.VideoPar("yuv420p", par.WidthHeight(), par.FrameRate()), nil
-    }
-    // Ignore other streams
-    return nil, nil
-  }
-
-  // Make a folder where we're going to store the thumbnails
-  tmp, err := os.MkdirTemp("", "decode")
-  if err != nil {
-    log.Fatal(err)
-  }
-
-  // Decode the streams and receive the video frame
-  // If the map function is nil, the frames are copied. In this example,
-  // we get a yuv420p frame at the same size as the original.
-  n := 0
-  err = input.Decode(context.Background(), mapfunc, func(stream int, frame *ffmpeg.Frame) error {
-    // Write the frame to a file
-    w, err := os.Create(filepath.Join(tmp, fmt.Sprintf("frame-%d-%d.jpg", stream, n)))
-    if err != nil {
-      return err
-    }
-    defer w.Close()
-
-    // Convert to an image and encode a JPEG
-    if image, err := frame.Image(); err != nil {
-      return err
-    } else if err := jpeg.Encode(w, image, nil); err != nil {
-      return err
-    } else {
-      log.Println("Wrote:", w.Name())
-    }
-
-    // End after 10 frames
-    n++
-    if n >= 10 {
-      return io.EOF
-    }
-    return nil
-  })
-  if err != nil {
-    log.Fatal(err)
-  }
-}
-```
-
-### Encoding - Audio and Video
-
-This example shows you how to encode video and audio frames into a media file.
-It creates a testcard signal overlayed with a timestamp, and a 1KHz tone at -5dB
-
-```go
-package main
-
-import (
-  "fmt"
-  "io"
-  "log"
-  "os"
-
-  // Packages
-  ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-  generator "github.com/mutablelogic/go-media/pkg/generator"
-)
-
-// This example encodes an audio an video stream to a file
-func main() {
-  // Create a new file with an audio and video stream
-  file, err := ffmpeg.Create(os.Args[1],
-    ffmpeg.OptStream(1, ffmpeg.VideoPar("yuv420p", "1024x720", 30)),
-    ffmpeg.OptStream(2, ffmpeg.AudioPar("fltp", "mono", 22050)),
-  )
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer file.Close()
-
-  // Make an video generator which can generate frames with the same
-  // parameters as the video stream
-  video, err := generator.NewEBU(file.Stream(1).Par())
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer video.Close()
-
-  // Make an audio generator which can generate a 1KHz tone
-  // at -5dB with the same parameters as the audio stream
-  audio, err := generator.NewSine(1000, -5, file.Stream(2).Par())
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer audio.Close()
-
-  // Write 90 seconds, passing video and audio frames to the encoder
-  // and returning io.EOF when the duration is reached
-  duration := float64(90)
-  err = file.Encode(func(stream int) (*ffmpeg.Frame, error) {
-    var frame *ffmpeg.Frame
-    switch stream {
-    case 1:
-      frame = video.Frame()
-    case 2:
-      frame = audio.Frame()
-    }
-    if frame != nil && frame.Ts() < duration {
-      return frame, nil
-    }
-    return nil, io.EOF
-  }, nil)
-  if err != nil {
-    log.Fatal(err)
-  }
-}
-```
-
-### Multiplexing
-
-TODO
-
-### Retrieving Metadata and Artwork from a media file
-
-Here is an example of opening a media file and retrieving metadata and artwork.
-You have to read the artwork separately from the metadata.
-
-```go
-package main
-
-import (
-  "log"
-  "os"
-
-  // Packages
-  ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-)
-
-func main() {
-  // Open a media file for reading. The format of the file is guessed.
-  reader, err := ffmpeg.Open(os.Args[1])
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer reader.Close()
-
-  // Retrieve all the metadata from the file, and display it. If you pass
-  // keys to the Metadata function, then only entries with those keys will be
-  // returned.
-  for _, metadata := range reader.Metadata() {
-    log.Print(metadata.Key(), " => ", metadata.Value())
-  }
-
-  // Retrieve artwork by using the MetaArtwork key. The value is of type []byte.
-  // which needs to be converted to an image. 
-  for _, artwork := range reader.Metadata(ffmpeg.MetaArtwork) {
-    mimetype := artwork.Value()
-    if mimetype != "" {
-      // Retrieve the data using the metadata.Bytes() method
-      log.Print("We got some artwork of mimetype ", mimetype)
-    }
-  }
-}
-```
-
-### Audio Fingerprinting
-
-You can programmatically fingerprint audio files, compare fingerprints and identify music using the following packages:
-
-* `sys/chromaprint` provides the implementation of the lower-level function calls
-  to chromaprint. The documentation is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/sys/chromaprint)
-* `pkg/chromaprint` provides the higher-level API for fingerprinting and identifying music. The documentation
-  is [here](https://pkg.go.dev/github.com/mutablelogic/go-media/pkg/chromaprint).
-
-You'll need an API key in order to use the [AcoustID](https://acoustid.org/) service. You can get a key
-[here](https://acoustid.org/login).
 
 ## Contributing & Distribution
 
-__This module is currently in development and subject to change.__
+Please file feature requests and bugs at [github.com/mutablelogic/go-media/issues](https://github.com/mutablelogic/go-media/issues).
 
-Please do file feature requests and bugs [here](https://github.com/mutablelogic/go-media/issues).
-The license is Apache 2 so feel free to redistribute. Redistributions in either source
-code or binary form must reproduce the copyright notice, and please link back to this
-repository for more information:
+Licensed under Apache 2.0. Redistributions must include copyright notice.
 
-> __go-media__\
-> [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)\
-> Copyright (c) 2021-2025 David Thorpe, All rights reserved.
+> **go-media**  
+> [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)  
+> Copyright (c) 2021-2026 David Thorpe, All rights reserved.
 
-This software links to shared libraries of [FFmpeg](http://ffmpeg.org/) licensed under
-the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+This software links to [FFmpeg](http://ffmpeg.org/) libraries licensed under the
+[LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
 
 ## References
 
-* <https://ffmpeg.org/doxygen/7.0/index.html>
-* <https://pkg.go.dev/github.com/mutablelogic/go-media>
+* [FFmpeg 8.0 Documentation](https://ffmpeg.org/doxygen/8.0/index.html)
+* [Go Package Documentation](https://pkg.go.dev/github.com/mutablelogic/go-media)
+* [AcoustID API](https://acoustid.org/webservice)

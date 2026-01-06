@@ -39,7 +39,7 @@ func audiochannellayoutList(w http.ResponseWriter, r *http.Request, manager *tas
 	}
 
 	// List the objects
-	response, err := manager.ListAudioChannelLayout(r.Context(), &req)
+	response, err := manager.ListAudioChannelLayouts(r.Context(), &req)
 	if err != nil {
 		return httpresponse.Error(w, httperr(err))
 	}

@@ -39,7 +39,7 @@ func sampleFormatList(w http.ResponseWriter, r *http.Request, manager *task.Mana
 	}
 
 	// List the objects
-	response, err := manager.ListSampleFormat(r.Context(), &req)
+	response, err := manager.ListSampleFormats(r.Context(), &req)
 	if err != nil {
 		return httpresponse.Error(w, httperr(err))
 	}

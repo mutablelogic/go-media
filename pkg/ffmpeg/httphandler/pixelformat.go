@@ -39,7 +39,7 @@ func pixelFormatList(w http.ResponseWriter, r *http.Request, manager *task.Manag
 	}
 
 	// List the objects
-	response, err := manager.ListPixelFormat(r.Context(), &req)
+	response, err := manager.ListPixelFormats(r.Context(), &req)
 	if err != nil {
 		return httpresponse.Error(w, httperr(err))
 	}

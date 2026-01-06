@@ -18,7 +18,7 @@ func TestListAudioChannelLayout_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{})
+	response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d channel layouts", len(response))
@@ -51,7 +51,7 @@ func TestListAudioChannelLayout_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+			response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestListAudioChannelLayout_FilterByNumChannels(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(string(rune('0'+tc.numChannels))+"ch", func(t *testing.T) {
-			response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+			response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 				NumChannels: tc.numChannels,
 			})
 			require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestListAudioChannelLayout_FilterByNameAndNumChannels(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Filter by both name and numChannels (should match)
-	response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+	response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 		Name:        "stereo",
 		NumChannels: 2,
 	})
@@ -134,14 +134,14 @@ func TestListAudioChannelLayout_FilterNoMatch(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Non-existent name
-	response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+	response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 		Name: "nonexistent_layout",
 	})
 	require.NoError(t, err)
 	assert.Empty(t, response)
 
 	// Mismatched name and numChannels
-	response, err = m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+	response, err = m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 		Name:        "stereo",
 		NumChannels: 6, // stereo has 2 channels, not 6
 	})
@@ -157,7 +157,7 @@ func TestListAudioChannelLayout_NilRequest(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Nil request should return all layouts
-	response, err := m.ListAudioChannelLayout(context.Background(), nil)
+	response, err := m.ListAudioChannelLayouts(context.Background(), nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 }
@@ -170,7 +170,7 @@ func TestListAudioChannelLayout_ChannelDetails(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Get stereo layout and verify channel details
-	response, err := m.ListAudioChannelLayout(context.Background(), &schema.ListAudioChannelLayoutRequest{
+	response, err := m.ListAudioChannelLayouts(context.Background(), &schema.ListAudioChannelLayoutRequest{
 		Name: "stereo",
 	})
 	require.NoError(t, err)

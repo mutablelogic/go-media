@@ -18,7 +18,7 @@ func TestListPixelFormat_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d pixel formats", len(response))
@@ -55,7 +55,7 @@ func TestListPixelFormat_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{
+			response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestListPixelFormat_FilterByNumPlanes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(string(rune('0'+tc.numPlanes))+"planes", func(t *testing.T) {
-			response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{
+			response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{
 				NumPlanes: tc.numPlanes,
 			})
 			require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestListPixelFormat_FilterByNameAndNumPlanes(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Filter by both name and numPlanes (should match)
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{
 		Name:      "yuv420p",
 		NumPlanes: 3,
 	})
@@ -140,14 +140,14 @@ func TestListPixelFormat_FilterNoMatch(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Non-existent name
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{
 		Name: "nonexistent_format",
 	})
 	require.NoError(t, err)
 	assert.Empty(t, response)
 
 	// Mismatched name and numPlanes
-	response, err = m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{
+	response, err = m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{
 		Name:      "yuv420p",
 		NumPlanes: 1, // yuv420p has 3 planes, not 1
 	})
@@ -163,7 +163,7 @@ func TestListPixelFormat_NilRequest(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Nil request should return all formats
-	response, err := m.ListPixelFormat(context.Background(), nil)
+	response, err := m.ListPixelFormats(context.Background(), nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 }
@@ -175,7 +175,7 @@ func TestListPixelFormat_RGBFormats(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{})
 	require.NoError(t, err)
 
 	// Filter RGB formats
@@ -196,7 +196,7 @@ func TestListPixelFormat_AlphaFormats(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{})
 	require.NoError(t, err)
 
 	// Filter formats with alpha
@@ -217,7 +217,7 @@ func TestListPixelFormat_PlanarFormats(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListPixelFormat(context.Background(), &schema.ListPixelFormatRequest{})
+	response, err := m.ListPixelFormats(context.Background(), &schema.ListPixelFormatRequest{})
 	require.NoError(t, err)
 
 	// Filter planar formats

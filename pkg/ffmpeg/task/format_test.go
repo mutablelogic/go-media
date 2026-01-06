@@ -18,7 +18,7 @@ func TestListFormat_All(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{})
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d formats", len(response))
@@ -60,7 +60,7 @@ func TestListFormat_FilterByName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+			response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 				Name: tc.name,
 			})
 			require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestListFormat_FilterByInput(t *testing.T) {
 	require.NotNil(t, m)
 
 	isInput := true
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsInput: &isInput,
 	})
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestListFormat_FilterByOutput(t *testing.T) {
 	require.NotNil(t, m)
 
 	isOutput := true
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsOutput: &isOutput,
 	})
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestListFormat_FilterByDevice(t *testing.T) {
 	require.NotNil(t, m)
 
 	isDevice := true
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsDevice: &isDevice,
 	})
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestListFormat_FilterByInputAndNotDevice(t *testing.T) {
 
 	isInput := true
 	isDevice := false
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsInput:  &isInput,
 		IsDevice: &isDevice,
 	})
@@ -172,7 +172,7 @@ func TestListFormat_FilterByOutputAndNotDevice(t *testing.T) {
 
 	isOutput := true
 	isDevice := false
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsOutput: &isOutput,
 		IsDevice: &isDevice,
 	})
@@ -193,7 +193,7 @@ func TestListFormat_FilterNoMatch(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		Name: "nonexistent_format_xyz",
 	})
 	require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestListFormat_NilRequest(t *testing.T) {
 	}
 	require.NotNil(t, m)
 
-	response, err := m.ListFormat(context.Background(), nil)
+	response, err := m.ListFormats(context.Background(), nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, response)
 	t.Logf("Found %d formats with nil request", len(response))
@@ -221,7 +221,7 @@ func TestListFormat_FormatDetails(t *testing.T) {
 	require.NotNil(t, m)
 
 	// Check some common formats for expected properties
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		Name: "mp4",
 	})
 	require.NoError(t, err)
@@ -248,7 +248,7 @@ func TestListFormat_ExtensionsAndMimeTypes(t *testing.T) {
 
 	isOutput := true
 	isDevice := false
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsOutput: &isOutput,
 		IsDevice: &isDevice,
 	})
@@ -276,7 +276,7 @@ func TestListFormat_DefaultCodecs(t *testing.T) {
 
 	isOutput := true
 	isDevice := false
-	response, err := m.ListFormat(context.Background(), &schema.ListFormatRequest{
+	response, err := m.ListFormats(context.Background(), &schema.ListFormatRequest{
 		IsOutput: &isOutput,
 		IsDevice: &isDevice,
 	})
