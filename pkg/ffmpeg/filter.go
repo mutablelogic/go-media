@@ -290,14 +290,15 @@ func (f *audioFilter) process(src *Frame, fn func(*Frame) error) error {
 		}
 
 		// Call the callback with the filtered frame.
-		// CRITICAL: The frame is freed immediately after this callback returns.
-		// The callback must NOT retain the frame pointer for later use.
+		// ⚠️  CRITICAL: The frame is freed immediately after this callback returns.
+		// The callback MUST NOT retain the frame pointer for later use.
+		// If the callback stored this pointer, the next line will cause use-after-free.
 		if err := fn((*Frame)(frame)); err != nil {
 			ff.AVUtil_frame_free(frame)
 			return err
 		}
 
-		// Frame is freed here - callback must not have retained the pointer
+		// ⚠️  Frame is freed here - any retained pointers are now invalid (use-after-free bug)
 		ff.AVUtil_frame_free(frame)
 	}
 }
@@ -464,14 +465,15 @@ func (f *videoFilter) process(src *Frame, fn func(*Frame) error) error {
 		}
 
 		// Call the callback with the filtered frame.
-		// CRITICAL: The frame is freed immediately after this callback returns.
-		// The callback must NOT retain the frame pointer for later use.
+		// ⚠️  CRITICAL: The frame is freed immediately after this callback returns.
+		// The callback MUST NOT retain the frame pointer for later use.
+		// If the callback stored this pointer, the next line will cause use-after-free.
 		if err := fn((*Frame)(frame)); err != nil {
 			ff.AVUtil_frame_free(frame)
 			return err
 		}
 
-		// Frame is freed here - callback must not have retained the pointer
+		// ⚠️  Frame is freed here - any retained pointers are now invalid (use-after-free bug)
 		ff.AVUtil_frame_free(frame)
 	}
 }
