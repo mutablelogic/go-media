@@ -40,7 +40,29 @@ func (s *Stream) MarshalJSON() ([]byte, error) {
 	if s.AVStream == nil {
 		return json.Marshal(nil)
 	}
-	return s.AVStream.MarshalJSON()
+
+	// Build JSON with the saved codec parameters
+	type jsonStream struct {
+		Index       int                   `json:"index"`
+		Id          int                   `json:"id"`
+		CodecPar    *ff.AVCodecParameters `json:"codec_par,omitempty"`
+		StartTime   ff.AVTimestamp        `json:"start_time"`
+		Duration    ff.AVTimestamp        `json:"duration"`
+		NumFrames   int64                 `json:"num_frames,omitempty"`
+		TimeBase    ff.AVRational         `json:"time_base,omitempty"`
+		Disposition ff.AVDisposition      `json:"disposition,omitempty"`
+	}
+
+	return json.Marshal(jsonStream{
+		Index:       s.AVStream.Index(),
+		Id:          s.AVStream.Id(),
+		CodecPar:    &s.codecPar, // Use saved copy
+		StartTime:   ff.AVTimestamp(s.AVStream.StartTime()),
+		Duration:    ff.AVTimestamp(s.AVStream.Duration()),
+		NumFrames:   s.AVStream.NumFrames(),
+		TimeBase:    s.AVStream.TimeBase(),
+		Disposition: s.AVStream.Disposition(),
+	})
 }
 
 func (s *Stream) String() string {

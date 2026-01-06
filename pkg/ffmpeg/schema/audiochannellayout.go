@@ -48,3 +48,11 @@ func (r AudioChannelLayout) String() string {
 	}
 	return string(data)
 }
+
+func (r ListAudioChannelLayoutResponse) String() string {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}

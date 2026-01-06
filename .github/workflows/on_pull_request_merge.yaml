@@ -1,15 +1,14 @@
-
 name: "Run tests on merge to main"
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 jobs:
   test:
     name: Test
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        go-version: [ '1.23', '1.24' ]  
+        go-version: ["1.24", "1.25"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,5 +19,4 @@ jobs:
       - name: Run tests
         run: |
           sudo apt -y update && sudo apt -y install nasm
-          make container-test
-
+          make test

@@ -11,7 +11,11 @@ SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
 # CGO configuration - set CGO vars for C++ libraries
+ifeq ($(OS),darwin)
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+else
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+endif
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -159,27 +163,27 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: test-ffmpeg test-chromaprint
+test: ffmpeg chromaprint test-ffmpeg test-chromaprint
 	@echo ... test pkg/file
-	@${GO} test ./pkg/file
+	@${GO} test -v ./pkg/file
 
-.PHONY: test
+.PHONY: test-chromaprint
 test-chromaprint:
 	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test ./pkg/segmenter
-	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test -v ./pkg/segmenter
+	@${CGO_ENV} ${GO} test -v ./pkg/chromaprint
 
 .PHONY: test-sys
-test-sys: go-dep go-tidy ffmpeg-build
+test-sys: go-dep go-tidy
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test -v ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
 	@echo Test
 	@echo ... test pkg/ffmpeg/...
-	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+	@${CGO_ENV} ${GO} test -v ./pkg/ffmpeg/...
 
 
 ###############################################################################
