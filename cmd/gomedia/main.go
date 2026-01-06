@@ -35,6 +35,7 @@ type CLI struct {
 	ListSampleFormats ListSampleFormatsCommand `cmd:"" help:"List sample formats" group:"LIST"`
 	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
 	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
+	Remux             RemuxCommand             `cmd:"" help:"Remux media file or stream" group:"FILE"`
 }
 
 type ListAudioChannelsCommand struct {
@@ -63,6 +64,10 @@ type ProbeCommand struct {
 
 type AudioLookupCommand struct {
 	chromaprintschema.AudioFingerprintRequest
+}
+
+type RemuxCommand struct {
+	schema.RemuxRequest
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,9 +135,9 @@ func (cmd *ListSampleFormatsCommand) Run(globals *Globals) error {
 
 func (cmd *ProbeCommand) Run(globals *Globals) error {
 	// If the path is "-", use stdin
-	if cmd.Path == "-" {
+	if cmd.Input == "-" {
 		cmd.Reader = os.Stdin
-		cmd.Path = ""
+		cmd.Input = ""
 	}
 
 	// Call manager method
@@ -148,13 +153,31 @@ func (cmd *ProbeCommand) Run(globals *Globals) error {
 
 func (cmd *AudioLookupCommand) Run(globals *Globals) error {
 	// If the path is "-", use stdin
-	if cmd.Path == "-" {
+	if cmd.Input == "-" {
 		cmd.Reader = os.Stdin
-		cmd.Path = ""
+		cmd.Input = ""
 	}
 
 	// Call manager method
 	response, err := globals.manager.AudioFingerprint(globals.ctx, &cmd.AudioFingerprintRequest)
+	if err != nil {
+		return err
+	}
+
+	// Print response
+	fmt.Println(response)
+	return nil
+}
+
+func (cmd *RemuxCommand) Run(globals *Globals) error {
+	// If the path is "-", use stdin
+	if cmd.Input == "-" {
+		cmd.Reader = os.Stdin
+		cmd.Input = ""
+	}
+
+	// Call manager method
+	response, err := globals.manager.Remux(globals.ctx, os.Stdout, &cmd.RemuxRequest)
 	if err != nil {
 		return err
 	}
@@ -169,7 +192,9 @@ func (cmd *AudioLookupCommand) Run(globals *Globals) error {
 
 func main() {
 	cli := new(CLI)
-	ctx := kong.Parse(cli)
+	ctx := kong.Parse(cli,
+		kong.UsageOnError(),
+	)
 
 	// Create the context and cancel function
 	cli.Globals.ctx, cli.Globals.cancel = context.WithCancel(context.Background())

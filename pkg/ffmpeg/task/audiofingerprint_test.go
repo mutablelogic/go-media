@@ -26,7 +26,7 @@ func Test_AudioFingerprint_MP3(t *testing.T) {
 	}
 
 	req := &schema.AudioFingerprintRequest{}
-	req.Path = testFile
+	req.Input = testFile
 	req.Lookup = false
 
 	resp, err := manager.AudioFingerprint(context.Background(), req)
@@ -64,7 +64,7 @@ func Test_AudioFingerprint_RawPCM(t *testing.T) {
 
 	req := &schema.AudioFingerprintRequest{}
 	req.Reader = f
-	req.Path = "s16le"   // Format specification
+	req.Input = "s16le"  // Format specification
 	req.Duration = 335.0 // 5m35s
 	req.Lookup = false
 
@@ -112,7 +112,7 @@ func Test_AudioFingerprint_WithLookup(t *testing.T) {
 	// Format: "s16le"
 	// Options: ["sample_rate=22050", "channels=1", "channel_layout=mono", "sample_fmt=s16"]
 	req := &schema.AudioFingerprintRequest{}
-	req.Path = testFile
+	req.Input = testFile
 	req.Duration = 335.0
 	req.Lookup = true
 	req.Metadata = []string{"recordings", "tracks"}
@@ -157,7 +157,7 @@ func Test_AudioFingerprint_WithAPIKey(t *testing.T) {
 	}
 
 	req := &schema.AudioFingerprintRequest{}
-	req.Path = testFile
+	req.Input = testFile
 	req.Lookup = true
 	req.Metadata = []string{"recordings"}
 
