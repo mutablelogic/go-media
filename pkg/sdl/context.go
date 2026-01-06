@@ -82,24 +82,26 @@ func (c *Context) Run(ctx context.Context) error {
 		default:
 		}
 
-		// Wait for an event with timeout
-		event := sdl.WaitEventTimeout(100)
+		// Pump events from the system queue to SDL's event queue
+		sdl.PumpEvents()
 
-		if event == nil {
-			continue
+		// Poll for events (non-blocking)
+		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+			// Handle event
+			switch e := event.(type) {
+			case *sdl.QuitEvent:
+				return nil
+			case *sdl.UserEvent:
+				if e.Type == evtCancel {
+					return ctx.Err()
+				}
+				if handler, exists := c.events[e.Type]; exists {
+					handler(nil)
+				}
+			}
 		}
 
-		// Handle event
-		switch e := event.(type) {
-		case *sdl.QuitEvent:
-			return nil
-		case *sdl.UserEvent:
-			if e.Type == evtCancel {
-				return ctx.Err()
-			}
-			if handler, exists := c.events[e.Type]; exists {
-				handler(nil)
-			}
-		}
+		// Small delay to avoid busy-waiting
+		sdl.Delay(10)
 	}
 }

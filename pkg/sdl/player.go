@@ -49,6 +49,19 @@ func (p *Player) Close() error {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - ACCESSORS
+
+// SetWindow sets the window for video playback
+func (p *Player) SetWindow(w *Window) {
+	p.window = w
+}
+
+// Window returns the current window, if any
+func (p *Player) Window() *Window {
+	return p.window
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // PlayFrame plays a decoded frame. For video frames, displays them in the window.
@@ -65,7 +78,7 @@ func (p *Player) PlayFrame(ctx *Context, frame *ffmpeg.Frame) error {
 	case 1: // AUDIO
 		return p.playAudio(ctx, frame)
 	default:
-		// Ignore unknown frame types
+		// Silently ignore unknown frame types
 		return nil
 	}
 }
@@ -102,6 +115,12 @@ func (p *Player) playYUV(frame *ffmpeg.Frame) error {
 	yPlane := frame.Bytes(0)
 	uPlane := frame.Bytes(1)
 	vPlane := frame.Bytes(2)
+
+	// Skip frames with empty planes (shouldn't happen for valid video frames)
+	if len(yPlane) == 0 || len(uPlane) == 0 || len(vPlane) == 0 {
+		return nil
+	}
+
 	yStride := frame.Stride(0)
 	uStride := frame.Stride(1)
 	vStride := frame.Stride(2)
@@ -169,11 +188,6 @@ func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 		audioBytes := (*[1 << 30]byte)(unsafe.Pointer(&plane[0]))[:len(plane)*4]
 		return p.audio.Queue(audioBytes)
 	}
-}
-
-// Window returns the player's window (may be nil if no video frames yet).
-func (p *Player) Window() *Window {
-	return p.window
 }
 
 // Audio returns the player's audio device (may be nil if no audio frames yet).
