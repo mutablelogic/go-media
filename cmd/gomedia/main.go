@@ -16,6 +16,7 @@ import (
 	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 	sdl "github.com/mutablelogic/go-media/pkg/sdl"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	sdlraw "github.com/veandco/go-sdl2/sdl"
 )
 
@@ -351,18 +352,19 @@ func (cmd *PlayCommand) Run(globals *Globals) error {
 
 		// Map function to configure decoder output formats for SDL compatibility
 		mapfn := func(streamIndex int, srcPar *ffmpeg.Par) (*ffmpeg.Par, error) {
-			switch srcPar.CodecType() {
+			switch srcPar.Type() {
 			case media.VIDEO:
 				// Convert video to yuv420p (SDL-compatible)
 				size := fmt.Sprintf("%dx%d", srcPar.Width(), srcPar.Height())
 				return ffmpeg.NewVideoPar("yuv420p", size, 0)
 			case media.AUDIO:
 				// Convert audio to planar float32 (SDL-compatible)
-				chLayout, err := srcPar.ChannelLayout().String()
+				chLayout := srcPar.ChannelLayout()
+				chLayoutStr, err := ff.AVUtil_channel_layout_describe(&chLayout)
 				if err != nil {
 					return nil, err
 				}
-				return ffmpeg.NewAudioPar("fltp", chLayout, srcPar.SampleRate())
+				return ffmpeg.NewAudioPar("fltp", chLayoutStr, srcPar.SampleRate())
 			default:
 				// Ignore other streams
 				return nil, nil

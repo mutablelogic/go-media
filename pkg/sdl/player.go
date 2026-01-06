@@ -10,7 +10,6 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-media"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -165,8 +164,14 @@ func (p *Player) playYUV(frame *ffmpeg.Frame) error {
 
 // VideoDelay returns how long to wait before presenting the next frame.
 // Implements A/V sync following the FFmpeg tutorial algorithm.
+// Returns 0 for audio frames (never delay audio).
 func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
-	if frame == nil || frame.Type() != media.VIDEO {
+	if frame == nil {
+		return 0
+	}
+
+	// Never delay audio frames - audio should always be processed immediately
+	if frame.Type() != media.VIDEO {
 		return 0
 	}
 
@@ -200,7 +205,7 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 	p.lastPTS = pts
 
 	// Sync to audio if available
-	if p.audio != nil && p.audioClock != ffmpeg.TS_UNDEFINED && p.audioStarted {
+	if p.audio != nil && p.audioClock != ffmpeg.TS_UNDEFINED {
 		// Calculate current audio playback position
 		// audioClock represents the PTS of the last queued audio frame
 		// We need to account for buffered audio that hasn't played yet
@@ -208,10 +213,23 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 		bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
 		bufferedDuration := float64(queuedBytes) / bytesPerSec
 
-		// Audio reference clock = last queued PTS + time since queue - buffered duration
-		// Since we can't track time since queue, approximate as: lastPTS + frame duration - buffered
+		// Audio reference clock = last queued PTS - buffered duration
 		// This gives us the estimated current playback position
 		audioRefClock := p.audioClock - bufferedDuration
+
+		// If audio hasn't started yet, use a more conservative reference
+		if !p.audioStarted {
+			// Before audio starts, estimate when it will start playing
+			// This prevents video from racing too far ahead
+			// Assume audio will start when buffer reaches 200ms
+			targetBuffer := 0.200
+			if bufferedDuration < targetBuffer {
+				// Audio not ready yet - be very conservative
+				audioRefClock = pts - 0.100 // pretend we're only 100ms ahead
+			} else {
+				audioRefClock = p.audioClock - bufferedDuration + targetBuffer
+			}
+		}
 
 		// Calculate how far video is from audio
 		audioVideoDiff := pts - audioRefClock
@@ -222,18 +240,44 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 			syncThreshold = 0.010
 		}
 
-		dbg("video PTS=%.3f audio=%.3f diff=%.3f ptsDelay=%.3f sync=%.3f queued=%d buffered=%.3fs",
-			pts, audioRefClock, audioVideoDiff, ptsDelay, syncThreshold, queuedBytes, bufferedDuration)
+		dbg("video PTS=%.3f audio=%.3f diff=%.3f ptsDelay=%.3f sync=%.3f queued=%d buffered=%.3fs started=%v",
+			pts, audioRefClock, audioVideoDiff, ptsDelay, syncThreshold, queuedBytes, bufferedDuration, p.audioStarted)
 
-		// Only sync if difference is reasonable (< 1 second)
+		// Check if audio buffer is dangerously low
+		audioBufferLow := queuedBytes < 16384 // Less than ~42ms buffered
+
+		// Adaptive sync based on how far out of sync we are
 		if audioVideoDiff < -syncThreshold && audioVideoDiff > -1.0 {
 			// Video is behind audio - skip delay to catch up
 			dbg("video behind audio, skip delay")
 			ptsDelay = 0
-		} else if audioVideoDiff >= syncThreshold && audioVideoDiff < 1.0 {
-			// Video is ahead of audio - increase delay to slow down
-			dbg("video ahead of audio, double delay")
-			ptsDelay = 2 * ptsDelay
+		} else if audioVideoDiff >= syncThreshold {
+			// If audio buffer is critically low, don't delay as much
+			// This allows more audio frames to be processed
+			if audioBufferLow {
+				dbg("audio buffer low (%d bytes), minimal sync delay", queuedBytes)
+				ptsDelay = ptsDelay * 1.1 // Only slightly increase delay
+			} else if audioVideoDiff < 0.1 {
+				// Small difference: slightly increase delay
+				dbg("video slightly ahead, increase delay 1.5x")
+				ptsDelay = ptsDelay * 1.5
+			} else if audioVideoDiff < 0.2 {
+				// Medium difference: double delay
+				dbg("video ahead, double delay")
+				ptsDelay = 2 * ptsDelay
+			} else if audioVideoDiff < 0.5 {
+				// Large difference: triple delay
+				dbg("video way ahead, 3x delay")
+				ptsDelay = 3 * ptsDelay
+			} else if audioVideoDiff < 1.0 {
+				// Very large difference: 4x delay
+				dbg("video far ahead, 4x delay")
+				ptsDelay = 4 * ptsDelay
+			} else {
+				// Extreme difference (>1s): skip this frame entirely
+				dbg("video extremely ahead (%.3fs), skip frame", audioVideoDiff)
+				return 0
+			}
 		}
 	}
 
@@ -245,6 +289,26 @@ func (p *Player) VideoDelay(frame *ffmpeg.Frame) time.Duration {
 	realDelay := p.frameTimer - now
 
 	dbg("frameTimer=%.3f now=%.3f realDelay=%.3f ptsDelay=%.3f", p.frameTimer, now, realDelay, ptsDelay)
+
+	// Check if audio buffer is dangerously low and we need to prioritize audio processing
+	if p.audio != nil && p.audioStarted {
+		queuedBytes := p.audio.QueuedSize()
+
+		// If audio buffer is completely empty, don't delay video at all
+		// This allows audio frames to be processed ASAP
+		if queuedBytes == 0 {
+			dbg("audio buffer empty, skipping video delay to process audio")
+			return 0
+		}
+
+		// If audio buffer is critically low and we're behind, drop this frame
+		audioBufferCritical := queuedBytes < 16384 // Less than ~42ms buffered
+		if realDelay < -0.020 && audioBufferCritical {
+			dbg("dropping frame: behind %.3fs, audio buffer critical (%d bytes)", realDelay, queuedBytes)
+			p.frameTimer = now // Resync timer
+			return 0
+		}
+	}
 
 	// If we're way behind (>100ms), re-sync by resetting frame timer
 	if realDelay < -0.1 {
@@ -345,13 +409,14 @@ func (p *Player) queueFloatAudio(frame *ffmpeg.Frame) error {
 		}
 	}
 
-	// Start audio playback once we have ~50ms buffered
+	// Start audio playback once we have enough buffered to prevent underruns
+	// Use a larger buffer (200ms) to handle cases where video processing causes delays
 	if !p.audioStarted {
 		queuedBytes := p.audio.QueuedSize()
 		// Check if we have enough buffered audio to start smoothly
 		bytesPerSec := float64(int(p.audio.spec.Freq) * int(p.audio.spec.Channels) * 4)
 		bufferedDuration := float64(queuedBytes) / bytesPerSec
-		if bufferedDuration > 0.05 {
+		if bufferedDuration > 0.200 {
 			dbg("starting audio playback with %.3fs buffered (PTS=%.3f)", bufferedDuration, p.audioClock)
 			p.audio.Resume()
 			p.audioStarted = true
