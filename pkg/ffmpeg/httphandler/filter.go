@@ -17,7 +17,7 @@ import (
 // RegisterFilterHandlers registers HTTP handlers for filter listing and retrieval
 // on the provided router with the given path prefix. The manager must be non-nil.
 func RegisterFilterHandlers(router *http.ServeMux, prefix string, manager *task.Manager) {
-	// List objects across all databases
+	// List available filters
 	router.HandleFunc(types.JoinPath(prefix, "filter"), func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
