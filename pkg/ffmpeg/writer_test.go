@@ -841,6 +841,7 @@ func Test_encode_silent_audio_mp3(t *testing.T) {
 	if err := frame.AllocateBuffers(); !assert.NoError(err) {
 		t.FailNow()
 	}
+	fillAudioSilenceFLTP(frame)
 
 	// Encode 100 silent frames (~2.3 seconds at 44.1kHz)
 	for i := 0; i < 100; i++ {
