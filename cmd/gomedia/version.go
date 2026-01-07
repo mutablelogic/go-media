@@ -1,28 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 
 	"github.com/mutablelogic/go-media/pkg/version"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-type VersionCommands struct {
-	Version VersionCommand `cmd:"" help:"Report library versions" group:"OTHER"`
-}
-
-type VersionCommand struct {
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd *VersionCommand) Run(globals *Globals) error {
-	version := version.Map()
-	for _, v := range version {
-		fmt.Printf("%s: %s\n", v.Key, v.Value)
+func VersionJSON() string {
+	metadata := make(map[string]string)
+	for _, v := range version.Map() {
+		metadata[v.Key] = v.Value
 	}
-	return nil
+	data, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
 }

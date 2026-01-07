@@ -5,13 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strings"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
-	chromaprintschema "github.com/mutablelogic/go-media/pkg/chromaprint/schema"
-	schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
 	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 )
 
@@ -19,9 +15,10 @@ import (
 // TYPES
 
 type Globals struct {
-	Debug          bool   `name:"debug" help:"Enable debug logging"`
-	ChromaprintKey string `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
-	Endpoint       string `name:"url" env:"GOMEDIA_ENDPOINT" help:"Server endpoint URL"`
+	Debug          bool             `name:"debug" help:"Enable debug logging"`
+	Version        kong.VersionFlag `name:"version" help:"Print version and exit"`
+	ChromaprintKey string           `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
+	Endpoint       string           `name:"url" env:"GOMEDIA_ENDPOINT" help:"Server endpoint URL"`
 
 	// Private fields
 	ctx     context.Context
@@ -31,225 +28,30 @@ type Globals struct {
 
 type CLI struct {
 	Globals
-	ListAudioChannels ListAudioChannelsCommand `cmd:"" help:"List audio channel layouts" group:"LIST"`
-	ListCodecs        ListCodecsCommand        `cmd:"" help:"List codecs" group:"LIST"`
-	ListFormats       ListFormatsCommand       `cmd:"" help:"List input, output formats and devices" group:"LIST"`
-	ListPixelFormats  ListPixelFormatsCommand  `cmd:"" help:"List pixel formats" group:"LIST"`
-	ListSampleFormats ListSampleFormatsCommand `cmd:"" help:"List sample formats" group:"LIST"`
-	ListFilters       ListFiltersCommand       `cmd:"" help:"List filters" group:"LIST"`
-	Probe             ProbeCommand             `cmd:"" help:"Probe media file or stream" group:"FILE"`
-	AudioLookup       AudioLookupCommand       `cmd:"" help:"Generate audio fingerprint and perform AcoustID lookup" group:"FILE"`
-	Remux             RemuxCommand             `cmd:"" help:"Remux media file or stream" group:"FILE"`
-	Decode            DecodeCommand            `cmd:"" help:"Decode media file or stream to JSON" group:"FILE"`
+	ListCommands
+	FingerprintCommands
+	ProbeCommands
+	DecodeCommands
+	RemuxCommands
 	ServerCommands
 	PlayCommands
-	VersionCommands
-}
-
-type ListAudioChannelsCommand struct {
-	schema.ListAudioChannelLayoutRequest
-}
-
-type ListCodecsCommand struct {
-	schema.ListCodecRequest
-}
-
-type ListFiltersCommand struct {
-	schema.ListFilterRequest
-}
-
-type ListFormatsCommand struct {
-	schema.ListFormatRequest
-}
-
-type ListPixelFormatsCommand struct {
-	schema.ListPixelFormatRequest
-}
-
-type ListSampleFormatsCommand struct {
-	schema.ListSampleFormatRequest
-}
-
-type ProbeCommand struct {
-	schema.ProbeRequest
-}
-
-type AudioLookupCommand struct {
-	chromaprintschema.AudioFingerprintRequest
-}
-
-type RemuxCommand struct {
-	schema.RemuxRequest
-}
-
-type DecodeCommand struct {
-	schema.DecodeRequest
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd *ListAudioChannelsCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListAudioChannelLayouts(globals.ctx, &cmd.ListAudioChannelLayoutRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ListCodecsCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListCodecs(globals.ctx, &cmd.ListCodecRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ListFiltersCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListFilters(globals.ctx, &cmd.ListFilterRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ListFormatsCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListFormats(globals.ctx, &cmd.ListFormatRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ListPixelFormatsCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListPixelFormats(globals.ctx, &cmd.ListPixelFormatRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ListSampleFormatsCommand) Run(globals *Globals) error {
-	// Call manager method
-	response, err := globals.manager.ListSampleFormats(globals.ctx, &cmd.ListSampleFormatRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *ProbeCommand) Run(globals *Globals) error {
-	// If the path is "-", use stdin
-	if cmd.Input == "-" {
-		cmd.Reader = os.Stdin
-		cmd.Input = ""
-	}
-
-	// Heuristic: if input is MPEG-TS, hint demuxer and enlarge probe/analyze windows for SPS/PPS
-	if cmd.Input != "" && strings.EqualFold(filepath.Ext(cmd.Input), ".ts") {
-		if cmd.ProbeRequest.InputFormat == "" {
-			cmd.ProbeRequest.InputFormat = "mpegts"
-		}
-		if len(cmd.ProbeRequest.InputOpts) == 0 {
-			cmd.ProbeRequest.InputOpts = []string{
-				"probesize=5000000",        // 5MB probe
-				"analyzeduration=10000000", // 10s analyze
-				"fflags=+genpts",
-				"discardcorrupt=1",
-			}
-		}
-	}
-
-	// Call manager method
-	response, err := globals.manager.Probe(globals.ctx, &cmd.ProbeRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *AudioLookupCommand) Run(globals *Globals) error {
-	// If the path is "-", use stdin
-	if cmd.Input == "-" {
-		cmd.Reader = os.Stdin
-		cmd.Input = ""
-	}
-
-	// Call manager method
-	response, err := globals.manager.AudioFingerprint(globals.ctx, &cmd.AudioFingerprintRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *RemuxCommand) Run(globals *Globals) error {
-	// If the path is "-", use stdin
-	if cmd.Input == "-" {
-		cmd.Reader = os.Stdin
-		cmd.Input = ""
-	}
-
-	// Call manager method
-	response, err := globals.manager.Remux(globals.ctx, os.Stdout, &cmd.RemuxRequest)
-	if err != nil {
-		return err
-	}
-
-	// Print response
-	fmt.Println(response)
-	return nil
-}
-
-func (cmd *DecodeCommand) Run(globals *Globals) error {
-	// If the path is "-", use stdin
-	if cmd.Input == "-" {
-		cmd.Reader = os.Stdin
-		cmd.Input = ""
-	}
-
-	// Call manager method - outputs JSON to stdout
-	err := globals.manager.Decode(globals.ctx, os.Stdout, &cmd.DecodeRequest)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func main() {
 	cli := new(CLI)
 	ctx := kong.Parse(cli,
+		kong.Name("gomedia"),
+		kong.Description("go-media command line interface"),
+		kong.Vars{
+			"version": VersionJSON(),
+		},
 		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{
+			Compact: true,
+		}),
 	)
 
 	// Create the context and cancel function
