@@ -706,3 +706,136 @@ func Test_avutil_opt_023(t *testing.T) {
 	}
 	t.Logf("Pretty JSON:\n%s", string(prettyData))
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST AVUtil_opt_list_from_class (FAKE_OBJ trick)
+
+func Test_avutil_opt_024(t *testing.T) {
+	// Test FAKE_OBJ trick with AVCodec
+	codec := ff.AVCodec_find_encoder(ff.AV_CODEC_ID_H264)
+	if codec == nil {
+		t.Skip("H264 encoder not found")
+	}
+
+	class := codec.PrivClass()
+	if class == nil {
+		t.Skip("H264 encoder has no priv_class")
+	}
+
+	// Use FAKE_OBJ trick to enumerate options without context allocation
+	options := ff.AVUtil_opt_list_from_class(class)
+	if len(options) == 0 {
+		t.Fatal("Expected options from FAKE_OBJ trick, got none")
+	}
+
+	t.Logf("Found %d options via FAKE_OBJ for H264 encoder", len(options))
+
+	// Verify first few options have valid data
+	for i := 0; i < min(5, len(options)); i++ {
+		opt := options[i]
+		name := opt.Name()
+		help := opt.Help()
+		optType := opt.Type()
+
+		if name == "" {
+			t.Errorf("Option %d has empty name", i)
+		}
+		t.Logf("Option %d: name=%s, type=%v, help=%s", i, name, optType, help)
+	}
+}
+
+func Test_avutil_opt_025(t *testing.T) {
+	// Test FAKE_OBJ with AVInputFormat
+	format := ff.AVFormat_find_input_format("mpegts")
+	if format == nil {
+		t.Skip("mpegts input format not found")
+	}
+
+	class := format.PrivClass()
+	if class == nil {
+		t.Skip("mpegts has no priv_class")
+	}
+
+	options := ff.AVUtil_opt_list_from_class(class)
+	if len(options) == 0 {
+		t.Fatal("Expected options from FAKE_OBJ trick for mpegts, got none")
+	}
+
+	t.Logf("Found %d options via FAKE_OBJ for mpegts format", len(options))
+
+	// Look for known mpegts options
+	foundResyncSize := false
+	for _, opt := range options {
+		if opt.Name() == "resync_size" {
+			foundResyncSize = true
+			t.Logf("Found resync_size option: help=%s, type=%v", opt.Help(), opt.Type())
+			break
+		}
+	}
+
+	if !foundResyncSize {
+		t.Error("Expected to find 'resync_size' option in mpegts format")
+	}
+}
+
+func Test_avutil_opt_026(t *testing.T) {
+	// Test FAKE_OBJ with AVOutputFormat
+	format := ff.AVFormat_guess_format("mp4", "", "")
+	if format == nil {
+		t.Skip("mp4 output format not found")
+	}
+
+	class := format.PrivClass()
+	if class == nil {
+		t.Skip("mp4 has no priv_class")
+	}
+
+	options := ff.AVUtil_opt_list_from_class(class)
+	t.Logf("Found %d options via FAKE_OBJ for mp4 format", len(options))
+
+	// Some formats may have no options, that's OK
+	if len(options) > 0 {
+		t.Logf("First option: %s (%v)", options[0].Name(), options[0].Type())
+	}
+}
+
+func Test_avutil_opt_027(t *testing.T) {
+	// Test FAKE_OBJ with AVFilter
+	filter := ff.AVFilter_get_by_name("scale")
+	if filter == nil {
+		t.Skip("scale filter not found")
+	}
+
+	class := filter.PrivClass()
+	if class == nil {
+		t.Skip("scale filter has no priv_class")
+	}
+
+	options := ff.AVUtil_opt_list_from_class(class)
+	if len(options) == 0 {
+		t.Fatal("Expected options from FAKE_OBJ trick for scale filter, got none")
+	}
+
+	t.Logf("Found %d options via FAKE_OBJ for scale filter", len(options))
+
+	// Look for known scale options
+	foundWidth := false
+	foundHeight := false
+	for _, opt := range options {
+		switch opt.Name() {
+		case "w", "width":
+			foundWidth = true
+			t.Logf("Found width option: help=%s, type=%v", opt.Help(), opt.Type())
+		case "h", "height":
+			foundHeight = true
+			t.Logf("Found height option: help=%s, type=%v", opt.Help(), opt.Type())
+		}
+	}
+
+	if !foundWidth {
+		t.Error("Expected to find width option in scale filter")
+	}
+	if !foundHeight {
+		t.Error("Expected to find height option in scale filter")
+	}
+}

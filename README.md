@@ -88,6 +88,8 @@ environment variables:
 make              # Build the gomedia command-line tool
 make test         # Run all tests
 make test-sys     # Run system/FFmpeg binding tests only
+make coverage     # Run tests with coverage report
+make coverage-html # Generate HTML coverage report
 ```
 
 To build manually:
@@ -98,6 +100,18 @@ export CGO_LDFLAGS_ALLOW="-(W|D).*"
 export CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
 go build -o build/gomedia ./cmd/gomedia
 ```
+
+### Testing and Coverage
+
+Run tests:
+
+```bash
+make test                # Run all tests
+make coverage            # Run tests with coverage, check threshold, generate HTML report
+make coverage-report     # Show detailed per-function coverage
+```
+
+Coverage report is generated at `build/coverage.html`. Current coverage: **~57.7%**.
 
 ## Usage
 

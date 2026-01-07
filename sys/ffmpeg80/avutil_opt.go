@@ -28,6 +28,14 @@ type (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// METHODS - AVClass
+
+// Name returns the class name.
+func (c *AVClass) Name() string {
+	return C.GoString((*C.struct_AVClass)(unsafe.Pointer(c)).class_name)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // METHODS - AVOption
 
 // Name returns the option name.

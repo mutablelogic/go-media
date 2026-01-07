@@ -188,6 +188,29 @@ test-ffmpeg: test-sys
 	@echo ... test pkg/ffmpeg/...
 	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
 
+.PHONY: coverage
+coverage: ffmpeg chromaprint mkdir
+	@echo "Running tests with coverage..."
+	@${CGO_ENV} ${GO} test -coverprofile=${BUILD_DIR}/coverage.out -covermode=atomic ./sys/${SYS_VERSION} ./pkg/...
+	@${GO} tool cover -func=${BUILD_DIR}/coverage.out | tail -1
+	@echo "Checking coverage threshold..."
+	@COVERAGE=$$(${GO} tool cover -func=${BUILD_DIR}/coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
+	THRESHOLD=50; \
+	if [ "$$(echo "$$COVERAGE < $$THRESHOLD" | bc)" -eq 1 ]; then \
+		echo "❌ Coverage $$COVERAGE% is below threshold $$THRESHOLD%"; \
+		exit 1; \
+	else \
+		echo "✅ Coverage $$COVERAGE% meets threshold $$THRESHOLD%"; \
+	fi
+	@echo "Generating HTML coverage report..."
+	@${GO} tool cover -html=${BUILD_DIR}/coverage.out -o ${BUILD_DIR}/coverage.html
+	@echo "Coverage report: ${BUILD_DIR}/coverage.html"
+
+.PHONY: coverage-report
+coverage-report: coverage
+	@echo "Detailed coverage report:"
+	@${GO} tool cover -func=${BUILD_DIR}/coverage.out
+
 
 ###############################################################################
 # DEPENDENCIES, ETC

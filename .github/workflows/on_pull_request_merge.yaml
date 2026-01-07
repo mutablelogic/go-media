@@ -20,3 +20,12 @@ jobs:
         run: |
           sudo apt -y update && sudo apt -y install nasm
           make test
+      - name: Generate coverage report
+        run: make coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./build/coverage.out
+          flags: unittests
+          name: codecov-go-${{ matrix.go-version }}
+          fail_ci_if_error: false

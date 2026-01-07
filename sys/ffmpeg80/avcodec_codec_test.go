@@ -776,3 +776,105 @@ func Test_avcodec_context_frame_size(t *testing.T) {
 	frameSize := ctx.FrameSize()
 	t.Logf("Frame size: %d", frameSize)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST IsEncoder and IsDecoder
+
+func Test_avcodec_codec_is_encoder(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test encoder
+	encoder := AVCodec_find_encoder(AV_CODEC_ID_H264)
+	if encoder == nil {
+		t.Skip("H264 encoder not found")
+	}
+
+	assert.True(encoder.IsEncoder(), "H264 encoder should return true for IsEncoder()")
+	assert.False(encoder.IsDecoder(), "H264 encoder should return false for IsDecoder()")
+	t.Logf("H264 encoder: IsEncoder=%v, IsDecoder=%v", encoder.IsEncoder(), encoder.IsDecoder())
+
+	// Test decoder
+	decoder := AVCodec_find_decoder(AV_CODEC_ID_H264)
+	assert.NotNil(decoder, "H264 decoder should exist")
+
+	assert.False(decoder.IsEncoder(), "H264 decoder should return false for IsEncoder()")
+	assert.True(decoder.IsDecoder(), "H264 decoder should return true for IsDecoder()")
+	t.Logf("H264 decoder: IsEncoder=%v, IsDecoder=%v", decoder.IsEncoder(), decoder.IsDecoder())
+}
+
+func Test_avcodec_codec_is_decoder(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test audio decoder
+	decoder := AVCodec_find_decoder(AV_CODEC_ID_MP2)
+	if decoder == nil {
+		t.Skip("MP2 decoder not found")
+	}
+
+	assert.True(decoder.IsDecoder(), "MP2 decoder should return true for IsDecoder()")
+	assert.False(decoder.IsEncoder(), "MP2 decoder should return false for IsEncoder()")
+	t.Logf("MP2 decoder: IsEncoder=%v, IsDecoder=%v", decoder.IsEncoder(), decoder.IsDecoder())
+
+	// Test audio encoder
+	encoder := AVCodec_find_encoder(AV_CODEC_ID_MP2)
+	if encoder == nil {
+		t.Skip("MP2 encoder not found")
+	}
+
+	assert.True(encoder.IsEncoder(), "MP2 encoder should return true for IsEncoder()")
+	assert.False(encoder.IsDecoder(), "MP2 encoder should return false for IsDecoder()")
+	t.Logf("MP2 encoder: IsEncoder=%v, IsDecoder=%v", encoder.IsEncoder(), encoder.IsDecoder())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST PrivClass
+
+func Test_avcodec_codec_priv_class(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test codec with priv_class
+	codec := AVCodec_find_encoder(AV_CODEC_ID_H264)
+	if codec == nil {
+		t.Skip("H264 encoder not found")
+	}
+
+	class := codec.PrivClass()
+	if class == nil {
+		t.Skip("H264 encoder has no priv_class (may not be compiled with options)")
+	}
+
+	assert.NotNil(class, "H264 encoder should have priv_class")
+
+	// The class should have a valid class name
+	className := class.Name()
+	assert.NotEmpty(className, "AVClass should have a name")
+	t.Logf("H264 encoder priv_class name: %s", className)
+}
+
+func Test_avcodec_codec_priv_class_options(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test that we can enumerate options via PrivClass
+	codec := AVCodec_find_encoder(AV_CODEC_ID_H264)
+	if codec == nil {
+		t.Skip("H264 encoder not found")
+	}
+
+	class := codec.PrivClass()
+	if class == nil {
+		t.Skip("H264 encoder has no priv_class")
+	}
+
+	// Use FAKE_OBJ trick to enumerate options
+	options := AVUtil_opt_list_from_class(class)
+	assert.NotEmpty(options, "H264 encoder should have options")
+
+	t.Logf("Found %d options for H264 encoder via PrivClass", len(options))
+
+	// Check first few options
+	for i := 0; i < min(5, len(options)); i++ {
+		opt := options[i]
+		assert.NotEmpty(opt.Name(), "Option should have a name")
+		t.Logf("Option %d: %s (%v)", i, opt.Name(), opt.Type())
+	}
+}
