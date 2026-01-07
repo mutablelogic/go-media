@@ -24,7 +24,8 @@ ARG ARCH
 ARG SOURCE
 RUN set -x && apt update -y \
   && apt install -y ca-certificates lsb-release \
-  && apt install -y libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 libx264-164 libx265-215 libnuma1
+  && apt install -y libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 libx264-164 libx265-215 libnuma1 \
+  && apt install -y libvulkan1 vulkan-tools
 
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 
