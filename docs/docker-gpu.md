@@ -76,8 +76,19 @@ docker run --rm -it \
 # Verify GPU on host
 vulkaninfo --summary
 
-# Check GPU in container (NVIDIA)
+# Check GPU in container (NVIDIA desktop)
 docker run --rm -it --gpus all \
+  --entrypoint vulkaninfo \
+  ghcr.io/mutablelogic/go-media:latest \
+  --summary
+
+# Check GPU in container (Jetson/Tegra)
+docker run --rm -it --runtime nvidia \
+  --device=/dev/nvhost-ctrl --device=/dev/nvhost-ctrl-gpu \
+  --device=/dev/nvhost-prof-gpu --device=/dev/nvmap \
+  --device=/dev/nvhost-gpu --device=/dev/nvhost-as-gpu \
+  -v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro \
+  -v /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro \
   --entrypoint vulkaninfo \
   ghcr.io/mutablelogic/go-media:latest \
   --summary
