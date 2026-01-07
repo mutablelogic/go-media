@@ -3,6 +3,9 @@ GO=$(shell which go)
 DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
 
+# Default parallelism
+JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
+
 # Source version
 #FFMPEG_VERSION ?= ffmpeg-7.1.1
 #SYS_VERSION ?= ffmpeg71
