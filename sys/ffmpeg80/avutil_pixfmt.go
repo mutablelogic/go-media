@@ -524,3 +524,13 @@ func AVUtil_pix_fmt_is_float(pixfmt AVPixelFormat) bool {
 func AVUtil_pix_fmt_is_be(pixfmt AVPixelFormat) bool {
 	return AVUtil_pix_fmt_flags(pixfmt)&AV_PIX_FMT_FLAG_BE != 0
 }
+
+// Return log2_chroma_w
+func (desc *AVPixFmtDescriptor) Log2ChromaW() int {
+	return int(desc.log2_chroma_w)
+}
+
+// Return log2_chroma_h
+func (desc *AVPixFmtDescriptor) Log2ChromaH() int {
+	return int(desc.log2_chroma_h)
+}
