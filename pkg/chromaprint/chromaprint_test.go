@@ -415,15 +415,21 @@ func Test_Lookup_BadParameters(t *testing.T) {
 func Test_Lookup_FromRawPCM(t *testing.T) {
 	assert := assert.New(t)
 
+	// Skip if no API key is available
+	apiKey := os.Getenv("CHROMAPRINT_KEY")
+	if apiKey == "" {
+		t.Skip("Skipping test: CHROMAPRINT_KEY environment variable not set")
+	}
+
 	f, err := os.Open("../../etc/test/audio_22050_1ch_5m35.s16le.sw")
 	if !assert.NoError(err) {
 		t.Skip("Test raw PCM file not found")
 	}
 	defer f.Close()
 
-	client, err := NewClient(os.Getenv("CHROMAPRINT_KEY"))
+	client, err := NewClient(apiKey)
 	if !assert.NoError(err) {
-		t.Skip("No API key set")
+		t.Skip("Failed to create client")
 	}
 
 	// Generate fingerprint
