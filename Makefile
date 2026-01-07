@@ -211,7 +211,7 @@ mkdir:
 .PHONY: go-tidy
 go-tidy: go-dep
 	@echo Tidy
-	@$(GO) mod tidy
+	@${GO} mod tidy
 
 .PHONY: clean
 clean: go-tidy
