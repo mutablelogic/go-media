@@ -18,7 +18,7 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-w"
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
 else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
