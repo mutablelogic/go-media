@@ -273,16 +273,8 @@ func (e *encoder) encode(frame *Frame, fn EncoderPacketFn) error {
 		// Set packet parameters
 		packet.SetStreamIndex(e.stream.Index())
 
-		// DEBUG: Before muxer
-		fmt.Printf("BEFORE MUXER: stream=%d pts=%d dts=%d duration=%d size=%d\n",
-			packet.StreamIndex(), packet.Pts(), packet.Dts(), packet.Duration(), packet.Size())
-
 		// Pass back to the caller
 		err := fn(schema.NewPacket(packet))
-
-		// DEBUG: After muxer
-		fmt.Printf("AFTER MUXER: stream=%d pts=%d dts=%d duration=%d size=%d\n",
-			packet.StreamIndex(), packet.Pts(), packet.Dts(), packet.Duration(), packet.Size())
 
 		// After av_interleaved_write_frame returns, the packet data has been
 		// consumed (unreferenced). We can now safely free the packet structure.
