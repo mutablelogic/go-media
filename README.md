@@ -33,7 +33,7 @@ The module includes scripts to build FFmpeg with common codecs. Install dependen
 
 ```bash
 # Basic dependencies (required)
-brew install pkg-config freetype lame opus libvorbis libvpx x264 x265
+brew install pkg-config cmake freetype lame opus libvorbis libvpx x264 x265
 
 # Optional: Install homebrew-ffmpeg tap for more codecs
 brew tap homebrew-ffmpeg/ffmpeg
@@ -46,14 +46,14 @@ brew install homebrew-ffmpeg/ffmpeg/ffmpeg \
 **Debian/Ubuntu:**
 
 ```bash
-apt install pkg-config libfreetype-dev libmp3lame-dev libopus-dev \
+apt install pkg-config cmake libfreetype-dev libmp3lame-dev libopus-dev \
   libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev libzvbi-dev
 ```
 
 **Fedora:**
 
 ```bash
-dnf install pkg-config freetype-devel lame-devel opus-devel \
+dnf install pkg-config cmake freetype-devel lame-devel opus-devel \
   libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel zvbi-devel
 ```
 
