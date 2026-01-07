@@ -11,15 +11,16 @@ import (
 // TYPES
 
 type ListCodecRequest struct {
-	Name      string `json:"name,omitempty"`       // Filter by codec name
-	Type      string `json:"type,omitempty"`       // Filter by media type: "video", "audio", "subtitle", "data"
-	IsEncoder *bool  `json:"is_encoder,omitempty"` // Filter by encoder (true) or decoder (false), nil = no filter
+	Name      string `json:"name,omitempty" help:"Filter by codec name (partial match)"`
+	Type      string `json:"type,omitempty" help:"Filter by media type: video, audio, subtitle, data"`
+	IsEncoder *bool  `json:"is_encoder,omitempty" help:"Filter by encoder (true) or decoder (false)"`
 }
 
 type ListCodecResponse []Codec
 
 type Codec struct {
 	*ff.AVCodec
+	Opts []*ff.AVOption `json:"options,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +30,14 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 	if codec == nil {
 		return nil
 	}
-	return &Codec{AVCodec: codec}
+	c := &Codec{AVCodec: codec}
+
+	// Get options directly from codec's priv_class using FAKE_OBJ trick
+	if class := codec.PrivClass(); class != nil {
+		c.Opts = ff.AVUtil_opt_list_from_class(class)
+	}
+
+	return c
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +47,26 @@ func (r Codec) MarshalJSON() ([]byte, error) {
 	if r.AVCodec == nil {
 		return json.Marshal(nil)
 	}
-	return r.AVCodec.MarshalJSON()
+
+	// Get base codec JSON
+	codecJSON, err := r.AVCodec.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	// If no options, return base JSON
+	if len(r.Opts) == 0 {
+		return codecJSON, nil
+	}
+
+	// Unmarshal to map and add options
+	var result map[string]interface{}
+	if err := json.Unmarshal(codecJSON, &result); err != nil {
+		return nil, err
+	}
+	result["options"] = r.Opts
+
+	return json.Marshal(result)
 }
 
 func (r Codec) String() string {

@@ -69,6 +69,10 @@ func (c *AVFilter) NumOutputs() uint {
 	return AVFilter_outputs(c)
 }
 
+func (c *AVFilter) PrivClass() *AVClass {
+	return (*AVClass)(c.priv_class)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 

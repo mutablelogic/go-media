@@ -91,8 +91,9 @@ func ParseMediaURL(input string) (*ParsedURL, error) {
 }
 
 // OpenReader creates a Reader from a parsed media URL
-func OpenReader(parsed *ParsedURL) (*ffmpeg.Reader, error) {
-	var opts []ffmpeg.Opt
+func OpenReader(parsed *ParsedURL, extraOpts ...ffmpeg.Opt) (*ffmpeg.Reader, error) {
+	// Start with extra options passed by caller
+	opts := append([]ffmpeg.Opt{}, extraOpts...)
 
 	// For device URLs, specify the format and options
 	if parsed.IsDevice {
@@ -146,10 +147,10 @@ func OpenReader(parsed *ParsedURL) (*ffmpeg.Reader, error) {
 }
 
 // OpenReaderFromURL is a convenience function that parses and opens in one call
-func OpenReaderFromURL(input string) (*ffmpeg.Reader, error) {
+func OpenReaderFromURL(input string, opts ...ffmpeg.Opt) (*ffmpeg.Reader, error) {
 	parsed, err := ParseMediaURL(input)
 	if err != nil {
 		return nil, err
 	}
-	return OpenReader(parsed)
+	return OpenReader(parsed, opts...)
 }

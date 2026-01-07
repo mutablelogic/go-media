@@ -12,10 +12,10 @@ import (
 // TYPES
 
 type ListFormatRequest struct {
-	Name     string `json:"name,omitempty"`      // Filter by format name (partial match)
-	IsInput  *bool  `json:"is_input,omitempty"`  // Filter by input format (demuxer)
-	IsOutput *bool  `json:"is_output,omitempty"` // Filter by output format (muxer)
-	IsDevice *bool  `json:"is_device,omitempty"` // Filter by device format
+	Name     string `json:"name,omitempty" help:"Filter by format name (partial match)"`
+	IsInput  *bool  `json:"is_input,omitempty" help:"Filter by input format (demuxer)"`
+	IsOutput *bool  `json:"is_output,omitempty" help:"Filter by output format (muxer)"`
+	IsDevice *bool  `json:"is_device,omitempty" help:"Filter by device format"`
 }
 
 type ListFormatResponse []Format
@@ -38,6 +38,9 @@ type Format struct {
 
 	// Device specific fields
 	Devices []Device `json:"devices,omitempty"` // Available devices (for device formats)
+
+	// Format options
+	Opts []*ff.AVOption `json:"options,omitempty"`
 }
 
 type Device struct {
@@ -79,6 +82,12 @@ func NewInputFormat(input *ff.AVInputFormat, isDevice bool) *Format {
 		extensions = strings.Split(ext, ",")
 	}
 
+	// Get options directly from priv_class using FAKE_OBJ trick
+	var opts []*ff.AVOption
+	if class := input.PrivClass(); class != nil {
+		opts = ff.AVUtil_opt_list_from_class(class)
+	}
+
 	return &Format{
 		Name:        name,
 		Description: input.LongName(),
@@ -88,6 +97,7 @@ func NewInputFormat(input *ff.AVInputFormat, isDevice bool) *Format {
 		IsOutput:    false,
 		IsDevice:    isDevice,
 		Flags:       flagList,
+		Opts:        opts,
 	}
 }
 
@@ -117,6 +127,12 @@ func NewOutputFormat(output *ff.AVOutputFormat, isDevice bool) *Format {
 	var extensions []string
 	if ext := output.Extensions(); ext != "" {
 		extensions = strings.Split(ext, ",")
+	}
+
+	// Get options directly from priv_class using FAKE_OBJ trick
+	var opts []*ff.AVOption
+	if class := output.PrivClass(); class != nil {
+		opts = ff.AVUtil_opt_list_from_class(class)
 	}
 
 	// Get default codecs
@@ -156,6 +172,7 @@ func NewOutputFormat(output *ff.AVOutputFormat, isDevice bool) *Format {
 		DefaultVideoCodec:    videoCodec,
 		DefaultAudioCodec:    audioCodec,
 		DefaultSubtitleCodec: subtitleCodec,
+		Opts:                 opts,
 	}
 }
 
