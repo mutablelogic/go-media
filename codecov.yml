@@ -5,8 +5,11 @@ coverage:
         target: 60%
         threshold: 5%
 
+comment:
+  layout: "header, diff, files"
+  require_changes: true
+
 ignore:
   - "**/*_test.go"
-  - "**/schema/*.go"
   - "pkg/version/*.go"
   - "cmd/**/*.go"
