@@ -78,13 +78,15 @@ vulkaninfo --summary
 
 # Check GPU in container (NVIDIA)
 docker run --rm -it --gpus all \
+  --entrypoint vulkaninfo \
   ghcr.io/mutablelogic/go-media:latest \
-  vulkaninfo --summary
+  --summary
 
 # Check GPU in container (AMD/Intel/Pi)
 docker run --rm -it --device=/dev/dri:/dev/dri \
+  --entrypoint vulkaninfo \
   ghcr.io/mutablelogic/go-media:latest \
-  vulkaninfo --summary
+  --summary
 
 # Fix /dev/dri permissions
 sudo usermod -aG video,render $USER
