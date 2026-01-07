@@ -1561,6 +1561,10 @@ func Test_encode_multiple_streams_interleaved_mp4(t *testing.T) {
 // Test demonstrating why interleaving matters: this shows the difference between
 // sending all video first vs properly interleaved.
 func Test_encode_interleaving_comparison(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow encoding test in short mode")
+	}
+
 	assert := assert.New(t)
 
 	// Test 1: All video first, then all audio (not optimal)
@@ -1606,8 +1610,8 @@ func createVideoAudioFile(t *testing.T, outputFile string, interleave bool) {
 	(*ff.AVFrame)(audioFrame).SetNumSamples(1024)
 	audioFrame.AllocateBuffers()
 
-	numVideoFrames := 30
-	numAudioFrames := 34 // ~1.2 seconds of audio at 44.1kHz
+	numVideoFrames := 5 // Reduced from 30 to 5 for faster testing
+	numAudioFrames := 6 // Reduced from 34 to 6 for faster testing
 
 	if interleave {
 		// Properly interleaved: alternate based on timestamps

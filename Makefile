@@ -168,30 +168,30 @@ docker-push: docker-dep
 .PHONY: test
 test: ffmpeg chromaprint test-ffmpeg test-chromaprint
 	@echo ... test pkg/file
-	@${GO} test ./pkg/file
+	@${GO} test ${ARGS} ./pkg/file
 
 .PHONY: test-chromaprint
 test-chromaprint:
 	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test ./pkg/segmenter
-	@${CGO_ENV} ${GO} test ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
 .PHONY: test-sys
 test-sys: go-dep go-tidy
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
 	@echo Test
 	@echo ... test pkg/ffmpeg/...
-	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/ffmpeg/...
 
 .PHONY: coverage
 coverage: ffmpeg chromaprint mkdir
 	@echo "Running tests with coverage..."
-	@${CGO_ENV} ${GO} test -coverprofile=${BUILD_DIR}/coverage.out -covermode=atomic ./sys/${SYS_VERSION} ./pkg/...
+	@${CGO_ENV} ${GO} test ${ARGS} -coverprofile=${BUILD_DIR}/coverage.out -covermode=atomic ./sys/${SYS_VERSION} ./pkg/...
 	@${GO} tool cover -func=${BUILD_DIR}/coverage.out | tail -1
 	@echo "Checking coverage threshold..."
 	@COVERAGE=$$(${GO} tool cover -func=${BUILD_DIR}/coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
