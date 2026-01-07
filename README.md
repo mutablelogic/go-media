@@ -274,18 +274,40 @@ pkg/chromaprint/       # Audio fingerprinting
 cmd/gomedia/           # Command-line tool
 ```
 
-## Contributing & Distribution
+## License & Distribution
 
-Please file feature requests and bugs at [github.com/mutablelogic/go-media/issues](https://github.com/mutablelogic/go-media/issues).
-
-Licensed under Apache 2.0. Redistributions must include copyright notice.
+This software is licensed under the **Apache License 2.0**.
 
 > **go-media**  
 > [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)  
 > Copyright (c) 2021-2026 David Thorpe, All rights reserved.
 
-This software links to [FFmpeg](http://ffmpeg.org/) libraries licensed under the
-[LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. You may statically or dynamically link to this library without affecting your own code's license. **Attribution requirement:** When redistributing this software or derivative works (in source or binary form), you must include the copyright notice above and a copy of the [LICENSE](LICENSE) file. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
+
+**Important:** When distributing binaries that include this software, you must also comply with the licenses of the linked libraries (FFmpeg LGPL and Chromaprint MIT) as described below.
+
+### FFmpeg LGPL Notice
+
+This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which are licensed under the
+[GNU Lesser General Public License (LGPL) v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+
+**LGPL Compliance:** Under the LGPL, you may:
+
+* Use this software for commercial or non-commercial purposes
+* Distribute this software in its compiled form
+* Modify the go-media source code under Apache 2.0
+
+**Requirements when distributing binaries:**
+
+1. Include this notice and the FFmpeg LGPL license
+2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.1/` after building)
+3. Allow users to relink the application with modified FFmpeg libraries
+
+The FFmpeg source code is automatically downloaded during the build process. See `Makefile` for details.
+
+### Contributing
+
+Please file feature requests and bugs at [github.com/mutablelogic/go-media/issues](https://github.com/mutablelogic/go-media/issues). Pull Requests are welcome, after discussion of the proposed changes.
 
 ## References
 
