@@ -86,6 +86,10 @@ func (ctx *AVOutputFormat) SubtitleCodec() AVCodecID {
 	return AVCodecID(ctx.subtitle_codec)
 }
 
+func (ctx *AVOutputFormat) PrivClass() *AVClass {
+	return (*AVClass)(ctx.priv_class)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
 

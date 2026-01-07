@@ -82,3 +82,7 @@ func (ctx *AVInputFormat) MimeTypes() string {
 func (ctx *AVInputFormat) Extensions() string {
 	return C.GoString(ctx.extensions)
 }
+
+func (ctx *AVInputFormat) PrivClass() *AVClass {
+	return (*AVClass)(ctx.priv_class)
+}

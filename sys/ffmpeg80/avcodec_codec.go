@@ -146,6 +146,8 @@ func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 		Name           string            `json:"name,omitempty"`
 		LongName       string            `json:"long_name,omitempty"`
 		ID             AVCodecID         `json:"id,omitempty"`
+		IsEncoder      bool              `json:"is_encoder"`
+		IsDecoder      bool              `json:"is_decoder"`
 		Capabilities   AVCodecCap        `json:"capabilities,omitempty"`
 		Framerates     []AVRational      `json:"supported_framerates,omitempty"`
 		SampleFormats  []AVSampleFormat  `json:"sample_formats,omitempty"`
@@ -159,6 +161,8 @@ func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
 		LongName:       C.GoString(ctx.long_name),
 		Type:           AVMediaType(ctx._type),
 		ID:             AVCodecID(ctx.id),
+		IsEncoder:      ctx.IsEncoder(),
+		IsDecoder:      ctx.IsDecoder(),
 		Capabilities:   AVCodecCap(ctx.capabilities),
 		Framerates:     ctx.SupportedFramerates(),
 		SampleFormats:  ctx.SampleFormats(),
@@ -373,6 +377,18 @@ func (c *AVCodec) ChannelLayouts() []AVChannelLayout {
 		ptr += unsafe.Sizeof(AVChannelLayout{})
 	}
 	return result
+}
+
+func (c *AVCodec) IsEncoder() bool {
+	return C.av_codec_is_encoder((*C.struct_AVCodec)(c)) != 0
+}
+
+func (c *AVCodec) IsDecoder() bool {
+	return C.av_codec_is_decoder((*C.struct_AVCodec)(c)) != 0
+}
+
+func (c *AVCodec) PrivClass() *AVClass {
+	return (*AVClass)(c.priv_class)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

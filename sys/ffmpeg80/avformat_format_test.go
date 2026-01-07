@@ -325,3 +325,111 @@ func Test_AVFormat_Pattern_006(t *testing.T) {
 	assert.True(experimentalFormat.Is(AVFMT_EXPERIMENTAL))
 	assert.Contains(experimentalFormat.String(), "EXPERIMENTAL")
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST PrivClass on AVInputFormat
+
+func Test_AVInputFormat_PrivClass(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test input format with priv_class
+	format := AVFormat_find_input_format("mpegts")
+	if format == nil {
+		t.Skip("mpegts input format not found")
+	}
+
+	class := format.PrivClass()
+	if class == nil {
+		t.Skip("mpegts has no priv_class")
+	}
+
+	assert.NotNil(class, "mpegts should have priv_class")
+
+	// The class should have a valid name
+	className := class.Name()
+	assert.NotEmpty(className, "AVClass should have a name")
+	t.Logf("mpegts priv_class name: %s", className)
+}
+
+func Test_AVInputFormat_PrivClass_Options(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test that we can enumerate options via PrivClass
+	format := AVFormat_find_input_format("mpegts")
+	if format == nil {
+		t.Skip("mpegts input format not found")
+	}
+
+	class := format.PrivClass()
+	if class == nil {
+		t.Skip("mpegts has no priv_class")
+	}
+
+	// Use FAKE_OBJ trick to enumerate options
+	options := AVUtil_opt_list_from_class(class)
+	assert.NotEmpty(options, "mpegts should have options")
+
+	t.Logf("Found %d options for mpegts via PrivClass", len(options))
+
+	// Look for known options
+	foundResyncSize := false
+	for _, opt := range options {
+		if opt.Name() == "resync_size" {
+			foundResyncSize = true
+			t.Logf("Found resync_size: help=%s, type=%v", opt.Help(), opt.Type())
+			break
+		}
+	}
+
+	assert.True(foundResyncSize, "Expected to find 'resync_size' option")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST PrivClass on AVOutputFormat
+
+func Test_AVOutputFormat_PrivClass(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test output format with priv_class
+	format := AVFormat_guess_format("mp4", "", "")
+	if format == nil {
+		t.Skip("mp4 output format not found")
+	}
+
+	class := format.PrivClass()
+	// Note: Some formats may not have priv_class, that's OK
+	if class == nil {
+		t.Skip("mp4 has no priv_class")
+	}
+
+	assert.NotNil(class, "mp4 should have priv_class")
+
+	className := class.Name()
+	assert.NotEmpty(className, "AVClass should have a name")
+	t.Logf("mp4 priv_class name: %s", className)
+}
+
+func Test_AVOutputFormat_PrivClass_Options(t *testing.T) {
+	// Test matroska which is known to have options
+	format := AVFormat_guess_format("matroska", "", "")
+	if format == nil {
+		t.Skip("matroska output format not found")
+	}
+
+	class := format.PrivClass()
+	if class == nil {
+		t.Skip("matroska has no priv_class")
+	}
+
+	// Use FAKE_OBJ trick to enumerate options
+	options := AVUtil_opt_list_from_class(class)
+	t.Logf("Found %d options for matroska via PrivClass", len(options))
+
+	// Matroska should have options
+	if len(options) > 0 {
+		for i := 0; i < min(5, len(options)); i++ {
+			opt := options[i]
+			t.Logf("Option %d: %s (%v) - %s", i, opt.Name(), opt.Type(), opt.Help())
+		}
+	}
+}
