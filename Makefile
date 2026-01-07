@@ -10,9 +10,15 @@ FFMPEG_VERSION ?= ffmpeg-8.0.1
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
+# Set OS and Architecture (must be before CGO configuration)
+ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
+OS ?= $(shell uname | tr A-Z a-z)
+VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
+DOCKER_REGISTRY ?= ghcr.io/mutablelogic
+
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-w"
 else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
@@ -25,12 +31,6 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev 
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
-
-# Set OS and Architecture
-ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
-OS ?= $(shell uname | tr A-Z a-z)
-VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
-DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # Paths to locations, etc
 BUILD_DIR := "build"
@@ -47,7 +47,7 @@ all: clean cmd
 .PHONY: cmd
 cmd: ffmpeg chromaprint $(CMD_DIR)
 
-$(CMD_DIR): go-dep go-tidy mkdir 
+$(CMD_DIR): go-dep go-tidy sdl-dep mkdir 
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -165,25 +165,25 @@ docker-push: docker-dep
 .PHONY: test
 test: ffmpeg chromaprint test-ffmpeg test-chromaprint
 	@echo ... test pkg/file
-	@${GO} test -v ./pkg/file
+	@${GO} test ./pkg/file
 
 .PHONY: test-chromaprint
 test-chromaprint:
 	@echo ... test pkg/chromaprint
-	@${CGO_ENV} ${GO} test -v ./pkg/segmenter
-	@${CGO_ENV} ${GO} test -v ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ./pkg/segmenter
+	@${CGO_ENV} ${GO} test ./pkg/chromaprint
 
 .PHONY: test-sys
 test-sys: go-dep go-tidy
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test -v ./sys/${SYS_VERSION}
+	@${CGO_ENV} ${GO} test ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
 	@echo Test
 	@echo ... test pkg/ffmpeg/...
-	@${CGO_ENV} ${GO} test -v ./pkg/ffmpeg/...
+	@${CGO_ENV} ${GO} test ./pkg/ffmpeg/...
 
 
 ###############################################################################
@@ -191,15 +191,15 @@ test-ffmpeg: test-sys
 
 .PHONY: go-dep
 go-dep:
-	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
+	@test -f "$(GO)" && test -x "$(GO)"  || (echo "Missing go binary" && exit 1)
 
 .PHONY: docker-dep
 docker-dep:
-	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
+	@test -f "$(DOCKER)" && test -x "$(DOCKER)"  || (echo "Missing docker binary" && exit 1)
 
 .PHONY: pkconfig-dep
 pkconfig-dep:
-	@test -f "${PKG_CONFIG}" && test -x "${PKG_CONFIG}"  || (echo "Missing pkg-config binary" && exit 1)
+	@test -f "$(PKG_CONFIG)" && test -x "$(PKG_CONFIG)"  || (echo "Missing pkg-config binary" && exit 1)
 
 
 .PHONY: mkdir
@@ -209,9 +209,9 @@ mkdir:
 	@install -d ${PREFIX}
 
 .PHONY: go-tidy
-go-tidy:
+go-tidy: go-dep
 	@echo Tidy
-	@${GO} mod tidy
+	@$(GO) mod tidy
 
 .PHONY: clean
 clean: go-tidy
@@ -249,3 +249,8 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libvmaf && echo "--enable-libvmaf"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openh264 && echo "--enable-libopenh264"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
+
+# Check for SDL dependencies
+.PHONY: sdl-dep
+sdl-dep:
+	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell $(PKG_CONFIG) --exists sdl2 && echo "--tags sdl2"))

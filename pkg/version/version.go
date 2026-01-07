@@ -3,9 +3,12 @@ package version
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
+	"path"
 	"runtime"
 
 	// Packages
+	chromaprint "github.com/mutablelogic/go-media/sys/chromaprint"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -25,12 +28,20 @@ type Metadata struct {
 func Map() []Metadata {
 	metadata := []Metadata{
 		{"libavcodec_version", ffVersionAsString(ff.AVCodec_version())},
-		{"libavformat_version", ffVersionAsString(ff.AVFormat_version())},
-		{"libavutil_version", ffVersionAsString(ff.AVUtil_version())},
+		{"libavcodec_configuration", ff.AVCodec_configuration()},
 		{"libavdevice_version", ffVersionAsString(ff.AVDevice_version())},
-		//		Version{"libavfilter_version", ff.AVFilter_version()},
+		{"libavdevice_configuration", ff.AVDevice_configuration()},
+		{"libavfilter_version", ffVersionAsString(ff.AVFilter_version())},
+		{"libavfilter_configuration", ff.AVFilter_configuration()},
+		{"libavformat_version", ffVersionAsString(ff.AVFormat_version())},
+		{"libavformat_configuration", ff.AVFormat_configuration()},
+		{"libavutil_version", ffVersionAsString(ff.AVUtil_version())},
+		{"libavutil_configuration", ff.AVUtil_configuration()},
 		{"libswscale_version", ffVersionAsString(ff.SWScale_version())},
+		{"libswscale_configuration", ff.SWScale_configuration()},
 		{"libswresample_version", ffVersionAsString(ff.SWResample_version())},
+		{"libswresample_configuration", ff.SWResample_configuration()},
+		{"chromaprint_version", chromaprint.Version()},
 	}
 	if GitSource != "" {
 		metadata = append(metadata, Metadata{"git_source", GitSource})
@@ -53,6 +64,10 @@ func Map() []Metadata {
 		metadata = append(metadata, Metadata{"os_endian", "little"})
 	case binary.BigEndian:
 		metadata = append(metadata, Metadata{"os_endian", "big"})
+	}
+	if exec, err := os.Executable(); err == nil {
+		metadata = append(metadata, Metadata{"executable_path", exec})
+		metadata = append(metadata, Metadata{"executable_name", path.Base(exec)})
 	}
 	return metadata
 }
