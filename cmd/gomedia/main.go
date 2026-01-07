@@ -65,6 +65,7 @@ func main() {
 		<-sigChan
 		fmt.Fprintln(os.Stderr, "\nInterrupted")
 		cli.Globals.cancel()
+		// TODO: We should probably give some time for cleanup here
 		os.Exit(130) // Standard exit code for CTRL+C
 	}()
 
