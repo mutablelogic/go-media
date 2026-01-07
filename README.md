@@ -262,6 +262,8 @@ Build a Docker image with all dependencies:
 DOCKER_REGISTRY=docker.io/user make docker
 ```
 
+For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md) for instructions on passing through GPU devices from the host.
+
 ## Project Structure
 
 ```
