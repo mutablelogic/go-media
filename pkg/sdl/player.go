@@ -1,3 +1,5 @@
+//go:build sdl2
+
 package sdl
 
 import (
