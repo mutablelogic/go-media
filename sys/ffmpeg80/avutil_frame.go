@@ -109,7 +109,9 @@ func AVUtil_frame_alloc() *AVFrame {
 
 // Free the frame and any dynamically allocated objects in it
 func AVUtil_frame_free(frame *AVFrame) {
-	C.av_frame_free((**C.AVFrame)(unsafe.Pointer(&frame)))
+	if frame != nil {
+		C.av_frame_free((**C.AVFrame)(unsafe.Pointer(&frame)))
+	}
 }
 
 // Unreference all the buffers referenced by frame and reset the frame fields.
@@ -325,7 +327,14 @@ func (ctx *AVFrame) Planesize(plane int) int {
 			}
 		}
 	} else if ctx.Height() > 0 && ctx.PixFmt() != AV_PIX_FMT_NONE {
-		return ctx.Linesize(plane) * ctx.Height()
+		h := ctx.Height()
+		if plane == 1 || plane == 2 {
+			if desc := AVUtil_get_pix_fmt_desc(ctx.PixFmt()); desc != nil {
+				shift := desc.Log2ChromaH()
+				h = (h + (1 << shift) - 1) >> shift
+			}
+		}
+		return ctx.Linesize(plane) * h
 	} else {
 		return 0
 	}

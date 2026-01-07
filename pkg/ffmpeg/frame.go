@@ -88,7 +88,9 @@ func (frame *Frame) setVideoParams(par *Par) {
 
 // Release frame resources
 func (frame *Frame) Close() error {
-	ff.AVUtil_frame_free((*ff.AVFrame)(frame))
+	if frame != nil {
+		ff.AVUtil_frame_free((*ff.AVFrame)(frame))
+	}
 	return nil
 }
 
