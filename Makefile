@@ -80,8 +80,8 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 # Build ffmpeg
 .PHONY: ffmpeg-build
 ffmpeg-build: ffmpeg-configure
-	@echo "Building ${FFMPEG_VERSION}"
-	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j2
+	@echo "Building ${FFMPEG_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j$(JOBS)
 
 # Install ffmpeg
 .PHONY: ffmpeg
@@ -133,8 +133,8 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 # Build chromaprint
 .PHONY: chromaprint-build
 chromaprint-build: chromaprint-configure
-	@echo "Building ${CHROMAPRINT_VERSION}"
-	@cd $(BUILD_DIR) && make -j2
+	@echo "Building ${CHROMAPRINT_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR) && make -j$(JOBS)
 
 # Install chromaprint
 # Create a modified pkg-config file that ensures correct linking order for C++
