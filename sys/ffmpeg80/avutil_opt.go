@@ -65,7 +65,7 @@ func (o *AVOption) Max() float64 {
 }
 
 // DefaultVal returns the default value as an interface{}, type depends on the option type.
-// Returns nil for const options or if no default is set.
+// For const options, returns their constant value; returns nil if no default is set or the type is unsupported.
 func (o *AVOption) DefaultVal() interface{} {
 	opt := (*C.struct_AVOption)(unsafe.Pointer(o))
 	switch o.Type() {
