@@ -15,7 +15,7 @@ type Client struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// New creates a new HTTP client for the PostgreSQL management API.
+// New creates a new HTTP client for the FFmpeg/go-media HTTP API.
 func New(url string, opts ...client.ClientOpt) (*Client, error) {
 	c := new(Client)
 	if client, err := client.New(append(opts, client.OptEndpoint(url))...); err != nil {
