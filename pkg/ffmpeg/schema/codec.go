@@ -2,6 +2,9 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"strings"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
@@ -19,8 +22,21 @@ type ListCodecRequest struct {
 type ListCodecResponse []Codec
 
 type Codec struct {
-	*ff.AVCodec
-	Opts []*ff.AVOption `json:"options,omitempty"`
+	*ff.AVCodec    `json:"-"`
+	Type           string               `json:"type"`
+	Name           string               `json:"name,omitempty"`
+	LongName       string               `json:"long_name,omitempty"`
+	ID             string               `json:"id,omitempty"`
+	IsEncoder      bool                 `json:"is_encoder"`
+	IsDecoder      bool                 `json:"is_decoder"`
+	Capabilities   string               `json:"capabilities,omitempty"`
+	Framerates     []ff.AVRational      `json:"supported_framerates,omitempty"`
+	SampleFormats  []ff.AVSampleFormat  `json:"sample_formats,omitempty"`
+	PixelFormats   []ff.AVPixelFormat   `json:"pixel_formats,omitempty"`
+	Samplerates    []int                `json:"samplerates,omitempty"`
+	Profiles       []string             `json:"profiles,omitempty"`
+	ChannelLayouts []ff.AVChannelLayout `json:"channel_layouts,omitempty"`
+	Opts           []*ff.AVOption       `json:"options,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +46,33 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 	if codec == nil {
 		return nil
 	}
-	c := &Codec{AVCodec: codec}
+
+	c := &Codec{
+		AVCodec:       codec,
+		Type:          mediaTypeString(codec.Type()),
+		Name:          codec.Name(),
+		LongName:      codec.LongName(),
+		ID:            codec.ID().String(),
+		IsEncoder:     codec.IsEncoder(),
+		IsDecoder:     codec.IsDecoder(),
+		Capabilities:  codec.Capabilities().String(),
+		Framerates:    codec.SupportedFramerates(),
+		SampleFormats: codec.SampleFormats(),
+		PixelFormats:  codec.PixelFormats(),
+		Samplerates:   codec.SupportedSamplerates(),
+	}
+
+	// Convert profiles to strings
+	profiles := codec.Profiles()
+	if len(profiles) > 0 {
+		c.Profiles = make([]string, len(profiles))
+		for i, p := range profiles {
+			c.Profiles[i] = p.Name()
+		}
+	}
+
+	// TODO: Convert channel layouts to structured format
+	c.ChannelLayouts = codec.ChannelLayouts()
 
 	// Get options directly from codec's priv_class using FAKE_OBJ trick
 	if class := codec.PrivClass(); class != nil {
@@ -42,32 +84,6 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
-
-func (r Codec) MarshalJSON() ([]byte, error) {
-	if r.AVCodec == nil {
-		return json.Marshal(nil)
-	}
-
-	// Get base codec JSON
-	codecJSON, err := r.AVCodec.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	// If no options, return base JSON
-	if len(r.Opts) == 0 {
-		return codecJSON, nil
-	}
-
-	// Unmarshal to map and add options
-	var result map[string]interface{}
-	if err := json.Unmarshal(codecJSON, &result); err != nil {
-		return nil, err
-	}
-	result["options"] = r.Opts
-
-	return json.Marshal(result)
-}
 
 func (r Codec) String() string {
 	data, err := json.MarshalIndent(r, "", "  ")
@@ -88,34 +104,27 @@ func (r ListCodecResponse) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Type returns a MediaType wrapper that provides proper string formatting
-func (c *Codec) Type() *MediaType {
+// QueryValues returns the URL query values for the request
+func (r *ListCodecRequest) QueryValues() url.Values {
+	values := url.Values{}
+	if name := strings.TrimSpace(r.Name); name != "" {
+		values.Set("name", name)
+	}
+	if typ := strings.TrimSpace(r.Type); typ != "" {
+		values.Set("type", typ)
+	}
+	if r.IsEncoder != nil {
+		values.Set("is_encoder", fmt.Sprint(*r.IsEncoder))
+	}
+	return values
+}
+
+// Type returns the media type as a string
+func (c *Codec) MediaType() string {
 	if c.AVCodec == nil {
-		return nil
+		return "unknown"
 	}
-	mt := MediaType(c.AVCodec.Type())
-	return &mt
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// HELPER TYPES
-
-type MediaType ff.AVMediaType
-
-func (mt MediaType) String() string {
-	return mediaTypeString(ff.AVMediaType(mt))
-}
-
-func (mt MediaType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(mt.String())
-}
-
-// Equals checks if the MediaType equals the given AVMediaType
-func (mt *MediaType) Equals(t ff.AVMediaType) bool {
-	if mt == nil {
-		return false
-	}
-	return ff.AVMediaType(*mt) == t
+	return c.Type
 }
 
 ////////////////////////////////////////////////////////////////////////////////

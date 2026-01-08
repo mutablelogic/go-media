@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"encoding/json"
 	"fmt"
 	"unsafe"
 )
@@ -136,108 +135,6 @@ const (
 	AV_CODEC_CAP_ENCODER_RECON_FRAME      AVCodecCap = C.AV_CODEC_CAP_ENCODER_RECON_FRAME
 	AV_CODEC_CAP_MAX                                 = AV_CODEC_CAP_ENCODER_RECON_FRAME
 )
-
-////////////////////////////////////////////////////////////////////////////////
-// JSON OUTPUT
-
-func (ctx *AVCodec) MarshalJSON() ([]byte, error) {
-	type jsonAVCodec struct {
-		Type           AVMediaType       `json:"type"`
-		Name           string            `json:"name,omitempty"`
-		LongName       string            `json:"long_name,omitempty"`
-		ID             AVCodecID         `json:"id,omitempty"`
-		IsEncoder      bool              `json:"is_encoder"`
-		IsDecoder      bool              `json:"is_decoder"`
-		Capabilities   AVCodecCap        `json:"capabilities,omitempty"`
-		Framerates     []AVRational      `json:"supported_framerates,omitempty"`
-		SampleFormats  []AVSampleFormat  `json:"sample_formats,omitempty"`
-		PixelFormats   []AVPixelFormat   `json:"pixel_formats,omitempty"`
-		Samplerates    []int             `json:"samplerates,omitempty"`
-		Profiles       []AVProfile       `json:"profiles,omitempty"`
-		ChannelLayouts []AVChannelLayout `json:"channel_layouts,omitempty"`
-	}
-	return json.Marshal(jsonAVCodec{
-		Name:           C.GoString(ctx.name),
-		LongName:       C.GoString(ctx.long_name),
-		Type:           AVMediaType(ctx._type),
-		ID:             AVCodecID(ctx.id),
-		IsEncoder:      ctx.IsEncoder(),
-		IsDecoder:      ctx.IsDecoder(),
-		Capabilities:   AVCodecCap(ctx.capabilities),
-		Framerates:     ctx.SupportedFramerates(),
-		SampleFormats:  ctx.SampleFormats(),
-		PixelFormats:   ctx.PixelFormats(),
-		Samplerates:    ctx.SupportedSamplerates(),
-		Profiles:       ctx.Profiles(),
-		ChannelLayouts: ctx.ChannelLayouts(),
-	})
-}
-
-func (ctx *AVCodecContext) MarshalJSON() ([]byte, error) {
-	type jsonAVCodecContext struct {
-		CodecType         AVMediaType     `json:"codec_type,omitempty"`
-		Codec             *AVCodec        `json:"codec,omitempty"`
-		BitRate           int64           `json:"bit_rate,omitempty"`
-		BitRateTolerance  int             `json:"bit_rate_tolerance,omitempty"`
-		PixelFormat       AVPixelFormat   `json:"pix_fmt,omitempty"`
-		Width             int             `json:"width,omitempty"`
-		Height            int             `json:"height,omitempty"`
-		SampleAspectRatio AVRational      `json:"sample_aspect_ratio,omitzero"`
-		Framerate         AVRational      `json:"framerate,omitzero"`
-		SampleFormat      AVSampleFormat  `json:"sample_fmt,omitempty"`
-		SampleRate        int             `json:"sample_rate,omitempty"`
-		ChannelLayout     AVChannelLayout `json:"channel_layout,omitzero"`
-		FrameSize         int             `json:"frame_size,omitempty"`
-		TimeBase          AVRational      `json:"time_base,omitempty"`
-	}
-	switch ctx.codec_type {
-	case C.AVMEDIA_TYPE_VIDEO:
-		return json.Marshal(jsonAVCodecContext{
-			CodecType:         AVMediaType(ctx.codec_type),
-			Codec:             (*AVCodec)(ctx.codec),
-			BitRate:           int64(ctx.bit_rate),
-			BitRateTolerance:  int(ctx.bit_rate_tolerance),
-			PixelFormat:       AVPixelFormat(ctx.pix_fmt),
-			Width:             int(ctx.width),
-			Height:            int(ctx.height),
-			SampleAspectRatio: AVRational(ctx.sample_aspect_ratio),
-			Framerate:         AVRational(ctx.framerate),
-			TimeBase:          (AVRational)(ctx.time_base),
-		})
-	case C.AVMEDIA_TYPE_AUDIO:
-		return json.Marshal(jsonAVCodecContext{
-			CodecType:        AVMediaType(ctx.codec_type),
-			Codec:            (*AVCodec)(ctx.codec),
-			BitRate:          int64(ctx.bit_rate),
-			BitRateTolerance: int(ctx.bit_rate_tolerance),
-			TimeBase:         (AVRational)(ctx.time_base),
-			SampleFormat:     AVSampleFormat(ctx.sample_fmt),
-			SampleRate:       int(ctx.sample_rate),
-			ChannelLayout:    AVChannelLayout(ctx.ch_layout),
-			FrameSize:        int(ctx.frame_size),
-		})
-	default:
-		return json.Marshal(jsonAVCodecContext{
-			CodecType:        AVMediaType(ctx.codec_type),
-			Codec:            (*AVCodec)(ctx.codec),
-			BitRate:          int64(ctx.bit_rate),
-			BitRateTolerance: int(ctx.bit_rate_tolerance),
-			TimeBase:         (AVRational)(ctx.time_base),
-		})
-	}
-}
-
-func (ctx AVProfile) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ctx.Name())
-}
-
-func (v AVCodecCap) MarshalJSON() ([]byte, error) {
-	return json.Marshal(v.String())
-}
-
-func (v AVCodecID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(v.String())
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY

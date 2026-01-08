@@ -47,6 +47,22 @@ type ListSampleFormatsCommand struct {
 // PUBLIC METHODS
 
 func (cmd *ListAudioChannelsCommand) Run(globals *Globals) error {
+	client, err := globals.Client()
+	if err != nil {
+		return err
+	}
+
+	if client != nil {
+		response, err := client.ListAudioChannelLayouts(globals.ctx, &cmd.ListAudioChannelLayoutRequest)
+		if err != nil {
+			return err
+		}
+
+		// Print response
+		fmt.Println(response)
+		return nil
+	}
+
 	// Call manager method
 	response, err := globals.manager.ListAudioChannelLayouts(globals.ctx, &cmd.ListAudioChannelLayoutRequest)
 	if err != nil {

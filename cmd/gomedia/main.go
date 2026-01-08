@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
+	"github.com/mutablelogic/go-client"
+	"github.com/mutablelogic/go-media/pkg/ffmpeg/httpclient"
 	task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
 )
 
@@ -24,6 +27,7 @@ type Globals struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	manager *task.Manager
+	client  *httpclient.Client
 }
 
 type CLI struct {
@@ -92,4 +96,27 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (g *Globals) Client() (*httpclient.Client, error) {
+	if g.Endpoint == "" {
+		return nil, nil
+	}
+
+	url, err := url.Parse(g.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	// Client options
+	opts := []client.ClientOpt{}
+	if g.Debug {
+		opts = append(opts, client.OptTrace(os.Stderr, true))
+	}
+
+	// Create a client with the calculated endpoint
+	return httpclient.New(url.String(), opts...)
 }

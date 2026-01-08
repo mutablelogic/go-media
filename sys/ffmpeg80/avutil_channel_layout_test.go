@@ -317,37 +317,6 @@ func Test_avutil_channel_layout_order(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 // TEST JSON MARSHALING
 
-func Test_avutil_channel_layout_marshal_json(t *testing.T) {
-	assert := assert.New(t)
-
-	var layout AVChannelLayout
-	err := AVUtil_channel_layout_from_string(&layout, "stereo")
-	assert.NoError(err)
-	defer AVUtil_channel_layout_uninit(&layout)
-
-	data, err := json.Marshal(&layout)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-
-	var result string
-	err = json.Unmarshal(data, &result)
-	assert.NoError(err)
-	assert.NotEmpty(result)
-
-	t.Logf("Stereo layout JSON: %s", string(data))
-}
-
-func Test_avutil_channel_layout_marshal_json_empty(t *testing.T) {
-	assert := assert.New(t)
-
-	var layout AVChannelLayout
-	// Empty layout
-
-	data, err := json.Marshal(&layout)
-	assert.NoError(err)
-	assert.Equal("null", string(data), "Empty layout should marshal to null")
-}
-
 func Test_avutil_channel_layout_marshal_json_various(t *testing.T) {
 	assert := assert.New(t)
 

@@ -84,13 +84,20 @@ func (l *FrameLoop) Enqueue(frame *ffmpeg.Frame) error {
 		return errors.New("frame loop stopped")
 	}
 
-	l.frameCh <- frame
-	return l.ctx.Post(l.event, nil)
+	// Non-blocking enqueue; drop if queue is full to avoid stalling producer
+	select {
+	case l.frameCh <- frame:
+		return l.ctx.Post(l.event, nil)
+	default:
+		return errors.New("frame queue full")
+	}
 }
 
 // CloseInput signals that no more frames will arrive and triggers final processing.
 func (l *FrameLoop) CloseInput() {
 	l.closeOnce.Do(func() {
+		// Mark stopped to prevent further enqueue attempts during teardown
+		atomic.StoreUint32(&l.stopped, 1)
 		close(l.frameCh)
 		l.ctx.Post(l.event, nil)
 	})
@@ -165,7 +172,7 @@ func (l *FrameLoop) handleEvent() {
 			return
 		}
 
-		// Calculate delay BEFORE handling the frame
+		// Calculate delay for this frame
 		delay := l.frameDelay
 		if l.delayFn != nil {
 			if d := l.delayFn(frame); d >= 0 {
@@ -173,14 +180,7 @@ func (l *FrameLoop) handleEvent() {
 			}
 		}
 
-		// IMPORTANT: Sleep BEFORE displaying the frame to maintain proper timing
-		// The VideoDelay function calculates when this frame should be shown
-		if delay > 0 {
-			dbg("waiting %.3fs before displaying frame", delay.Seconds())
-			time.Sleep(delay)
-		}
-
-		// Now display the frame at the correct time
+		// Display the frame immediately; schedule next event after delay
 		if err := l.handler(frame); err != nil {
 			dbg("frame handler error: %v", err)
 			l.post(l.retryDelay)
@@ -189,11 +189,8 @@ func (l *FrameLoop) handleEvent() {
 		}
 
 		_ = frame.Close()
-
-		// Post next event immediately (no additional delay)
-		if err := l.ctx.Post(l.event, nil); err != nil {
-			dbg("post event error: %v", err)
-		}
+		// Post next event after the desired delay
+		l.post(delay)
 	default:
 		l.post(l.idleDelay)
 	}

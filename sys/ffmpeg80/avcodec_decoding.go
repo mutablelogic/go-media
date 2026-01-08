@@ -64,12 +64,14 @@ func AVCodec_send_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 func AVCodec_decode_subtitle(ctx *AVCodecContext, pkt *AVPacket) (*AVSubtitle, error) {
 	sub := &AVSubtitle{}
 	var got_sub C.int
-	if err := AVError(C.avcodec_decode_subtitle2(
-		(*C.AVCodecContext)(ctx),
-		(*C.AVSubtitle)(sub),
-		&got_sub,
-		(*C.AVPacket)(pkt),
-	)); err != 0 {
+
+	// DEBUG: Validate inputs
+	cCtx := (*C.AVCodecContext)(ctx)
+	cPkt := (*C.AVPacket)(pkt)
+
+	ret := C.avcodec_decode_subtitle2(cCtx, (*C.AVSubtitle)(sub), &got_sub, cPkt)
+	if ret < 0 {
+		err := AVError(ret)
 		return nil, err
 	}
 	if got_sub == 0 {

@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"syscall"
 	"unsafe"
 )
 
@@ -39,6 +40,39 @@ const (
 // Free all allocated data in the given subtitle struct.
 func AVSubtitle_free(sub *AVSubtitle) {
 	C.avsubtitle_free((*C.struct_AVSubtitle)(sub))
+}
+
+// Initialize subtitle header for ASS-based subtitle formats (subrip, ass, ssa, etc.).
+// This should be called before avcodec_open2() for subtitle decoders that need header initialization.
+// Returns error if memory allocation fails.
+func AVCodec_init_subtitle_header(ctx *AVCodecContext) error {
+	// Default ASS subtitle header similar to ff_ass_subtitle_header_default
+	header := "[Script Info]\n" +
+		"ScriptType: v4.00+\n" +
+		"PlayResX: 384\n" +
+		"PlayResY: 288\n" +
+		"ScaledBorderAndShadow: yes\n\n" +
+		"[V4+ Styles]\n" +
+		"Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n" +
+		"Style: Default,Arial,16,&Hffffff,&Hffffff,&H0,&H0,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1\n\n" +
+		"[Events]\n" +
+		"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+
+	cHeader := C.CString(header)
+	defer C.free(unsafe.Pointer(cHeader))
+
+	// Allocate and copy the header
+	headerSize := C.size_t(len(header))
+	cCtx := (*C.struct_AVCodecContext)(ctx)
+	cCtx.subtitle_header = (*C.uint8_t)(C.av_malloc(headerSize + 1))
+	if cCtx.subtitle_header == nil {
+		return AVError(syscall.ENOMEM)
+	}
+	C.memcpy(unsafe.Pointer(cCtx.subtitle_header), unsafe.Pointer(cHeader), headerSize)
+	*(*C.uint8_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cCtx.subtitle_header)) + uintptr(headerSize))) = 0
+	cCtx.subtitle_header_size = C.int(headerSize)
+
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

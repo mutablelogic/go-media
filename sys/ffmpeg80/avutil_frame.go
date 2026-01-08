@@ -114,6 +114,16 @@ func AVUtil_frame_free(frame *AVFrame) {
 	}
 }
 
+// Set up a new reference to the data described by src.
+// This function allocates a new AVFrame and copies all metadata from src to dst,
+// but the actual buffer data is referenced, not copied.
+func AVUtil_frame_ref(dst *AVFrame, src *AVFrame) error {
+	if ret := AVError(C.av_frame_ref((*C.AVFrame)(dst), (*C.AVFrame)(src))); ret != 0 {
+		return ret
+	}
+	return nil
+}
+
 // Unreference all the buffers referenced by frame and reset the frame fields.
 func AVUtil_frame_unref(frame *AVFrame) {
 	C.av_frame_unref((*C.AVFrame)(frame))

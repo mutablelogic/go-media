@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"encoding/json"
 	"unsafe"
 )
 
@@ -60,19 +59,6 @@ type (
 const (
 	cBufSize = 32
 )
-
-////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (ch AVChannelLayout) MarshalJSON() ([]byte, error) {
-	if ch.NumChannels() == 0 {
-		return json.Marshal(nil)
-	} else if str, err := AVUtil_channel_layout_describe(&ch); err != nil {
-		return nil, err
-	} else {
-		return json.Marshal(str)
-	}
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS

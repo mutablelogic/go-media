@@ -28,8 +28,8 @@ func TestListAudioChannelLayout_All(t *testing.T) {
 	for _, layout := range response {
 		name, _ := ff.AVUtil_channel_layout_describe(layout.AVChannelLayout)
 		assert.NotEmpty(t, name)
-		assert.Greater(t, layout.NumChannels(), 0)
-		assert.NotEmpty(t, layout.Order().String())
+		assert.Greater(t, layout.NumChannels, 0)
+		assert.NotEmpty(t, layout.Order)
 	}
 }
 
@@ -59,8 +59,8 @@ func TestListAudioChannelLayout_FilterByName(t *testing.T) {
 			require.Len(t, response, 1)
 			name, _ := ff.AVUtil_channel_layout_describe(response[0].AVChannelLayout)
 			assert.Equal(t, tc.name, name)
-			assert.Equal(t, tc.numChannels, response[0].NumChannels())
-			t.Logf("%s: %d channels, order=%s", name, response[0].NumChannels(), response[0].Order().String())
+			assert.Equal(t, tc.numChannels, response[0].NumChannels)
+			t.Logf("%s: %d channels, order=%s", name, response[0].NumChannels, response[0].Order)
 		})
 	}
 }
@@ -93,7 +93,7 @@ func TestListAudioChannelLayout_FilterByNumChannels(t *testing.T) {
 
 			// All returned layouts should have the requested number of channels
 			for _, layout := range response {
-				assert.Equal(t, tc.numChannels, layout.NumChannels())
+				assert.Equal(t, tc.numChannels, layout.NumChannels)
 			}
 
 			// Check that expected names are present
@@ -127,7 +127,7 @@ func TestListAudioChannelLayout_FilterByNameAndNumChannels(t *testing.T) {
 	require.Len(t, response, 1)
 	name, _ := ff.AVUtil_channel_layout_describe(response[0].AVChannelLayout)
 	assert.Equal(t, "stereo", name)
-	assert.Equal(t, 2, response[0].NumChannels())
+	assert.Equal(t, 2, response[0].NumChannels)
 }
 
 func TestListAudioChannelLayout_FilterNoMatch(t *testing.T) {
@@ -181,7 +181,7 @@ func TestListAudioChannelLayout_ChannelDetails(t *testing.T) {
 	require.Len(t, response, 1)
 
 	layout := response[0]
-	numChannels := layout.NumChannels()
+	numChannels := layout.NumChannels
 
 	// Verify channel structure
 	for i := 0; i < numChannels; i++ {
