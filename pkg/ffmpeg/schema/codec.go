@@ -2,6 +2,9 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"strings"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
@@ -87,6 +90,21 @@ func (r ListCodecResponse) String() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// QueryValues returns the URL query values for the request
+func (r *ListCodecRequest) QueryValues() url.Values {
+	values := url.Values{}
+	if name := strings.TrimSpace(r.Name); name != "" {
+		values.Set("name", name)
+	}
+	if typ := strings.TrimSpace(r.Type); typ != "" {
+		values.Set("type", typ)
+	}
+	if r.IsEncoder != nil {
+		values.Set("is_encoder", fmt.Sprint(*r.IsEncoder))
+	}
+	return values
+}
 
 // Type returns a MediaType wrapper that provides proper string formatting
 func (c *Codec) Type() *MediaType {

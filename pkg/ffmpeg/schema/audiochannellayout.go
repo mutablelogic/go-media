@@ -2,6 +2,9 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"strings"
 
 	// Packages
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
@@ -11,8 +14,8 @@ import (
 // TYPES
 
 type ListAudioChannelLayoutRequest struct {
-	Name        string `json:"name"`
-	NumChannels int    `json:"num_channels"`
+	Name        string `json:"name" kong:"help='Filter by channel layout name (e.g., stereo, 5.1)'"`
+	NumChannels int    `json:"num_channels" kong:"help='Filter by number of channels'"`
 }
 
 type ListAudioChannelLayoutResponse []AudioChannelLayout
@@ -55,4 +58,19 @@ func (r ListAudioChannelLayoutResponse) String() string {
 		return err.Error()
 	}
 	return string(data)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// QueryValues returns the URL query values for the request
+func (r *ListAudioChannelLayoutRequest) QueryValues() url.Values {
+	values := url.Values{}
+	if name := strings.TrimSpace(r.Name); name != "" {
+		values.Set("name", name)
+	}
+	if r.NumChannels > 0 {
+		values.Set("num_channels", fmt.Sprint(r.NumChannels))
+	}
+	return values
 }
