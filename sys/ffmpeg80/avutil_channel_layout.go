@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"encoding/json"
 	"unsafe"
 )
 
@@ -60,56 +59,6 @@ type (
 const (
 	cBufSize = 32
 )
-
-////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (c AVChannel) MarshalJSON() ([]byte, error) {
-	name, err := AVUtil_channel_name(c)
-	if err != nil {
-		return nil, err
-	}
-	description, err := AVUtil_channel_description(c)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}{
-		Name:        name,
-		Description: description,
-	})
-}
-
-func (ch AVChannelLayout) MarshalJSON() ([]byte, error) {
-	if ch.NumChannels() == 0 {
-		return json.Marshal(nil)
-	}
-
-	description, err := AVUtil_channel_layout_describe(&ch)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build channels array
-	channels := make([]AVChannel, ch.NumChannels())
-	for i := 0; i < ch.NumChannels(); i++ {
-		channels[i] = AVUtil_channel_layout_channel_from_index(&ch, i)
-	}
-
-	return json.Marshal(struct {
-		Name        string      `json:"name"`
-		NumChannels int         `json:"num_channels"`
-		Order       string      `json:"order"`
-		Channels    []AVChannel `json:"channels"`
-	}{
-		Name:        description,
-		NumChannels: ch.NumChannels(),
-		Order:       ch.Order().String(),
-		Channels:    channels,
-	})
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS

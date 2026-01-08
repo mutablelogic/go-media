@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -506,121 +505,6 @@ func Test_avcodec_profile_string(t *testing.T) {
 
 	str := profiles[0].String()
 	t.Logf("Profile string: %s", str)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// TEST JSON MARSHALING
-
-func Test_avcodec_codec_json(t *testing.T) {
-	assert := assert.New(t)
-
-	codec := AVCodec_find_decoder(AV_CODEC_ID_H264)
-	assert.NotNil(codec)
-
-	data, err := json.Marshal(codec)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-
-	jsonStr := string(data)
-	assert.Contains(jsonStr, "type")
-	assert.Contains(jsonStr, "name")
-	assert.Contains(jsonStr, "id")
-	t.Logf("Codec JSON: %s", jsonStr)
-}
-
-func Test_avcodec_context_video_json(t *testing.T) {
-	assert := assert.New(t)
-
-	codec := AVCodec_find_encoder(AV_CODEC_ID_MPEG2VIDEO)
-	if codec == nil {
-		t.Skip("MPEG2VIDEO encoder not available")
-	}
-
-	ctx := AVCodec_alloc_context(codec)
-	assert.NotNil(ctx)
-	defer AVCodec_free_context(ctx)
-
-	ctx.SetWidth(1920)
-	ctx.SetHeight(1080)
-	ctx.SetPixFmt(AV_PIX_FMT_YUV420P)
-	ctx.SetBitRate(5000000)
-
-	data, err := json.Marshal(ctx)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-
-	jsonStr := string(data)
-	assert.Contains(jsonStr, "codec")
-	assert.Contains(jsonStr, "width")
-	assert.Contains(jsonStr, "height")
-	assert.Contains(jsonStr, "1920")
-	assert.Contains(jsonStr, "1080")
-	t.Logf("Video context JSON: %s", jsonStr)
-}
-
-func Test_avcodec_context_audio_json(t *testing.T) {
-	assert := assert.New(t)
-
-	codec := AVCodec_find_encoder(AV_CODEC_ID_MP2)
-	if codec == nil {
-		t.Skip("MP2 encoder not available")
-	}
-
-	ctx := AVCodec_alloc_context(codec)
-	assert.NotNil(ctx)
-	defer AVCodec_free_context(ctx)
-
-	ctx.SetSampleFormat(AV_SAMPLE_FMT_S16)
-	ctx.SetSampleRate(48000)
-	ctx.SetBitRate(128000)
-
-	data, err := json.Marshal(ctx)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-
-	jsonStr := string(data)
-	assert.Contains(jsonStr, "codec")
-	assert.Contains(jsonStr, "sample_fmt")
-	assert.Contains(jsonStr, "sample_rate")
-	assert.Contains(jsonStr, "48000")
-	t.Logf("Audio context JSON: %s", jsonStr)
-}
-
-func Test_avcodec_profile_json(t *testing.T) {
-	codec := AVCodec_find_encoder(AV_CODEC_ID_H264)
-	if codec == nil {
-		t.Skip("H264 encoder not available")
-	}
-
-	profiles := codec.Profiles()
-	if profiles == nil || len(profiles) == 0 {
-		t.Skip("No profiles available")
-	}
-
-	data, err := json.Marshal(profiles[0])
-	if err == nil {
-		t.Logf("Profile JSON: %s", string(data))
-	}
-}
-
-func Test_avcodec_cap_json(t *testing.T) {
-	assert := assert.New(t)
-
-	cap := AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY
-	data, err := json.Marshal(cap)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-	t.Logf("Capabilities JSON: %s", string(data))
-}
-
-func Test_avcodec_id_json(t *testing.T) {
-	assert := assert.New(t)
-
-	id := AV_CODEC_ID_H264
-	data, err := json.Marshal(id)
-	assert.NoError(err)
-	assert.NotEmpty(data)
-	t.Logf("Codec ID JSON: %s", string(data))
 }
 
 ////////////////////////////////////////////////////////////////////////////////

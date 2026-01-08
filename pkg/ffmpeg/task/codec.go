@@ -43,20 +43,17 @@ func (manager *Manager) ListCodecs(_ context.Context, req *schema.ListCodecReque
 		if req == nil {
 			return true
 		}
-		if req.Name != "" && !strings.Contains(c.AVCodec.Name(), req.Name) {
+		if req.Name != "" && !strings.Contains(c.Name, req.Name) {
 			return false
 		}
-		if req.Type != "" {
-			mt := schema.MediaType(c.AVCodec.Type())
-			if mt.String() != req.Type {
-				return false
-			}
+		if req.Type != "" && c.Type != req.Type {
+			return false
 		}
 		if req.IsEncoder != nil {
-			if *req.IsEncoder && !ff.AVCodec_is_encoder(c.AVCodec) {
+			if *req.IsEncoder && !c.IsEncoder {
 				return false
 			}
-			if !*req.IsEncoder && !ff.AVCodec_is_decoder(c.AVCodec) {
+			if !*req.IsEncoder && !c.IsDecoder {
 				return false
 			}
 		}
