@@ -329,6 +329,15 @@ func newStreamDecoder(stream *ff.AVStream, srcPar, destPar *Par, force bool) (*s
 		return nil, err
 	}
 
+	// For subtitle codecs (especially ASS-based like subrip), initialize subtitle header
+	// This must be done before avcodec_open2()
+	if stream.CodecPar().CodecType() == ff.AVMEDIA_TYPE_SUBTITLE {
+		if err := ff.AVCodec_init_subtitle_header(dec.codec); err != nil {
+			dec.close()
+			return nil, err
+		}
+	}
+
 	// Open codec
 	if err := ff.AVCodec_open(dec.codec, codec, nil); err != nil {
 		dec.close()
@@ -484,6 +493,11 @@ func (dec *streamDecoder) decodeSubtitle(pkt *ff.AVPacket, subtitlefn DecoderSub
 		return nil
 	}
 	defer ff.AVSubtitle_free(sub)
+
+	// FFmpeg subtitle decoders don't set PTS automatically - we must set it from the packet
+	if pkt.Pts() != int64(ff.AV_NOPTS_VALUE) {
+		sub.SetPTS(pkt.Pts())
+	}
 
 	// Call user callback with decoded subtitle
 	return subtitlefn(dec.stream, sub)
