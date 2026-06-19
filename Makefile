@@ -6,16 +6,20 @@ PKG_CONFIG=$(shell which pkg-config)
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
+# Locations
+BUILD_DIR ?= build
+CMD_DIR := $(filter-out cmd/_%,$(wildcard cmd/*))
+PREFIX ?= ${BUILD_DIR}/install
+
 # Source version
 FFMPEG_VERSION ?= ffmpeg-8.0.3
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 
-# Set OS and Architecture (must be before CGO configuration)
+# Set OS and Architecture
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
 OS ?= $(shell uname | tr A-Z a-z)
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
-DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
@@ -24,33 +28,33 @@ else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
 
-# Build flags
-BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
+# Set build flags
+VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitTag=$(shell git describe --tags --always)
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
-PREFIX ?= ${BUILD_DIR}/install
+# Docker
+DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
+DOCKER_SOURCE ?= $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
+DOCKER_TAG = ${DOCKER_REPO}:${VERSION}-${OS}-${ARCH}
 
 ###############################################################################
-# TARGETS
+# ALL
 
 .PHONY: all
-all: clean cmd
+all: build
 
-.PHONY: cmd
-cmd: ffmpeg chromaprint $(CMD_DIR)
+###############################################################################
+# BUILD
 
-$(CMD_DIR): go-dep go-tidy sdl-dep mkdir 
-	@echo Build cmd $(notdir $@)
-	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+# Build the commands in the cmd directory
+.PHONY: build
+build: tidy $(CMD_DIR)
+
+$(CMD_DIR): go-dep mkdir
+	@echo Build $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
+	@${CGO_ENV} GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
 ###############################################################################
 # FFMPEG
@@ -146,19 +150,30 @@ chromaprint: chromaprint-build
 ###############################################################################
 # DOCKER
 
+
+# Build the docker image
+.PHONY: docker
 docker: docker-dep
-	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
+	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
-		--tag ${BUILD_TAG} \
+		--tag ${DOCKER_TAG} \
+		--provenance=false \
 		--build-arg ARCH=${ARCH} \
 		--build-arg OS=${OS} \
-		--build-arg SOURCE=${BUILD_MODULE} \
+		--build-arg SOURCE=${DOCKER_SOURCE} \
 		--build-arg VERSION=${VERSION} \
-		-f etc/docker/Dockerfile .
+		-f etc/Dockerfile .
 
-docker-push: docker-dep
-	@echo push docker image: ${BUILD_TAG}
-	@${DOCKER} push ${BUILD_TAG}
+# Push docker container
+.PHONY: docker-push
+docker-push: docker-dep 
+	@echo push docker image: ${DOCKER_TAG}
+	@${DOCKER} push ${DOCKER_TAG}
+
+# Print out the version
+.PHONY: docker-version
+docker-version: docker-dep 
+	@echo "tag=${VERSION}"
 
 ###############################################################################
 # TESTS
@@ -175,7 +190,7 @@ test-chromaprint:
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
 .PHONY: test-sys
-test-sys: go-dep go-tidy
+test-sys: go-dep tidy
 	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
@@ -217,13 +232,13 @@ mkdir:
 	@install -d ${BUILD_DIR}
 	@install -d ${PREFIX}
 
-.PHONY: go-tidy
-go-tidy: go-dep
+.PHONY: tidy
+tidy: go-dep
 	@echo Tidy
 	@${GO} mod tidy
 
 .PHONY: clean
-clean: go-tidy
+clean: tidy
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
 	@${GO} clean -cache
