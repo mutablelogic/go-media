@@ -33,8 +33,9 @@ type CLI struct {
 	ProbeCommands
 	DecodeCommands
 	RemuxCommands
-	ServerCommands
+	//	ServerCommands
 	PlayCommands
+	ExifCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////
