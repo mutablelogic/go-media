@@ -1,0 +1,33 @@
+package libexif
+
+////////////////////////////////////////////////////////////////////////////////
+// CGO
+
+/*
+#cgo pkg-config: libexif
+#include <stdlib.h>
+#include <libexif/exif-byte-order.h>
+*/
+import "C"
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type (
+	ByteOrder C.ExifByteOrder
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// GLBOALS
+
+const (
+	EXIF_BYTE_ORDER_MOTOROLA ByteOrder = C.EXIF_BYTE_ORDER_MOTOROLA // Big-endian
+	EXIF_BYTE_ORDER_INTEL    ByteOrder = C.EXIF_BYTE_ORDER_INTEL    // Little-endian
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// BINDINGS
+
+func Exif_byte_order_get_name(order ByteOrder) string {
+	return C.GoString(C.exif_byte_order_get_name(C.ExifByteOrder(order)))
+}

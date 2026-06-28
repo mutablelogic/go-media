@@ -15,6 +15,7 @@ type Err uint
 
 const (
 	ErrBadParameter   Err = http.StatusBadRequest
+	ErrNotFound       Err = http.StatusNotFound
 	ErrInternalError  Err = http.StatusInternalServerError
 	ErrNotImplemented Err = http.StatusNotImplemented
 )
@@ -32,6 +33,8 @@ func (code Err) Error() string {
 		return "bad parameter"
 	case ErrInternalError:
 		return "internal error"
+	case ErrNotFound:
+		return "not found"
 	case ErrNotImplemented:
 		return "not implemented"
 	default:
@@ -39,10 +42,10 @@ func (code Err) Error() string {
 	}
 }
 
-func (code Err) With(args ...interface{}) error {
+func (code Err) With(args ...any) error {
 	return fmt.Errorf("%w: %s", code, fmt.Sprint(args...))
 }
 
-func (code Err) Withf(format string, args ...interface{}) error {
+func (code Err) Withf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", code, fmt.Sprintf(format, args...))
 }

@@ -12,6 +12,7 @@ JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 FFMPEG_VERSION ?= ffmpeg-8.0.1
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
+LIBEXIF_VERSION ?= libexif-0.6.26
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -48,7 +49,7 @@ PREFIX ?= ${BUILD_DIR}/install
 all: clean cmd
 
 .PHONY: cmd
-cmd: ffmpeg chromaprint $(CMD_DIR)
+cmd: ffmpeg chromaprint libexif $(CMD_DIR)
 
 $(CMD_DIR): go-dep go-tidy sdl-dep mkdir 
 	@echo Build cmd $(notdir $@)
@@ -102,7 +103,6 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
 	fi
 
-
 # Configure chromaprint
 # Note: FFmpeg 8.0 removed avfft API, so we use vDSP on macOS or kissfft on other platforms
 # kissfft is bundled with chromaprint and requires no external dependencies
@@ -145,6 +145,41 @@ chromaprint: chromaprint-build
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
+
+###############################################################################
+# LIBEXIF
+
+# Download libexif sources
+${BUILD_DIR}/${LIBEXIF_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/$(LIBEXIF_VERSION)" ]; then \
+		echo "Downloading $(LIBEXIF_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/${LIBEXIF_VERSION}; \
+		curl -L -o $(BUILD_DIR)/libexif.tar.gz https://github.com/libexif/libexif/releases/download/v0.6.26/$(LIBEXIF_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/libexif.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/libexif.tar.gz; \
+	fi
+
+.PHONY: libexif-configure
+libexif-configure: mkdir ${BUILD_DIR}/${LIBEXIF_VERSION}
+	@echo "Configuring ${LIBEXIF_VERSION} => ${PREFIX}"
+	@cd ${BUILD_DIR}/${LIBEXIF_VERSION} && ./configure \
+		--disable-docs --enable-year2038  \
+		--prefix="$(shell realpath ${PREFIX})" \
+		--enable-static --disable-shared
+
+# Build libexif
+.PHONY: libexif-build
+libexif-build: libexif-configure
+	@echo "Building ${LIBEXIF_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make -j$(JOBS)
+
+
+# Install libexif
+.PHONY: libexif
+libexif: libexif-build
+	@echo "Installing ${LIBEXIF_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make install
+
 ###############################################################################
 # DOCKER
 
@@ -166,7 +201,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint test-ffmpeg test-chromaprint
+test: ffmpeg chromaprint test-ffmpeg test-chromaprint test-exif
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
@@ -175,6 +210,12 @@ test-chromaprint:
 	@echo ... test pkg/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
+
+.PHONY: test-exif
+test-exif:
+	@echo ... test sys/libexif pkg/exif
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/exif
 
 .PHONY: test-sys
 test-sys: go-dep go-tidy

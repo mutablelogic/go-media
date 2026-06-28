@@ -1,8 +1,3 @@
-/*
-This is a package for reading, writing and inspecting media files. In
-order to operate on media, call NewManager() and then use the manager
-functions to determine capabilities and manage media files and devices.
-*/
 package media
 
 import "image"
