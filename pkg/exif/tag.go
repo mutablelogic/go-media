@@ -88,9 +88,17 @@ func (t *Tag) IFD() IFD {
 	return t.ifd
 }
 
-// Key returns the tag name (implements media.Metadata).
+// Key returns "tiff:Name" for IFD0/IFD1 tags and "exif:Name" for EXIF/GPS/Interop
+// tags (implements media.Metadata). The prefix aligns with XMP namespace conventions
+// so cross-source lookups work uniformly across pkg/exif and pkg/xmp.
 func (t *Tag) Key() string {
-	return libexif.Exif_tag_get_name_in_ifd(libexif.Tag(t.tag), libexif.IFD(t.ifd))
+	name := libexif.Exif_tag_get_name_in_ifd(libexif.Tag(t.tag), libexif.IFD(t.ifd))
+	switch libexif.IFD(t.ifd) {
+	case libexif.EXIF_IFD_0, libexif.EXIF_IFD_1:
+		return "tiff:" + name
+	default:
+		return "exif:" + name
+	}
 }
 
 // Name returns the tag name.
