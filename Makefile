@@ -174,12 +174,12 @@ libraw-build: libraw-configure
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make -j$(JOBS) lib/libraw.la lib/libraw_r.la
 
 # Install libraw
-# Patch pkg-config to add -lz (required for DNG deflate support)
+# Patch pkg-config to add -lz (required for DNG deflate support) and -lm (math functions)
 .PHONY: libraw
 libraw: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
-	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz|' "${PREFIX}/lib/pkgconfig/libraw.pc"
+	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz -lm|' "${PREFIX}/lib/pkgconfig/libraw.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
 	@${GO} clean -cache
 
