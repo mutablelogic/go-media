@@ -237,7 +237,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint test-ffmpeg test-chromaprint test-exif test-raw
+test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
