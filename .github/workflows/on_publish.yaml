@@ -9,6 +9,8 @@ on:
         required: true
         default: 'latest'
         type: string
+permissions:
+  contents: read
 jobs:
   var:
     name: Set variables
@@ -32,6 +34,9 @@ jobs:
   build:
     name: Build
     needs: var
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
         arch: [ amd64, arm64 ]
@@ -64,8 +69,10 @@ jobs:
   manifest:
     name: Manifest
     needs:
-      - var 
+      - var
       - build
+    permissions:
+      packages: write
     strategy:
       matrix:
         include:
