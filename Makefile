@@ -12,7 +12,8 @@ JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 FFMPEG_VERSION ?= ffmpeg-8.0.1
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
-LIBEXIF_VERSION ?= libexif-0.6.26
+LIBEXIF_VERSION ?= 0.6.26
+LIBRAW_VERSION ?= 0.22.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -145,24 +146,60 @@ chromaprint: chromaprint-build
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
+###############################################################################
+# LIBRAW
+
+# Download libraw sources
+${BUILD_DIR}/libraw-${LIBRAW_VERSION}:
+	if [ ! -d "$(BUILD_DIR)/libraw-$(LIBRAW_VERSION)" ]; then \
+		echo "Downloading $(LIBRAW_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
+		curl -L -o $(BUILD_DIR)/libraw.tar.gz https://www.libraw.org/data/LibRaw-${LIBRAW_VERSION}.tar.gz; \
+		tar -xzf $(BUILD_DIR)/libraw.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/libraw.tar.gz; \
+	fi
+
+.PHONY: libraw-configure
+libraw-configure: mkdir ${BUILD_DIR}/libraw-${LIBRAW_VERSION}
+	@echo "Configuring ${LIBRAW_VERSION} => ${PREFIX}"
+	@cd ${BUILD_DIR}/libraw-${LIBRAW_VERSION} && ./configure \
+		--prefix="$(shell realpath ${PREFIX})" \
+		--enable-static --disable-shared \
+		LIBS="$(if $(filter darwin,$(OS)),-lc++,-lstdc++)"
+
+# Build libraw
+.PHONY: libraw-build
+libraw-build: libraw-configure
+	@echo "Building libraw-${LIBRAW_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make -j$(JOBS) lib/libraw.la lib/libraw_r.la
+
+# Install libraw
+# Patch pkg-config to add -lz (required for DNG deflate support)
+.PHONY: libraw
+libraw: libraw-build
+	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
+	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz|' "${PREFIX}/lib/pkgconfig/libraw.pc"
+	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
+	@${GO} clean -cache
 
 ###############################################################################
 # LIBEXIF
 
 # Download libexif sources
-${BUILD_DIR}/${LIBEXIF_VERSION}:
-	@if [ ! -d "$(BUILD_DIR)/$(LIBEXIF_VERSION)" ]; then \
+${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/libexif-$(LIBEXIF_VERSION)" ]; then \
 		echo "Downloading $(LIBEXIF_VERSION)"; \
-		mkdir -p $(BUILD_DIR)/${LIBEXIF_VERSION}; \
-		curl -L -o $(BUILD_DIR)/libexif.tar.gz https://github.com/libexif/libexif/releases/download/v0.6.26/$(LIBEXIF_VERSION).tar.gz; \
+		mkdir -p $(BUILD_DIR)/libexif-${LIBEXIF_VERSION}; \
+		curl -L -o $(BUILD_DIR)/libexif.tar.gz https://github.com/libexif/libexif/releases/download/v$(LIBEXIF_VERSION)/libexif-$(LIBEXIF_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/libexif.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libexif.tar.gz; \
 	fi
 
 .PHONY: libexif-configure
-libexif-configure: mkdir ${BUILD_DIR}/${LIBEXIF_VERSION}
+libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 	@echo "Configuring ${LIBEXIF_VERSION} => ${PREFIX}"
-	@cd ${BUILD_DIR}/${LIBEXIF_VERSION} && ./configure \
+	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
 		--disable-docs --enable-year2038  \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --disable-shared
@@ -172,7 +209,6 @@ libexif-configure: mkdir ${BUILD_DIR}/${LIBEXIF_VERSION}
 libexif-build: libexif-configure
 	@echo "Building ${LIBEXIF_VERSION} with ${JOBS} jobs"
 	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make -j$(JOBS)
-
 
 # Install libexif
 .PHONY: libexif
@@ -201,7 +237,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint test-ffmpeg test-chromaprint test-exif
+test: ffmpeg chromaprint test-ffmpeg test-chromaprint test-exif test-raw
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
@@ -216,6 +252,12 @@ test-exif:
 	@echo ... test sys/libexif pkg/exif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/exif
+
+.PHONY: test-raw
+test-raw:
+	@echo ... test sys/libraw pkg/raw
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
 .PHONY: test-sys
 test-sys: go-dep go-tidy
