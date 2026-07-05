@@ -215,6 +215,8 @@ libexif-build: libexif-configure
 libexif: libexif-build
 	@echo "Installing libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make install
+	@sed -i.bak 's|-lexif$$|-lexif -lm|' "${PREFIX}/lib/pkgconfig/libexif.pc"
+	@rm -f "${PREFIX}/lib/pkgconfig/libexif.pc.bak"
 
 ###############################################################################
 # DOCKER
