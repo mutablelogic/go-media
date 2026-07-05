@@ -198,7 +198,7 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 
 .PHONY: libexif-configure
 libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
-	@echo "Configuring ${LIBEXIF_VERSION} => ${PREFIX}"
+	@echo "Configuring libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
 		--disable-docs --enable-year2038  \
 		--prefix="$(shell realpath ${PREFIX})" \
@@ -207,14 +207,14 @@ libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 # Build libexif
 .PHONY: libexif-build
 libexif-build: libexif-configure
-	@echo "Building ${LIBEXIF_VERSION} with ${JOBS} jobs"
-	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make -j$(JOBS)
+	@echo "Building libexif-${LIBEXIF_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make -j$(JOBS)
 
 # Install libexif
 .PHONY: libexif
 libexif: libexif-build
-	@echo "Installing ${LIBEXIF_VERSION} => ${PREFIX}"
-	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make install
+	@echo "Installing libexif-${LIBEXIF_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make install
 
 ###############################################################################
 # DOCKER
