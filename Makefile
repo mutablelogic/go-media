@@ -153,10 +153,10 @@ chromaprint: chromaprint-build
 ${BUILD_DIR}/libraw-${LIBRAW_VERSION}:
 	if [ ! -d "$(BUILD_DIR)/libraw-$(LIBRAW_VERSION)" ]; then \
 		echo "Downloading $(LIBRAW_VERSION)"; \
-		mkdir -p $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
 		curl -L -o $(BUILD_DIR)/libraw.tar.gz https://www.libraw.org/data/LibRaw-${LIBRAW_VERSION}.tar.gz; \
 		tar -xzf $(BUILD_DIR)/libraw.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libraw.tar.gz; \
+		mv $(BUILD_DIR)/LibRaw-${LIBRAW_VERSION} $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
 	fi
 
 .PHONY: libraw-configure
