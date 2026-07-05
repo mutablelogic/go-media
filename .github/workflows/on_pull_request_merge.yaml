@@ -2,13 +2,15 @@ name: "Run tests on merge to main"
 on:
   pull_request:
     branches: [main]
+permissions:
+  contents: read
 jobs:
   test:
     name: Test
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        go-version: ["1.24", "1.25"]
+        go-version: ["1.25", "1.26"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

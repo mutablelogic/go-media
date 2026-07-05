@@ -153,10 +153,10 @@ chromaprint: chromaprint-build
 ${BUILD_DIR}/libraw-${LIBRAW_VERSION}:
 	if [ ! -d "$(BUILD_DIR)/libraw-$(LIBRAW_VERSION)" ]; then \
 		echo "Downloading $(LIBRAW_VERSION)"; \
-		mkdir -p $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
 		curl -L -o $(BUILD_DIR)/libraw.tar.gz https://www.libraw.org/data/LibRaw-${LIBRAW_VERSION}.tar.gz; \
 		tar -xzf $(BUILD_DIR)/libraw.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libraw.tar.gz; \
+		mv $(BUILD_DIR)/LibRaw-${LIBRAW_VERSION} $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
 	fi
 
 .PHONY: libraw-configure
@@ -174,12 +174,12 @@ libraw-build: libraw-configure
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make -j$(JOBS) lib/libraw.la lib/libraw_r.la
 
 # Install libraw
-# Patch pkg-config to add -lz (required for DNG deflate support)
+# Patch pkg-config to add -lz (required for DNG deflate support) and -lm (math functions)
 .PHONY: libraw
 libraw: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
-	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz|' "${PREFIX}/lib/pkgconfig/libraw.pc"
+	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz -lm|' "${PREFIX}/lib/pkgconfig/libraw.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
 	@${GO} clean -cache
 
@@ -198,7 +198,7 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 
 .PHONY: libexif-configure
 libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
-	@echo "Configuring ${LIBEXIF_VERSION} => ${PREFIX}"
+	@echo "Configuring libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
 		--disable-docs --enable-year2038  \
 		--prefix="$(shell realpath ${PREFIX})" \
@@ -207,14 +207,16 @@ libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 # Build libexif
 .PHONY: libexif-build
 libexif-build: libexif-configure
-	@echo "Building ${LIBEXIF_VERSION} with ${JOBS} jobs"
-	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make -j$(JOBS)
+	@echo "Building libexif-${LIBEXIF_VERSION} with ${JOBS} jobs"
+	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make -j$(JOBS)
 
 # Install libexif
 .PHONY: libexif
 libexif: libexif-build
-	@echo "Installing ${LIBEXIF_VERSION} => ${PREFIX}"
-	@cd $(BUILD_DIR)/$(LIBEXIF_VERSION) && make install
+	@echo "Installing libexif-${LIBEXIF_VERSION} => ${PREFIX}"
+	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make install
+	@sed -i.bak 's|-lexif$$|-lexif -lm|' "${PREFIX}/lib/pkgconfig/libexif.pc"
+	@rm -f "${PREFIX}/lib/pkgconfig/libexif.pc.bak"
 
 ###############################################################################
 # DOCKER
@@ -237,7 +239,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint test-ffmpeg test-chromaprint test-exif test-raw
+test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
