@@ -316,7 +316,7 @@ This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which 
 **Requirements when distributing binaries:**
 
 1. Include this notice and the FFmpeg LGPL license
-2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.1/` after building)
+2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.3/` after building)
 3. Allow users to relink the application with modified FFmpeg libraries
 
 The FFmpeg source code is automatically downloaded during the build process. See `Makefile` for details.
