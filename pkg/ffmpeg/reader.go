@@ -331,6 +331,9 @@ func (r *Reader) Demux(ctx context.Context, mapfn DecoderMapFunc, framefn Decode
 
 func (r *reader_callback) Reader(buf []byte) int {
 	n, err := r.r.Read(buf)
+	if n > 0 {
+		return n
+	}
 	if err != nil {
 		return ff.AVERROR_EOF
 	}
@@ -342,6 +345,20 @@ func (r *reader_callback) Seeker(offset int64, whence int) int64 {
 	seeker, ok := r.r.(io.ReadSeeker)
 	if !ok {
 		return -1
+	}
+	if whence == ff.AVSEEK_SIZE {
+		current, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return -1
+		}
+		size, err := seeker.Seek(0, io.SeekEnd)
+		if err != nil {
+			return -1
+		}
+		if _, err := seeker.Seek(current, io.SeekStart); err != nil {
+			return -1
+		}
+		return size
 	}
 	switch whence {
 	case io.SeekStart, io.SeekCurrent, io.SeekEnd:

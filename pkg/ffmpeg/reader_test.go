@@ -1,18 +1,59 @@
 package ffmpeg
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	assert "github.com/stretchr/testify/assert"
 )
 
 const (
 	testDir = "../../etc/test"
 )
+
+type eofAfterBytesReader struct {
+	data []byte
+}
+
+func (r *eofAfterBytesReader) Read(buf []byte) (int, error) {
+	n := copy(buf, r.data)
+	r.data = r.data[n:]
+	if n > 0 {
+		return n, io.EOF
+	}
+	return 0, io.EOF
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST READER CALLBACK
+
+func Test_reader_callback_reader_returns_bytes_before_eof(t *testing.T) {
+	assert := assert.New(t)
+	callback := reader_callback{r: &eofAfterBytesReader{data: []byte("abc")}}
+
+	buf := make([]byte, 8)
+	assert.Equal(3, callback.Reader(buf))
+	assert.Equal([]byte("abc"), buf[:3])
+	assert.Equal(ff.AVERROR_EOF, callback.Reader(buf))
+}
+
+func Test_reader_callback_seeker_size(t *testing.T) {
+	assert := assert.New(t)
+	reader := bytes.NewReader([]byte("abcdef"))
+	callback := reader_callback{r: reader}
+
+	assert.Equal(int64(2), callback.Seeker(2, io.SeekStart))
+	assert.Equal(int64(6), callback.Seeker(0, ff.AVSEEK_SIZE))
+	pos, err := reader.Seek(0, io.SeekCurrent)
+	assert.NoError(err)
+	assert.Equal(int64(2), pos)
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // TEST OPEN FROM FILE PATH
