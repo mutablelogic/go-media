@@ -9,7 +9,7 @@ JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 # Source version
 #FFMPEG_VERSION ?= ffmpeg-7.1.1
 #SYS_VERSION ?= ffmpeg71
-FFMPEG_VERSION ?= ffmpeg-8.0.1
+FFMPEG_VERSION ?= ffmpeg-8.0.3
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 LIBEXIF_VERSION ?= 0.6.26
