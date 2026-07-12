@@ -60,10 +60,11 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 
 	// Try the http.DetectContentType function first
 	buf := make([]byte, 512)
-	if _, err := r.Read(buf); err != nil && !errors.Is(err, io.EOF) {
+	n, err := r.Read(buf)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
-	if mediaType := http.DetectContentType(buf); mediaType != types.ContentTypeBinary {
+	if mediaType := http.DetectContentType(buf[:n]); mediaType != types.ContentTypeBinary {
 		// Extension-based override for known cases like .m4a, where MP4 byte
 		// signatures are otherwise reported as video/mp4.
 		if extType != "" {

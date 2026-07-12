@@ -3,6 +3,7 @@ package libheif_test
 import (
 	"testing"
 
+	// Packages
 	. "github.com/mutablelogic/go-media/sys/libheif"
 )
 

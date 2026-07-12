@@ -191,11 +191,17 @@ func Test_exif_030_heif_payload_shapes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for name, payload := range map[string][]byte{
-		"full":   data,
-		"skip4":  data[4:],
-		"skip10": data[10:],
-	} {
+	payloads := map[string][]byte{
+		"full": data,
+	}
+	if len(data) >= 4 {
+		payloads["skip4"] = data[4:]
+	}
+	if len(data) >= 10 {
+		payloads["skip10"] = data[10:]
+	}
+
+	for name, payload := range payloads {
 		doc, err := exif.Parse(payload)
 		if err != nil {
 			t.Logf("%s: err=%v", name, err)

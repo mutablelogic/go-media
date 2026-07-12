@@ -16,7 +16,7 @@ import (
 // LIFECYCLE
 
 func main() {
-	if err := cmd.Main(CLI{}, "Filer is a client server application for file management", version.Version()); err != nil {
+	if err := cmd.Main(CLI{}, "gomedia is a media CLI, Client and Server application for media management", version.Version()); err != nil {
 		str, code := formatError(err)
 		fmt.Fprintln(os.Stderr, "Error:", str)
 		os.Exit(code)

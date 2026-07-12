@@ -62,7 +62,19 @@ func Test_mime_001_m4a_override(t *testing.T) {
 	}
 }
 
-func Test_mime_002_extensionByType(t *testing.T) {
+func Test_mime_002_short_reader_uses_read_length(t *testing.T) {
+	r := namedReader{Reader: bytes.NewReader([]byte("hello")), name: "sample.txt"}
+
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "text/plain" {
+		t.Fatalf("expected text/plain, got %q", contentType)
+	}
+}
+
+func Test_mime_003_extensionByType(t *testing.T) {
 	if got := ExtensionByType("image/jpeg"); got != ".jpg" {
 		t.Fatalf("ExtensionByType(image/jpeg) = %q, want %q", got, ".jpg")
 	}
