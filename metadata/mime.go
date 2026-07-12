@@ -6,6 +6,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -22,6 +23,20 @@ type NamedStream interface {
 	Name() string
 }
 
+type extensionRule struct {
+	ContentType string
+	Preferred   bool
+}
+
+// extensionContentTypes stores extension -> media type mappings and whether
+// this extension should be preferred when a type has multiple aliases.
+// It is used both for content type detection and extension selection.
+var extensionContentTypes = map[string]extensionRule{
+	".m4a":  {ContentType: "audio/mp4", Preferred: true},
+	".jpg":  {ContentType: "image/jpeg", Preferred: true},
+	".jpeg": {ContentType: "image/jpeg"},
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -33,24 +48,54 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrBadParameter.With("nil reader")
 	}
 
+	var extType string
+	if named, ok := r.(NamedStream); ok {
+		ext := strings.ToLower(filepath.Ext(named.Name()))
+		if forced, ok := extensionContentTypes[ext]; ok {
+			extType = forced.ContentType
+		} else if ext != "" {
+			extType = mime.TypeByExtension(ext)
+		}
+	}
+
 	// Try the http.DetectContentType function first
 	buf := make([]byte, 512)
 	if _, err := r.Read(buf); err != nil && !errors.Is(err, io.EOF) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
 	if mediaType := http.DetectContentType(buf); mediaType != types.ContentTypeBinary {
+		// Extension-based override for known cases like .m4a, where MP4 byte
+		// signatures are otherwise reported as video/mp4.
+		if extType != "" {
+			if mediaType == "video/mp4" || mediaType == "application/mp4" {
+				return mime.ParseMediaType(extType)
+			}
+		}
 		return mime.ParseMediaType(mediaType)
 	}
 
 	// By extension second
-	if named, ok := r.(NamedStream); ok {
-		if ext := filepath.Ext(named.Name()); ext != "" {
-			if mediaType := mime.TypeByExtension(ext); mediaType != "" {
-				return mime.ParseMediaType(mediaType)
-			}
-		}
+	if extType != "" {
+		return mime.ParseMediaType(extType)
 	}
 
 	// Unknown type
 	return types.ContentTypeBinary, nil, nil
+}
+
+// ExtensionByType returns the preferred extension for contentType, falling
+// back to the first registered extension if no preferred extension matches.
+func ExtensionByType(contentType string) string {
+	for ext, rule := range extensionContentTypes {
+		if rule.ContentType == contentType && rule.Preferred {
+			return ext
+		}
+	}
+
+	exts, err := mime.ExtensionsByType(contentType)
+	if err != nil || len(exts) == 0 {
+		return ""
+	}
+
+	return exts[0]
 }

@@ -119,6 +119,20 @@ func ExtractArtwork(data []byte, key string) (gomedia.Metadata, error) {
 	return types.Ptr(artworkMetadata{key: key, mimeType: mimeType, data: buf.Bytes(), img: img}), nil
 }
 
+// thumbnailArtwork encodes an already-decoded image.Image as artwork metadata.
+// It is used for HEIF/AVIF thumbnails, which are already available as images.
+func thumbnailArtwork(img image.Image) (gomedia.Metadata, error) {
+	if img == nil {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
+	}
+	return types.Ptr(artworkMetadata{key: "artwork:thumbnail", mimeType: "image/png", data: buf.Bytes(), img: img}), nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -133,6 +147,9 @@ func init() {
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
+		}
+		if isHEIFContainer(data) {
+			return nil, nil
 		}
 
 		m, err := ExtractArtwork(data, "artwork:thumbnail")

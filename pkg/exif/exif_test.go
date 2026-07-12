@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mutablelogic/go-media/pkg/exif"
+	libheif "github.com/mutablelogic/go-media/sys/libheif"
 )
 
 const (
@@ -156,4 +157,51 @@ func Test_exif_022(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(string(data))
+}
+
+func Test_exif_030_heif_payload_shapes(t *testing.T) {
+	ctx := libheif.Libheif_context_alloc()
+	if ctx == nil {
+		t.Fatal("Libheif_context_alloc returned nil")
+	}
+	defer libheif.Libheif_context_free(ctx)
+
+	if err := libheif.Libheif_context_read_from_file(ctx, "../../etc/test/photo.HEIC"); err != nil {
+		t.Fatal(err)
+	}
+
+	handle, err := libheif.Libheif_context_get_primary_image_handle(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer libheif.Libheif_image_handle_release(handle)
+
+	count := libheif.Libheif_image_handle_get_number_of_metadata_blocks(handle, "Exif")
+	if count <= 0 {
+		t.Fatal("expected EXIF metadata")
+	}
+
+	ids := libheif.Libheif_image_handle_get_list_of_metadata_block_IDs(handle, "Exif", count)
+	if len(ids) == 0 {
+		t.Fatal("expected EXIF metadata IDs")
+	}
+
+	data, err := libheif.Libheif_image_handle_get_metadata(handle, ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, payload := range map[string][]byte{
+		"full":   data,
+		"skip4":  data[4:],
+		"skip10": data[10:],
+	} {
+		doc, err := exif.Parse(payload)
+		if err != nil {
+			t.Logf("%s: err=%v", name, err)
+			continue
+		}
+		t.Logf("%s: tags=%d", name, len(doc.Tags()))
+		_ = doc.Close()
+	}
 }

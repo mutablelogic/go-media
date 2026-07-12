@@ -59,31 +59,5 @@ func (m *Manager) Probe(_ context.Context, req *schema.ProbeRequest) (*schema.Pr
 		Streams:     streams,
 	}
 
-	// Get metadata if requested
-	if req.Metadata {
-		metaEntries := reader.Metadata()
-		if len(metaEntries) > 0 {
-			resp.Metadata = make(map[string]string, len(metaEntries))
-			for _, entry := range metaEntries {
-				if entry.Key() != ffmpeg.MetaArtwork {
-					resp.Metadata[entry.Key()] = entry.Value()
-				}
-			}
-		}
-	}
-
-	// Get artwork if requested
-	if req.Artwork {
-		artworkEntries := reader.Metadata(ffmpeg.MetaArtwork)
-		if len(artworkEntries) > 0 {
-			resp.Artwork = make([]schema.Artwork, 0, len(artworkEntries))
-			for _, entry := range artworkEntries {
-				if data := entry.Bytes(); len(data) > 0 {
-					resp.Artwork = append(resp.Artwork, schema.Artwork(data))
-				}
-			}
-		}
-	}
-
 	return resp, nil
 }

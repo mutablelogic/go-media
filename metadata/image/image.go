@@ -17,6 +17,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 
+	_ "github.com/mutablelogic/go-media/pkg/heif"
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"

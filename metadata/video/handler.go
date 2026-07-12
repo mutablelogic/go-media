@@ -36,7 +36,7 @@ func (m meta) Value() string {
 	case string:
 		return v
 	case time.Duration:
-		return v.Truncate(time.Second).String()
+		return strconv.FormatFloat(v.Seconds(), 'f', -1, 64)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
 	default:

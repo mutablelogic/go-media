@@ -12,6 +12,7 @@ SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 LIBEXIF_VERSION ?= 0.6.26
 LIBRAW_VERSION ?= 0.22.1
+LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -48,9 +49,9 @@ PREFIX ?= ${BUILD_DIR}/install
 all: clean cmd
 
 .PHONY: cmd
-cmd: ffmpeg chromaprint libexif $(CMD_DIR)
+cmd: ffmpeg chromaprint libexif libraw libheif $(CMD_DIR)
 
-$(CMD_DIR): go-dep go-tidy sdl-dep mkdir 
+$(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -217,6 +218,50 @@ libexif: libexif-build
 	@rm -f "${PREFIX}/lib/pkgconfig/libexif.pc.bak"
 
 ###############################################################################
+# LIBHEIF
+
+# Download libheif sources
+${BUILD_DIR}/libheif-${LIBHEIF_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/libheif-$(LIBHEIF_VERSION)" ]; then \
+		echo "Downloading $(LIBHEIF_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/libheif-${LIBHEIF_VERSION}; \
+		curl -L -o $(BUILD_DIR)/libheif.tar.gz https://github.com/strukturag/libheif/releases/download/v$(LIBHEIF_VERSION)/libheif-$(LIBHEIF_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/libheif.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/libheif.tar.gz; \
+	fi
+
+.PHONY: libheif-configure
+libheif-configure: mkdir pkconfig-dep ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} ffmpeg libheif-dep
+	@echo "Configuring libheif-${LIBHEIF_VERSION} => ${PREFIX}"
+	@cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=0 \
+		-DCMAKE_INSTALL_PREFIX="$(shell realpath ${PREFIX})" \
+		-DCMAKE_PREFIX_PATH="$(shell realpath ${PREFIX})" \
+		-DCMAKE_LIBRARY_PATH="$(shell realpath ${PREFIX})/lib" \
+		-DCMAKE_INCLUDE_PATH="$(shell realpath ${PREFIX})/include" \
+		${LIBHEIF_CONFIG} \
+		-S ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} \
+		-B ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}
+
+# Build libheif
+.PHONY: libheif-build
+libheif-build: libheif-configure
+	@echo "Building libheif-${LIBHEIF_VERSION} with ${JOBS} jobs"
+	@cmake --build ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} -j$(JOBS)
+
+# Install libheif
+.PHONY: libheif
+libheif: libheif-build
+	@echo "Installing libheif-${LIBHEIF_VERSION} => ${PREFIX}"
+	@cmake --install ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}
+	@if ! grep -q 'libavcodec' "${PREFIX}/lib/pkgconfig/libheif.pc"; then \
+		sed -i.bak 's/^Requires.private:[[:space:]]*/Requires.private: libavcodec libavformat libavutil /' "${PREFIX}/lib/pkgconfig/libheif.pc"; \
+		rm -f "${PREFIX}/lib/pkgconfig/libheif.pc.bak"; \
+	fi
+
+###############################################################################
 # DOCKER
 
 docker: docker-dep
@@ -237,7 +282,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw test-metadata
+test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
@@ -259,23 +304,33 @@ test-raw:
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
+.PHONY: test-heif
+test-heif:
+	@echo ... test sys/libheif pkg/heif
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
+
 .PHONY: test-sys
 test-sys: go-dep go-tidy
-	@echo Test
 	@echo ... test sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 
 .PHONY: test-ffmpeg
 test-ffmpeg: test-sys
-	@echo Test
 	@echo ... test pkg/ffmpeg/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/ffmpeg/...
 
 .PHONY: test-metadata
 test-metadata: 
-	@echo Test
 	@echo ... test metadata/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
+
+
+.PHONY: test-gomedia
+test-gomedia: 
+	@echo ... test gomedia/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
+
 
 .PHONY: coverage
 coverage: ffmpeg chromaprint sdl-dep mkdir
@@ -350,7 +405,31 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openh264 && echo "--enable-libopenh264"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
 
+# Check for libheif dependencies
+.PHONY: libheif-dep
+libheif-dep:
+	$(eval LIBHEIF_CONFIG := -DENABLE_PLUGIN_LOADING=OFF -DWITH_EXAMPLES=OFF -DBUILD_TESTING=OFF -DBUILD_DOCUMENTATION=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_GDK_PIXBUF=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_LIBSHARPYUV=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_LIBDE265=$(shell ${PKG_CONFIG} --exists libde265 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_X265=$(shell ${PKG_CONFIG} --exists x265 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_AOM_DECODER=$(shell ${PKG_CONFIG} --exists aom && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_AOM_ENCODER=$(shell ${PKG_CONFIG} --exists aom && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_DAV1D=$(shell ${PKG_CONFIG} --exists dav1d && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_SvtEnc=$(shell ${PKG_CONFIG} --exists SvtAv1Enc && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_OpenH264_DECODER=$(shell ${PKG_CONFIG} --exists openh264 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_X264=$(shell ${PKG_CONFIG} --exists x264 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_FFMPEG_DECODER=$(shell ${PKG_CONFIG} --exists libavcodec libavformat libavutil && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_DECODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_ENCODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
+	@echo "libheif configuration: $(LIBHEIF_CONFIG)"
+
 # Check for SDL dependencies
 .PHONY: sdl-dep
 sdl-dep:
 	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell $(PKG_CONFIG) --exists sdl2 && echo "--tags sdl2"))
+
+# Check for Chromaprint dependencies
+.PHONY: chromaprint-dep
+chromaprint-dep:
+	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig:$$PKG_CONFIG_PATH" $(PKG_CONFIG) --exists libchromaprint && echo "--tags chromaprint"))

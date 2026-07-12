@@ -316,52 +316,6 @@ func TestProbeStream_AllFiles(t *testing.T) {
 	}
 }
 
-func TestProbe_WithMetadata(t *testing.T) {
-	m, err := task.NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testPath := filepath.Join(testDataPath(t), "sample.mp4")
-
-	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Input: testPath},
-		Metadata: true,
-	})
-
-	require.NoError(t, err)
-	assert.NotNil(t, resp)
-
-	// Log metadata
-	t.Logf("Format: %s", resp.Format)
-	t.Logf("Metadata entries: %d", len(resp.Metadata))
-	for k, v := range resp.Metadata {
-		t.Logf("  %s: %s", k, v)
-	}
-
-	// Artwork should be nil when not requested
-	assert.Nil(t, resp.Artwork)
-}
-
-func TestProbe_WithoutMetadata(t *testing.T) {
-	m, err := task.NewManager()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testPath := filepath.Join(testDataPath(t), "sample.mp4")
-
-	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Input: testPath},
-		Metadata: false,
-	})
-
-	require.NoError(t, err)
-	assert.NotNil(t, resp)
-
-	// Metadata should be nil when not requested
-	assert.Nil(t, resp.Metadata)
-	assert.Nil(t, resp.Artwork)
-}
-
 func TestProbe_MP3_MimeType(t *testing.T) {
 	m, err := task.NewManager()
 	if err != nil {
@@ -370,8 +324,7 @@ func TestProbe_MP3_MimeType(t *testing.T) {
 	testPath := filepath.Join(testDataPath(t), "sample.mp3")
 
 	resp, err := m.Probe(context.Background(), &schema.ProbeRequest{
-		Request:  schema.Request{Input: testPath},
-		Metadata: true,
+		Request: schema.Request{Input: testPath},
 	})
 
 	require.NoError(t, err)

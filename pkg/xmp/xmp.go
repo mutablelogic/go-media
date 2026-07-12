@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strings"
+
+	// Packages
+	gomedia "github.com/mutablelogic/go-media"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +25,66 @@ type XMP struct {
 // New returns an empty XMP document.
 func New() *XMP {
 	return &XMP{}
+}
+
+// FromMetadata creates an XMP document from a list of metadata entries.
+// Keys in "prefix:name" form are split into namespace prefix and local name.
+// Bare keys (without ':') are added as unqualified XMP properties.
+//
+// Optionally, callers can provide one namespace map of prefix -> URI to
+// define extra namespaces (for example "audio" or "video").
+func FromMetadata(items []gomedia.Metadata, namespaces ...map[string]string) *XMP {
+	x := &XMP{}
+	var extra map[string]string
+	if len(namespaces) > 0 {
+		extra = namespaces[0]
+	}
+
+	type groupedItem struct {
+		ns     string
+		prefix string
+		name   string
+		values []string
+	}
+
+	order := make([]string, 0, len(items))
+	grouped := make(map[string]*groupedItem, len(items))
+
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
+		key := strings.TrimSpace(item.Key())
+		if key == "" {
+			continue
+		}
+
+		prefix, name, hasPrefix := strings.Cut(key, ":")
+		ns := ""
+		if !hasPrefix || prefix == "" || name == "" {
+			prefix, name = "", key
+		} else {
+			ns = namespaceURIForPrefix(prefix, extra)
+		}
+
+		if _, exists := grouped[key]; !exists {
+			order = append(order, key)
+			grouped[key] = &groupedItem{ns: ns, prefix: prefix, name: name}
+		}
+		grouped[key].values = append(grouped[key].values, item.Value())
+	}
+
+	for _, key := range order {
+		entry := grouped[key]
+		if len(entry.values) <= 1 {
+			x.Add(NewItem(entry.ns, entry.prefix, entry.name, entry.values[0]))
+			continue
+		}
+		x.Add(NewSeq(entry.ns, entry.prefix, entry.name, entry.values...))
+	}
+
+	return x
 }
 
 // Parse parses an XMP document from a byte slice.
@@ -112,4 +176,16 @@ func (x *XMP) MarshalJSON() ([]byte, error) {
 		About: x.about,
 		Items: x.items,
 	})
+}
+
+func namespaceURIForPrefix(prefix string, extra map[string]string) string {
+	if uri, ok := extra[prefix]; ok && uri != "" {
+		return uri
+	}
+	for uri, known := range knownPrefixes {
+		if known == prefix {
+			return uri
+		}
+	}
+	return "urn:gomedia:xmp:" + prefix
 }

@@ -3,6 +3,7 @@ package audio
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,6 +48,13 @@ func Test_handler_000(t *testing.T) {
 		}
 		if d <= 0 {
 			t.Errorf("Duration = %v, want > 0", d)
+		}
+		sec, err := strconv.ParseFloat(m.Value(), 64)
+		if err != nil {
+			t.Fatalf("Value() = %q, want numeric seconds: %v", m.Value(), err)
+		}
+		if sec <= 0 {
+			t.Errorf("Value() seconds = %v, want > 0", sec)
 		}
 		t.Logf("audio:Duration = %s (Any()=%v)", m.Value(), d)
 	}
