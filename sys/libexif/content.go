@@ -10,13 +10,18 @@ import (
 
 /*
 #cgo pkg-config: libexif
+#include <stdint.h>
 #include <stdlib.h>
 #include <libexif/exif-content.h>
 
-extern void goExifContentForeachEntry(ExifEntry *entry, void *user_data);
+extern void goExifContentForeachEntry(ExifEntry *entry, uintptr_t user_data);
 
-static void call_foreach_entry(ExifContent *content, void *user_data) {
-	exif_content_foreach_entry(content, goExifContentForeachEntry, user_data);
+static void call_foreach_entry_cb(ExifEntry *entry, void *user_data) {
+	goExifContentForeachEntry(entry, (uintptr_t)user_data);
+}
+
+static void call_foreach_entry(ExifContent *content, uintptr_t user_data) {
+	exif_content_foreach_entry(content, call_foreach_entry_cb, (void *)user_data);
 }
 */
 import "C"
@@ -71,7 +76,7 @@ func Exif_content_fix(content *Content) {
 func Exif_content_foreach_entry(content *Content, fn ContentForeachEntryFunc) {
 	h := cgo.NewHandle(fn)
 	defer h.Delete()
-	C.call_foreach_entry((*C.ExifContent)(content), unsafe.Pointer(h))
+	C.call_foreach_entry((*C.ExifContent)(content), C.uintptr_t(h))
 }
 
 func Exif_content_get_ifd(content *Content) IFD {
@@ -113,7 +118,7 @@ func Exif_content_get_entry_at(content *Content, n uint) *Entry {
 // CALLBACKS
 
 //export goExifContentForeachEntry
-func goExifContentForeachEntry(entry *C.ExifEntry, userData unsafe.Pointer) {
+func goExifContentForeachEntry(entry *C.ExifEntry, userData C.uintptr_t) {
 	h := cgo.Handle(userData)
 	h.Value().(ContentForeachEntryFunc)((*Entry)(entry))
 }

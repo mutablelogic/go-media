@@ -7,8 +7,6 @@ PKG_CONFIG=$(shell which pkg-config)
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
 # Source version
-#FFMPEG_VERSION ?= ffmpeg-7.1.1
-#SYS_VERSION ?= ffmpeg71
 FFMPEG_VERSION ?= ffmpeg-8.0.3
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
@@ -239,7 +237,7 @@ docker-push: docker-dep
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw
+test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw test-metadata
 	@echo ... test pkg/file
 	@${GO} test ${ARGS} ./pkg/file
 
@@ -272,6 +270,12 @@ test-ffmpeg: test-sys
 	@echo Test
 	@echo ... test pkg/ffmpeg/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/ffmpeg/...
+
+.PHONY: test-metadata
+test-metadata: 
+	@echo Test
+	@echo ... test metadata/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
 
 .PHONY: coverage
 coverage: ffmpeg chromaprint sdl-dep mkdir

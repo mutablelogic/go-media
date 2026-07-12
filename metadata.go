@@ -7,7 +7,7 @@ import "image"
 // data, or other type. If the value is a byte slice, then it can also
 // be retrieved as an image (for artwork)
 type Metadata interface {
-	// Return the metadata key
+	// Return the metadata key (may include ns:name, e.g., "exif:DateTimeOriginal")
 	Key() string
 
 	// Return the value as a string. Returns the mimetype
