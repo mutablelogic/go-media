@@ -10,6 +10,13 @@ import (
 
 const testHEIC = "../../etc/test/photo.HEIC"
 
+func requireHEVCDecoder(t *testing.T) {
+	t.Helper()
+	if !Libheif_have_decoder_for_format(HEIF_COMPRESSION_HEVC) {
+		t.Skip("no HEVC decoder available in this libheif build")
+	}
+}
+
 func Test_context_000(t *testing.T) {
 	ctx := Libheif_context_alloc()
 	if ctx == nil {

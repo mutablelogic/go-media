@@ -21,6 +21,8 @@ func Test_image_query_000(t *testing.T) {
 }
 
 func Test_image_query_001(t *testing.T) {
+	requireHEVCDecoder(t)
+
 	ctx := Libheif_context_alloc()
 	if ctx == nil {
 		t.Fatal("Libheif_context_alloc returned nil")

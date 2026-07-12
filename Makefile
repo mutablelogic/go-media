@@ -6,6 +6,11 @@ PKG_CONFIG=$(shell which pkg-config)
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
+# Locations
+BUILD_DIR ?= build
+CMD_DIR := $(wildcard cmd/*)
+PREFIX ?= ${BUILD_DIR}/install
+
 # Source version
 FFMPEG_VERSION ?= ffmpeg-8.0.3
 SYS_VERSION ?= ffmpeg80
@@ -27,20 +32,18 @@ else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
 
-# Build flags
-BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
-PREFIX ?= ${BUILD_DIR}/install
+# Set build flags
+VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitTag=$(shell git describe --tags --always)
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
+
+# Docker
+DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
+DOCKER_SOURCE ?= $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
+DOCKER_TAG = ${DOCKER_REPO}:${VERSION}-${OS}-${ARCH}
+
 
 ###############################################################################
 # TARGETS
@@ -264,19 +267,29 @@ libheif: libheif-build
 ###############################################################################
 # DOCKER
 
+# Build the docker image
+.PHONY: docker
 docker: docker-dep
-	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
+	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
-		--tag ${BUILD_TAG} \
+		--tag ${DOCKER_TAG} \
+		--provenance=false \
 		--build-arg ARCH=${ARCH} \
 		--build-arg OS=${OS} \
-		--build-arg SOURCE=${BUILD_MODULE} \
+		--build-arg SOURCE=${DOCKER_SOURCE} \
 		--build-arg VERSION=${VERSION} \
 		-f etc/docker/Dockerfile .
 
-docker-push: docker-dep
-	@echo push docker image: ${BUILD_TAG}
-	@${DOCKER} push ${BUILD_TAG}
+# Push docker container
+.PHONY: docker-push
+docker-push: docker-dep 
+	@echo push docker image: ${DOCKER_TAG}
+	@${DOCKER} push ${DOCKER_TAG}
+
+# Print out the version
+.PHONY: docker-version
+docker-version: docker-dep 
+	@echo "tag=${VERSION}"
 
 ###############################################################################
 # TESTS

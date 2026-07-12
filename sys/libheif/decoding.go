@@ -19,6 +19,10 @@ type (
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS - CONTEXT DECODING CONTROL
 
+func Libheif_have_decoder_for_format(format CompressionFormat) bool {
+	return C.heif_have_decoder_for_format(C.heif_compression_format(format)) != 0
+}
+
 func Libheif_context_set_max_decoding_threads(ctx *Context, maxThreads int) {
 	C.heif_context_set_max_decoding_threads((*C.heif_context)(ctx), C.int(maxThreads))
 }
