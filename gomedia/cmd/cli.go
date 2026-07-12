@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -29,9 +30,12 @@ import (
 type CLICommands struct {
 	MetadataCLICommands
 	CapabilitiesCLICommands
+	EncodingCLICommands
 }
 
-type BaseCmd struct{}
+type BaseCmd struct {
+	ChromaprintKey string `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // METADATA
@@ -273,6 +277,23 @@ type SampleFormatsCmd struct {
 	schema.ListSampleFormatRequest
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// ENCODING
+
+type EncodingCLICommands struct {
+	AudioSegment AudioSegmentCmd `cmd:"" name:"audio-segment" help:"Segment audio and log segments." group:"ENCODING"`
+}
+
+type AudioSegmentCmd struct {
+	BaseCmd
+	File             string        `arg:"" name:"file" type:"existingfile" help:"File to segment."`
+	Out              string        `flag:"" name:"out" help:"Output directory for encoded segment M4A files." default:"." type:"path"`
+	Duration         time.Duration `flag:"" name:"duration" help:"Target segment duration (e.g. 30s). Use 0s to disable fixed-size splits."`
+	Silence          bool          `flag:"" name:"silence" help:"Enable silence-based segmentation." negatable:"" default:"true"`
+	SilenceDuration  time.Duration `flag:"" name:"silence-duration" help:"Minimum silence duration for silence-based splitting (e.g. 500ms). Also enables silence splitting." default:"0s"`
+	SilenceThreshold float64       `flag:"" name:"silence-threshold" help:"Silence threshold as RMS energy (0.0-1.0). Also enables silence splitting. 0 uses auto threshold (0.005)." default:"0"`
+}
+
 func (c *AudioChannelsCmd) Run(ctx server.Cmd) error {
 	json, termwidth := c.IsJSONOutput(ctx)
 	return c.WithManager(ctx, func(manager *manager.Media) error {
@@ -411,6 +432,25 @@ func (c *SampleFormatsCmd) Run(ctx server.Cmd) error {
 	})
 }
 
+func (c *AudioSegmentCmd) Run(ctx server.Cmd) error {
+	return c.WithManager(ctx, func(manager *manager.Media) error {
+		r, err := os.Open(c.File)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
+		return manager.SegmentAudio(ctx.Context(), schema.SegmentAudioRequest{
+			Reader:           r,
+			OutputDir:        c.Out,
+			Duration:         c.Duration,
+			Silence:          c.Silence,
+			SilenceDuration:  c.SilenceDuration,
+			SilenceThreshold: c.SilenceThreshold,
+		})
+	})
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -420,9 +460,20 @@ func (runner *BaseCmd) IsJSONOutput(ctx server.Cmd) (bool, int) {
 }
 
 func (runner *BaseCmd) WithManager(ctx server.Cmd, fn func(*manager.Media) error) error {
+	// Client opts
+	_, clientopts, err := ctx.ClientEndpoint()
+	if err != nil {
+		return err
+	}
+
 	// Set basic mamager options
 	opts := []manager.Opt{
 		manager.WithTracer(ctx.Tracer()),
+	}
+
+	// Chromaprint key
+	if runner.ChromaprintKey != "" {
+		opts = append(opts, manager.WithAcoustIDKey(runner.ChromaprintKey, clientopts...))
 	}
 
 	// Create a manager and then call the function with the manager, returning any error

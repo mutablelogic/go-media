@@ -25,9 +25,9 @@ type AudioFingerprintResponse struct {
 }
 
 type AudioFingerprintLookupRequest struct {
-	Fingerprint string   `json:"fingerprint"`        // Audio fingerprint string
-	Duration    float64  `json:"duration"`           // Track duration in seconds
-	Metadata    []string `json:"metadata,omitempty"` // Metadata to request
+	Fingerprint string   `json:"fingerprint"`                                                                                                                                   // Audio fingerprint string
+	Duration    float64  `json:"duration"`                                                                                                                                      // Track duration in seconds
+	Metadata    []string `json:"metadata,omitempty" enum:"recordings, recordingids, releases, releaseids, releasegroups, releasegroupids, tracks, compress, usermeta, sources"` // Metadata to request
 }
 
 type AudioFingerprintLookupResponse struct {

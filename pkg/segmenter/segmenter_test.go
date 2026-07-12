@@ -159,6 +159,49 @@ func TestSegmenter_WithSilenceDetection(t *testing.T) {
 	assert.NoError(err)
 	assert.Greater(segmentCount, 0)
 	t.Logf("Total: %d segments, %.2fs", segmentCount, totalDuration.Seconds())
+
+	// Regression guard: first sample of each segment should not be effectively
+	// silence, which would indicate the post-silence boundary leaked into the
+	// previous segment before we flush.
+	seg2, err := segmenter.New(path, 16000,
+		segmenter.WithSegmentSize(5*time.Second),
+		segmenter.WithDefaultSilence(),
+	)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	defer seg2.Close()
+
+	var segmentHeads [][]float32
+	err = seg2.DecodeFloat32(context.Background(), func(_ time.Duration, samples []float32) error {
+		if len(samples) > 0 {
+			n := 160 // ~10ms at 16kHz
+			if n > len(samples) {
+				n = len(samples)
+			}
+			head := make([]float32, n)
+			copy(head, samples[:n])
+			segmentHeads = append(segmentHeads, head)
+		}
+		return nil
+	})
+
+	assert.NoError(err)
+	assert.Greater(len(segmentHeads), 1)
+	for i, head := range segmentHeads {
+		if i == 0 {
+			continue // Initial segment may legitimately start with silence.
+		}
+		var sum float32
+		for _, v := range head {
+			if v < 0 {
+				v = -v
+			}
+			sum += v
+		}
+		avg := sum / float32(len(head))
+		assert.Greaterf(avg, float32(1e-4), "segment %d starts too close to silence", i+1)
+	}
 }
 
 func TestSegmenter_InvalidSampleRate(t *testing.T) {

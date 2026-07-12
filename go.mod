@@ -3,7 +3,6 @@ module github.com/mutablelogic/go-media
 go 1.25.0
 
 require (
-	github.com/alecthomas/kong v1.15.0
 	github.com/djthorpe/go-errors v1.0.3
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/llgcode/draw2d v0.0.0-20260422081035-c4331ac66734
@@ -19,6 +18,7 @@ require (
 )
 
 require (
+	github.com/alecthomas/kong v1.15.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

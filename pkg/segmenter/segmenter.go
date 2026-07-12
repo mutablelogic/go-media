@@ -183,33 +183,29 @@ func (s *Segmenter) DecodeFloat32(ctx context.Context, fn SegmentFuncFloat32) er
 		}
 
 		// Calculate RMS energy and check for silence-based cut
-		cut := s.detectSilence(frame.Pts(), samples)
+		cut := s.detectSilence(frame.Ts(), samples)
+
+		// If we crossed a silence boundary, flush the existing buffer BEFORE
+		// appending current samples so the first non-silent frame starts the next segment.
+		if cut && len(s.bufFloat32) >= s.minSamples() {
+			bufLen := len(s.bufFloat32)
+			if err := fn(s.ts, s.bufFloat32); err != nil {
+				return err
+			}
+			s.ts += time.Duration(bufLen) * time.Second / time.Duration(s.sampleRate)
+			s.bufFloat32 = s.bufFloat32[:0]
+		}
 
 		// Append samples to buffer
 		s.bufFloat32 = append(s.bufFloat32, samples...)
 
-		// Check if we should output a segment
-		shouldOutput := false
+		// Fixed-size segment split
 		if s.segmentSize > 0 && len(s.bufFloat32) >= s.segmentSize {
-			shouldOutput = true
-		}
-		if cut && len(s.bufFloat32) >= s.minSamples() {
-			shouldOutput = true
-		}
-
-		if shouldOutput {
-			// Capture buffer length before callback (for timestamp calculation)
 			bufLen := len(s.bufFloat32)
-
-			// Call the callback with the segment
 			if err := fn(s.ts, s.bufFloat32); err != nil {
 				return err
 			}
-
-			// Update timestamp for next segment
 			s.ts += time.Duration(bufLen) * time.Second / time.Duration(s.sampleRate)
-
-			// Clear buffer
 			s.bufFloat32 = s.bufFloat32[:0]
 		}
 
@@ -270,33 +266,29 @@ func (s *Segmenter) DecodeInt16(ctx context.Context, fn SegmentFuncInt16) error 
 		}
 
 		// Calculate RMS energy and check for silence-based cut
-		cut := s.detectSilenceInt16(frame.Pts(), samples)
+		cut := s.detectSilenceInt16(frame.Ts(), samples)
+
+		// If we crossed a silence boundary, flush the existing buffer BEFORE
+		// appending current samples so the first non-silent frame starts the next segment.
+		if cut && len(s.bufInt16) >= s.minSamples() {
+			bufLen := len(s.bufInt16)
+			if err := fn(s.ts, s.bufInt16); err != nil {
+				return err
+			}
+			s.ts += time.Duration(bufLen) * time.Second / time.Duration(s.sampleRate)
+			s.bufInt16 = s.bufInt16[:0]
+		}
 
 		// Append samples to buffer
 		s.bufInt16 = append(s.bufInt16, samples...)
 
-		// Check if we should output a segment
-		shouldOutput := false
+		// Fixed-size segment split
 		if s.segmentSize > 0 && len(s.bufInt16) >= s.segmentSize {
-			shouldOutput = true
-		}
-		if cut && len(s.bufInt16) >= s.minSamples() {
-			shouldOutput = true
-		}
-
-		if shouldOutput {
-			// Capture buffer length before callback (for timestamp calculation)
 			bufLen := len(s.bufInt16)
-
-			// Call the callback with the segment
 			if err := fn(s.ts, s.bufInt16); err != nil {
 				return err
 			}
-
-			// Update timestamp for next segment
 			s.ts += time.Duration(bufLen) * time.Second / time.Duration(s.sampleRate)
-
-			// Clear buffer
 			s.bufInt16 = s.bufInt16[:0]
 		}
 
@@ -329,7 +321,7 @@ func (s *Segmenter) minSamples() int {
 
 // detectSilence checks if we should cut based on silence detection (float32 samples).
 // Returns true if silence has been detected for long enough to trigger a cut.
-func (s *Segmenter) detectSilence(pts int64, samples []float32) bool {
+func (s *Segmenter) detectSilence(ts float64, samples []float32) bool {
 	// Silence detection not enabled
 	if s.SilenceThreshold == 0 {
 		return false
@@ -342,12 +334,12 @@ func (s *Segmenter) detectSilence(pts int64, samples []float32) bool {
 	}
 	energy := math.Sqrt(sum / float64(len(samples)))
 
-	return s.checkSilenceDuration(float64(pts), energy)
+	return s.checkSilenceDuration(ts, energy)
 }
 
 // detectSilenceInt16 checks if we should cut based on silence detection (int16 samples).
 // Returns true if silence has been detected for long enough to trigger a cut.
-func (s *Segmenter) detectSilenceInt16(pts int64, samples []int16) bool {
+func (s *Segmenter) detectSilenceInt16(ts float64, samples []int16) bool {
 	// Silence detection not enabled
 	if s.SilenceThreshold == 0 {
 		return false
@@ -361,24 +353,30 @@ func (s *Segmenter) detectSilenceInt16(pts int64, samples []int16) bool {
 	}
 	energy := math.Sqrt(sum / float64(len(samples)))
 
-	return s.checkSilenceDuration(float64(pts), energy)
+	return s.checkSilenceDuration(ts, energy)
 }
 
-// checkSilenceDuration checks if we've been in silence long enough to trigger a cut.
+// checkSilenceDuration checks whether a silence boundary should trigger a cut.
+// A cut occurs when audio exits a silence period that lasted at least SilenceSize.
 func (s *Segmenter) checkSilenceDuration(ts float64, energy float64) bool {
-	// If energy is above threshold, we're not in silence
-	if energy >= s.SilenceThreshold {
+	if ts < 0 {
+		return false
+	}
+
+	// Silent frame: start/continue silence tracking.
+	if energy < s.SilenceThreshold {
+		if s.silenceTs < 0 {
+			s.silenceTs = ts
+		}
+		return false
+	}
+
+	// Non-silent frame: if we just exited long-enough silence, cut once.
+	if s.silenceTs >= 0 {
+		silenceDuration := ts - s.silenceTs
 		s.silenceTs = -1
-		return false
+		return silenceDuration >= s.SilenceSize.Seconds()
 	}
 
-	// First frame of silence - record timestamp
-	if s.silenceTs < 0 {
-		s.silenceTs = ts
-		return false
-	}
-
-	// Check if we've been in silence long enough
-	silenceDuration := ts - s.silenceTs
-	return silenceDuration >= s.SilenceSize.Seconds()
+	return false
 }
