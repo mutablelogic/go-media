@@ -30,7 +30,7 @@ func (r namedReadSeeker) Name() string {
 // Return metadata for a given reader, and any warnings that may have been generated during the
 // extraction process.
 func (m *Media) GetMetadata(ctx context.Context, r io.Reader, filter string, warn *error) (_ schema.Meta, err error) {
-	name := "unknown"
+	var name string
 	if fr, ok := r.(metadata.NamedStream); ok {
 		name = fr.Name()
 	}
@@ -50,7 +50,7 @@ func (m *Media) GetMetadata(ctx context.Context, r io.Reader, filter string, war
 		if _, err := io.Copy(&buf, r); err != nil {
 			return schema.Meta{}, err
 		}
-		if name != "unknown" {
+		if name != "" {
 			rr = namedReadSeeker{ReadSeeker: bytes.NewReader(buf.Bytes()), name: name}
 		} else {
 			rr = bytes.NewReader(buf.Bytes())
@@ -68,6 +68,7 @@ func (m *Media) GetMetadata(ctx context.Context, r io.Reader, filter string, war
 
 	// Create the result object with the content type and its parameters.
 	var result schema.Meta
+	result.Name = name
 	result.ContentType = contentType
 	// TODO
 	//	for key := range params {

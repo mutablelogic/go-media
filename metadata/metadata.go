@@ -90,7 +90,7 @@ func GetMetadata(ctx context.Context, r io.Reader, contentType, filter string) (
 
 	entries := getEntries(contentType)
 	if len(entries) == 0 {
-		return nil, gomedia.ErrNotFound.With("no handler for content type ", contentType)
+		return nil, gomedia.ErrNotImplemented.With("no handler for content type ", contentType)
 	}
 
 	// Narrow down to the handlers that can produce the requested namespace,

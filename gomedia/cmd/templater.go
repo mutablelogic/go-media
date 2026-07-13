@@ -2,8 +2,49 @@ package cmd
 
 import (
 	"fmt"
+	"html/template"
+	"path/filepath"
 	"strings"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type Templater struct {
+	tmpl *template.Template
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func NewTemplater(t string) (*Templater, error) {
+	// Compile the template
+	tmpl, err := template.New("metadata").Funcs(template.FuncMap{
+		"base":  filepath.Base,
+		"ext":   filepath.Ext,
+		"dir":   filepath.Dir,
+		"lower": strings.ToLower,
+		"upper": strings.ToUpper,
+		"name":  func(s string) string { return strings.TrimSuffix(filepath.Base(s), filepath.Ext(s)) },
+	}).Parse(t)
+	if err != nil {
+		return nil, err
+	}
+	return &Templater{tmpl: tmpl}, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (t *Templater) Path(data map[string]any) (string, error) {
+	var sb strings.Builder
+	if err := t.tmpl.Execute(&sb, data); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
+}
+
+// OLD
 
 func PathFromTemplate(template string, args ...any) string {
 	// Create a map of template variables to their values

@@ -11,6 +11,7 @@ import (
 // TYPES
 
 type Meta struct {
+	Name        string     `json:"name,omitempty"`
 	ContentType string     `json:"content_type,omitempty"`
 	Meta        []MetaItem `json:"meta,omitempty"`
 }
@@ -19,48 +20,15 @@ type MetaItem struct {
 	gomedia.Metadata
 }
 
-type metaJSONItem struct {
-	Key   string `json:"key"`
-	Value any    `json:"value,omitempty"`
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-// MarshalJSON emits metadata as explicit key/value pairs rather than
-// marshaling embedded interface-backed structs directly.
-func (m Meta) MarshalJSON() ([]byte, error) {
-	out := struct {
-		ContentType string         `json:"content_type,omitempty"`
-		Meta        []metaJSONItem `json:"meta,omitempty"`
-	}{
-		ContentType: m.ContentType,
+func (m MetaItem) MarshalJSON() ([]byte, error) {
+	type kv struct {
+		Key   string `json:"key"`
+		Value any    `json:"value"`
 	}
-
-	if len(m.Meta) > 0 {
-		out.Meta = make([]metaJSONItem, 0, len(m.Meta))
-		for _, item := range m.Meta {
-			if item.Metadata == nil {
-				continue
-			}
-			out.Meta = append(out.Meta, metaJSONItem{Key: item.Key(), Value: jsonValue(item.Metadata)})
-		}
-	}
-
-	return json.Marshal(out)
-}
-
-func jsonValue(item gomedia.Metadata) any {
-	switch v := item.Any().(type) {
-	case int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64,
-		bool,
-		[]byte:
-		return v
-	default:
-		return item.Value()
-	}
+	return json.Marshal(kv{Key: m.Key(), Value: m.Value()})
 }
 
 ////////////////////////////////////////////////////////////////////////////////

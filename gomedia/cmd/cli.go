@@ -1,18 +1,21 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	// Packages
+
 	gomedia "github.com/mutablelogic/go-media"
 	manager "github.com/mutablelogic/go-media/gomedia/manager"
 	schema "github.com/mutablelogic/go-media/gomedia/schema"
 	metadata "github.com/mutablelogic/go-media/metadata"
-	xmp "github.com/mutablelogic/go-media/pkg/xmp"
 	server "github.com/mutablelogic/go-server"
 	tui "github.com/mutablelogic/go-server/pkg/tui"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -49,25 +52,27 @@ type MetadataCLICommands struct {
 
 type MetadataCmd struct {
 	BaseCmd
-	File      string `arg:"" name:"file" type:"existingfile" help:"File to extract metadata from."`
-	Namespace string `flag:"" name:"namespace" help:"Namespace to extract." default:""`
-	XMP       bool   `flag:"" name:"xmp" help:"Output metadata in XMP format." negatable:""`
+	Path      string   `arg:"" name:"path" type:"path" help:"File to extract metadata from." default:"."`
+	Out       string   `flag:"" name:"out" help:"Output template for metadata files."`
+	Recursive bool     `flag:"" name:"recursive" short:"r" help:"Recursively extract metadata from files in a directory." negatable:""`
+	Exclude   []string `flag:"" name:"exclude" help:"Exclude files with these extensions (e.g. .jpg, .png)."`
+	Namespace string   `flag:"" name:"namespace" help:"Namespace to extract." default:""`
 }
 
 type ArtworkCmd struct {
 	BaseCmd
-	File string `arg:"" name:"file" type:"existingfile" help:"File to extract metadata from."`
+	File string `arg:"" name:"path" type:"path" help:"File to extract metadata from."`
 	Out  string `flag:"" name:"out" help:"Output template for artwork files." default:"{name}_{key}{ext}"`
 }
 
 type ProbeCmd struct {
 	BaseCmd
-	File string `arg:"" name:"file" type:"existingfile" help:"File to probe."`
+	File string `arg:"" name:"path" type:"path" help:"File to probe."`
 	schema.ProbeRequest
 }
 
 func (c *MetadataCmd) Run(ctx server.Cmd) error {
-	json, termwidth := c.IsJSONOutput(ctx)
+	//	json, termwidth := c.IsJSONOutput(ctx)
 	return c.WithManager(ctx, func(manager *manager.Media) error {
 		// Convert namespace
 		var ns string
@@ -79,45 +84,92 @@ func (c *MetadataCmd) Run(ctx server.Cmd) error {
 			}
 		}
 
-		// Open the file
-		r, err := os.Open(c.File)
-		if err != nil {
-			return err
+		opts := []WalkOpt{}
+		if c.Recursive {
+			opts = append(opts, WithRecursive())
 		}
-		defer r.Close()
-
-		var warn error
-		meta, err := manager.GetMetadata(ctx.Context(), r, ns, &warn)
-		if err != nil {
-			return err
+		if len(c.Exclude) > 0 {
+			opts = append(opts, WithExcludeExt(c.Exclude...))
 		}
-		if warn != nil {
-			fmt.Fprintln(os.Stderr, "Warning:", warn)
+		if c.Out != "" {
+			opts = append(opts, WithTemplate(c.Out))
 		}
 
-		// If the XMP flag is set, output the metadata in XMP format
-		if c.XMP {
-			metadataItems := make([]gomedia.Metadata, 0, len(meta.Meta))
-			for _, item := range meta.Meta {
-				if item.Metadata != nil {
-					metadataItems = append(metadataItems, item.Metadata)
-				}
+		// Walk the filepath
+		log := ctx.Logger()
+		return WalkFS(ctx.Context(), os.DirFS(c.Path), func(ctx context.Context, path string, info fs.DirEntry, tmpl *Templater) error {
+			// Allow recusive walking of directories, but only process files
+			if info.IsDir() {
+				return nil
 			}
-			fmt.Println(xmp.FromMetadata(metadataItems).String())
-			return nil
-		}
 
-		if json {
-			fmt.Println(types.Stringify(meta))
-			return nil
-		}
+			// Only open regular files
+			if !info.Type().IsRegular() {
+				log.WarnContext(ctx, "Skipping non-regular file", "path", path)
+				return nil
+			}
 
-		// Output a table to the terminal
-		table := tui.TableFor[schema.MetaItem](tui.SetWidth(termwidth))
-		if _, err := table.Write(os.Stdout, meta.Meta...); err != nil {
-			return err
-		}
-		return nil
+			// Open the file
+			r, err := os.Open(filepath.Join(c.Path, path))
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+
+			// Read the metadata from the file, logging any warnings but not failing on them
+			var warn error
+			meta, err := manager.GetMetadata(ctx, r, ns, &warn)
+			if errors.Is(err, gomedia.ErrNotImplemented) {
+				log.WarnContext(ctx, "Skipping unsupported file", "path", path, "error", err.Error())
+				return nil
+			} else if err != nil {
+				return err
+			}
+			if warn != nil {
+				log.WarnContext(ctx, "Warning reading metadata", "path", path, "error", warn.Error())
+			}
+
+			if tmpl != nil {
+				if out, err := tmpl.Path(map[string]any{
+					"path": path,
+					"name": info.Name(),
+				}); err == nil {
+					fmt.Println(out, "=>", types.Stringify(meta))
+				} else {
+					return err
+				}
+			} else {
+				fmt.Println(types.Stringify(meta))
+			}
+			return nil
+		}, opts...)
+		/*
+
+
+			// If the XMP flag is set, output the metadata in XMP format
+			if c.XMP {
+				metadataItems := make([]gomedia.Metadata, 0, len(meta.Meta))
+				for _, item := range meta.Meta {
+					if item.Metadata != nil {
+						metadataItems = append(metadataItems, item.Metadata)
+					}
+				}
+				fmt.Println(xmp.FromMetadata(metadataItems).String())
+				return nil
+			}
+
+			if json {
+				fmt.Println(types.Stringify(meta))
+				return nil
+			}
+
+			// Output a table to the terminal
+			table := tui.TableFor[schema.MetaItem](tui.SetWidth(termwidth))
+			if _, err := table.Write(os.Stdout, meta.Meta...); err != nil {
+				return err
+			}
+			return nil
+		*/
 	})
 }
 
