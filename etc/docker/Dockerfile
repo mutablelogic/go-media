@@ -35,6 +35,7 @@ COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 LABEL org.opencontainers.image.source=${SOURCE}
 
 # Always run gomedia with any provided arguments
+WORKDIR /data
 ENTRYPOINT [ "/usr/local/bin/gomedia" ]
 EXPOSE 80 443
 STOPSIGNAL SIGQUIT
