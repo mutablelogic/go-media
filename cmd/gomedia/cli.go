@@ -10,4 +10,5 @@ import (
 
 type CLI struct {
 	cmd.CLICommands
+	cmd.ServerCommands
 }
