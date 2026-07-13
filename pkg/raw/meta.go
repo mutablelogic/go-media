@@ -72,7 +72,7 @@ func newMetadata(r *RAW) []media.Metadata {
 		add("exif:FocalLength", fmt.Sprintf("%.0fmm", fl), fl)
 	}
 	if ts := libraw.ImgOther_timestamp(other); ts > 0 {
-		t := time.Unix(ts, 0)
+		t := time.Unix(ts, 0).UTC()
 		add("exif:DateTimeOriginal", t.Format(time.RFC3339), t)
 	}
 	if desc := strings.TrimSpace(libraw.ImgOther_desc(other)); desc != "" {

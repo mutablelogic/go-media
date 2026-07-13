@@ -53,7 +53,7 @@ func Test_raw_000(t *testing.T) {
 		"exif:ExposureTime":     "1/320",
 		"exif:FNumber":          "f/2.0",
 		"exif:FocalLength":      "50mm",
-		"exif:DateTimeOriginal": "2008-12-19T12:29:40+01:00",
+		"exif:DateTimeOriginal": "2008-12-19T12:29:40Z",
 		"dc:description":        "OLYMPUS DIGITAL CAMERA",
 		"image:width":           "3720",
 		"image:height":          "2800",
