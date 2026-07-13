@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -79,15 +80,32 @@ func WithTemplate(t string) WalkOpt {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func WalkFS(ctx context.Context, root fs.FS, fn func(context.Context, string, fs.DirEntry, *Templater) error, opts ...WalkOpt) error {
+func WalkFS(ctx context.Context, root string, fn func(context.Context, string, string, fs.DirEntry, *Templater) error, opts ...WalkOpt) error {
 	// Gather options
 	o, err := apply(opts)
 	if err != nil {
 		return err
 	}
 
+	info, err := os.Stat(root)
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() {
+		if strings.HasPrefix(info.Name(), ".") {
+			return nil
+		}
+		if ext := strings.ToLower(filepath.Ext(info.Name())); ext != "" {
+			if _, ok := o.ExcludeExt[ext]; ok {
+				return nil
+			}
+		}
+		return fn(ctx, root, info.Name(), fs.FileInfoToDirEntry(info), o.Template)
+	}
+
 	// Walk the filesystem
-	return fs.WalkDir(root, ".", func(path string, info fs.DirEntry, err error) error {
+	return fs.WalkDir(os.DirFS(root), ".", func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -103,7 +121,7 @@ func WalkFS(ctx context.Context, root fs.FS, fn func(context.Context, string, fs
 			if !o.Recursive {
 				return fs.SkipDir
 			}
-			return fn(ctx, path, info, nil)
+			return fn(ctx, filepath.Join(root, path), path, info, nil)
 		}
 
 		// Skip hidden files and directories
@@ -119,6 +137,6 @@ func WalkFS(ctx context.Context, root fs.FS, fn func(context.Context, string, fs
 		}
 
 		// Callback with the path and info
-		return fn(ctx, path, info, o.Template)
+		return fn(ctx, filepath.Join(root, path), path, info, o.Template)
 	})
 }

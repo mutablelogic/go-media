@@ -18,6 +18,7 @@ type Meta struct {
 }
 
 type MetaItem struct {
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
 	gomedia.Metadata
 }
 
@@ -44,15 +45,23 @@ func (m MetaItem) MarshalYAML() (any, error) {
 // TABLE WRITER
 
 func (MetaItem) Header() []string {
-	return []string{"Key", "Value"}
+	return []string{"Path", "Key", "Value"}
 }
 
 func (r MetaItem) Cell(col int) string {
 	switch col {
 	case 0:
-		return r.Key()
+		return r.Name
 	case 1:
-		return types.Stringify(r.Value())
+		if r.Metadata != nil {
+			return r.Key()
+		}
+		return ""
+	case 2:
+		if r.Metadata != nil {
+			return types.Stringify(r.Value())
+		}
+		return ""
 	default:
 		return ""
 	}

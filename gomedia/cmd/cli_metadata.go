@@ -64,8 +64,11 @@ type ProbeCmd struct {
 func (c *MetadataCmd) Run(ctx server.Cmd) error {
 	//	json, termwidth := c.IsJSONOutput(ctx)
 	log := ctx.Logger()
+	stdout := true
+	table := tui.TableFor[schema.MetaItem](tui.SetWidth(ctx.IsTerm()))
 
 	return c.WithManager(ctx, func(manager *manager.Media) error {
+
 		// Convert namespace
 		var ns string
 		if ns = strings.TrimSpace(c.Namespace); ns != "" {
@@ -86,21 +89,15 @@ func (c *MetadataCmd) Run(ctx server.Cmd) error {
 		}
 		if c.Out != "" {
 			opts = append(opts, WithTemplate(c.Out))
+			stdout = false
 		}
 
-		// Apply options
-		o, err := apply(opts)
-		if err != nil {
-			return err
-		}
+		if err := WalkFS(ctx.Context(), c.Path, func(ctx context.Context, fullPath string, relPath string, entry fs.DirEntry, tmpl *Templater) error {
+			// Skip directories, but allow the walk to continue into them
+			if entry.IsDir() {
+				return nil
+			}
 
-		// Test path
-		info, err := os.Stat(c.Path)
-		if err != nil {
-			return err
-		}
-
-		processFile := func(ctx context.Context, fullPath string, relPath string, entry fs.DirEntry, tmpl *Templater) error {
 			// Only open regular files
 			if !entry.Type().IsRegular() {
 				log.WarnContext(ctx, "Skipping non-regular file", "path", relPath)
@@ -127,9 +124,9 @@ func (c *MetadataCmd) Run(ctx server.Cmd) error {
 				log.WarnContext(ctx, "Warning reading metadata", "path", relPath, "error", warn.Error())
 			}
 
-			// Write according to a template, or to stdout
+			// Write according to a template
 			if tmpl != nil {
-				if err := tmpl.Create(map[string]any{"path": relPath, "name": entry.Name()}, func(w io.Writer) error {
+				return tmpl.Create(map[string]any{"path": relPath, "name": entry.Name()}, func(w io.Writer) error {
 					if w, ok := w.(gomedia.NamedWriter); ok {
 						log.InfoContext(ctx, "Writing metadata file "+filepath.Base(w.Name()), "path", w.Name())
 						switch ext := strings.ToLower(filepath.Ext(w.Name())); ext {
@@ -154,65 +151,31 @@ func (c *MetadataCmd) Run(ctx server.Cmd) error {
 						}
 					}
 					return nil
-				}); err != nil {
-					return err
-				}
-			} else {
-				fmt.Println(types.Stringify(meta))
+				})
 			}
+
+			// Write according to a table
+			if len(meta.Meta) > 0 {
+				meta.Meta[0].Name = relPath
+				table.Append(meta.Meta...)
+			}
+
 			return nil
+		}, opts...); err != nil {
+			return err
 		}
 
-		if !info.IsDir() {
-			if ext := strings.ToLower(filepath.Ext(info.Name())); ext != "" {
-				if _, ok := o.ExcludeExt[ext]; ok {
-					return nil
-				}
-			}
-			return processFile(ctx.Context(), c.Path, filepath.Base(c.Path), fs.FileInfoToDirEntry(info), o.Template)
-		}
-
-		// Walk directory path
-		return WalkFS(ctx.Context(), os.DirFS(c.Path), func(ctx context.Context, path string, info fs.DirEntry, tmpl *Templater) error {
-			// Allow recusive walking of directories, but only process files
-			if info.IsDir() {
-				return nil
-			}
-
-			return processFile(ctx, filepath.Join(c.Path, path), path, info, tmpl)
-		}, opts...)
-	})
-}
-
-/*
-
-
-			// If the XMP flag is set, output the metadata in XMP format
-			if c.XMP {
-				metadataItems := make([]gomedia.Metadata, 0, len(meta.Meta))
-				for _, item := range meta.Meta {
-					if item.Metadata != nil {
-						metadataItems = append(metadataItems, item.Metadata)
-					}
-				}
-				fmt.Println(xmp.FromMetadata(metadataItems).String())
-				return nil
-			}
-
-			if json {
-				fmt.Println(types.Stringify(meta))
-				return nil
-			}
-
-			// Output a table to the terminal
-			table := tui.TableFor[schema.MetaItem](tui.SetWidth(termwidth))
-			if _, err := table.Write(os.Stdout, meta.Meta...); err != nil {
+		// Write out the table
+		if stdout && table != nil {
+			if _, err := table.Write(os.Stdout); err != nil {
 				return err
 			}
-			return nil
+		}
+
+		// Return success
+		return nil
 	})
 }
-*/
 
 func (c *ArtworkCmd) Run(ctx server.Cmd) error {
 	return c.WithManager(ctx, func(manager *manager.Media) error {
