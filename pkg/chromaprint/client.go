@@ -80,7 +80,7 @@ func NewClient(ApiKey string, opts ...client.ClientOpt) (*Client, error) {
 
 // Lookup a fingerprint with a duration and the metadata that needs to be
 // returned
-func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) ([]*schema.ResponseMatch, error) {
+func (c *Client) Lookup(ctx context.Context, fingerprint string, duration time.Duration, flags Meta) ([]*schema.ResponseMatch, error) {
 	// Check incoming parameters
 	if fingerprint == "" || duration == 0 || flags == META_NONE {
 		return nil, ErrBadParameter.With("Lookup")
@@ -95,7 +95,7 @@ func (c *Client) Lookup(fingerprint string, duration time.Duration, flags Meta) 
 
 	// Request -> Response
 	var response schema.Response
-	if err := c.Do(nil, &response, client.OptPath("lookup"), client.OptQuery(params)); err != nil {
+	if err := c.DoWithContext(ctx, nil, &response, client.OptPath("lookup"), client.OptQuery(params)); err != nil {
 		return nil, err
 	}
 

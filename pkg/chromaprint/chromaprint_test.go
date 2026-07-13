@@ -400,15 +400,15 @@ func Test_Lookup_BadParameters(t *testing.T) {
 	assert.NoError(err)
 
 	// Empty fingerprint
-	_, err = client.Lookup("", 5*time.Second, META_TRACK)
+	_, err = client.Lookup(context.Background(), "", 5*time.Second, META_TRACK)
 	assert.Error(err)
 
 	// Zero duration
-	_, err = client.Lookup("AQAA...", 0, META_TRACK)
+	_, err = client.Lookup(context.Background(), "AQAA...", 0, META_TRACK)
 	assert.Error(err)
 
 	// No meta flags
-	_, err = client.Lookup("AQAA...", 5*time.Second, META_NONE)
+	_, err = client.Lookup(context.Background(), "AQAA...", 5*time.Second, META_NONE)
 	assert.Error(err)
 }
 
@@ -449,7 +449,7 @@ func Test_Lookup_FromRawPCM(t *testing.T) {
 	}
 
 	// Lookup matches
-	matches, err := client.Lookup(fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), META_ALL)
+	matches, err := client.Lookup(context.Background(), fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), META_ALL)
 	if !assert.NoError(err) || !assert.NotNil(matches) || len(matches) == 0 {
 		t.Logf("Match failed: %v", err)
 		return

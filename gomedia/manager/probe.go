@@ -25,7 +25,7 @@ func (m *Media) Probe(ctx context.Context, req goschema.ProbeRequest) (_ *gosche
 		name = named.Name()
 	}
 
-	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "Probe",
+	_, endSpan := otel.StartSpan(m.tracer, ctx, "Probe",
 		attribute.String("input", name),
 		attribute.String("input_format", req.InputFormat),
 	)

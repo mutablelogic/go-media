@@ -30,7 +30,7 @@ func (m *Media) AudioFingerprintLookup(ctx context.Context, req schema.AudioFing
 	}
 
 	flags := metadataFlags(req.Metadata)
-	matches, err := m.acoustIDClient.Lookup(req.Fingerprint, time.Duration(req.Duration*float64(time.Second)), flags)
+	matches, err := m.acoustIDClient.Lookup(ctx, req.Fingerprint, time.Duration(req.Duration*float64(time.Second)), flags)
 	if err != nil {
 		return nil, err
 	}
