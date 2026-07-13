@@ -1,52 +1,32 @@
-name: Build docker container on publish
+name: Create Docker Image
 on:
   release:
-    types: [ created, edited ]
+    types:
+      - created
+
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'tag'
-        required: true
-        default: 'latest'
-        type: string
-permissions:
-  contents: read
+
+env:
+  DOCKER_REPO: ghcr.io/mutablelogic/gomedia
+
 jobs:
-  var:
-    name: Set variables
-    runs-on: ubuntu-latest
-    outputs:
-      image: "ghcr.io/${{ github.repository }}"
-      tag: ${{ steps.var.outputs.tag }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set variables
-        id: var
-        run: |
-          if [ "${{ github.event_name }}" != "release" ] && [ "${{ inputs.tag }}" != "latest" ]; then
-            TAG="${{ inputs.tag }}" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
-          else
-            TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
-          fi
   build:
     name: Build
-    needs: var
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on:
+      - ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || matrix.arch == 'arm64' && 'ubuntu-24.04-arm' }}
+    env:
+      OS: linux
+      ARCH: ${{ matrix.arch }}
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        arch: [ amd64, arm64 ]
-    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || matrix.arch }}
-    env:
-      ARCH: ${{ matrix.arch }}
-      OS: linux
-      DOCKER_REGISTRY: ghcr.io/mutablelogic
     steps:
-      - name: Install git
+      - name: Install build tools
         run: |
           sudo apt -y update
           sudo apt -y install build-essential git
@@ -62,23 +42,20 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and Push
-        id: build      
+        id: build
         run: |
-          git checkout v${{ needs.var.outputs.tag }}
-          make docker && make docker-push
+          BUILDKIT_PROGRESS=plain make docker && make docker-push && make docker-version >> "$GITHUB_OUTPUT"
   manifest:
     name: Manifest
-    needs:
-      - var
-      - build
-    permissions:
-      packages: write
+    needs: build
     strategy:
       matrix:
-        include:
-          - tag: ${{ needs.var.outputs.tag }}
-          - tag: latest # TODO: Skip this if the event calling is not publishing a release
+        tag:
+          - ${{ needs.build.outputs.tag }}
+          - "latest"
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Login
         uses: docker/login-action@v3
@@ -88,18 +65,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create
         run: |
-          docker manifest create ${{ needs.var.outputs.image }}:${{ matrix.tag }} \
-            --amend ${{ needs.var.outputs.image }}-linux-amd64:${{ needs.var.outputs.tag }} \
-            --amend ${{ needs.var.outputs.image }}-linux-arm64:${{ needs.var.outputs.tag }}
+          docker manifest create ${{ env.DOCKER_REPO }}:${{ matrix.tag }} \
+            --amend ${{ env.DOCKER_REPO }}:${{ needs.build.outputs.tag }}-linux-amd64 \
+            --amend ${{ env.DOCKER_REPO }}:${{ needs.build.outputs.tag }}-linux-arm64
       - name: Annotate
         run: |
-          docker manifest annotate --arch arm64 --os linux \
-            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.var.outputs.image }}-linux-arm64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch amd64 --os linux \
-            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.var.outputs.image }}-linux-amd64:${{ needs.var.outputs.tag }}
-          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}
+            ${{ env.DOCKER_REPO }}:${{ matrix.tag }} \
+            ${{ env.DOCKER_REPO }}:${{ needs.build.outputs.tag }}-linux-amd64
+          docker manifest annotate --arch arm64 --os linux \
+            ${{ env.DOCKER_REPO }}:${{ matrix.tag }} \
+            ${{ env.DOCKER_REPO }}:${{ needs.build.outputs.tag }}-linux-arm64
       - name: Push
         run: |
-          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}
+          docker manifest push ${{ env.DOCKER_REPO }}:${{ matrix.tag }}
