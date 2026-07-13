@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -12,6 +15,15 @@ import (
 
 type Templater struct {
 	tmpl *template.Template
+}
+
+type namedWriter struct {
+	io.Writer
+	name string
+}
+
+func (nw *namedWriter) Name() string {
+	return nw.name
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,12 +48,43 @@ func NewTemplater(t string) (*Templater, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return the path generated from the template and the given data.
 func (t *Templater) Path(data map[string]any) (string, error) {
 	var sb strings.Builder
 	if err := t.tmpl.Execute(&sb, data); err != nil {
 		return "", err
 	}
 	return sb.String(), nil
+}
+
+// Create any directories needed for the given path, then create the file,
+// and return the writer for the file.
+func (t *Templater) Create(data map[string]any, fn func(w io.Writer) error) error {
+	path, err := t.Path(data)
+	if err != nil {
+		return err
+	}
+
+	// Create any intermediate directories needed for the path
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	// Create the file
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write to the file, then either commit or rollback the file depending on whether the write was successful.
+	if err := fn(&namedWriter{Writer: f, name: path}); err != nil {
+		// Remove the file if it was created and an error occurred during writing.
+		if _, statErr := os.Stat(path); statErr == nil {
+			err = errors.Join(err, os.Remove(path))
+		}
+		return err
+	}
+	return nil
 }
 
 // OLD

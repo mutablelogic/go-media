@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"image"
 	"testing"
+
+	yaml "gopkg.in/yaml.v3"
 )
 
 type testMetadata struct {
@@ -83,5 +85,42 @@ func TestMetaMarshalJSON(t *testing.T) {
 	}
 	if fourth["value"] != "AQI=" {
 		t.Fatalf("meta[3] value = %v, want base64 %q", fourth["value"], "AQI=")
+	}
+}
+
+func TestMetaItemYAMLUnmarshal(t *testing.T) {
+	input := `name: sample
+content_type: audio/mp4
+meta:
+  - key: dc:title
+    value: Jenny Ondioline
+  - key: audio:Duration
+    value: 1088.179955
+  - key: audio:IsLive
+    value: true
+`
+
+	var m Meta
+	if err := yaml.Unmarshal([]byte(input), &m); err != nil {
+		t.Fatal(err)
+	}
+
+	if m.ContentType != "audio/mp4" {
+		t.Fatalf("content_type = %q, want %q", m.ContentType, "audio/mp4")
+	}
+	if len(m.Meta) != 3 {
+		t.Fatalf("meta length = %d, want 3", len(m.Meta))
+	}
+	if m.Meta[0].Key() != "dc:title" || m.Meta[0].Any() != "Jenny Ondioline" {
+		t.Fatalf("meta[0] = (%q,%v), want (%q,%q)", m.Meta[0].Key(), m.Meta[0].Any(), "dc:title", "Jenny Ondioline")
+	}
+	if m.Meta[1].Key() != "audio:Duration" {
+		t.Fatalf("meta[1] key = %q, want %q", m.Meta[1].Key(), "audio:Duration")
+	}
+	if _, ok := m.Meta[1].Any().(float64); !ok {
+		t.Fatalf("meta[1] value type = %T, want float64", m.Meta[1].Any())
+	}
+	if m.Meta[2].Key() != "audio:IsLive" || m.Meta[2].Any() != true {
+		t.Fatalf("meta[2] = (%q,%v), want (%q,%v)", m.Meta[2].Key(), m.Meta[2].Any(), "audio:IsLive", true)
 	}
 }

@@ -12,9 +12,9 @@ import (
 // TYPES
 
 type Meta struct {
-	Name        string     `json:"name,omitempty"`
-	ContentType string     `json:"content_type,omitempty"`
-	Meta        []MetaItem `json:"meta,omitempty"`
+	Name        string     `json:"name,omitempty" yaml:"name,omitempty"`
+	ContentType string     `json:"content_type,omitempty" yaml:"content_type,omitempty"`
+	Meta        []MetaItem `json:"meta,omitempty" yaml:"meta,omitempty"`
 }
 
 type MetaItem struct {
@@ -29,7 +29,15 @@ func (m MetaItem) MarshalJSON() ([]byte, error) {
 		Key   string `json:"key"`
 		Value any    `json:"value"`
 	}
-	return json.Marshal(kv{Key: m.Key(), Value: m.Value()})
+	return json.Marshal(kv{Key: m.Key(), Value: m.Any()})
+}
+
+func (m MetaItem) MarshalYAML() (any, error) {
+	type kv struct {
+		Key   string `yaml:"key"`
+		Value any    `yaml:"value"`
+	}
+	return kv{Key: m.Key(), Value: m.Any()}, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

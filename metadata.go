@@ -1,6 +1,9 @@
 package media
 
-import "image"
+import (
+	"image"
+	"io"
+)
 
 // Metadata is a key/value pair which can be used to describe a media object
 // or other metadata. The value can be retrieved as a string value,
@@ -23,4 +26,16 @@ type Metadata interface {
 
 	// Returns the value as an interface
 	Any() any
+}
+
+// NamedReader is an interface that extends io.Reader with a Name() method
+type NamedReader interface {
+	io.Reader
+	Name() string
+}
+
+// NamedWriter is an interface that extends io.Writer with a Name() method
+type NamedWriter interface {
+	io.Writer
+	Name() string
 }
