@@ -3,12 +3,27 @@ package xmp_test
 import (
 	"bytes"
 	"encoding/json"
+	"image"
+	"math"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	media "github.com/mutablelogic/go-media"
 	"github.com/mutablelogic/go-media/pkg/xmp"
 )
+
+type testMeta struct {
+	key string
+	val string
+}
+
+func (m testMeta) Key() string        { return m.key }
+func (m testMeta) Value() string      { return m.val }
+func (m testMeta) Bytes() []byte      { return nil }
+func (m testMeta) Image() image.Image { return nil }
+func (m testMeta) Any() any           { return m.val }
 
 const (
 	testXMP       = "../../etc/test/sample.xmp"
@@ -257,6 +272,182 @@ func Test_xmp_070(t *testing.T) {
 		t.Fatal("expected error for oversized document")
 	}
 	t.Log("oversized:", err)
+}
+
+func Test_xmp_080_FromMetadata(t *testing.T) {
+	items := []media.Metadata{
+		testMeta{key: "dc:title", val: "Example"},
+		testMeta{key: "xmp:CreateDate", val: "2026-07-12"},
+		testMeta{key: "custom:foo", val: "bar"},
+		testMeta{key: "plain", val: "value"},
+	}
+
+	x := xmp.FromMetadata(items)
+	if x == nil {
+		t.Fatal("FromMetadata returned nil")
+	}
+	if got, want := len(x.Items()), 4; got != want {
+		t.Fatalf("items: got %d want %d", got, want)
+	}
+
+	if got := x.Get("dc:title"); len(got) != 1 || got[0].Value() != "Example" {
+		t.Fatalf("dc:title not mapped correctly: %+v", got)
+	}
+	if got := x.Get("xmp:CreateDate"); len(got) != 1 || got[0].Value() != "2026-07-12" {
+		t.Fatalf("xmp:CreateDate not mapped correctly: %+v", got)
+	}
+	if got := x.Get("custom:foo"); len(got) != 1 || got[0].Value() != "bar" {
+		t.Fatalf("custom:foo not mapped correctly: %+v", got)
+	}
+	if got := x.Get("plain"); len(got) != 1 || got[0].Value() != "value" {
+		t.Fatalf("plain not mapped correctly: %+v", got)
+	}
+
+	// Ensure generated XML remains valid and round-trips, including custom namespace.
+	var buf bytes.Buffer
+	if err := x.Write(&buf); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+	x2, err := xmp.Parse(buf.Bytes())
+	if err != nil {
+		t.Fatalf("re-parse failed: %v", err)
+	}
+	if got := x2.Get("custom:foo"); len(got) != 1 || got[0].Value() != "bar" {
+		t.Fatalf("custom:foo round-trip failed: %+v", got)
+	}
+}
+
+func Test_xmp_081_FromMetadataWithNamespaces(t *testing.T) {
+	items := []media.Metadata{
+		testMeta{key: "audio:Duration", val: "20.7"},
+		testMeta{key: "video:Duration", val: "5.3"},
+	}
+
+	ns := map[string]string{
+		"audio": "urn:gomedia:audio",
+		"video": "urn:gomedia:video",
+	}
+
+	x := xmp.FromMetadata(items, ns)
+	if x == nil {
+		t.Fatal("FromMetadata returned nil")
+	}
+
+	var buf bytes.Buffer
+	if err := x.Write(&buf); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+	xml := buf.String()
+	if !strings.Contains(xml, `xmlns:audio="urn:gomedia:audio"`) {
+		t.Fatalf("audio namespace missing in XML: %s", xml)
+	}
+	if !strings.Contains(xml, `xmlns:video="urn:gomedia:video"`) {
+		t.Fatalf("video namespace missing in XML: %s", xml)
+	}
+
+	x2, err := xmp.Parse(buf.Bytes())
+	if err != nil {
+		t.Fatalf("re-parse failed: %v", err)
+	}
+	if got := x2.Get("audio:Duration"); len(got) != 1 || got[0].Value() != "20.7" {
+		t.Fatalf("audio:Duration round-trip failed: %+v", got)
+	}
+	if got := x2.Get("video:Duration"); len(got) != 1 || got[0].Value() != "5.3" {
+		t.Fatalf("video:Duration round-trip failed: %+v", got)
+	}
+}
+
+func Test_xmp_082_FromMetadataDuplicateKeysToSeq(t *testing.T) {
+	items := []media.Metadata{
+		testMeta{key: "dc:creator", val: "Stereolab"},
+		testMeta{key: "dc:creator", val: "Tim Gane"},
+		testMeta{key: "audio:Genre", val: "Post-Rock"},
+		testMeta{key: "audio:Genre", val: "Kraut"},
+	}
+
+	x := xmp.FromMetadata(items, map[string]string{"audio": "urn:gomedia:audio"})
+	if x == nil {
+		t.Fatal("FromMetadata returned nil")
+	}
+
+	creators := x.Get("dc:creator")
+	if len(creators) != 1 {
+		t.Fatalf("dc:creator count: got %d want 1", len(creators))
+	}
+	if creators[0].ItemKind() != xmp.Seq {
+		t.Fatalf("dc:creator kind: got %s want %s", creators[0].ItemKind(), xmp.Seq)
+	}
+	if got, want := creators[0].Value(), "Stereolab; Tim Gane"; got != want {
+		t.Fatalf("dc:creator value: got %q want %q", got, want)
+	}
+
+	genres := x.Get("audio:Genre")
+	if len(genres) != 1 {
+		t.Fatalf("audio:Genre count: got %d want 1", len(genres))
+	}
+	if genres[0].ItemKind() != xmp.Seq {
+		t.Fatalf("audio:Genre kind: got %s want %s", genres[0].ItemKind(), xmp.Seq)
+	}
+	if got, want := genres[0].Value(), "Post-Rock; Kraut"; got != want {
+		t.Fatalf("audio:Genre value: got %q want %q", got, want)
+	}
+}
+
+func Test_xmp_090_TypedValues(t *testing.T) {
+	tItem := xmp.NewItem("http://ns.adobe.com/xap/1.0/", "xmp", "CreateDate", "2026-07-12T10:20:30Z")
+	if tItem.ValueType() != xmp.ValueTypeTime {
+		t.Fatalf("xmp:CreateDate type: got %v", tItem.ValueType())
+	}
+	if v, ok := tItem.AsTime(); !ok || v.IsZero() {
+		t.Fatalf("AsTime failed: %v %v", v, ok)
+	}
+
+	dItem := xmp.NewItem("urn:gomedia:audio", "audio", "Duration", "1088.179955")
+	if dItem.ValueType() != xmp.ValueTypeDuration {
+		t.Fatalf("audio:Duration type: got %v", dItem.ValueType())
+	}
+	if d, ok := dItem.AsDuration(); !ok || d <= 0 {
+		t.Fatalf("AsDuration failed: %v %v", d, ok)
+	}
+
+	bItem := xmp.NewItem("http://ns.adobe.com/xap/1.0/rights/", "xmpRights", "Marked", "true")
+	if bItem.ValueType() != xmp.ValueTypeBoolean {
+		t.Fatalf("xmpRights:Marked type: got %v", bItem.ValueType())
+	}
+	if b, ok := bItem.AsBool(); !ok || !b {
+		t.Fatalf("AsBool failed: %v %v", b, ok)
+	}
+
+	rItem := xmp.NewItem("http://ns.adobe.com/exif/1.0/", "exif", "FNumber", "35/10")
+	if rItem.ValueType() != xmp.ValueTypeRational {
+		t.Fatalf("exif:FNumber type: got %v", rItem.ValueType())
+	}
+	if r, ok := rItem.AsRational(); !ok || r.Numerator != 7 || r.Denominator != 2 {
+		t.Fatalf("AsRational failed: %+v %v", r, ok)
+	}
+
+	gItem := xmp.NewItem("http://ns.adobe.com/exif/1.0/", "exif", "GPSLatitude", "51.5074N")
+	if gItem.ValueType() != xmp.ValueTypeGPSCoord {
+		t.Fatalf("exif:GPSLatitude type: got %v", gItem.ValueType())
+	}
+	if g, ok := gItem.AsGPSCoord(); !ok || math.Abs(g-51.5074) > 1e-6 {
+		t.Fatalf("AsGPSCoord failed: %v %v", g, ok)
+	}
+
+	if typed, ok := dItem.TypedValue().(time.Duration); !ok || typed <= 0 {
+		t.Fatalf("TypedValue duration failed: %T %v", dItem.TypedValue(), dItem.TypedValue())
+	}
+}
+
+func Test_xmp_091_RegisterValueType(t *testing.T) {
+	xmp.RegisterValueType("custom:is-live", xmp.ValueTypeBoolean)
+	it := xmp.NewItem("urn:gomedia:xmp:custom", "custom", "is-live", "1")
+	if it.ValueType() != xmp.ValueTypeBoolean {
+		t.Fatalf("custom:is-live type: got %v", it.ValueType())
+	}
+	if v, ok := it.AsBool(); !ok || !v {
+		t.Fatalf("custom:is-live bool parse failed: %v %v", v, ok)
+	}
 }
 
 func Test_xmp_071(t *testing.T) {

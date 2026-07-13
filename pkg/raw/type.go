@@ -1,6 +1,9 @@
 package raw
 
-import "mime"
+import (
+	"mime"
+	"regexp"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -76,6 +79,8 @@ var rawTypes = map[string]string{
 	// Generic / ambiguous (Contax, Panasonic, others)
 	".raw": "image/x-raw",
 }
+
+var ContentTypes = regexp.MustCompile("^image/x-(adobe-dng|canon-cr2|canon-cr3|canon-crw|nikon-nef|nikon-nrw|sony-arw|sony-srf|sony-sr2|olympus-orf|panasonic-rw2|fuji-raf|pentax-pef|leica-rwl|sigma-x3f|samsung-srw|minolta-mrw|epson-erf|kodak-dcr|kodak-kdc|mamiya-mef|hasselblad-3fr|hasselblad-fff|phaseone-iiq|leaf-mos|casio-bay|raw)$")
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

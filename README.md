@@ -1,41 +1,50 @@
-
 # go-media
 
-This module provides Go bindings and utilities for FFmpeg, including:
+[![Test](https://github.com/mutablelogic/go-media/actions/workflows/on_pull_request_merge.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/on_pull_request_merge.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
-* Low-level CGO bindings for [FFmpeg 8.0](https://ffmpeg.org/) (in `sys/ffmpeg80`)
-* High-level Go API for media operations (in `pkg/ffmpeg`)
-* Task manager for common media operations (in `pkg/ffmpeg/task`)
-* Audio fingerprinting with Chromaprint/AcoustID (in `pkg/chromaprint`)
-* Command-line tool `gomedia` for media inspection and manipulation
-* HTTP server for media services
+`gomedia` is a CLI, client and server tool for managing media files - audio, video and image - extracting metadata, artwork and thumbnails, identifying music, and remultiplexing and transcoding audio and video.
+
+## Motivation
+
+The goal isn't to replace `ffmpeg`, but to provide a programmatic interface for processing
+and extracting information from audio, video and image files. `go-media` supports all the
+audio and video formats FFmpeg supports, plus HEIF/AVIF and RAW camera images, including
+extraction of embedded EXIF and XMP metadata.
 
 ## Current Status
 
-This module is in development (meaning the API might change).
-FFmpeg 8.0 bindings are complete with support for:
+This module is **in development** - the API may still change. Implemented so far:
 
-* Codecs, formats, filters, pixel formats, sample formats
-* Audio channel layouts
-* Demuxing, muxing, remuxing
-* Audio and video decoding/encoding (transcoding is TBC)
-* Filtering and resampling
-* Metadata extraction
-* Hardware acceleration support
+- FFmpeg-backed audio/video: codecs, formats, filters, pixel/sample formats, audio channel
+  layouts, demuxing/muxing/remuxing, decoding/encoding, filtering and resampling, hardware
+  acceleration (transcoding via the CLI is still TBC)
+- HEIF/AVIF image decoding (`pkg/heif`), registered with Go's standard `image` package
+- RAW camera image decoding across many manufacturers (`pkg/raw`), also registered with `image`
+- EXIF (`pkg/exif`) and XMP (`pkg/xmp`) metadata reading
+- A format-agnostic metadata extraction registry (`metadata/`) spanning image, audio, video
+  and application (e.g. Photoshop) content types
+- Audio fingerprinting and identification via Chromaprint/AcoustID (`pkg/chromaprint`)
 
 ## Requirements
 
-### Building FFmpeg
-
-The module includes scripts to build FFmpeg with common codecs. Install dependencies first:
+Building from source compiles several C/C++ dependencies (FFmpeg, Chromaprint, libexif,
+LibRaw, libheif) as static libraries before the Go module itself. You'll need a C/C++
+toolchain, `pkg-config`, `cmake` and `nasm`, plus the codec libraries you want support for -
+FFmpeg's own configure step and libheif's CMake step both auto-detect optional codecs via
+`pkg-config`, so anything not installed is simply compiled out rather than causing a build
+failure.
 
 **macOS (Homebrew):**
 
 ```bash
 # Basic dependencies (required)
-brew install pkg-config cmake freetype lame opus libvorbis libvpx x264 x265
+brew install pkg-config cmake nasm curl freetype lame opus libvorbis libvpx x264 x265
 
-# Optional: Install homebrew-ffmpeg tap for more codecs
+# Recommended, for HEIF/AVIF decoding (libde265, aom, dav1d)
+brew install libde265 aom dav1d jpeg
+
+# Optional: homebrew-ffmpeg tap for more FFmpeg codecs
 brew tap homebrew-ffmpeg/ffmpeg
 brew install homebrew-ffmpeg/ffmpeg/ffmpeg \
   --with-fdk-aac --with-libbluray --with-libsoxr --with-libvidstab \
@@ -46,20 +55,21 @@ brew install homebrew-ffmpeg/ffmpeg/ffmpeg \
 **Debian/Ubuntu:**
 
 ```bash
-apt install pkg-config cmake libfreetype-dev libmp3lame-dev libopus-dev \
-  libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev libzvbi-dev
+apt install pkg-config cmake nasm curl build-essential \
+  libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev \
+  libx264-dev libx265-dev libnuma-dev libzvbi-dev \
+  libde265-dev libaom-dev libdav1d-dev
 ```
 
 **Fedora:**
 
 ```bash
-dnf install pkg-config cmake freetype-devel lame-devel opus-devel \
-  libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel zvbi-devel
+dnf install pkg-config cmake nasm curl freetype-devel lame-devel opus-devel \
+  libvorbis-devel libvpx-devel x264-devel x265-devel numactl-devel zvbi-devel \
+  libde265-devel libaom-devel dav1d-devel
 ```
 
 **Vulkan Hardware Support (Linux):**
-
-For Vulkan-based hardware acceleration on Linux, install:
 
 ```bash
 # Debian/Ubuntu
@@ -69,203 +79,196 @@ apt install libvulkan-dev
 dnf install vulkan-loader-devel
 ```
 
-Then build FFmpeg:
+## Building
 
 ```bash
 git clone https://github.com/mutablelogic/go-media
 cd go-media
-make ffmpeg chromaprint
+make              # Builds ffmpeg, chromaprint, libexif, libraw, libheif, then all cmd/* binaries
 ```
 
-This creates static libraries in `build/install` with the necessary pkg-config files.
-
-### Building the Go Module
-
-The module uses CGO and requires the FFmpeg libraries. The Makefile handles the necessary
-environment variables:
+Static libraries and pkg-config files land in `build/install`. Once the C dependencies are
+built, you can rebuild just the Go side:
 
 ```bash
-make              # Build the gomedia command-line tool
-make test         # Run all tests
-make test-sys     # Run system/FFmpeg binding tests only
-make coverage     # Run tests with coverage report
-make coverage-html # Generate HTML coverage report
+make cmd/gomedia   # Rebuild the gomedia binary only, reusing the already-built C libraries
 ```
 
-To build manually:
+### Building Manually
+
+If you need to invoke `go build`/`go test` yourself rather than through `make`, set the same
+CGO environment variables the Makefile uses:
 
 ```bash
 export PKG_CONFIG_PATH="${PWD}/build/install/lib/pkgconfig"
 export CGO_LDFLAGS_ALLOW="-(W|D).*"
-export CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+export CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"  # drop the -Wl,... flag on Linux
 go build -o build/gomedia ./cmd/gomedia
 ```
 
-### Testing and Coverage
-
-Run tests:
+### Testing
 
 ```bash
-make test                # Run all tests
-make coverage            # Run tests with coverage, check threshold, generate HTML report
-make coverage-report     # Show detailed per-function coverage
+make test           # Build all C deps and run the full Go test suite
+make test-sys        # sys/<ffmpeg version> bindings only
+make test-ffmpeg      # pkg/ffmpeg/...
+make test-chromaprint # pkg/segmenter, pkg/chromaprint
+make test-exif        # sys/libexif, pkg/exif
+make test-raw         # sys/libraw, pkg/raw
+make test-heif        # sys/libheif, pkg/heif
+make test-metadata    # metadata/...
+make test-gomedia     # gomedia/...
 ```
-
-Coverage report is generated at `build/coverage.html`. Current coverage: **~57.7%**.
 
 ## Usage
 
 ### Command-Line Tool
 
-The `gomedia` tool provides various media operations:
-
 ```bash
-# List available codecs
-gomedia list-codecs
+# Extract metadata from a file (all namespaces, or one via --namespace)
+gomedia metadata <file>
+gomedia metadata --namespace exif <file>
 
-# List available filters  
-gomedia list-filters
+# Extract embedded artwork/thumbnails
+gomedia artwork <file>
 
-# List supported formats
-gomedia list-formats
-
-# List pixel/sample formats
-gomedia list-pixel-formats
-gomedia list-sample-formats
-
-# Probe a media file
+# Probe a media file's container and streams
 gomedia probe <file>
 
-# Remux a file (change container without re-encoding)
-gomedia remux --input <input> --output <output>
+# List capabilities
+gomedia codecs
+gomedia filters
+gomedia formats
+gomedia pixel-formats
+gomedia sample-formats
+gomedia audio-channels
 
-# Audio fingerprinting and lookup (requires AcoustID API key)
+# Segment audio (fixed-size and/or silence-based)
+gomedia audio-segment <file> --out ./segments
+
+# Audio fingerprinting and AcoustID lookup (built with the chromaprint tag; requires an API key)
 export CHROMAPRINT_KEY=<your-key>
-gomedia audio-lookup <file>
-
-# Run HTTP server
-gomedia server run
+gomedia audio-fingerprint <file>
+gomedia audio-lookup <fingerprint> <duration>
 ```
 
-### Go API - Task Manager
+Run `gomedia --help` (or `gomedia <command> --help`) for the full, current set of flags -
+this list reflects the commands defined in `gomedia/cmd` and may grow.
 
-The task manager provides a high-level API for media operations:
+### Go API - Metadata Extraction
 
 ```go
 package main
 
 import (
- "context"
- "fmt"
- 
- task "github.com/mutablelogic/go-media/pkg/ffmpeg/task"
- schema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	"context"
+	"fmt"
+	"os"
+
+	metadata "github.com/mutablelogic/go-media/metadata"
+	_ "github.com/mutablelogic/go-media/metadata/image" // registers HEIF/RAW/JPEG/... handlers
 )
 
 func main() {
- // Create a task manager
- manager, err := task.NewManager()
- if err != nil {
-  panic(err)
- }
+	f, err := os.Open("photo.HEIC")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
 
- // List all video codecs
- codecs, err := manager.ListCodecs(context.Background(), &schema.ListCodecRequest{
-  Type: "video",
- })
- if err != nil {
-  panic(err)
- }
- 
- for _, codec := range codecs {
-  fmt.Printf("%s: %s\n", codec.Name, codec.LongName)
- }
+	contentType, _, err := metadata.ContentType(f)
+	if err != nil {
+		panic(err)
+	}
 
- // Probe a media file
- info, err := manager.Probe(context.Background(), &schema.ProbeRequest{
-  Input: "video.mp4",
- })
- if err != nil {
-  panic(err)
- }
- 
- fmt.Printf("Format: %s\n", info.Format)
- fmt.Printf("Duration: %v\n", info.Duration)
- for _, stream := range info.Streams {
-  fmt.Printf("Stream %d: %s\n", stream.Index, stream.Type)
- }
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
+	if err != nil {
+		panic(err) // treat as a warning: meta may still contain results from other handlers
+	}
+	for _, m := range meta {
+		fmt.Printf("%s = %s\n", m.Key(), m.Value())
+	}
 }
 ```
 
-### Available Task Manager Methods
+### Go API - Probing and Media Management
 
-The task manager (`pkg/ffmpeg/task.Manager`) provides these methods:
+```go
+package main
 
-**Query Operations:**
+import (
+	"context"
+	"fmt"
+	"os"
 
-* `ListCodecs(ctx, *ListCodecRequest) (ListCodecResponse, error)` - List available codecs
-* `ListFilters(ctx, *ListFilterRequest) (ListFilterResponse, error)` - List available filters
-* `ListFormats(ctx, *ListFormatRequest) (ListFormatResponse, error)` - List formats and devices
-* `ListPixelFormats(ctx, *ListPixelFormatRequest) (ListPixelFormatResponse, error)` - List pixel formats
-* `ListSampleFormats(ctx, *ListSampleFormatRequest) (ListSampleFormatResponse, error)` - List sample formats
-* `ListAudioChannelLayouts(ctx, *ListAudioChannelLayoutRequest) (ListAudioChannelLayoutResponse, error)` - List audio layouts
+	manager "github.com/mutablelogic/go-media/gomedia/manager"
+	schema "github.com/mutablelogic/go-media/gomedia/schema"
+)
 
-**Media Operations:**
+func main() {
+	m, err := manager.New(context.Background())
+	if err != nil {
+		panic(err)
+	}
 
-* `Probe(ctx, *ProbeRequest) (*ProbeResponse, error)` - Inspect media files
-* `Remux(ctx, *RemuxRequest) error` - Remux media without re-encoding
-* `AudioFingerprint(ctx, *AudioFingerprintRequest) (*AudioFingerprintResponse, error)` - Generate fingerprints and lookup
+	f, err := os.Open("video.mp4")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	resp, err := m.Probe(context.Background(), schema.ProbeRequest{Reader: f})
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Format: %s\n", resp.Format)
+	fmt.Printf("Duration: %.3fs\n", resp.Duration)
+	for _, stream := range resp.Streams {
+		fmt.Printf("Stream %d\n", stream.Id())
+	}
+}
+```
 
 ### Low-Level FFmpeg Bindings
 
-For direct FFmpeg access, use the `sys/ffmpeg80` package:
+For direct FFmpeg access, use `sys/ffmpeg80` (the default; `sys/ffmpeg71` and `sys/ffmpeg61`
+are also available, selected via the Makefile's `SYS_VERSION`):
 
 ```go
 import (
- ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
-// Low-level FFmpeg operations
 filter := ff.AVFilter_get_by_name("scale")
 graph := ff.AVFilterGraph_alloc()
 // ... etc
 ```
 
-### HTTP Server
+## Project Structure
 
-The module includes an HTTP server exposing the task manager via REST API:
+```text
+sys/ffmpeg80/, sys/ffmpeg71/, sys/ffmpeg61/  # Low-level CGO FFmpeg bindings
+sys/libheif/, sys/libraw/, sys/libexif/      # Low-level CGO bindings for image metadata/codecs
+sys/chromaprint/, sys/dvb/                   # Other low-level bindings
 
-```bash
-# Start server
-gomedia server run --url http://localhost:8080/api
+pkg/ffmpeg/          # High-level FFmpeg API (Reader, Decoder, Encoder, Resampler, Frame)
+pkg/heif/            # HEIF/AVIF decoding, registered with the stdlib image package
+pkg/raw/             # RAW camera image decoding, registered with the stdlib image package
+pkg/exif/            # EXIF metadata reading
+pkg/xmp/             # XMP document read/write
+pkg/sdl/             # SDL2 video/audio player (library only; not wired into the gomedia CLI)
+pkg/chromaprint/     # Audio fingerprinting
 
-# Query endpoints
-curl http://localhost:8080/api/codec
-curl http://localhost:8080/api/filter?name=scale
-curl http://localhost:8080/api/format?type=muxer
-```
+metadata/            # Format-agnostic metadata extraction registry
+  image/, audio/, video/, application/  # Per-kind handlers, registered via metadata.AddHandler
 
-### Audio Fingerprinting
+gomedia/
+  schema/            # Request/response types for the CLI/API surface
+  manager/           # Orchestrates pkg/ffmpeg, metadata/, pkg/chromaprint, pkg/xmp
+  cmd/                # kong-based CLI command definitions
 
-```go
-import (
- chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
-)
-
-// Requires CHROMAPRINT_KEY environment variable or explicit API key
-client, err := chromaprint.NewClient(apiKey)
-if err != nil {
- panic(err)
-}
-
-// Generate fingerprint and lookup
-result, err := client.Lookup(context.Background(), "audio.mp3")
-if err != nil {
- panic(err)
-}
-
-fmt.Printf("Title: %s\n", result.Title)
-fmt.Printf("Artist: %s\n", result.Artist)
+cmd/gomedia/          # main() entrypoint, wraps gomedia/cmd via go-server's cmd.Main
 ```
 
 ## Docker
@@ -273,22 +276,12 @@ fmt.Printf("Artist: %s\n", result.Artist)
 Build a Docker image with all dependencies:
 
 ```bash
-DOCKER_REGISTRY=docker.io/user make docker
+make docker                              # tags ghcr.io/mutablelogic/gomedia:<version>-<os>-<arch>
+DOCKER_REPO=docker.io/user/gomedia make docker
 ```
 
-For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md) for instructions on passing through GPU devices from the host.
-
-## Project Structure
-
-```
-sys/ffmpeg80/          # Low-level CGO FFmpeg bindings
-pkg/ffmpeg/            # High-level Go API
-  task/                # Task manager for common operations
-  schema/              # Request/response schemas
-  httphandler/         # HTTP handlers
-pkg/chromaprint/       # Audio fingerprinting
-cmd/gomedia/           # Command-line tool
-```
+For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md)
+for instructions on passing through GPU devices from the host.
 
 ## License & Distribution
 
@@ -309,14 +302,14 @@ This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which 
 
 **LGPL Compliance:** Under the LGPL, you may:
 
-* Use this software for commercial or non-commercial purposes
-* Distribute this software in its compiled form
-* Modify the go-media source code under Apache 2.0
+- Use this software for commercial or non-commercial purposes
+- Distribute this software in its compiled form
+- Modify the go-media source code under Apache 2.0
 
 **Requirements when distributing binaries:**
 
 1. Include this notice and the FFmpeg LGPL license
-2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.3/` after building)
+2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.3/` after building - check the Makefile's `FFMPEG_VERSION` for the exact version)
 3. Allow users to relink the application with modified FFmpeg libraries
 
 The FFmpeg source code is automatically downloaded during the build process. See `Makefile` for details.
@@ -327,6 +320,9 @@ Please file feature requests and bugs at [github.com/mutablelogic/go-media/issue
 
 ## References
 
-* [FFmpeg 8.0 Documentation](https://ffmpeg.org/doxygen/8.0/index.html)
-* [Go Package Documentation](https://pkg.go.dev/github.com/mutablelogic/go-media)
-* [AcoustID API](https://acoustid.org/webservice)
+- [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
+- [libheif](https://github.com/strukturag/libheif)
+- [LibRaw](https://www.libraw.org/)
+- [libexif](https://libexif.github.io/)
+- [Go Package Documentation](https://pkg.go.dev/github.com/mutablelogic/go-media)
+- [AcoustID API](https://acoustid.org/webservice)

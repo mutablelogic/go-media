@@ -46,11 +46,58 @@ func Parse(data []byte) (*EXIF, error) {
 	if len(data) == 0 {
 		return nil, media.ErrBadParameter.With("empty data")
 	}
-	d := libexif.Exif_data_new_from_data(data)
-	if d == nil {
-		return nil, media.ErrBadParameter.With("failed to parse EXIF data")
+	if stripped := unwrapHEIFExif(data); len(stripped) > 0 {
+		if d := parseData(stripped); d != nil {
+			return newEXIF(d), nil
+		}
 	}
-	return newEXIF(d), nil
+	if d := parseData(data); d != nil {
+		return newEXIF(d), nil
+	}
+	if len(data) > 4 {
+		if d := parseData(data[4:]); d != nil {
+			return newEXIF(d), nil
+		}
+	}
+	return nil, media.ErrBadParameter.With("failed to parse EXIF data")
+}
+
+func unwrapHEIFExif(data []byte) []byte {
+	if len(data) >= 4 {
+		return data[4:]
+	}
+	return nil
+}
+
+func parseData(data []byte) *libexif.Data {
+	loader := libexif.Exif_loader_new()
+	if loader == nil {
+		if d := libexif.Exif_data_new_from_data(data); d != nil {
+			return d
+		}
+		if d := libexif.Exif_data_new(); d != nil {
+			libexif.Exif_data_load_data(d, data)
+			return d
+		}
+		return nil
+	}
+	defer libexif.Exif_loader_unref(loader)
+
+	libexif.Exif_loader_write(loader, data)
+	if d := libexif.Exif_loader_get_data(loader); d != nil {
+		return d
+	}
+
+	if d := libexif.Exif_data_new_from_data(data); d != nil {
+		return d
+	}
+
+	if d := libexif.Exif_data_new(); d != nil {
+		libexif.Exif_data_load_data(d, data)
+		return d
+	}
+
+	return nil
 }
 
 func (e *EXIF) Close() error {
@@ -67,9 +114,9 @@ func (e *EXIF) Close() error {
 // MarshalJSON implements json.Marshaler.
 func (e *EXIF) MarshalJSON() ([]byte, error) {
 	v := struct {
-		Order      string `json:"order"`
-		Tags       []*Tag `json:"tags"`
-		MakerNote  *MakerNote `json:"maker_note,omitempty"`
+		Order     string     `json:"order"`
+		Tags      []*Tag     `json:"tags"`
+		MakerNote *MakerNote `json:"maker_note,omitempty"`
 	}{
 		Order:     libexif.Exif_byte_order_get_name(e.order),
 		Tags:      e.Tags(),

@@ -6,14 +6,18 @@ PKG_CONFIG=$(shell which pkg-config)
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
+# Locations
+BUILD_DIR ?= build
+CMD_DIR := $(wildcard cmd/*)
+PREFIX ?= ${BUILD_DIR}/install
+
 # Source version
-#FFMPEG_VERSION ?= ffmpeg-7.1.1
-#SYS_VERSION ?= ffmpeg71
 FFMPEG_VERSION ?= ffmpeg-8.0.3
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 LIBEXIF_VERSION ?= 0.6.26
 LIBRAW_VERSION ?= 0.22.1
+LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -28,20 +32,18 @@ else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 endif
 
-# Build flags
-BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-BUILD_TAG := ${DOCKER_REGISTRY}/go-media-${OS}-${ARCH}:${VERSION}
-PREFIX ?= ${BUILD_DIR}/install
+# Set build flags
+VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitTag=$(shell git describe --tags --always)
+BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
+
+# Docker
+DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
+DOCKER_SOURCE ?= $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
+DOCKER_TAG = ${DOCKER_REPO}:${VERSION}-${OS}-${ARCH}
+
 
 ###############################################################################
 # TARGETS
@@ -50,9 +52,9 @@ PREFIX ?= ${BUILD_DIR}/install
 all: clean cmd
 
 .PHONY: cmd
-cmd: ffmpeg chromaprint libexif $(CMD_DIR)
+cmd: ffmpeg chromaprint libexif libraw libheif $(CMD_DIR)
 
-$(CMD_DIR): go-dep go-tidy sdl-dep mkdir 
+$(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
@@ -219,33 +221,85 @@ libexif: libexif-build
 	@rm -f "${PREFIX}/lib/pkgconfig/libexif.pc.bak"
 
 ###############################################################################
+# LIBHEIF
+
+# Download libheif sources
+${BUILD_DIR}/libheif-${LIBHEIF_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/libheif-$(LIBHEIF_VERSION)" ]; then \
+		echo "Downloading $(LIBHEIF_VERSION)"; \
+		mkdir -p $(BUILD_DIR)/libheif-${LIBHEIF_VERSION}; \
+		curl -L -o $(BUILD_DIR)/libheif.tar.gz https://github.com/strukturag/libheif/releases/download/v$(LIBHEIF_VERSION)/libheif-$(LIBHEIF_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/libheif.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/libheif.tar.gz; \
+	fi
+
+.PHONY: libheif-configure
+libheif-configure: mkdir pkconfig-dep ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} ffmpeg libheif-dep
+	@echo "Configuring libheif-${LIBHEIF_VERSION} => ${PREFIX}"
+	@cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=0 \
+		-DCMAKE_INSTALL_PREFIX="$(shell realpath ${PREFIX})" \
+		-DCMAKE_PREFIX_PATH="$(shell realpath ${PREFIX})" \
+		-DCMAKE_LIBRARY_PATH="$(shell realpath ${PREFIX})/lib" \
+		-DCMAKE_INCLUDE_PATH="$(shell realpath ${PREFIX})/include" \
+		${LIBHEIF_CONFIG} \
+		-S ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} \
+		-B ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}
+
+# Build libheif
+.PHONY: libheif-build
+libheif-build: libheif-configure
+	@echo "Building libheif-${LIBHEIF_VERSION} with ${JOBS} jobs"
+	@cmake --build ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} -j$(JOBS)
+
+# Install libheif
+.PHONY: libheif
+libheif: libheif-build
+	@echo "Installing libheif-${LIBHEIF_VERSION} => ${PREFIX}"
+	@cmake --install ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}
+	@if ! grep -q 'libavcodec' "${PREFIX}/lib/pkgconfig/libheif.pc"; then \
+		sed -i.bak 's/^Requires.private:[[:space:]]*/Requires.private: libavcodec libavformat libavutil /' "${PREFIX}/lib/pkgconfig/libheif.pc"; \
+		rm -f "${PREFIX}/lib/pkgconfig/libheif.pc.bak"; \
+	fi
+
+###############################################################################
 # DOCKER
 
+# Build the docker image
+.PHONY: docker
 docker: docker-dep
-	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
+	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
-		--tag ${BUILD_TAG} \
+		--tag ${DOCKER_TAG} \
+		--provenance=false \
 		--build-arg ARCH=${ARCH} \
 		--build-arg OS=${OS} \
-		--build-arg SOURCE=${BUILD_MODULE} \
+		--build-arg SOURCE=${DOCKER_SOURCE} \
 		--build-arg VERSION=${VERSION} \
 		-f etc/docker/Dockerfile .
 
-docker-push: docker-dep
-	@echo push docker image: ${BUILD_TAG}
-	@${DOCKER} push ${BUILD_TAG}
+# Push docker container
+.PHONY: docker-push
+docker-push: docker-dep 
+	@echo push docker image: ${DOCKER_TAG}
+	@${DOCKER} push ${DOCKER_TAG}
+
+# Print out the version
+.PHONY: docker-version
+docker-version: docker-dep 
+	@echo "tag=${VERSION}"
 
 ###############################################################################
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint libexif libraw test-ffmpeg test-chromaprint test-exif test-raw
-	@echo ... test pkg/file
-	@${GO} test ${ARGS} ./pkg/file
+test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
 
 .PHONY: test-chromaprint
 test-chromaprint:
-	@echo ... test pkg/chromaprint
+	@echo ... test pkg/segmenter pkg/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
@@ -261,26 +315,27 @@ test-raw:
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
-.PHONY: test-sys
-test-sys: go-dep go-tidy
-	@echo Test
-	@echo ... test sys/${SYS_VERSION}
-	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
+.PHONY: test-heif
+test-heif:
+	@echo ... test sys/libheif pkg/heif
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
+	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
 
 .PHONY: test-ffmpeg
-test-ffmpeg: test-sys
-	@echo Test
-	@echo ... test pkg/ffmpeg/...
+test-ffmpeg: go-dep go-tidy
+	@echo ... test sys/${SYS_VERSION} pkg/ffmpeg
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/ffmpeg/...
 
-.PHONY: coverage
-coverage: ffmpeg chromaprint sdl-dep mkdir
-	@echo "Running tests with coverage..."
-	@${CGO_ENV} ${GO} test ${ARGS} ${BUILD_FLAGS} -coverprofile=${BUILD_DIR}/coverage.out -covermode=atomic ./sys/${SYS_VERSION} ./pkg/...
-	@${GO} tool cover -func=${BUILD_DIR}/coverage.out | tail -1
-	@${GO} tool cover -html=${BUILD_DIR}/coverage.out -o ${BUILD_DIR}/coverage.html
-	@echo "Coverage report: ${BUILD_DIR}/coverage.html"
+.PHONY: test-metadata
+test-metadata: 
+	@echo ... test metadata/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
 
+.PHONY: test-gomedia
+test-gomedia: 
+	@echo ... test gomedia/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
 
 ###############################################################################
 # DEPENDENCIES, ETC
@@ -346,7 +401,31 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openh264 && echo "--enable-libopenh264"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
 
+# Check for libheif dependencies
+.PHONY: libheif-dep
+libheif-dep:
+	$(eval LIBHEIF_CONFIG := -DENABLE_PLUGIN_LOADING=OFF -DWITH_EXAMPLES=OFF -DBUILD_TESTING=OFF -DBUILD_DOCUMENTATION=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_GDK_PIXBUF=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_LIBSHARPYUV=OFF)
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_LIBDE265=$(shell ${PKG_CONFIG} --exists libde265 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_X265=$(shell ${PKG_CONFIG} --exists x265 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_AOM_DECODER=$(shell ${PKG_CONFIG} --exists aom && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_AOM_ENCODER=$(shell ${PKG_CONFIG} --exists aom && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_DAV1D=$(shell ${PKG_CONFIG} --exists dav1d && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_SvtEnc=$(shell ${PKG_CONFIG} --exists SvtAv1Enc && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_OpenH264_DECODER=$(shell ${PKG_CONFIG} --exists openh264 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_X264=$(shell ${PKG_CONFIG} --exists x264 && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_FFMPEG_DECODER=$(shell ${PKG_CONFIG} --exists libavcodec libavformat libavutil && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_DECODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
+	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_ENCODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
+	@echo "libheif configuration: $(LIBHEIF_CONFIG)"
+
 # Check for SDL dependencies
 .PHONY: sdl-dep
 sdl-dep:
 	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell $(PKG_CONFIG) --exists sdl2 && echo "--tags sdl2"))
+
+# Check for Chromaprint dependencies
+.PHONY: chromaprint-dep
+chromaprint-dep:
+	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig:$$PKG_CONFIG_PATH" $(PKG_CONFIG) --exists libchromaprint && echo "--tags chromaprint"))

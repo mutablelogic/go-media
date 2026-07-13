@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"image"
 	"strings"
+	"time"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
@@ -103,6 +104,82 @@ func (it *Item) Lang() string { return it.lang }
 
 // Items returns child items: members of Bag/Seq/Alt, or fields of a Struct.
 func (it *Item) Items() []*Item { return it.items }
+
+// ValueType returns the registered scalar type for this item's key.
+func (it *Item) ValueType() ValueType {
+	return ValueTypeForKey(it.Key())
+}
+
+// AsTime parses this Simple item as a time value.
+func (it *Item) AsTime() (time.Time, bool) {
+	if it.kind != Simple {
+		return time.Time{}, false
+	}
+	return parseTimeValue(it.value)
+}
+
+// AsDuration parses this Simple item as a duration.
+func (it *Item) AsDuration() (time.Duration, bool) {
+	if it.kind != Simple {
+		return 0, false
+	}
+	return parseDurationValue(it.value)
+}
+
+// AsBool parses this Simple item as a boolean.
+func (it *Item) AsBool() (bool, bool) {
+	if it.kind != Simple {
+		return false, false
+	}
+	return parseBoolValue(it.value)
+}
+
+// AsRational parses this Simple item as a rational value.
+func (it *Item) AsRational() (Rational, bool) {
+	if it.kind != Simple {
+		return Rational{}, false
+	}
+	return parseRationalValue(it.value)
+}
+
+// AsGPSCoord parses this Simple item as a decimal degree coordinate.
+func (it *Item) AsGPSCoord() (float64, bool) {
+	if it.kind != Simple {
+		return 0, false
+	}
+	return parseGPSCoordValue(it.value)
+}
+
+// TypedValue returns a typed scalar for Simple items where a registered type
+// exists, and falls back to string (or the normal Any() for non-Simple kinds).
+func (it *Item) TypedValue() any {
+	if it.kind != Simple {
+		return it.Any()
+	}
+	switch it.ValueType() {
+	case ValueTypeTime:
+		if v, ok := it.AsTime(); ok {
+			return v
+		}
+	case ValueTypeDuration:
+		if v, ok := it.AsDuration(); ok {
+			return v
+		}
+	case ValueTypeBoolean:
+		if v, ok := it.AsBool(); ok {
+			return v
+		}
+	case ValueTypeRational:
+		if v, ok := it.AsRational(); ok {
+			return v
+		}
+	case ValueTypeGPSCoord:
+		if v, ok := it.AsGPSCoord(); ok {
+			return v
+		}
+	}
+	return it.value
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // media.Metadata

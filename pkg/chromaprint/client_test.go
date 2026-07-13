@@ -57,7 +57,7 @@ func Test_client_002(t *testing.T) {
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
-	matches, err := client.Lookup("AQAAT0mUaEkSRZEGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 5*time.Second, META_TRACK)
+	matches, err := client.Lookup(context.Background(), "AQAAT0mUaEkSRZEGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 5*time.Second, META_TRACK)
 	assert.NoError(err)
 	t.Log(matches)
 }
@@ -69,7 +69,7 @@ func Test_client_003(t *testing.T) {
 		t.SkipNow()
 	}
 
-	matches, err := client.Lookup(SAMPLE_001_FINGERPRINT, SAMPLE_001_DURATION, META_ALL)
+	matches, err := client.Lookup(context.Background(), SAMPLE_001_FINGERPRINT, SAMPLE_001_DURATION, META_ALL)
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
@@ -97,7 +97,7 @@ func Test_client_004(t *testing.T) {
 	}
 
 	// Lookup matches
-	matches, err := client.Lookup(fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), META_ALL)
+	matches, err := client.Lookup(context.Background(), fpResult.Fingerprint, time.Duration(fpResult.Duration*float64(time.Second)), META_ALL)
 	assert.NoError(err)
 	t.Log(matches)
 }
