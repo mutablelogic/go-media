@@ -20,7 +20,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - name: Run tests
         run: |
-          sudo apt -y update && sudo apt -y install nasm
+          sudo apt -y update && sudo apt -y install nasm libde265-dev libaom-dev libdav1d-dev
           make test
       - name: Generate coverage report
         run: make coverage

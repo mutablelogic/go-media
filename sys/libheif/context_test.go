@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	// Packages
 	. "github.com/mutablelogic/go-media/sys/libheif"
 )
 
