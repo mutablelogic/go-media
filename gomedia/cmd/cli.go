@@ -25,6 +25,13 @@ type BaseCmd struct {
 	ChromaprintKey string `name:"chromaprint-key" env:"CHROMAPRINT_KEY" help:"AcoustID API key for chromaprint lookups"`
 }
 
+type MetadataCLICommands struct {
+	Metadata MetadataCmd `cmd:"" name:"metadata" help:"Extract metadata." group:"METADATA"`
+	Artwork  ArtworkCmd  `cmd:"" name:"artwork" help:"Extract artwork." group:"METADATA"`
+	Probe    ProbeCmd    `cmd:"" name:"probe" help:"Probe media file." group:"METADATA"`
+	MetadataChromaprintCLICommands
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
