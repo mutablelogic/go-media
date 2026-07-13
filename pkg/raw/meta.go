@@ -72,7 +72,14 @@ func newMetadata(r *RAW) []media.Metadata {
 		add("exif:FocalLength", fmt.Sprintf("%.0fmm", fl), fl)
 	}
 	if ts := libraw.ImgOther_timestamp(other); ts > 0 {
-		t := time.Unix(ts, 0).UTC()
+		// libraw derives timestamp via mktime() on the EXIF wall-clock
+		// string (which carries no timezone), so the epoch is only
+		// meaningful when re-localized on the same host that parsed it.
+		// Recover the wall-clock fields via time.Local (the inverse of
+		// libraw's mktime) and relabel them as UTC, rather than
+		// converting, so the result doesn't depend on the host timezone.
+		local := time.Unix(ts, 0)
+		t := time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), local.Minute(), local.Second(), 0, time.UTC)
 		add("exif:DateTimeOriginal", t.Format(time.RFC3339), t)
 	}
 	if desc := strings.TrimSpace(libraw.ImgOther_desc(other)); desc != "" {
