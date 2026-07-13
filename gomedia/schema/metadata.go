@@ -3,6 +3,7 @@ package schema
 import (
 	"encoding/json"
 
+	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
