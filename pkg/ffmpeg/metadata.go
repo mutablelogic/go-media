@@ -8,7 +8,7 @@ import (
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	file "github.com/mutablelogic/go-media/pkg/file"
+	metadata "github.com/mutablelogic/go-media/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +83,8 @@ func (m *Metadata) Value() string {
 	case string:
 		return v
 	case []byte:
-		if mimetype, _, err := file.MimeType(v); err == nil {
+		mimetype, _, err := metadata.ContentType(bytes.NewReader(v))
+		if err == nil {
 			return mimetype
 		} else {
 			return ""
