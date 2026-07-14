@@ -95,6 +95,7 @@ func (r *AudioProfile) SetOption(name string, value any) error {
 	return nil
 }
 
+// Return all options for the audio profile, including codec private options.
 func (r AudioProfile) Options() []Option {
 	opts := make([]Option, 0, 10)
 	byUnit := make(map[string]int)
