@@ -3,11 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

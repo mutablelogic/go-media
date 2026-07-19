@@ -18,12 +18,28 @@ type Meta struct {
 }
 
 type MetaItem struct {
-	Name string `json:"name,omitempty" yaml:"name,omitempty"`
-	gomedia.Metadata
+	Name             string `json:"name,omitempty" yaml:"name,omitempty"`
+	MetaKey          string `json:"key,omitempty" yaml:"key,omitempty"`
+	MetaValue        any    `json:"value,omitempty" yaml:"value,omitempty"`
+	gomedia.Metadata `json:"-" yaml:"-"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (m MetaItem) Key() string {
+	if m.Metadata != nil {
+		return m.Metadata.Key()
+	}
+	return m.MetaKey
+}
+
+func (m MetaItem) Any() any {
+	if m.Metadata != nil {
+		return m.Metadata.Any()
+	}
+	return m.MetaValue
+}
 
 func (m MetaItem) MarshalJSON() ([]byte, error) {
 	type kv struct {
@@ -53,15 +69,9 @@ func (r MetaItem) Cell(col int) string {
 	case 0:
 		return r.Name
 	case 1:
-		if r.Metadata != nil {
-			return r.Key()
-		}
-		return ""
+		return r.Key()
 	case 2:
-		if r.Metadata != nil {
-			return types.Stringify(r.Value())
-		}
-		return ""
+		return types.Stringify(r.Any())
 	default:
 		return ""
 	}

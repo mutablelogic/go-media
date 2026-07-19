@@ -210,7 +210,7 @@ func (t AVOptionType) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Quote(t.String())), nil
 }
 
-// MarshalJSON implements json.Marshaler for AVOptionType.
+// String returns the string representation of AVOptionType.
 func (t AVOptionType) String() string {
 	var s string
 	switch t {
