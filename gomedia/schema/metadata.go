@@ -3,6 +3,7 @@ package schema
 import (
 	"encoding/json"
 
+	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -11,71 +12,66 @@ import (
 // TYPES
 
 type Meta struct {
-	ContentType string     `json:"content_type,omitempty"`
-	Meta        []MetaItem `json:"meta,omitempty"`
+	Name        string     `json:"name,omitempty" yaml:"name,omitempty"`
+	ContentType string     `json:"content_type,omitempty" yaml:"content_type,omitempty"`
+	Meta        []MetaItem `json:"meta,omitempty" yaml:"meta,omitempty"`
 }
 
 type MetaItem struct {
-	gomedia.Metadata
-}
-
-type metaJSONItem struct {
-	Key   string `json:"key"`
-	Value any    `json:"value,omitempty"`
+	Name             string `json:"name,omitempty" yaml:"name,omitempty"`
+	MetaKey          string `json:"key,omitempty" yaml:"key,omitempty"`
+	MetaValue        any    `json:"value,omitempty" yaml:"value,omitempty"`
+	gomedia.Metadata `json:"-" yaml:"-"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-// MarshalJSON emits metadata as explicit key/value pairs rather than
-// marshaling embedded interface-backed structs directly.
-func (m Meta) MarshalJSON() ([]byte, error) {
-	out := struct {
-		ContentType string         `json:"content_type,omitempty"`
-		Meta        []metaJSONItem `json:"meta,omitempty"`
-	}{
-		ContentType: m.ContentType,
+func (m MetaItem) Key() string {
+	if m.Metadata != nil {
+		return m.Metadata.Key()
 	}
-
-	if len(m.Meta) > 0 {
-		out.Meta = make([]metaJSONItem, 0, len(m.Meta))
-		for _, item := range m.Meta {
-			if item.Metadata == nil {
-				continue
-			}
-			out.Meta = append(out.Meta, metaJSONItem{Key: item.Key(), Value: jsonValue(item.Metadata)})
-		}
-	}
-
-	return json.Marshal(out)
+	return m.MetaKey
 }
 
-func jsonValue(item gomedia.Metadata) any {
-	switch v := item.Any().(type) {
-	case int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64,
-		bool,
-		[]byte:
-		return v
-	default:
-		return item.Value()
+func (m MetaItem) Any() any {
+	if m.Metadata != nil {
+		return m.Metadata.Any()
 	}
+	return m.MetaValue
+}
+
+func (m MetaItem) MarshalJSON() ([]byte, error) {
+	type kv struct {
+		Key   string `json:"key"`
+		Value any    `json:"value"`
+	}
+	return json.Marshal(kv{Key: m.Key(), Value: m.Any()})
+}
+
+func (m MetaItem) MarshalYAML() (any, error) {
+	type kv struct {
+		Key   string `yaml:"key"`
+		Value any    `yaml:"value"`
+	}
+	return kv{Key: m.Key(), Value: m.Any()}, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // TABLE WRITER
 
 func (MetaItem) Header() []string {
-	return []string{"Key", "Value"}
+	return []string{"Path", "Key", "Value"}
 }
 
 func (r MetaItem) Cell(col int) string {
 	switch col {
 	case 0:
-		return r.Key()
+		return r.Name
 	case 1:
-		return types.Stringify(r.Value())
+		return r.Key()
+	case 2:
+		return types.Stringify(r.Any())
 	default:
 		return ""
 	}

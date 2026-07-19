@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"unsafe"
 )
 
@@ -205,8 +206,12 @@ const (
 	AV_OPT_TYPE_FLAG_ARRAY AVOptionType = C.AV_OPT_TYPE_FLAG_ARRAY
 )
 
-// MarshalJSON implements json.Marshaler for AVOptionType.
 func (t AVOptionType) MarshalJSON() ([]byte, error) {
+	return []byte(strconv.Quote(t.String())), nil
+}
+
+// String returns the string representation of AVOptionType.
+func (t AVOptionType) String() string {
 	var s string
 	switch t {
 	case AV_OPT_TYPE_FLAGS:
@@ -254,7 +259,7 @@ func (t AVOptionType) MarshalJSON() ([]byte, error) {
 	default:
 		s = "unknown"
 	}
-	return json.Marshal(s)
+	return s
 }
 
 ////////////////////////////////////////////////////////////////////////////////
