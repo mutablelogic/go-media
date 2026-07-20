@@ -2,6 +2,7 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
+NPM ?= $(shell which npm 2>/dev/null)
 
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
@@ -288,8 +289,18 @@ docker-push: docker-dep
 
 # Print out the version
 .PHONY: docker-version
-docker-version: docker-dep 
+docker-version: docker-dep
 	@echo "tag=${VERSION}"
+
+###############################################################################
+# TYPESCRIPT
+
+TS_DIR := ts
+
+.PHONY: ts
+ts: npm-dep mkdir
+	@echo Build TypeScript
+	@${NPM} install --silent && node $(TS_DIR)/build.js
 
 ###############################################################################
 # TESTS
@@ -351,6 +362,10 @@ docker-dep:
 .PHONY: pkconfig-dep
 pkconfig-dep:
 	@test -f "$(PKG_CONFIG)" && test -x "$(PKG_CONFIG)"  || (echo "Missing pkg-config binary" && exit 1)
+
+.PHONY: npm-dep
+npm-dep:
+	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary" && exit 1)
 
 
 .PHONY: mkdir

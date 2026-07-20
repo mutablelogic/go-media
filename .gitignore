@@ -11,3 +11,4 @@ tmp
 *.test
 *.out
 coverage.html
+node_modules

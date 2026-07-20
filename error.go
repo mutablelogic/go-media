@@ -1,8 +1,12 @@
 package media
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/mutablelogic/go-pg"
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,10 +46,51 @@ func (code Err) Error() string {
 	}
 }
 
+func (e Err) HTTP() httpresponse.Err {
+	switch e {
+	case ErrNotFound:
+		return httpresponse.ErrNotFound
+	case ErrBadParameter:
+		return httpresponse.ErrBadRequest
+	case ErrInternalError:
+		return httpresponse.ErrInternalError
+	case ErrNotImplemented:
+		return httpresponse.ErrNotImplemented
+	default:
+		return httpresponse.ErrInternalError
+	}
+}
+
 func (code Err) With(args ...any) error {
 	return fmt.Errorf("%w: %s", code, fmt.Sprint(args...))
 }
 
 func (code Err) Withf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", code, fmt.Sprintf(format, args...))
+}
+
+func HTTPErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check for http error
+	var httpErr httpresponse.Err
+	if errors.As(err, &httpErr) {
+		return err
+	}
+
+	// Check for database error
+	if pg.IsDatabaseError(err) {
+		return pg.HTTPError(err)
+	}
+
+	// Check for gomedia error
+	var schemaErr Err
+	if errors.As(err, &schemaErr) {
+		return schemaErr.HTTP().With(err)
+	}
+
+	// Return internal error
+	return httpresponse.ErrInternalError.With(err)
 }
