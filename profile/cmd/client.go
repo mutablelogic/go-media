@@ -13,7 +13,7 @@ import (
 // TYPES
 
 type ClientCommands struct {
-	ListCodecs ListCodecs `cmd:"" name:"list-codecs" help:"List the available codecs." group:"CLIENT"`
+	ClientCodecCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////
