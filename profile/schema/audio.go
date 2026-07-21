@@ -15,16 +15,6 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type AudioCodec struct {
-	Name        string `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
-	Description string `json:"description,omitempty"` // Codec description
-}
-
-type AudioCodecList struct {
-	Count uint64       `json:"count"` // Number of audio codecs
-	Body  []AudioCodec `json:"body"`  // List of audio codecs
-}
-
 type AudioProfileMeta struct {
 	Codec        string      `json:"codec"`                   // "aac", "libmp3lame", "copy", ...
 	Bitrate      *uint64     `json:"bitrate,omitempty"`       // bps; 0 = use quality
@@ -181,64 +171,4 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 func (r *AudioProfileMeta) Set(opts url.Values) error {
 	// Implementation goes here
 	return nil
-}
-
-// Return all options for the audio profile, including codec private options.
-func (r AudioProfile) Options() []Option {
-	opts := make([]Option, 0, 10)
-	byUnit := make(map[string]int)
-	constsByUnit := make(map[string][]*ff.AVOption)
-
-	if r.ctx == nil {
-		return opts
-	}
-
-	// Enumerate options from the codec private class if available.
-	if class := r.ctx.PrivClass(); class != nil {
-		for _, opt := range ff.AVUtil_opt_list_from_class(class) {
-			if opt == nil {
-				continue
-			}
-			if opt.Type() == ff.AV_OPT_TYPE_CONST {
-				if unit := strings.TrimSpace(opt.Unit()); unit != "" {
-					constsByUnit[unit] = append(constsByUnit[unit], opt)
-				}
-				continue
-			}
-
-			option := NewOption(opt)
-			if option.Name == "" {
-				continue
-			}
-			if option.Unit != "" {
-				byUnit[option.Unit] = len(opts)
-			}
-			opts = append(opts, option)
-		}
-	}
-
-	for unit, consts := range constsByUnit {
-		index, exists := byUnit[unit]
-		if !exists {
-			continue
-		}
-
-		for _, opt := range consts {
-			if name := strings.TrimSpace(opt.Name()); name != "" {
-				opts[index].Enum = append(opts[index].Enum, name)
-			}
-		}
-
-		if current, ok := opts[index].Value.(int64); ok {
-			for _, opt := range consts {
-				if value, ok := opt.DefaultVal().(int64); ok && value == current {
-					if name := strings.TrimSpace(opt.Name()); name != "" {
-						opts[index].Value = name
-						break
-					}
-				}
-			}
-		}
-	}
-	return opts
 }

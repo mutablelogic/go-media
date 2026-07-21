@@ -12,10 +12,10 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (c *Client) ListCodecs(ctx context.Context) (*schema.AudioCodecList, error) {
+func (c *Client) ListCodecs(ctx context.Context, req schema.CodecListRequest) (*schema.CodecList, error) {
 	// Perform request
-	var response schema.AudioCodecList
-	if err := c.DoWithContext(ctx, nil, &response, client.OptPath("codec")); err != nil {
+	var response schema.CodecList
+	if err := c.DoWithContext(ctx, nil, &response, client.OptPath("codec"), client.OptQuery(req.Query())); err != nil {
 		return nil, err
 	}
 

@@ -13,14 +13,15 @@ import (
 // TYPES
 
 type Option struct {
-	Name        string `json:"name,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Value       any    `json:"value,omitempty"`
-	Enum        []any  `json:"enum,omitempty"`
-	Min         any    `json:"min,omitempty"`
-	Max         any    `json:"max,omitempty"`
-	Unit        string `json:"unit,omitempty"`
-	Description string `json:"description,omitempty"`
+	Name        string   `json:"name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Default     any      `json:"default,omitempty"`
+	Value       any      `json:"value,omitempty"`
+	Const       []Option `json:"const,omitempty"`
+	Min         any      `json:"min,omitempty"`
+	Max         any      `json:"max,omitempty"`
+	Unit        string   `json:"unit,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +35,7 @@ func NewOption(ctx *ff.AVOption) Option {
 	option := Option{
 		Name:        ctx.Name(),
 		Type:        ctx.Type().String(),
-		Value:       normalizeOptionValue(ctx.DefaultVal(), ctx.Type()),
+		Default:     normalizeOptionValue(ctx.DefaultVal(), ctx.Type()),
 		Unit:        ctx.Unit(),
 		Description: ctx.Help(),
 	}
@@ -74,13 +75,14 @@ func (o Option) Validate() error {
 		return nil
 	}
 
-	if len(o.Enum) > 0 {
-		for _, v := range o.Enum {
+	// Check against constants
+	if len(o.Const) > 0 {
+		for _, v := range o.Const {
 			if optionValueEqual(o.Value, v) {
 				return nil
 			}
 		}
-		return fmt.Errorf("option %q must be one of %v", o.Name, o.Enum)
+		return fmt.Errorf("option %q must be one of %v", o.Name, o.Const)
 	}
 
 	switch o.Type {

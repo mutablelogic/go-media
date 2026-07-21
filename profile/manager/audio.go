@@ -8,7 +8,6 @@ import (
 	uuid "github.com/google/uuid"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
 	schema "github.com/mutablelogic/go-media/profile/schema"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	pg "github.com/mutablelogic/go-pg"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	attribute "go.opentelemetry.io/otel/attribute"
@@ -16,43 +15,6 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
-func (profile *Profile) ListAudioCodecs(ctx context.Context) (_ *schema.AudioCodecList, err error) {
-	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "ListAudioCodecs")
-	defer func() { endSpan(err) }()
-
-	// Match helper
-	matches := func(c *ff.AVCodec) bool {
-		if !ff.AVCodec_is_encoder(c) {
-			return false
-		}
-		if c.Type() != ff.AVMEDIA_TYPE_AUDIO {
-			return false
-		}
-		return true
-	}
-
-	// Get the list of audio codecs
-	var opaque uintptr
-	var result schema.AudioCodecList
-	for {
-		codec := ff.AVCodec_iterate(&opaque)
-		if codec == nil {
-			break
-		}
-		if !matches(codec) {
-			continue
-		}
-		result.Body = append(result.Body, schema.AudioCodec{
-			Name:        codec.Name(),
-			Description: codec.LongName(),
-		})
-	}
-	result.Count = uint64(len(result.Body))
-
-	// Return success
-	return types.Ptr(result), nil
-}
 
 func (profile *Profile) CreateAudioProfile(ctx context.Context, codec string, opts url.Values) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "CreateAudioProfile",

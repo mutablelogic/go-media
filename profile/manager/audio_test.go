@@ -31,33 +31,6 @@ func TestCreateAudioProfile(t *testing.T) {
 	require.NotEqual(uuid.Nil, profile.Id)
 }
 
-func TestListAudioCodecs(t *testing.T) {
-	require := require.New(t)
-	mgr, ctx := test.Begin(t)
-	defer test.End(t)
-
-	result, err := mgr.ListAudioCodecs(ctx)
-	require.NoError(err)
-	require.NotNil(result)
-	require.Equal(uint64(len(result.Body)), result.Count)
-
-	for _, codec := range result.Body {
-		require.NotEmpty(codec.Name)
-		t.Log("Audio codec:", codec.Name, "description:", codec.Description)
-	}
-
-	if ff.AVCodec_find_encoder_by_name("aac") != nil {
-		found := false
-		for _, codec := range result.Body {
-			if codec.Name == "aac" {
-				found = true
-				break
-			}
-		}
-		require.True(found)
-	}
-}
-
 func TestGetAudioProfile(t *testing.T) {
 	if ff.AVCodec_find_encoder_by_name("aac") == nil {
 		t.Skip("aac encoder is not available")

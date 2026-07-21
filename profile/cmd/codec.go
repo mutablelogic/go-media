@@ -6,6 +6,7 @@ import (
 
 	// Packages
 	httpclient "github.com/mutablelogic/go-media/profile/httpclient"
+	schema "github.com/mutablelogic/go-media/profile/schema"
 	server "github.com/mutablelogic/go-server"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -14,6 +15,7 @@ import (
 // TYPES
 
 type ListCodecs struct {
+	schema.CodecListRequest
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,7 +24,7 @@ type ListCodecs struct {
 func (cmd *ListCodecs) Run(ctx server.Cmd) error {
 	return withClient(ctx, "ListCodecs", func(ctx context.Context, client *httpclient.Client) error {
 		// List the codecs
-		codecs, err := client.ListCodecs(ctx)
+		codecs, err := client.ListCodecs(ctx, cmd.CodecListRequest)
 		if err != nil {
 			return err
 		}
