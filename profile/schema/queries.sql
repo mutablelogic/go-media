@@ -50,3 +50,20 @@ RETURNING
 	"channel_layout",
 	"opts";
 
+
+-- profile.audio_update
+UPDATE
+	${"schema"}."audio"
+SET
+	${patch}
+WHERE
+	"id" = @id
+RETURNING
+	"id",
+	"codec",
+	"bitrate",
+	"sample_rate",
+	"sample_format",
+	"channel_layout",
+	"opts";
+

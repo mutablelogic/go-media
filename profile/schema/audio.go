@@ -107,6 +107,8 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 		return bind.Query("profile.audio_get"), nil
 	case pg.Delete:
 		return bind.Query("profile.audio_delete"), nil
+	case pg.Update:
+		return bind.Query("profile.audio_update"), nil
 	default:
 		return "", gomedia.ErrInternalError.Withf("unsupported AudioProfileUUID operation %q", op)
 	}
@@ -154,6 +156,7 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 	} else {
 		bind.Set("patch", patch)
 	}
+
 	return nil
 }
 
