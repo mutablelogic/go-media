@@ -126,6 +126,14 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		return nil
 	}
 
+	// Bitrate Option
+	bitrate := Option{
+		Name:        OptionBitrate,
+		Description: "Audio bitrate in bits per second.",
+		Type:        "int",
+		Unit:        "bps",
+	}
+
 	// Sample Rate Option
 	sample_rate := Option{
 		Name:        OptionSampleRate,
@@ -140,8 +148,8 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 			sample_rate.Default = uint64(rate)
 		}
 		sample_rate.Const = append(sample_rate.Const, Option{
-			Value: uint64(rate),
-			Type:  "int",
+			Default: uint64(rate),
+			Type:    "int",
 		})
 	}
 
@@ -156,8 +164,8 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 			sample_format.Default = strings.TrimSpace(format.String())
 		}
 		sample_format.Const = append(sample_format.Const, Option{
-			Value: strings.TrimSpace(format.String()),
-			Type:  "string",
+			Default: strings.TrimSpace(format.String()),
+			Type:    "string",
 		})
 	}
 
@@ -175,13 +183,13 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		}
 		if desc, err := ff.AVUtil_channel_layout_describe(&layout); err == nil {
 			channel_layout.Const = append(channel_layout.Const, Option{
-				Value: strings.TrimSpace(desc),
-				Type:  "string",
+				Default: strings.TrimSpace(desc),
+				Type:    "string",
 			})
 		}
 	}
 
-	return []Option{sample_rate, sample_format, channel_layout}
+	return []Option{bitrate, sample_rate, sample_format, channel_layout}
 }
 
 func VideoOptionsForCodec(_ *ff.AVCodec) []Option {
@@ -243,4 +251,20 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 	default:
 		return result
 	}
+}
+
+func optionsForCodec(codec *ff.AVCodec) map[string]Option {
+	if codec == nil {
+		return nil
+	}
+
+	// Extract options
+	opts := OptionsForCodec(codec)
+	result := make(map[string]Option, len(opts))
+	for _, opt := range opts {
+		result[opt.Name] = opt
+	}
+
+	// Return the options
+	return result
 }

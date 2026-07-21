@@ -2,11 +2,11 @@ package manager_test
 
 import (
 	"errors"
-	"net/url"
 	"testing"
 
 	// Packages
 	uuid "github.com/google/uuid"
+	schema "github.com/mutablelogic/go-media/profile/schema"
 	test "github.com/mutablelogic/go-media/profile/test"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	pg "github.com/mutablelogic/go-pg"
@@ -25,10 +25,11 @@ func TestCreateAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	profile, err := mgr.CreateAudioProfile(ctx, "aac", url.Values{})
+	profile, err := mgr.CreateAudioProfile(ctx, schema.CreateAudioProfileRequest{Codec: "aac"})
 	require.NoError(err)
 	require.NotNil(profile)
 	require.NotEqual(uuid.Nil, profile.Id)
+	require.Equal("aac", profile.Codec)
 }
 
 func TestGetAudioProfile(t *testing.T) {
@@ -40,7 +41,7 @@ func TestGetAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, "aac", url.Values{})
+	created, err := mgr.CreateAudioProfile(ctx, schema.CreateAudioProfileRequest{Codec: "aac"})
 	require.NoError(err)
 	require.NotNil(created)
 	require.NotEqual(uuid.Nil, created.Id)
@@ -50,6 +51,7 @@ func TestGetAudioProfile(t *testing.T) {
 	require.NotNil(got)
 
 	require.Equal(created.Id, got.Id)
+	require.Equal(created.Codec, got.Codec)
 	require.Equal(created.Bitrate, got.Bitrate)
 	require.Equal(created.SampleRate, got.SampleRate)
 	require.Equal(created.SampleFormat, got.SampleFormat)
@@ -66,7 +68,7 @@ func TestDeleteAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, "aac", url.Values{})
+	created, err := mgr.CreateAudioProfile(ctx, schema.CreateAudioProfileRequest{Codec: "aac"})
 	require.NoError(err)
 	require.NotNil(created)
 	require.NotEqual(uuid.Nil, created.Id)
@@ -90,7 +92,7 @@ func TestDeleteAudioProfileGone(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, "aac", url.Values{})
+	created, err := mgr.CreateAudioProfile(ctx, schema.CreateAudioProfileRequest{Codec: "aac"})
 	require.NoError(err)
 
 	_, err = mgr.DeleteAudioProfile(ctx, created.Id)

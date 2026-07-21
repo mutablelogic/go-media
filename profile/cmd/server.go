@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	// Packages
@@ -50,7 +51,10 @@ func (runner *RunServer) Run(ctx server.Cmd) error {
 		// Register http handlers for the manager
 		runner.Register(func(router *httprouter.Router) error {
 			ctx.Logger().DebugContext(ctx.Context(), "registering http handlers")
-			return httphandler.RegisterHandlers(manager, router)
+			return errors.Join(
+				httphandler.RegisterCodecHandlers(manager, router),
+				httphandler.RegisterAudioProfileHandlers(manager, router),
+			)
 		})
 
 		// Run the manager

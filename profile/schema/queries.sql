@@ -1,11 +1,13 @@
 -- profile.audio_insert
 INSERT INTO ${"schema"}."audio" (
+	"codec",
 	"bitrate",
 	"sample_rate",
 	"sample_format",
 	"channel_layout",
 	"opts"
 ) VALUES (
+	@codec,
 	@bitrate,
 	@sample_rate,
 	@sample_format,
@@ -13,6 +15,7 @@ INSERT INTO ${"schema"}."audio" (
 	@opts
 ) RETURNING
 	"id",
+	"codec",
 	"bitrate",
 	"sample_rate",
 	"sample_format",
@@ -22,10 +25,11 @@ INSERT INTO ${"schema"}."audio" (
 -- profile.audio_get
 SELECT
 	"id",
+	"codec",
 	"bitrate",
 	"sample_rate",
 	"sample_format",
-	"channel_layout"
+	"channel_layout",
 	"opts"
 FROM
 	${"schema"}."audio"
@@ -39,6 +43,7 @@ WHERE
 	"id" = @id
 RETURNING
 	"id",
+	"codec",
 	"bitrate",
 	"sample_rate",
 	"sample_format",

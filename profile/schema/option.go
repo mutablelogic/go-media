@@ -5,6 +5,7 @@ import (
 	"math"
 
 	// Packages
+	gomedia "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -17,7 +18,6 @@ type Option struct {
 	Description string   `json:"description,omitempty"`
 	Type        string   `json:"type,omitempty"`
 	Default     any      `json:"default,omitempty"`
-	Value       any      `json:"value,omitempty"`
 	Const       []Option `json:"const,omitempty"`
 	Min         any      `json:"min,omitempty"`
 	Max         any      `json:"max,omitempty"`
@@ -58,60 +58,54 @@ func NewOption(ctx *ff.AVOption) Option {
 // STRINGIFY
 
 func (o Option) String() string {
-	if o.Name == "" && o.Type == "" {
-		return "null"
-	}
 	return types.Stringify(o)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (o Option) Validate() error {
-	if o.Name == "" {
-		return fmt.Errorf("option name is required")
-	}
-	if o.Value == nil {
-		return nil
+func (o Option) Validate(value any) (any, error) {
+	if value == nil {
+		return nil, gomedia.ErrBadParameter.Withf("option %q cannot be nil", o.Name)
 	}
 
 	// Check against constants
 	if len(o.Const) > 0 {
 		for _, v := range o.Const {
-			if optionValueEqual(o.Value, v) {
-				return nil
+			if optionValueEqual(value, v) {
+				return value, nil
 			}
 		}
-		return fmt.Errorf("option %q must be one of %v", o.Name, o.Const)
+		return nil, fmt.Errorf("option %q must be one of %v", o.Name, o.Const)
 	}
 
 	switch o.Type {
 	case "bool":
-		if _, ok := o.Value.(bool); !ok {
-			return fmt.Errorf("option %q must be a bool", o.Name)
+		if _, ok := value.(bool); !ok {
+			return nil, fmt.Errorf("option %q must be a bool", o.Name)
 		}
 	case "int", "int64", "uint", "uint64", "double", "float", "duration":
-		value, ok := numericValue(o.Value)
+		value, ok := numericValue(value)
 		if !ok {
-			return fmt.Errorf("option %q must be numeric", o.Name)
+			return nil, fmt.Errorf("option %q must be numeric", o.Name)
 		}
 		if min, ok := numericValue(o.Min); ok && value < min {
-			return fmt.Errorf("option %q must be >= %v", o.Name, o.Min)
+			return nil, fmt.Errorf("option %q must be >= %v", o.Name, o.Min)
 		}
 		if max, ok := numericValue(o.Max); ok && value > max {
-			return fmt.Errorf("option %q must be <= %v", o.Name, o.Max)
+			return nil, fmt.Errorf("option %q must be <= %v", o.Name, o.Max)
 		}
 	case "string", "image_size", "pixel_fmt", "sample_fmt", "video_rate", "color", "chlayout", "binary", "dict":
-		if _, ok := o.Value.(string); !ok {
-			return fmt.Errorf("option %q must be a string", o.Name)
+		if _, ok := value.(string); !ok {
+			return nil, fmt.Errorf("option %q must be a string", o.Name)
 		}
 	case "rational":
-		if _, ok := o.Value.(ff.AVRational); !ok {
-			return fmt.Errorf("option %q must be an AVRational", o.Name)
+		if _, ok := value.(ff.AVRational); !ok {
+			return nil, fmt.Errorf("option %q must be an AVRational", o.Name)
 		}
 	}
 
-	return nil
+	return value, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

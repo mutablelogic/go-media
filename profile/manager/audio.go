@@ -2,7 +2,7 @@ package manager
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
 
 	// Packages
 	uuid "github.com/google/uuid"
@@ -16,24 +16,53 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (profile *Profile) CreateAudioProfile(ctx context.Context, codec string, opts url.Values) (_ *schema.AudioProfile, err error) {
+func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "CreateAudioProfile",
-		attribute.String("codec", codec),
-		attribute.String("opts", opts.Encode()),
+		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
 
 	var result schema.AudioProfile
 	if err := profile.Tx(ctx, func(conn pg.Conn) error {
 		// Create the audio profile
-		audioProfile, err := schema.NewAudioProfile(codec)
+		audioProfile, err := schema.NewAudioProfile(req.Codec)
 		if err != nil {
 			return err
 		}
 
-		// Apply options from the URL values
-		if err := audioProfile.Set(opts); err != nil {
-			return err
+		// Set options
+		if req.Bitrate != nil {
+			if err := audioProfile.Set(schema.OptionBitrate, types.Value(req.Bitrate)); err != nil {
+				return err
+			}
+		}
+		if req.SampleRate != nil {
+			if err := audioProfile.Set(schema.OptionSampleRate, types.Value(req.SampleRate)); err != nil {
+				return err
+			}
+		}
+		if req.SampleFormat != nil {
+			if err := audioProfile.Set(schema.OptionSampleFormat, types.Value(req.SampleFormat)); err != nil {
+				return err
+			}
+		}
+		if req.ChannelLayout != nil {
+			if err := audioProfile.Set(schema.OptionChannelLayout, types.Value(req.ChannelLayout)); err != nil {
+				return err
+			}
+		}
+
+		// Unmarshal the options JSON into a map
+		if req.Opts != nil {
+			var opts map[string]any
+			if err := json.Unmarshal(req.Opts, &opts); err != nil {
+				return err
+			}
+			for name, value := range opts {
+				if err := audioProfile.Set(name, value); err != nil {
+					return err
+				}
+			}
 		}
 
 		// Insert the audio profile into the database

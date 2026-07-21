@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"strings"
 
 	// Packages
@@ -15,13 +16,14 @@ import (
 // TYPES
 
 type AudioProfileMeta struct {
-	Codec        string      `json:"codec"`                    // "aac", "libmp3lame", "copy", ...
-	Bitrate      *uint64     `json:"bitrate,omitempty"`        // bps; 0 = use quality
-	SampleRate   *uint64     `json:"sample_rate,omitempty"`    // Hz; 0 = passthrough
-	SampleFormat *string     `json:"sample_format,omitempty"`  // Audio sample format; "fltp", "s16", leave empty for passthrough
-	Channels     *string     `json:"channel_layout,omitempty"` // Audio Channel Layout; "mono", "stereo", leave empty for passthrough
-	Opts         []string    `json:"options,omitempty"`        // Additional codec options
-	ctx          *ff.AVCodec `json:"-"`                        // Internal codec
+	Codec         string            `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
+	Bitrate       *uint64           `json:"bitrate,omitempty"`         // bps
+	SampleRate    *uint64           `json:"sample_rate,omitempty"`     // Hz
+	SampleFormat  *string           `json:"sample_format,omitempty"`   // Audio sample format; "fltp", "s16"
+	ChannelLayout *string           `json:"channel_layout,omitempty"`  // Audio Channel Layout; "mono", "stereo"
+	Opts          json.RawMessage   `json:"options,omitempty"`         // Additional codec options
+	ctx           *ff.AVCodec       `json:"-"`                         // Internal codec
+	opts          map[string]Option `json:"-"`                         // Internal codec options
 }
 
 type AudioProfile struct {
@@ -44,25 +46,21 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewAudioProfile(codec string) (*AudioProfileMeta, error) {
-	self := new(AudioProfileMeta)
-
+func NewAudioProfile(codec string) (*AudioProfile, error) {
 	// Create a new audio profile with default values
 	encoder := ff.AVCodec_find_encoder_by_name(codec)
 	if encoder == nil {
 		return nil, gomedia.ErrBadParameter.Withf("codec %q is not found", codec)
 	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
 		return nil, gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", codec)
-	} else {
-		self.Codec = encoder.Name()
-		self.ctx = encoder
 	}
 
-	// Set default values for the audio profile (if default is nil, option is removed/ignored)
-	for _, opt := range AudioOptionsForCodec(encoder) {
-		if err := self.Set(opt.Name, opt.Default); err != nil {
-			return nil, err
-		}
+	self := &AudioProfile{
+		AudioProfileMeta: AudioProfileMeta{
+			Codec: encoder.Name(),
+			ctx:   encoder,
+			opts:  optionsForCodec(encoder),
+		},
 	}
 
 	// Return success
@@ -79,9 +77,23 @@ func (r AudioProfile) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
-// Expected column order: id, bitrate, sample_rate, sample_format, channels, opts.
+// Expected column order: id, codec, bitrate, sample_rate, sample_format, channel_layout, opts.
 func (r *AudioProfile) Scan(row pg.Row) error {
-	return row.Scan(&r.Id, &r.Bitrate, &r.SampleRate, &r.SampleFormat, &r.Channels, &r.Opts)
+	if err := row.Scan(&r.Id, &r.Codec, &r.Bitrate, &r.SampleRate, &r.SampleFormat, &r.ChannelLayout, &r.Opts); err != nil {
+		return err
+	}
+
+	// Set context and options
+	encoder := ff.AVCodec_find_encoder_by_name(r.Codec)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Codec)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Codec)
+	} else {
+		r.ctx = encoder
+		r.opts = optionsForCodec(encoder)
+	}
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,12 +117,13 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 // Insert binds values and returns the insert query for an audio profile row.
 func (r AudioProfileMeta) Insert(bind *pg.Bind) (string, error) {
+	bind.Set("codec", r.Codec)
 	bind.Set(OptionBitrate, r.Bitrate)
 	bind.Set(OptionSampleRate, r.SampleRate)
 	bind.Set(OptionSampleFormat, r.SampleFormat)
-	bind.Set(OptionChannelLayout, r.Channels)
+	bind.Set(OptionChannelLayout, r.ChannelLayout)
 	if r.Opts == nil {
-		bind.Set("opts", []string{})
+		bind.Set("opts", map[string]any{})
 	} else {
 		bind.Set("opts", r.Opts)
 	}
@@ -130,7 +143,7 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 	if value := strings.TrimSpace(types.Value(r.SampleFormat)); value != "" {
 		bind.Append("patch", `"`+OptionSampleFormat+`" = `+bind.Set(OptionSampleFormat, value))
 	}
-	if value := strings.TrimSpace(types.Value(r.Channels)); value != "" {
+	if value := strings.TrimSpace(types.Value(r.ChannelLayout)); value != "" {
 		bind.Append("patch", `"`+OptionChannelLayout+`" = `+bind.Set(OptionChannelLayout, value))
 	}
 	if r.Opts != nil {
@@ -149,6 +162,59 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 
 // Set an audio profile option. If value is nil, the option is removed.
 func (r *AudioProfileMeta) Set(name string, value any) error {
-	// TODO
-	return gomedia.ErrNotImplemented
+	// Check for existing option
+	opt, exists := r.opts[name]
+	if !exists {
+		return gomedia.ErrBadParameter.Withf("option %q is not supported by codec %q", name, r.Codec)
+	}
+
+	// Unmarshal the options JSON into a map
+	var opts map[string]any
+	if r.Opts == nil {
+		opts = make(map[string]any)
+	} else if err := json.Unmarshal(r.Opts, &opts); err != nil {
+		return err
+	}
+
+	// Remove existing option
+	if value == nil {
+		switch name {
+		case OptionBitrate:
+			r.Bitrate = nil
+		case OptionSampleRate:
+			r.SampleRate = nil
+		case OptionSampleFormat:
+			r.SampleFormat = nil
+		case OptionChannelLayout:
+			r.ChannelLayout = nil
+		default:
+			delete(opts, name)
+		}
+	} else if value, err := opt.Validate(value); err != nil {
+		return err
+	} else {
+		// Set the option value
+		switch name {
+		case OptionBitrate:
+			r.Bitrate = types.Ptr(value.(uint64))
+		case OptionSampleRate:
+			r.SampleRate = types.Ptr(value.(uint64))
+		case OptionSampleFormat:
+			r.SampleFormat = types.Ptr(value.(string))
+		case OptionChannelLayout:
+			r.ChannelLayout = types.Ptr(value.(string))
+		default:
+			opts[name] = value
+		}
+	}
+
+	// Set the option value in the options map
+	if optsJSON, err := json.Marshal(opts); err != nil {
+		return err
+	} else {
+		r.Opts = optsJSON
+	}
+
+	// Return success
+	return nil
 }
