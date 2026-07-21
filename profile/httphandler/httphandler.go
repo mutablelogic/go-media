@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	// Packages
+	uuid "github.com/google/uuid"
 	gomedia "github.com/mutablelogic/go-media"
 	manager "github.com/mutablelogic/go-media/profile/manager"
 	schema "github.com/mutablelogic/go-media/profile/schema"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi"
 )
 
@@ -99,12 +101,73 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 				if err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 				} else {
-					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+					httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), response)
 				}
 			}, func(op httprequest.PathOperation) {
 				op.Summary("Create Audio Profile")
 				op.Description(documentation.Section(3, "POST /audio").Body)
-				// TODO: Define query parameters and responses for codec profiles
+				op.JSONResponse(http.StatusCreated, jsonschema.MustFor[schema.AudioProfile](), "Created Audio Profile")
+				op.ErrorResponse(http.StatusNotFound)
+			})
+		}),
+		router.Register("audio/{uuid}", nil, func(path httprequest.PathItem) {
+			path.Tag("Audio Profiles")
+
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				if uuid, err := uuid.Parse(r.PathValue("uuid")); err != nil {
+					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					return
+				} else if response, err := manager.GetAudioProfile(r.Context(), uuid); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("Get Audio Profile")
+				op.Description(documentation.Section(3, "GET /audio/{uuid}").Body)
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.AudioProfile]())
+			})
+
+			// DELETE
+			path.Delete(func(w http.ResponseWriter, r *http.Request) {
+				if uuid, err := uuid.Parse(r.PathValue("uuid")); err != nil {
+					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					return
+				} else if response, err := manager.DeleteAudioProfile(r.Context(), uuid); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("Delete Audio Profile")
+				op.Description(documentation.Section(3, "DELETE /audio/{uuid}").Body)
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.AudioProfile](), "Deleted Audio Profile")
+				op.ErrorResponse(http.StatusNotFound)
+			})
+
+			// PATCH
+			path.Patch(func(w http.ResponseWriter, r *http.Request) {
+				var req schema.AudioProfileMeta
+				uuid, err := uuid.Parse(r.PathValue("uuid"))
+				if err != nil {
+					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					return
+				} else if err := httprequest.Read(r, &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				if response, err := manager.UpdateAudioProfile(r.Context(), uuid, req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("Update Audio Profile")
+				op.Description(documentation.Section(3, "PATCH /audio/{uuid}").Body)
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.AudioProfile](), "Updated Audio Profile")
+				op.ErrorResponse(http.StatusNotFound)
 			})
 		}),
 	)

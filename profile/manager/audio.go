@@ -106,3 +106,17 @@ func (profile *Profile) DeleteAudioProfile(ctx context.Context, uuid uuid.UUID) 
 
 	return types.Ptr(result), nil
 }
+
+func (profile *Profile) UpdateAudioProfile(ctx context.Context, uuid uuid.UUID, meta schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
+	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "UpdateAudioProfile",
+		attribute.String("uuid", uuid.String()),
+	)
+	defer func() { endSpan(err) }()
+
+	var result schema.AudioProfile
+	if err := profile.PoolConn.Update(ctx, &result, schema.AudioProfileUUID(uuid), meta); err != nil {
+		return nil, pg.NormalizeError(err)
+	}
+
+	return types.Ptr(result), nil
+}
