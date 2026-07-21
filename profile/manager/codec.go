@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"strings"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
@@ -56,7 +55,7 @@ func (profile *Profile) ListCodecs(ctx context.Context, req schema.CodecListRequ
 			Name:        codec.Name(),
 			Description: codec.LongName(),
 			Type:        schema.CodecType(codec.Type()),
-			Opts:        optionsForCodec(codec),
+			Opts:        schema.OptionsForCodec(codec),
 		})
 	}
 
@@ -90,52 +89,6 @@ func (profile *Profile) GetCodec(ctx context.Context, name string) (_ *schema.Co
 		Name:        codec.Name(),
 		Description: codec.LongName(),
 		Type:        schema.CodecType(codec.Type()),
-		Opts:        optionsForCodec(codec),
+		Opts:        schema.OptionsForCodec(codec),
 	}), nil
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func optionsForCodec(codec *ff.AVCodec) []schema.Option {
-	if codec == nil {
-		return nil
-	}
-
-	// Prefer default bitrate from the codec private class if available.
-	class := codec.PrivClass()
-	if class == nil {
-		return nil
-	}
-
-	// Extract options
-	ffopts := ff.AVUtil_opt_list_from_class(class)
-	consts := make(map[string][]schema.Option, len(ffopts))
-	result := make([]schema.Option, 0, len(ffopts))
-	for _, opt := range ffopts {
-		if opt == nil {
-			continue
-		}
-		if opt.Type() == ff.AV_OPT_TYPE_CONST {
-			key := opt.Unit()
-			consts[key] = append(consts[key], schema.NewOption(opt))
-			continue
-		}
-		name := strings.TrimSpace(opt.Name())
-		if name == "" {
-			continue
-		}
-		result = append(result, schema.NewOption(opt))
-	}
-
-	// Append the constants to the options
-	for i, opt := range result {
-		consts, exists := consts[opt.Name]
-		if exists && len(consts) > 0 {
-			result[i].Const = consts
-		}
-	}
-
-	// Return the options
-	return result
 }

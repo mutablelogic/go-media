@@ -4,6 +4,6 @@ CREATE TABLE IF NOT EXISTS ${"schema"}."audio" (
 	"bitrate" INTEGER NULL,
 	"sample_rate" INTEGER NULL,
 	"sample_format" TEXT NULL,
-	"channels" TEXT NULL,
+	"channel_layout" TEXT NULL,
 	"opts" TEXT[] NOT NULL DEFAULT '{}'::TEXT[]
 );

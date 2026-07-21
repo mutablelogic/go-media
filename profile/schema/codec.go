@@ -1,11 +1,11 @@
 package schema
 
 import (
-	// Packages
 	"net/url"
 	"strconv"
 	"strings"
 
+	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	pg "github.com/mutablelogic/go-pg"
@@ -116,4 +116,131 @@ func (r *CodecType) UnmarshalJSON(data []byte) error {
 
 func (r CodecType) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Quote(r.String())), nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
+	if codec == nil {
+		return nil
+	}
+
+	// Sample Rate Option
+	sample_rate := Option{
+		Name:        OptionSampleRate,
+		Description: "Sample rate in Hz.",
+		Type:        "int",
+		Unit:        "Hz",
+		Min:         types.Ptr(0),
+		Max:         types.Ptr(192000),
+	}
+	for i, rate := range codec.SupportedSamplerates() {
+		if i == 0 {
+			sample_rate.Default = uint64(rate)
+		}
+		sample_rate.Const = append(sample_rate.Const, Option{
+			Value: uint64(rate),
+			Type:  "int",
+		})
+	}
+
+	// Sample Format Option
+	sample_format := Option{
+		Name:        OptionSampleFormat,
+		Description: "Audio sample format.",
+		Type:        "string",
+	}
+	for i, format := range codec.SampleFormats() {
+		if i == 0 {
+			sample_format.Default = strings.TrimSpace(format.String())
+		}
+		sample_format.Const = append(sample_format.Const, Option{
+			Value: strings.TrimSpace(format.String()),
+			Type:  "string",
+		})
+	}
+
+	// Channel Layout Option
+	channel_layout := Option{
+		Name:        OptionChannelLayout,
+		Description: "Audio channel layout.",
+		Type:        "string",
+	}
+	for i, layout := range codec.ChannelLayouts() {
+		if i == 0 {
+			if desc, err := ff.AVUtil_channel_layout_describe(&layout); err == nil {
+				channel_layout.Default = strings.TrimSpace(desc)
+			}
+		}
+		if desc, err := ff.AVUtil_channel_layout_describe(&layout); err == nil {
+			channel_layout.Const = append(channel_layout.Const, Option{
+				Value: strings.TrimSpace(desc),
+				Type:  "string",
+			})
+		}
+	}
+
+	return []Option{sample_rate, sample_format, channel_layout}
+}
+
+func VideoOptionsForCodec(_ *ff.AVCodec) []Option {
+	// TODO
+	return nil
+}
+
+func SubtitleOptionsForCodec(_ *ff.AVCodec) []Option {
+	return nil
+}
+
+func OptionsForCodec(codec *ff.AVCodec) []Option {
+	if codec == nil {
+		return nil
+	}
+
+	// Prefer default bitrate from the codec private class if available.
+	class := codec.PrivClass()
+	if class == nil {
+		return nil
+	}
+
+	// Extract options
+	ffopts := ff.AVUtil_opt_list_from_class(class)
+	consts := make(map[string][]Option, len(ffopts))
+	result := make([]Option, 0, len(ffopts))
+	for _, opt := range ffopts {
+		if opt == nil {
+			continue
+		}
+		if opt.Type() == ff.AV_OPT_TYPE_CONST {
+			key := opt.Unit()
+			consts[key] = append(consts[key], NewOption(opt))
+			continue
+		}
+		name := strings.TrimSpace(opt.Name())
+		if name == "" {
+			continue
+		}
+		result = append(result, NewOption(opt))
+	}
+
+	// Append the constants to the options
+	for i, opt := range result {
+		consts, exists := consts[opt.Name]
+		if exists && len(consts) > 0 {
+			result[i].Const = consts
+		}
+	}
+
+	// Return the options - and prepend audio video, subtitle options if applicable
+	switch codec.Type() {
+	case ff.AVMEDIA_TYPE_AUDIO:
+		return append(AudioOptionsForCodec(codec), result...)
+	case ff.AVMEDIA_TYPE_VIDEO:
+		return append(VideoOptionsForCodec(codec), result...)
+	case ff.AVMEDIA_TYPE_SUBTITLE:
+		return append(SubtitleOptionsForCodec(codec), result...)
+	default:
+		return result
+	}
 }

@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"net/url"
 	"strings"
 
 	// Packages
@@ -16,13 +15,13 @@ import (
 // TYPES
 
 type AudioProfileMeta struct {
-	Codec        string      `json:"codec"`                   // "aac", "libmp3lame", "copy", ...
-	Bitrate      *uint64     `json:"bitrate,omitempty"`       // bps; 0 = use quality
-	SampleRate   *uint64     `json:"sample_rate,omitempty"`   // Hz; 0 = passthrough
-	SampleFormat *string     `json:"sample_format,omitempty"` // Audio sample format; "fltp", "s16", leave empty for passthrough
-	Channels     *string     `json:"channels,omitempty"`      // Audio Channel Layout; "mono", "stereo", leave empty for passthrough
-	Opts         []string    `json:"options,omitempty"`       // Additional codec options
-	ctx          *ff.AVCodec `json:"-"`                       // Internal codec
+	Codec        string      `json:"codec"`                    // "aac", "libmp3lame", "copy", ...
+	Bitrate      *uint64     `json:"bitrate,omitempty"`        // bps; 0 = use quality
+	SampleRate   *uint64     `json:"sample_rate,omitempty"`    // Hz; 0 = passthrough
+	SampleFormat *string     `json:"sample_format,omitempty"`  // Audio sample format; "fltp", "s16", leave empty for passthrough
+	Channels     *string     `json:"channel_layout,omitempty"` // Audio Channel Layout; "mono", "stereo", leave empty for passthrough
+	Opts         []string    `json:"options,omitempty"`        // Additional codec options
+	ctx          *ff.AVCodec `json:"-"`                        // Internal codec
 }
 
 type AudioProfile struct {
@@ -31,6 +30,16 @@ type AudioProfile struct {
 }
 
 type AudioProfileUUID uuid.UUID
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	OptionBitrate       = "bitrate"
+	OptionSampleRate    = "sample_rate"
+	OptionSampleFormat  = "sample_format"
+	OptionChannelLayout = "channel_layout"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -42,46 +51,17 @@ func NewAudioProfile(codec string) (*AudioProfileMeta, error) {
 	encoder := ff.AVCodec_find_encoder_by_name(codec)
 	if encoder == nil {
 		return nil, gomedia.ErrBadParameter.Withf("codec %q is not found", codec)
-	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO {
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
 		return nil, gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", codec)
 	} else {
 		self.Codec = encoder.Name()
 		self.ctx = encoder
 	}
 
-	// Fill defaults from codec capabilities where available.
-	if samplerates := encoder.SupportedSamplerates(); len(samplerates) > 0 {
-		self.SampleRate = types.Ptr(uint64(samplerates[0]))
-	}
-	if sampleformats := encoder.SampleFormats(); len(sampleformats) > 0 {
-		if sampleformat := strings.TrimSpace(sampleformats[0].String()); sampleformat != "" {
-			self.SampleFormat = types.Ptr(sampleformat)
-		}
-	}
-	if layouts := encoder.ChannelLayouts(); len(layouts) > 0 {
-		if layout := layouts[0]; layout.NumChannels() > 0 {
-			if desc, err := ff.AVUtil_channel_layout_describe(&layout); err == nil {
-				self.Channels = types.Ptr(strings.TrimSpace(desc))
-			}
-		}
-	}
-
-	// Prefer default bitrate from the codec private class if available.
-	if class := encoder.PrivClass(); class != nil {
-		// Extract any bitrate value
-		for _, opt := range ff.AVUtil_opt_list_from_class(class) {
-			if opt == nil || opt.Type() == ff.AV_OPT_TYPE_CONST {
-				continue
-			}
-			name := strings.TrimSpace(opt.Name())
-			if name == "" {
-				continue
-			}
-			if name == "b" || name == "bitrate" {
-				if def, ok := opt.DefaultVal().(int64); ok && def > 0 {
-					self.Bitrate = types.Ptr(uint64(def))
-				}
-			}
+	// Set default values for the audio profile (if default is nil, option is removed/ignored)
+	for _, opt := range AudioOptionsForCodec(encoder) {
+		if err := self.Set(opt.Name, opt.Default); err != nil {
+			return nil, err
 		}
 	}
 
@@ -125,10 +105,10 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 // Insert binds values and returns the insert query for an audio profile row.
 func (r AudioProfileMeta) Insert(bind *pg.Bind) (string, error) {
-	bind.Set("bitrate", r.Bitrate)
-	bind.Set("sample_rate", r.SampleRate)
-	bind.Set("sample_format", r.SampleFormat)
-	bind.Set("channels", r.Channels)
+	bind.Set(OptionBitrate, r.Bitrate)
+	bind.Set(OptionSampleRate, r.SampleRate)
+	bind.Set(OptionSampleFormat, r.SampleFormat)
+	bind.Set(OptionChannelLayout, r.Channels)
 	if r.Opts == nil {
 		bind.Set("opts", []string{})
 	} else {
@@ -142,16 +122,16 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
-		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
+		bind.Append("patch", `"`+OptionBitrate+`" = `+bind.Set(OptionBitrate, bitrate))
 	}
 	if sampleRate := types.Value(r.SampleRate); sampleRate > 0 {
-		bind.Append("patch", `"sample_rate" = `+bind.Set("sample_rate", sampleRate))
+		bind.Append("patch", `"`+OptionSampleRate+`" = `+bind.Set(OptionSampleRate, sampleRate))
 	}
 	if value := strings.TrimSpace(types.Value(r.SampleFormat)); value != "" {
-		bind.Append("patch", `"sample_format" = `+bind.Set("sample_format", value))
+		bind.Append("patch", `"`+OptionSampleFormat+`" = `+bind.Set(OptionSampleFormat, value))
 	}
 	if value := strings.TrimSpace(types.Value(r.Channels)); value != "" {
-		bind.Append("patch", `"channels" = `+bind.Set("channels", value))
+		bind.Append("patch", `"`+OptionChannelLayout+`" = `+bind.Set(OptionChannelLayout, value))
 	}
 	if r.Opts != nil {
 		bind.Append("patch", `"opts" = `+bind.Set("opts", r.Opts))
@@ -168,7 +148,7 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 // PUBLIC METHODS - GET/SET OPTIONS
 
 // Set an audio profile option. If value is nil, the option is removed.
-func (r *AudioProfileMeta) Set(opts url.Values) error {
-	// Implementation goes here
-	return nil
+func (r *AudioProfileMeta) Set(name string, value any) error {
+	// TODO
+	return gomedia.ErrNotImplemented
 }
