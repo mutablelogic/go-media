@@ -1,12 +1,21 @@
 package manager
 
-import "context"
+import (
+	"context"
+	"sync"
+
+	// Packages
+	schema "github.com/mutablelogic/go-media/gomedia/schema"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Media struct {
 	opt
+
+	sourcesMu sync.RWMutex
+	sources   map[string]schema.Source
 }
 
 ////////////////////////////////////////////////////////////////////////////////

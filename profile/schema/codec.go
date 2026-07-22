@@ -18,10 +18,11 @@ import (
 type CodecType ff.AVMediaType
 
 type Codec struct {
-	Name        string    `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
-	Description string    `json:"description,omitempty"` // Codec description
-	Type        CodecType `json:"type"`                  // Codec type; "audio", "video", "subtitle"
-	Opts        []Option  `json:"opts,omitempty"`        // Codec options
+	Name        string      `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
+	Description string      `json:"description,omitempty"` // Codec description
+	Type        CodecType   `json:"type"`                  // Codec type; "audio", "video", "subtitle"
+	Opts        []Option    `json:"opts,omitempty"`        // Codec options
+	ctx         *ff.AVCodec `json:"-"`                     // Internal codec
 }
 
 type CodecListRequest struct {
@@ -47,6 +48,7 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 		Description: codec.LongName(),
 		Type:        CodecType(codec.Type()),
 		Opts:        OptionsForCodec(codec),
+		ctx:         codec,
 	}
 }
 
@@ -76,6 +78,13 @@ func (r CodecType) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (r Codec) Context() *ff.AVCodec {
+	return r.ctx
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,37 +230,36 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 		return nil
 	}
 
-	// Prefer default bitrate from the codec private class if available.
-	class := codec.PrivClass()
-	if class == nil {
-		return nil
-	}
+	// Codecs with no private class (e.g. raw pcm_* codecs, which have
+	// nothing encoder-specific to configure) still get the universal
+	// bitrate/sample_rate/sample_format/channel_layout options below —
+	// only the codec-specific AVOption extraction is skipped for them.
+	result := []Option{}
+	if class := codec.PrivClass(); class != nil {
+		ffopts := ff.AVUtil_opt_list_from_class(class)
+		consts := make(map[string][]Option, len(ffopts))
+		for _, opt := range ffopts {
+			if opt == nil {
+				continue
+			}
+			if opt.Type() == ff.AV_OPT_TYPE_CONST {
+				key := opt.Unit()
+				consts[key] = append(consts[key], NewOption(opt))
+				continue
+			}
+			name := strings.TrimSpace(opt.Name())
+			if name == "" {
+				continue
+			}
+			result = append(result, NewOption(opt))
+		}
 
-	// Extract options
-	ffopts := ff.AVUtil_opt_list_from_class(class)
-	consts := make(map[string][]Option, len(ffopts))
-	result := make([]Option, 0, len(ffopts))
-	for _, opt := range ffopts {
-		if opt == nil {
-			continue
-		}
-		if opt.Type() == ff.AV_OPT_TYPE_CONST {
-			key := opt.Unit()
-			consts[key] = append(consts[key], NewOption(opt))
-			continue
-		}
-		name := strings.TrimSpace(opt.Name())
-		if name == "" {
-			continue
-		}
-		result = append(result, NewOption(opt))
-	}
-
-	// Append the constants to the options
-	for i, opt := range result {
-		consts, exists := consts[opt.Unit]
-		if exists && len(consts) > 0 {
-			result[i].Const = consts
+		// Append the constants to the options
+		for i, opt := range result {
+			consts, exists := consts[opt.Unit]
+			if exists && len(consts) > 0 {
+				result[i].Const = consts
+			}
 		}
 	}
 

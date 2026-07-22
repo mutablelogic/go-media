@@ -16,14 +16,18 @@ import (
 // TYPES
 
 type AudioProfileMeta struct {
-	Codec         string            `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
-	Bitrate       *uint64           `json:"bitrate,omitempty"`         // bps
-	SampleRate    *uint64           `json:"sample_rate,omitempty"`     // Hz
-	SampleFormat  *string           `json:"sample_format,omitempty"`   // Audio sample format; "fltp", "s16"
-	ChannelLayout *string           `json:"channel_layout,omitempty"`  // Audio Channel Layout; "mono", "stereo"
-	Opts          json.RawMessage   `json:"options,omitempty"`         // Additional codec options
-	ctx           *ff.AVCodec       `json:"-"`                         // Internal codec
-	opts          map[string]Option `json:"-"`                         // Internal codec options
+	Name          string          `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
+	Bitrate       *uint64         `json:"bitrate,omitempty"`         // bps
+	SampleRate    *uint64         `json:"sample_rate,omitempty"`     // Hz
+	SampleFormat  *string         `json:"sample_format,omitempty"`   // Audio sample format; "fltp", "s16"
+	ChannelLayout *string         `json:"channel_layout,omitempty"`  // Audio Channel Layout; "mono", "stereo"
+	Opts          json.RawMessage `json:"options,omitempty"`         // Additional codec options
+
+	// Unexported fields
+	codec    *ff.AVCodec          `json:"-"` // Internal codec
+	par      ff.AVCodecParameters `json:"-"` // Internal parameters
+	timebase ff.AVRational        `json:"-"` // Internal timebase
+	opts     map[string]Option    `json:"-"` // Internal codec options
 }
 
 type AudioProfile struct {
@@ -32,6 +36,8 @@ type AudioProfile struct {
 }
 
 type AudioProfileUUID uuid.UUID
+
+var _ Profile = (*AudioProfile)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -57,10 +63,15 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 
 	self := &AudioProfile{
 		AudioProfileMeta: AudioProfileMeta{
-			Codec: encoder.Name(),
-			ctx:   encoder,
+			Name:  encoder.Name(),
+			codec: encoder,
 			opts:  optionsForCodec(encoder),
 		},
+	}
+
+	// Update internal codec parameters and timebase
+	if err := self.setPar(); err != nil {
+		return nil, err
 	}
 
 	// Return success
@@ -75,24 +86,67 @@ func (r AudioProfile) String() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - PROFILE INTERFACE
+
+func (r AudioProfile) UUID() uuid.UUID {
+	return r.Id
+}
+
+func (r AudioProfile) Type() CodecType {
+	if r.codec == nil {
+		return CodecType(ff.AVMEDIA_TYPE_UNKNOWN)
+	}
+	return CodecType(r.codec.Type())
+}
+
+func (r AudioProfile) Codec() *Codec {
+	if r.codec == nil {
+		return nil
+	}
+	return NewCodec(r.codec)
+}
+
+func (r AudioProfile) Par() *ff.AVCodecParameters {
+	return types.Ptr(r.par)
+}
+
+func (r AudioProfile) TimeBase() *ff.AVRational {
+	if r.timebase.Num() == 0 {
+		return nil
+	}
+	return types.Ptr(r.timebase)
+}
+
+func (r AudioProfile) Options() json.RawMessage {
+	return r.Opts
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
 // Expected column order: id, codec, bitrate, sample_rate, sample_format, channel_layout, opts.
 func (r *AudioProfile) Scan(row pg.Row) error {
-	if err := row.Scan(&r.Id, &r.Codec, &r.Bitrate, &r.SampleRate, &r.SampleFormat, &r.ChannelLayout, &r.Opts); err != nil {
+	if err := row.Scan(&r.Id, &r.Name, &r.Bitrate, &r.SampleRate, &r.SampleFormat, &r.ChannelLayout, &r.Opts); err != nil {
 		return err
 	}
 
 	// Set context and options
-	encoder := ff.AVCodec_find_encoder_by_name(r.Codec)
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
 	if encoder == nil {
-		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Codec)
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
 	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
-		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Codec)
+		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Name)
 	} else {
-		r.ctx = encoder
+		r.codec = encoder
 		r.opts = optionsForCodec(encoder)
 	}
+
+	// Set codec parameters and timebase
+	if err := r.setPar(); err != nil {
+		return err
+	}
+
+	// Return success
 	return nil
 }
 
@@ -119,7 +173,7 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 // Insert binds values and returns the insert query for an audio profile row.
 func (r AudioProfileMeta) Insert(bind *pg.Bind) (string, error) {
-	bind.Set("codec", r.Codec)
+	bind.Set("codec", r.Name)
 	bind.Set(OptionBitrate, r.Bitrate)
 	bind.Set(OptionSampleRate, r.SampleRate)
 	bind.Set(OptionSampleFormat, r.SampleFormat)
@@ -164,11 +218,12 @@ func (r AudioProfileMeta) Update(bind *pg.Bind) error {
 // PUBLIC METHODS - GET/SET OPTIONS
 
 // Set an audio profile option. If value is nil, the option is removed.
+// TODO: If an error is returned, the option is not set and the profile is unchanged.
 func (r *AudioProfileMeta) Set(name string, value any) error {
 	// Check for existing option
 	opt, exists := r.opts[name]
 	if !exists {
-		return gomedia.ErrBadParameter.Withf("option %q is not supported by codec %q", name, r.Codec)
+		return gomedia.ErrBadParameter.Withf("option %q is not supported by codec %q", name, r.Name)
 	}
 
 	// Unmarshal the options JSON into a map
@@ -216,6 +271,54 @@ func (r *AudioProfileMeta) Set(name string, value any) error {
 		return err
 	} else {
 		r.Opts = optsJSON
+	}
+
+	// Set the internal codec parameters and timebase
+	if err := r.setPar(); err != nil {
+		return err
+	}
+
+	// Return success
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - GET/SET OPTIONS
+
+func (r *AudioProfileMeta) setPar() error {
+	// Check for codec
+	if r.codec == nil {
+		return gomedia.ErrInternalError.With("codec is not set")
+	} else {
+		r.par.SetCodecType(r.codec.Type())
+		r.par.SetCodecID(r.codec.ID())
+		r.par.SetProfile(ff.AV_PROFILE_UNKNOWN)
+	}
+
+	// Sample Format
+	if samplefmt := types.Value(r.SampleFormat); samplefmt != "" {
+		if samplefmt_ := ff.AVUtil_get_sample_fmt(samplefmt); samplefmt_ == ff.AV_SAMPLE_FMT_NONE {
+			return gomedia.ErrBadParameter.Withf("unknown sample format %q", samplefmt)
+		} else {
+			r.par.SetSampleFormat(samplefmt_)
+		}
+	}
+
+	// Channel layout
+	var ch ff.AVChannelLayout
+	if channellayout := types.Value(r.ChannelLayout); channellayout != "" {
+		if err := ff.AVUtil_channel_layout_from_string(&ch, channellayout); err != nil {
+			return gomedia.ErrBadParameter.Withf("invalid channel layout %q: %w", channellayout, err)
+		}
+		if err := r.par.SetChannelLayout(ch); err != nil {
+			return err
+		}
+	}
+
+	// Sample rate
+	if samplerate := types.Value(r.SampleRate); samplerate > 0 {
+		r.par.SetSampleRate(int(samplerate))
+		r.timebase = ff.AVUtil_rational(1, int(samplerate))
 	}
 
 	// Return success

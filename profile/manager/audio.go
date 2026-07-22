@@ -25,7 +25,7 @@ func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.Audio
 	var result schema.AudioProfile
 	if err := profile.Tx(ctx, func(conn pg.Conn) error {
 		// Create the audio profile
-		audioProfile, err := schema.NewAudioProfile(req.Codec)
+		audioProfile, err := schema.NewAudioProfile(req.Name)
 		if err != nil {
 			return err
 		}

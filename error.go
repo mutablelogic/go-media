@@ -66,7 +66,7 @@ func (code Err) With(args ...any) error {
 }
 
 func (code Err) Withf(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", code, fmt.Sprintf(format, args...))
+	return fmt.Errorf("%w: "+format, append([]any{code}, args...)...)
 }
 
 func HTTPErr(err error) error {

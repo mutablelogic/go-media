@@ -114,6 +114,22 @@ func (ctx *AVCodecParameters) SetCodecTag(tag uint32) {
 	ctx.codec_tag = C.uint32_t(tag)
 }
 
+// AV_PROFILE_UNKNOWN indicates no specific codec profile is requested; the
+// encoder picks its own default. This is the zero value ffmpeg itself uses,
+// not Go's zero value (0), which collides with real profile IDs (e.g. AAC's
+// FF_PROFILE_AAC_MAIN) — a freshly zero-valued AVCodecParameters must have
+// this set explicitly before being copied onto an AVCodecContext, or the
+// encoder will reject it as an unsupported profile.
+const AV_PROFILE_UNKNOWN = -99
+
+func (ctx *AVCodecParameters) Profile() int {
+	return int(ctx.profile)
+}
+
+func (ctx *AVCodecParameters) SetProfile(profile int) {
+	ctx.profile = C.int(profile)
+}
+
 // Audio and Video
 func (ctx *AVCodecParameters) Format() int {
 	return int(ctx.format)

@@ -1,0 +1,32 @@
+/* Carbon design tokens (--cds-*) and base reset — the individual
+   component bundles only carry their own scoped BEM styles, not the
+   shared :root token definitions those styles reference. */
+@import "@carbon/styles/css/styles.min.css";
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: local("IBM Plex Sans");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family:
+    "IBM Plex Sans",
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  background: var(--cds-background, #ffffff);
+  color: var(--cds-text-primary, #161616);
+}
+
+app-root {
+  display: block;
+  min-height: 100%;
+}

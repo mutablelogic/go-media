@@ -73,7 +73,7 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 	runCtx, runCancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- manager.Run(runCtx, slog.Default())
+		runDone <- media.Run(runCtx, slog.Default())
 	}()
 
 	teardown := func() {}

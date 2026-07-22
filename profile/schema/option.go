@@ -69,10 +69,14 @@ func (o Option) Validate(value any) (any, error) {
 		return nil, gomedia.ErrBadParameter.Withf("option %q cannot be nil", o.Name)
 	}
 
-	// Check against constants
+	// Check against constants. Consts derived from ffmpeg's own AVOption consts
+	// carry a symbolic Name (e.g. "fast") with the underlying value in Default;
+	// consts built by hand (sample_rate, sample_format, channel_layout in
+	// codec.go) have no Name at all and are selected by Default directly. Accept
+	// either form.
 	if len(o.Const) > 0 {
 		for _, v := range o.Const {
-			if optionValueEqual(value, v.Name) {
+			if optionValueEqual(value, v.Name) || optionValueEqual(value, v.Default) {
 				return value, nil
 			}
 		}

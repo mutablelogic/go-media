@@ -127,7 +127,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 				if err := httprequest.Read(r, &req); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 					return
-				} else if codec := strings.TrimSpace(req.Codec); codec == "" {
+				} else if codec := strings.TrimSpace(req.Name); codec == "" {
 					httpresponse.Error(w, gomedia.ErrBadParameter.With("missing required field 'codec'"))
 					return
 				}
