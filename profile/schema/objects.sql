@@ -14,6 +14,5 @@ CREATE TABLE IF NOT EXISTS ${"schema"}."format" (
 	"id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	"name" TEXT NOT NULL,
 	"description" TEXT NULL,
-	"audio" UUID REFERENCES ${"schema"}."audio" ("id") ON DELETE SET NULL, -- audio codec to use for this format, can be NULL
 	"opts" JSONB NOT NULL DEFAULT '{}'::JSONB
 );

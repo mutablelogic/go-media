@@ -1,20 +1,10 @@
 package manager
 
-import (
-	"context"
-	"encoding/json"
-
-	// Packages
-	otel "github.com/mutablelogic/go-client/pkg/otel"
-	schema "github.com/mutablelogic/go-media/profile/schema"
-	pg "github.com/mutablelogic/go-pg"
-	types "github.com/mutablelogic/go-server/pkg/types"
-	attribute "go.opentelemetry.io/otel/attribute"
-)
+// Packages
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
+/*
 func (profile *Profile) CreateProfile(ctx context.Context, name string, req schema.ProfileMeta) (_ *schema.Profile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "CreateProfile",
 		attribute.String("name", name),
@@ -56,3 +46,4 @@ func (profile *Profile) CreateProfile(ctx context.Context, name string, req sche
 
 	return types.Ptr(result), nil
 }
+*/
