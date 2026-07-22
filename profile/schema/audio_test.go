@@ -23,20 +23,21 @@ func TestNewAudioProfile_Print(t *testing.T) {
 			t.Fatalf("NewAudioProfile(%q): nil profile", candidate)
 		}
 
-		t.Logf("codec=%s profile=%s options=%v", candidate, profile.String(), profile.Options())
+		options := schema.OptionsForCodec(ff.AVCodec_find_encoder_by_name(candidate))
+		t.Logf("codec=%s profile=%s options=%v", candidate, profile.String(), options)
 	}
 
 }
 
 func TestAudioProfileOptionsValidate(t *testing.T) {
-	profile, err := schema.NewAudioProfile("aac")
+	_, err := schema.NewAudioProfile("aac")
 	if err != nil {
 		t.Fatalf("NewAudioProfile(%q): %v", "aac", err)
 	}
 
 	var coder *schema.Option
 	var ms *schema.Option
-	options := profile.Options()
+	options := schema.OptionsForCodec(ff.AVCodec_find_encoder_by_name("aac"))
 	for i := range options {
 		switch options[i].Name {
 		case "aac_coder":
@@ -52,23 +53,19 @@ func TestAudioProfileOptionsValidate(t *testing.T) {
 		t.Skip("aac_ms option not available")
 	}
 
-	coder.Value = "fast"
-	if err := coder.Validate(); err != nil {
+	if _, err := coder.Validate("fast"); err != nil {
 		t.Fatalf("Validate(fast): %v", err)
 	}
 
-	coder.Value = "invalid"
-	if err := coder.Validate(); err == nil {
+	if _, err := coder.Validate("invalid"); err == nil {
 		t.Fatal("expected enum validation error for invalid aac_coder value")
 	}
 
-	ms.Value = true
-	if err := ms.Validate(); err != nil {
+	if _, err := ms.Validate(true); err != nil {
 		t.Fatalf("Validate(true): %v", err)
 	}
 
-	ms.Value = "true"
-	if err := ms.Validate(); err == nil {
+	if _, err := ms.Validate("true"); err == nil {
 		t.Fatal("expected type validation error for string boolean value")
 	}
 }

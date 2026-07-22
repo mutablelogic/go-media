@@ -72,7 +72,7 @@ func (o Option) Validate(value any) (any, error) {
 	// Check against constants
 	if len(o.Const) > 0 {
 		for _, v := range o.Const {
-			if optionValueEqual(value, v) {
+			if optionValueEqual(value, v.Name) {
 				return value, nil
 			}
 		}

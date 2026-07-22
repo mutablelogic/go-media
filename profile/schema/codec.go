@@ -31,8 +31,23 @@ type CodecListRequest struct {
 
 type CodecList struct {
 	CodecListRequest
-	Count uint64  `json:"count"` // Number of audio codecs
-	Body  []Codec `json:"body"`  // List of audio codecs
+	Count uint64   `json:"count"`          // Number of codecs
+	Body  []*Codec `json:"body,omitempty"` // List of codecs
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func NewCodec(codec *ff.AVCodec) *Codec {
+	if codec == nil {
+		return nil
+	}
+	return &Codec{
+		Name:        codec.Name(),
+		Description: codec.LongName(),
+		Type:        CodecType(codec.Type()),
+		Opts:        OptionsForCodec(codec),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,7 +249,7 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 
 	// Append the constants to the options
 	for i, opt := range result {
-		consts, exists := consts[opt.Name]
+		consts, exists := consts[opt.Unit]
 		if exists && len(consts) > 0 {
 			result[i].Const = consts
 		}

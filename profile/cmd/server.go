@@ -52,6 +52,7 @@ func (runner *RunServer) Run(ctx server.Cmd) error {
 		runner.Register(func(router *httprouter.Router) error {
 			ctx.Logger().DebugContext(ctx.Context(), "registering http handlers")
 			return errors.Join(
+				httphandler.RegisterFormatHandlers(manager, router),
 				httphandler.RegisterCodecHandlers(manager, router),
 				httphandler.RegisterAudioProfileHandlers(manager, router),
 			)

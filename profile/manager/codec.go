@@ -51,12 +51,7 @@ func (profile *Profile) ListCodecs(ctx context.Context, req schema.CodecListRequ
 		if req.Limit != nil && uint64(len(result.Body)) >= types.Value(req.Limit) {
 			continue
 		}
-		result.Body = append(result.Body, schema.Codec{
-			Name:        codec.Name(),
-			Description: codec.LongName(),
-			Type:        schema.CodecType(codec.Type()),
-			Opts:        schema.OptionsForCodec(codec),
-		})
+		result.Body = append(result.Body, schema.NewCodec(codec))
 	}
 
 	// Copy the request offset/limit into the result, then clamp the limit to
@@ -85,10 +80,5 @@ func (profile *Profile) GetCodec(ctx context.Context, name string) (_ *schema.Co
 	}
 
 	// Return the codec
-	return types.Ptr(schema.Codec{
-		Name:        codec.Name(),
-		Description: codec.LongName(),
-		Type:        schema.CodecType(codec.Type()),
-		Opts:        schema.OptionsForCodec(codec),
-	}), nil
+	return schema.NewCodec(codec), nil
 }

@@ -24,6 +24,41 @@ import (
 //go:embed README.md
 var readme []byte
 
+func RegisterFormatHandlers(manager *manager.Profile, router *httprouter.Router) error {
+	// Parse the documentation
+	documentation := openapi.ParseMarkdown(readme)
+
+	// Add the documentation to the router
+	router.Spec().AddTag("Formats", documentation.Section(2, "Formats").Body)
+
+	return errors.Join(
+		router.Register("format", nil, func(path httprequest.PathItem) {
+			path.Tag("Formats")
+
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				var req schema.FormatListRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				response, err := manager.ListFormats(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("List Formats")
+				op.Description(documentation.Section(3, "GET /format").Body)
+				op.RequestBody(jsonschema.MustFor[schema.FormatListRequest]())
+				//				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.FormatList](), "List of Formats")
+			})
+		}),
+	)
+}
+
 func RegisterCodecHandlers(manager *manager.Profile, router *httprouter.Router) error {
 	// Parse the documentation
 	documentation := openapi.ParseMarkdown(readme)
