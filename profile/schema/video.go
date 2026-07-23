@@ -42,16 +42,6 @@ type VideoProfileUUID uuid.UUID
 var _ Profile = (*VideoProfile)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	OptionWidth       = "width"
-	OptionHeight      = "height"
-	OptionPixelFormat = "pixel_format"
-	OptionFrameRate   = "frame_rate"
-)
-
-////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func NewVideoProfile(codec string) (*VideoProfile, error) {

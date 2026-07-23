@@ -77,6 +77,18 @@ func (ctx *AVStream) SetTimeBase(time_base AVRational) {
 	ctx.time_base = C.AVRational(time_base)
 }
 
+func (ctx *AVStream) Metadata() *AVDictionary {
+	return &AVDictionary{ctx.metadata}
+}
+
+func (ctx *AVStream) SetMetadata(dict *AVDictionary) {
+	if dict == nil {
+		ctx.metadata = nil
+	} else {
+		ctx.metadata = dict.ctx
+	}
+}
+
 func (ctx *AVStream) Disposition() AVDisposition {
 	return AVDisposition(ctx.disposition)
 }

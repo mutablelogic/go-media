@@ -8,8 +8,8 @@ import (
 	"time"
 
 	// Packages
-	"github.com/google/pprof/profile"
 	gomedia "github.com/mutablelogic/go-media"
+	profile "github.com/mutablelogic/go-media/profile/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -199,6 +199,28 @@ func (r *Reader) Metadata(keys ...string) []gomedia.Metadata {
 	return result
 }
 
-func (r *Reader) Streams() []profile.Profile {
+// Return the audio, video, and subtitle streams in the media file as
+// profiles, keyed by their real stream index — mirroring the shape
+// writer.WithProfile expects, so a caller can remux directly:
+//
+//	for i, p := range r.Streams() {
+//	    opts = append(opts, writer.WithProfile(i, p))
+//	}
+//
+// Data/attachment streams and attached-pic (cover art) streams are omitted;
+// artwork is available via Metadata's "artwork" key instead.
+func (r *Reader) Streams() map[int]profile.Profile {
+	if r.input == nil {
+		return nil
+	}
 
+	result := make(map[int]profile.Profile)
+	for _, stream := range r.input.Streams() {
+		sp, err := profile.NewStreamProfile(stream)
+		if err != nil {
+			continue
+		}
+		result[sp.Index()] = sp
+	}
+	return result
 }

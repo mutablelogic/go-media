@@ -383,3 +383,92 @@ func TestReader_Metadata_AfterClose(t *testing.T) {
 		t.Fatalf("Metadata() after Close = %v, want nil", got)
 	}
 }
+
+func TestReader_Streams(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	streams := r.Streams()
+	if len(streams) != 1 {
+		t.Fatalf("Streams(): expected 1 stream, got %d", len(streams))
+	}
+
+	p, ok := streams[0]
+	if !ok {
+		t.Fatal("Streams(): expected an entry keyed by stream index 0")
+	}
+	if p.Type() != profile.CodecType(ff.AVMEDIA_TYPE_AUDIO) {
+		t.Fatalf("Streams()[0].Type() = %v, want audio", p.Type())
+	}
+}
+
+// Cover art is demuxed as a video stream (with the attached-pic
+// disposition), not as an AVMEDIA_TYPE_ATTACHMENT stream — Streams() must
+// exclude it so it isn't returned twice (once here, once via Metadata's
+// "artwork" key).
+func TestReader_Streams_ExcludesArtwork(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sample_with_artwork.mp4")
+	writeSampleFileWithArtwork(t, path, testJPEG(t))
+
+	r, err := reader.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	streams := r.Streams()
+	if len(streams) != 1 {
+		t.Fatalf("Streams(): expected 1 stream (artwork excluded), got %d", len(streams))
+	}
+	if _, ok := streams[0]; !ok {
+		t.Fatal("Streams(): expected the audio stream keyed by index 0")
+	}
+}
+
+func TestReader_Streams_AfterClose(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if got := r.Streams(); got != nil {
+		t.Fatalf("Streams() after Close = %v, want nil", got)
+	}
+}
+
+// Demonstrates the intended usage pattern documented on Streams(): feeding
+// its output straight into writer.WithProfile to remux into a new file.
+func TestReader_Streams_Remux(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	var opts []writer.Opt
+	for i, p := range r.Streams() {
+		opts = append(opts, writer.WithProfile(i, p))
+	}
+	if len(opts) != 1 {
+		t.Fatalf("expected 1 WithProfile option, got %d", len(opts))
+	}
+
+	output := profile.OutputWithName("mp4")
+	if output == nil {
+		t.Fatal("OutputWithName(mp4): nil output")
+	}
+
+	w, err := writer.Create(&url.URL{Path: filepath.Join(t.TempDir(), "remux.mp4")}, output, opts...)
+	if err != nil {
+		t.Fatalf("writer.Create with Streams() profiles: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}

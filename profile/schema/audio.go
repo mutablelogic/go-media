@@ -41,17 +41,6 @@ type AudioProfileUUID uuid.UUID
 var _ Profile = (*AudioProfile)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	OptionBitrate       = "bitrate"
-	OptionProfile       = "profile"
-	OptionSampleRate    = "sample_rate"
-	OptionSampleFormat  = "sample_format"
-	OptionChannelLayout = "channel_layout"
-)
-
-////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func NewAudioProfile(codec string) (*AudioProfile, error) {

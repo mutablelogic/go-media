@@ -18,3 +18,22 @@ type Profile interface {
 	TimeBase() *ff.AVRational   // Time base for this profile
 	Options() json.RawMessage   // Additional codec-specific options
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	OptionBitrate = "bitrate"
+
+	// Audio options
+	OptionProfile       = "profile"
+	OptionSampleRate    = "sample_rate"
+	OptionSampleFormat  = "sample_format"
+	OptionChannelLayout = "channel_layout"
+
+	// Video options
+	OptionWidth       = "width"
+	OptionHeight      = "height"
+	OptionPixelFormat = "pixel_format"
+	OptionFrameRate   = "frame_rate"
+)
