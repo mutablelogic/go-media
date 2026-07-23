@@ -2,9 +2,12 @@ package reader_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -470,5 +473,100 @@ func TestReader_Streams_Remux(t *testing.T) {
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+}
+
+func TestReader_Decode_PacketFn(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	var packets int
+	err = r.Decode(context.Background(), func(*ff.AVPacket) error {
+		packets++
+		return nil
+	}, nil)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if packets == 0 {
+		t.Fatal("expected at least one packet")
+	}
+}
+
+// Regression test: packetfn returning io.EOF should end Decode early without
+// an error, matching the documented "stop early, no error" contract.
+func TestReader_Decode_PacketFn_EOF(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	var packets int
+	err = r.Decode(context.Background(), func(*ff.AVPacket) error {
+		packets++
+		return io.EOF
+	}, nil)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if packets != 1 {
+		t.Fatalf("expected exactly 1 packet before stopping, got %d", packets)
+	}
+}
+
+func TestReader_Decode_NilCallbacks(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	if err := r.Decode(context.Background(), nil, nil); err == nil {
+		t.Fatal("Decode: expected error when packetfn and decoder are both nil")
+	}
+}
+
+// Regression test: the reader-is-closed check must run inside the same
+// locked section Close() uses, so a race between the two can't slip a nil
+// r.input past the check.
+func TestReader_Decode_AfterClose(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	err = r.Decode(context.Background(), func(*ff.AVPacket) error { return nil }, nil)
+	if err == nil {
+		t.Fatal("Decode after Close: expected error")
+	}
+}
+
+func TestReader_Decode_ContextCancelled(t *testing.T) {
+	r, err := reader.Open(sampleFilePath(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var packets int
+	err = r.Decode(ctx, func(*ff.AVPacket) error {
+		packets++
+		return nil
+	}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Decode: got error %v, want context.Canceled", err)
+	}
+	if packets != 0 {
+		t.Fatalf("expected 0 packets read before cancellation was observed, got %d", packets)
 	}
 }

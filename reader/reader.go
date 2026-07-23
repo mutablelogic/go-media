@@ -228,19 +228,35 @@ func (r *Reader) Streams() map[int]profile.Profile {
 	return result
 }
 
-// Decode packets from the media stream without decoding to frames. The packetfn is called for each
-// packet read from any stream. Use this for stream copying or remuxing without transcoding.
+// Decode packets from the media stream, calling packetfn for every packet
+// read from any stream - use this for stream copying or remuxing without
+// transcoding. If decoder is non-nil, packets from streams registered with
+// decoder.Add are also decoded into frames and passed to the Decoder's
+// FrameFn; streams not registered with the Decoder are left as packets only.
+// packetfn and decoder may not both be nil.
 //
-// The reading can be interrupted by cancelling the context, or by the packetfn
-// returning an error or io.EOF. The latter will end the reading process early but
-// will not return an error.
-func (r *Reader) Decode(ctx context.Context, packetfn PacketFn) error {
+// The reading can be interrupted by cancelling the context, or by either
+// callback returning an error or io.EOF. The latter will end the reading
+// process early but will not return an error.
+func (r *Reader) Decode(ctx context.Context, packetfn PacketFn, decoder *Decoder) error {
+	if packetfn == nil && decoder == nil {
+		return gomedia.ErrBadParameter.With("packetfn and decoder cannot both be nil")
+	}
+
 	// Lock decoding
 	r.Lock()
 	defer r.Unlock()
 
 	if r.input == nil {
 		return gomedia.ErrInternalError.With("reader is closed")
+	}
+
+	// Open the decoder's registered streams for the duration of this call
+	if decoder != nil {
+		if err := decoder.open(r.input); err != nil {
+			return errors.Join(err, decoder.close())
+		}
+		defer decoder.close()
 	}
 
 	// Allocate packet for reading - this will be reused for each read
@@ -265,7 +281,8 @@ func (r *Reader) Decode(ctx context.Context, packetfn PacketFn) error {
 		// Read next packet from any stream
 		if err := ff.AVFormat_read_frame(r.input, packet); err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				// End of stream - fall through to flush the decoder, if any
+				break
 			}
 			if errors.Is(err, syscall.EAGAIN) {
 				// No data available right now - retry
@@ -274,11 +291,28 @@ func (r *Reader) Decode(ctx context.Context, packetfn PacketFn) error {
 			return err
 		}
 
-		if err := packetfn(packet); err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
+		if packetfn != nil {
+			if err := packetfn(packet); err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				return err
 			}
-			return err
+		}
+
+		if decoder != nil {
+			if err := decoder.decode(packet.StreamIndex(), packet); err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
+				return err
+			}
 		}
 	}
+
+	// End of stream: drain any frames buffered by the decoder
+	if decoder != nil {
+		return decoder.flush()
+	}
+	return nil
 }
