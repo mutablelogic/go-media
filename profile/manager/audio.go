@@ -114,6 +114,7 @@ func (profile *Profile) UpdateAudioProfile(ctx context.Context, uuid uuid.UUID, 
 	defer func() { endSpan(err) }()
 
 	var result schema.AudioProfile
+	// TODO: Set each option in the meta to the audio profile to validate it
 	if err := profile.PoolConn.Update(ctx, &result, schema.AudioProfileUUID(uuid), meta); err != nil {
 		return nil, pg.NormalizeError(err)
 	}

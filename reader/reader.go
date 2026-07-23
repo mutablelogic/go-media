@@ -1,10 +1,13 @@
 package reader
 
 import (
+	"context"
+	"errors"
 	"io"
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	// Packages
@@ -223,4 +226,59 @@ func (r *Reader) Streams() map[int]profile.Profile {
 		result[sp.Index()] = sp
 	}
 	return result
+}
+
+// Decode packets from the media stream without decoding to frames. The packetfn is called for each
+// packet read from any stream. Use this for stream copying or remuxing without transcoding.
+//
+// The reading can be interrupted by cancelling the context, or by the packetfn
+// returning an error or io.EOF. The latter will end the reading process early but
+// will not return an error.
+func (r *Reader) Decode(ctx context.Context, packetfn PacketFn) error {
+	// Lock decoding
+	r.Lock()
+	defer r.Unlock()
+
+	if r.input == nil {
+		return gomedia.ErrInternalError.With("reader is closed")
+	}
+
+	// Allocate packet for reading - this will be reused for each read
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return gomedia.ErrInternalError.With("failed to allocate packet")
+	}
+	defer ff.AVCodec_packet_free(packet)
+
+	// Read packets until EOF, context cancellation or error
+	for {
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Unref any previous packet data before reading
+		ff.AVCodec_packet_unref(packet)
+
+		// Read next packet from any stream
+		if err := ff.AVFormat_read_frame(r.input, packet); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if errors.Is(err, syscall.EAGAIN) {
+				// No data available right now - retry
+				continue
+			}
+			return err
+		}
+
+		if err := packetfn(packet); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
 }
