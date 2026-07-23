@@ -213,12 +213,132 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		}
 	}
 
-	return []Option{bitrate, sample_rate, sample_format, channel_layout}
+	result := []Option{bitrate}
+	if len(codec.Profiles()) > 0 {
+		// Only advertise "profile" for codecs that actually declare one —
+		// many codecs (e.g. flac, pcm_*) have no concept of it at all.
+		// Codecs that expose profile only as their own private option
+		// (e.g. libx264/libx265) still get it via the private-class
+		// extraction in OptionsForCodec, without needing it added here.
+		result = append(result, profileOptionForCodec(codec))
+	}
+	return append(result, sample_rate, sample_format, channel_layout)
 }
 
-func VideoOptionsForCodec(_ *ff.AVCodec) []Option {
-	// TODO
-	return nil
+func VideoOptionsForCodec(codec *ff.AVCodec) []Option {
+	if codec == nil {
+		return nil
+	}
+
+	// Bitrate Option
+	bitrate := Option{
+		Name:        OptionBitrate,
+		Description: "Video bitrate in bits per second.",
+		Type:        "int",
+		Unit:        "bps",
+	}
+
+	// Width Option
+	width := Option{
+		Name:        OptionWidth,
+		Description: "Frame width in pixels.",
+		Type:        "int",
+		Unit:        "px",
+	}
+
+	// Height Option
+	height := Option{
+		Name:        OptionHeight,
+		Description: "Frame height in pixels.",
+		Type:        "int",
+		Unit:        "px",
+	}
+
+	// Pixel Format Option
+	pixel_format := Option{
+		Name:        OptionPixelFormat,
+		Description: "Video pixel format.",
+		Type:        "string",
+	}
+	for i, format := range codec.PixelFormats() {
+		name := strings.TrimSpace(ff.AVUtil_get_pix_fmt_name(format))
+		if i == 0 {
+			pixel_format.Default = name
+		}
+		pixel_format.Const = append(pixel_format.Const, Option{
+			Default: name,
+			Type:    "string",
+		})
+	}
+
+	// Frame Rate Option
+	frame_rate := Option{
+		Name:        OptionFrameRate,
+		Description: "Frame rate in frames per second.",
+		Type:        "double",
+		Unit:        "fps",
+	}
+	for i, rate := range codec.SupportedFramerates() {
+		fps := ff.AVUtil_rational_q2d(rate)
+		if i == 0 {
+			frame_rate.Default = fps
+		}
+		frame_rate.Const = append(frame_rate.Const, Option{
+			Default: fps,
+			Type:    "double",
+		})
+	}
+
+	result := []Option{bitrate}
+	if len(codec.Profiles()) > 0 {
+		// Only advertise "profile" for codecs that actually declare one —
+		// many codecs (e.g. rawvideo, mpeg4) have no concept of it at all.
+		// Codecs that expose profile only as their own private option
+		// (e.g. libx264/libx265) still get it via the private-class
+		// extraction in OptionsForCodec, without needing it added here.
+		result = append(result, profileOptionForCodec(codec))
+	}
+	return append(result, width, height, pixel_format, frame_rate)
+}
+
+// profileOptionForCodec builds the shared "profile" Option (e.g. h264's
+// baseline/main/high, or aac's LC/HE-AAC/HE-AACv2), listing every profile
+// the codec advertises as a Const choice.
+func profileOptionForCodec(codec *ff.AVCodec) Option {
+	profile := Option{
+		Name:        OptionProfile,
+		Description: "Codec profile.",
+		Type:        "string",
+	}
+	for i, p := range codec.Profiles() {
+		name := strings.TrimSpace(p.Name())
+		if name == "" {
+			continue
+		}
+		if i == 0 {
+			profile.Default = name
+		}
+		profile.Const = append(profile.Const, Option{
+			Default: name,
+			Type:    "string",
+		})
+	}
+	return profile
+}
+
+// resolveProfileID looks up the AVProfile ID for name (case-insensitive). An
+// empty name resolves to AV_PROFILE_UNKNOWN (the encoder picks its own
+// default). Returns an error if name is set but not recognized by codec.
+func resolveProfileID(codec *ff.AVCodec, name string) (int, error) {
+	if name == "" {
+		return ff.AV_PROFILE_UNKNOWN, nil
+	}
+	for _, p := range codec.Profiles() {
+		if strings.EqualFold(strings.TrimSpace(p.Name()), name) {
+			return p.ID(), nil
+		}
+	}
+	return 0, gomedia.ErrBadParameter.Withf("unknown profile %q for codec %q", name, codec.Name())
 }
 
 func SubtitleOptionsForCodec(_ *ff.AVCodec) []Option {

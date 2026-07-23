@@ -42,7 +42,7 @@ func TestCreate(t *testing.T) {
 		t.Fatal("OutputWithName(mp4): nil output")
 	}
 
-	w, err := writer.Create(tempFileURL(t, "out.mp4"), output, audioStream(t))
+	w, err := writer.Create(tempFileURL(t, "out.mp4"), output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -61,13 +61,13 @@ func TestCreate_NilURL(t *testing.T) {
 		t.Fatal("OutputWithName(mp4): nil output")
 	}
 
-	if _, err := writer.Create(nil, output, audioStream(t)); err == nil {
+	if _, err := writer.Create(nil, output, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("Create: expected error for nil URL")
 	}
 }
 
 func TestCreate_NilOutput(t *testing.T) {
-	if _, err := writer.Create(tempFileURL(t, "out.mp4"), nil, audioStream(t)); err == nil {
+	if _, err := writer.Create(tempFileURL(t, "out.mp4"), nil, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("Create: expected error for nil output")
 	}
 }
@@ -78,7 +78,7 @@ func TestCreate_NilContext(t *testing.T) {
 	// than dereferencing a nil context.
 	output := new(profile.Output)
 
-	if _, err := writer.Create(tempFileURL(t, "out.mp4"), output, audioStream(t)); err == nil {
+	if _, err := writer.Create(tempFileURL(t, "out.mp4"), output, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("Create: expected error for output with nil context")
 	}
 }
@@ -102,7 +102,7 @@ func TestCreate_OutputOpts(t *testing.T) {
 	output.Opts = json.RawMessage(`{"movflags":"faststart"}`)
 
 	path := tempFileURL(t, "out.mp4")
-	w, err := writer.Create(path, output, audioStream(t))
+	w, err := writer.Create(path, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCreate_OutputOpts_Invalid(t *testing.T) {
 	}
 	output.Opts = json.RawMessage(`{"not_a_real_mp4_option":"x"}`)
 
-	if _, err := writer.Create(tempFileURL(t, "out.mp4"), output, audioStream(t)); err == nil {
+	if _, err := writer.Create(tempFileURL(t, "out.mp4"), output, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("Create: expected error for unrecognized output option")
 	}
 }
@@ -144,7 +144,7 @@ func TestNewWriter(t *testing.T) {
 	}
 	defer f.Close()
 
-	w, err := writer.NewWriter(f, output, audioStream(t))
+	w, err := writer.NewWriter(f, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestNewWriter_BytesBuffer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	w, err := writer.NewWriter(&buf, output, audioStream(t))
+	w, err := writer.NewWriter(&buf, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -194,14 +194,14 @@ func TestNewWriter_NilWriter(t *testing.T) {
 		t.Fatal("OutputWithName(mp4): nil output")
 	}
 
-	if _, err := writer.NewWriter(nil, output, audioStream(t)); err == nil {
+	if _, err := writer.NewWriter(nil, output, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("NewWriter: expected error for nil writer")
 	}
 }
 
 func TestNewWriter_NilOutput(t *testing.T) {
 	var buf bytes.Buffer
-	if _, err := writer.NewWriter(&buf, nil, audioStream(t)); err == nil {
+	if _, err := writer.NewWriter(&buf, nil, writer.WithProfile(0, audioStream(t))); err == nil {
 		t.Fatal("NewWriter: expected error for nil output")
 	}
 }
@@ -225,7 +225,7 @@ func TestNewWriter_EncodeFrame(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	w, err := writer.NewWriter(&buf, output, audioStream(t))
+	w, err := writer.NewWriter(&buf, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("NewWriter: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestWriter_EncodeFrame(t *testing.T) {
 	// header+trailer, so compare against that baseline to confirm frames
 	// actually contributed real packet data, not just a bigger header.
 	baselinePath := tempFileURL(t, "baseline.mp4")
-	baseline, err := writer.Create(baselinePath, output, audioStream(t))
+	baseline, err := writer.Create(baselinePath, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("Create (baseline): %v", err)
 	}
@@ -281,7 +281,7 @@ func TestWriter_EncodeFrame(t *testing.T) {
 	}
 
 	path := tempFileURL(t, "out.mp4")
-	w, err := writer.Create(path, output, audioStream(t))
+	w, err := writer.Create(path, output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -324,7 +324,7 @@ func TestClose_Idempotent(t *testing.T) {
 		t.Fatal("OutputWithName(mp4): nil output")
 	}
 
-	w, err := writer.Create(tempFileURL(t, "out.mp4"), output, audioStream(t))
+	w, err := writer.Create(tempFileURL(t, "out.mp4"), output, writer.WithProfile(0, audioStream(t)))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

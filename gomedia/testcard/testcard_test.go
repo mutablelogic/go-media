@@ -245,7 +245,7 @@ func TestPipeline(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "testcard.ogg")
-	w, err := writer.Create(&url.URL{Path: path}, output, encodeProfile)
+	w, err := writer.Create(&url.URL{Path: path}, output, writer.WithProfile(0, encodeProfile))
 	if err != nil {
 		t.Fatalf("writer.Create: %v", err)
 	}

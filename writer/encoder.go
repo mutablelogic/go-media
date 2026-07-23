@@ -46,8 +46,11 @@ func NewEncoder(fn PacketFn) (*Encoder, error) {
 
 // Add opens a codec context for streamID from the given profile. Codec-
 // specific options come from profile.Options(), applied the same way
-// Writer applies Output.Opts to the format context.
-func (e *Encoder) Add(streamID int, p profile.Profile) error {
+// Writer applies Output.Opts to the format context. Any flags (e.g.
+// AV_CODEC_FLAG_GLOBAL_HEADER, which muxers like mp4/mov require so the
+// codec emits extradata instead of repeating headers in-band) are set on
+// the codec context before it is opened.
+func (e *Encoder) Add(streamID int, p profile.Profile, flags ...ff.AVCodecFlag) error {
 	e.Lock()
 	defer e.Unlock()
 
@@ -78,6 +81,11 @@ func (e *Encoder) Add(streamID int, p profile.Profile) error {
 	// Set timebase if specified
 	if timebase := p.TimeBase(); timebase != nil {
 		ctx.SetTimeBase(*timebase)
+	}
+
+	// Apply any codec flags before opening the codec context
+	for _, flag := range flags {
+		ctx.SetFlags(ctx.Flags() | flag)
 	}
 
 	// Build the codec-specific options dictionary from the profile

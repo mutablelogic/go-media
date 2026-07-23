@@ -5,6 +5,11 @@ import (
 	"io"
 )
 
+const (
+	// MetaArtwork is the metadata key for artwork (album art, cover art, etc.)
+	MetaArtwork = "artwork"
+)
+
 // Metadata is a key/value pair which can be used to describe a media object
 // or other metadata. The value can be retrieved as a string value,
 // data, or other type. If the value is a byte slice, then it can also
