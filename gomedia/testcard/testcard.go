@@ -30,7 +30,7 @@ type TestCard struct {
 	frequency float64 // Hz
 	volume    float64 // dB
 
-	frame   *frame.Frame
+	frame   *frame.AudioFrame
 	started bool // Whether the first frame has been generated
 }
 
@@ -112,7 +112,7 @@ func New(audio *profile.AudioProfile, opts ...Opt) (*TestCard, error) {
 	}
 
 	// Allocate the frame once and reuse it for every call to NextFrame.
-	f, err := frame.NewFrame(0)
+	f, err := frame.NewAudioFrame(0)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (t *TestCard) Streams() []profile.Profile {
 // it does not pace itself to real time. A caller that wants real-time
 // delivery (e.g. a live streaming job) is responsible for its own pacing
 // based on the returned frame's Pts/SampleRate.
-func (t *TestCard) NextFrame(ctx context.Context) (*frame.Frame, error) {
+func (t *TestCard) NextFrame(ctx context.Context) (frame.Frame, error) {
 	if t.frame == nil {
 		return nil, gomedia.ErrInternalError.With("test card is closed")
 	}

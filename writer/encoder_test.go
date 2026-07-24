@@ -9,10 +9,18 @@ import (
 	writer "github.com/mutablelogic/go-media/writer"
 )
 
-func silentFrame(t *testing.T, streamID, numSamples int) *frame.Frame {
+func silentSubtitle(streamID int, dialogue string, startMs, endMs uint32) (*frame.SubtitleFrame, error) {
+	sub := ff.NewSubtitle(0)
+	if err := sub.SetASS(dialogue, startMs, endMs); err != nil {
+		return nil, err
+	}
+	return frame.NewSubtitleFrame(streamID, sub), nil
+}
+
+func silentFrame(t *testing.T, streamID, numSamples int) *frame.AudioFrame {
 	t.Helper()
 
-	frame, err := frame.NewFrame(streamID)
+	frame, err := frame.NewAudioFrame(streamID)
 	if err != nil {
 		t.Fatalf("NewFrame: %v", err)
 	}
@@ -130,6 +138,56 @@ func TestEncoder_Encode_UnknownStream(t *testing.T) {
 
 	if err := enc.Encode(frame); err == nil {
 		t.Fatal("Encode: expected error for unregistered stream")
+	}
+}
+
+// Subtitles are encoded through a completely different FFmpeg API
+// (AVCodec_encode_subtitle, not send/receive frame) - this exercises that
+// Encoder.Encode dispatches a *frame.SubtitleFrame down the right path.
+func TestEncoder_EncodeSubtitle(t *testing.T) {
+	var packets int
+	var gotStreamIndex = -1
+	enc := newTestEncoder(t, func(pkt *ff.AVPacket) error {
+		if pkt != nil {
+			packets++
+			gotStreamIndex = pkt.StreamIndex()
+		}
+		return nil
+	})
+	defer enc.Close()
+
+	if err := enc.Add(3, subtitleStream(t)); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	f, err := silentSubtitle(3, "0,Default,,0,0,0,,Hello world", 0, 1000)
+	if err != nil {
+		t.Fatalf("silentSubtitle: %v", err)
+	}
+	defer f.Close()
+
+	if err := enc.Encode(f); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if packets == 0 {
+		t.Fatal("expected at least one packet")
+	}
+	if gotStreamIndex != 3 {
+		t.Fatalf("packet stream index = %d, want 3", gotStreamIndex)
+	}
+}
+
+// Flush on a subtitle stream must be a no-op (not an error): subtitles use
+// a legacy API with no send/receive buffering to drain.
+func TestEncoder_Flush_Subtitle(t *testing.T) {
+	enc := newTestEncoder(t, nil)
+	defer enc.Close()
+
+	if err := enc.Add(0, subtitleStream(t)); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := enc.Flush(0); err != nil {
+		t.Fatalf("Flush: %v", err)
 	}
 }
 

@@ -229,9 +229,14 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 			continue
 		}
 
-		// Set timebase if specified
+		// Set timebase if specified. Subtitle profiles have none of their
+		// own (no sample/frame rate to derive one from) - give the stream
+		// the same default Encoder.Add gave the codec context, so packets
+		// built against that timebase need no further rescaling here.
 		if timebase := profile.TimeBase(); timebase != nil {
 			stream.SetTimeBase(types.Value(timebase))
+		} else if ff.AVMediaType(profile.Type()) == ff.AVMEDIA_TYPE_SUBTITLE {
+			stream.SetTimeBase(subtitleTimeBase)
 		}
 	}
 

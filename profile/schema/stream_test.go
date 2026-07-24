@@ -89,7 +89,7 @@ func writeSampleFile(t *testing.T, path string, artwork []byte) {
 	}
 
 	for i := 0; i < 10; i++ {
-		f, err := frame.NewFrame(0)
+		f, err := frame.NewAudioFrame(0)
 		if err != nil {
 			t.Fatalf("NewFrame: %v", err)
 		}

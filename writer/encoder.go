@@ -20,6 +20,22 @@ import (
 // stops encoding early without being treated as an error.
 type PacketFn func(*ff.AVPacket) error
 
+// subtitleBufferSize is the scratch buffer AVCodec_encode_subtitle writes
+// into. Subtitles are text or small bitmaps, never anywhere near this size.
+const subtitleBufferSize = 65536
+
+// subtitleTimeBase is the default timebase (milliseconds) used for a
+// subtitle codec context/packets when the profile has none of its own
+// (profile.Profile.TimeBase always returns nil for subtitles - there's no
+// sample rate or frame rate to derive one from). Milliseconds matches both
+// AVSubtitle's own start/end display time convention and common container
+// defaults (e.g. Matroska's own default subtitle stream timebase).
+//
+// Encoder.Encode never rescales - see its docs - so Writer.open must give
+// the muxed AVStream this same timebase for a subtitle stream, or packets
+// built against it here will be mis-timed once muxed.
+var subtitleTimeBase = ff.AVUtil_rational(1, 1000)
+
 // Encoder is a standalone, muxer-agnostic collection of codec encoders keyed
 // by caller-chosen stream ID. Unlike Writer, it never creates an AVStream or
 // AVFormatContext, so each codec context here has no muxer-owned AVStream to
@@ -78,9 +94,13 @@ func (e *Encoder) Add(streamID int, p profile.Profile, flags ...ff.AVCodecFlag) 
 		return err
 	}
 
-	// Set timebase if specified
+	// Set timebase if specified. Subtitle profiles have no natural rate to
+	// derive one from (TimeBase always returns nil), but some subtitle
+	// encoders (e.g. "ass") still refuse to open without one set.
 	if timebase := p.TimeBase(); timebase != nil {
 		ctx.SetTimeBase(*timebase)
+	} else if p.Type() == profile.CodecType(ff.AVMEDIA_TYPE_SUBTITLE) {
+		ctx.SetTimeBase(subtitleTimeBase)
 	}
 
 	// Apply any codec flags before opening the codec context
@@ -127,30 +147,48 @@ func (e *Encoder) Close() error {
 //////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Encode sends f to the codec registered for f.StreamID and passes
+// Encode sends f to the codec registered for f.Stream() and passes
 // resulting packets to the Encoder's callback. Packets carry the codec's own
 // timebase — rescale to a muxer's stream timebase downstream if needed.
-func (e *Encoder) Encode(f *frame.Frame) error {
+//
+// f must be an *frame.AudioFrame or *frame.VideoFrame for a stream Added
+// from an audio/video profile, or a *frame.SubtitleFrame for a stream Added
+// from a subtitle profile - FFmpeg encodes subtitles via a completely
+// separate, legacy API with no send/receive buffering.
+func (e *Encoder) Encode(f frame.Frame) error {
 	if f == nil {
 		return gomedia.ErrBadParameter.With("nil frame")
 	}
-	ctx, err := e.contextFor(f.StreamID)
+	ctx, err := e.contextFor(f.Stream())
 	if err != nil {
 		return err
-	} else {
-		return e.encode(ctx, f.StreamID, f.AVFrame)
+	}
+
+	switch f := f.(type) {
+	case *frame.AudioFrame:
+		return e.encode(ctx, f.Stream(), f.AVFrame)
+	case *frame.VideoFrame:
+		return e.encode(ctx, f.Stream(), f.AVFrame)
+	case *frame.SubtitleFrame:
+		return e.encodeSubtitle(ctx, f.Stream(), f.AVSubtitle)
+	default:
+		return gomedia.ErrBadParameter.Withf("unsupported frame type %T", f)
 	}
 }
 
 // Flush signals end-of-stream to the codec registered for streamID and
-// passes any remaining buffered packets to the Encoder's callback.
+// passes any remaining buffered packets to the Encoder's callback. This is
+// a no-op for a subtitle stream: subtitles use a legacy API with no
+// buffering, so there is nothing to flush.
 func (e *Encoder) Flush(streamID int) error {
 	ctx, err := e.contextFor(streamID)
 	if err != nil {
 		return err
-	} else {
-		return e.encode(ctx, streamID, nil)
 	}
+	if ctx.CodecType() == ff.AVMEDIA_TYPE_SUBTITLE {
+		return nil
+	}
+	return e.encode(ctx, streamID, nil)
 }
 
 // FrameSize returns the number of samples per frame the codec registered for
@@ -245,4 +283,50 @@ func (e *Encoder) encode(ctx *ff.AVCodecContext, streamID int, frame *ff.AVFrame
 	}
 
 	return result
+}
+
+// encodeSubtitle encodes sub using FFmpeg's legacy, non-streaming subtitle
+// API (one call in, at most one packet out - no send/receive buffering, so
+// unlike encode there is no flush concept and no per-call retry loop).
+func (e *Encoder) encodeSubtitle(ctx *ff.AVCodecContext, streamID int, sub *ff.AVSubtitle) error {
+	buf := make([]byte, subtitleBufferSize)
+	n, err := ff.AVCodec_encode_subtitle(ctx, buf, sub)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return e.fn(nil)
+	}
+
+	packet := ff.AVCodec_packet_alloc()
+	if packet == nil {
+		return errors.New("failed to allocate packet")
+	}
+
+	if err := ff.AVCodec_packet_from_data(packet, buf[:n]); err != nil {
+		ff.AVCodec_packet_free(packet)
+		return err
+	}
+
+	// AVSubtitle's PTS is documented as being in AV_TIME_BASE (microsecond)
+	// units, but the packet uses subtitleTimeBase (milliseconds) - the same
+	// timebase Encoder.Add gave the codec context, and Writer.open gives the
+	// muxed AVStream, so no further rescaling is needed downstream.
+	packet.SetStreamIndex(streamID)
+	packet.SetPts(sub.PTS() / 1000)
+	packet.SetDts(sub.PTS() / 1000)
+	packet.SetTimeBase(subtitleTimeBase)
+	if duration := int64(sub.EndDisplayTime()) - int64(sub.StartDisplayTime()); duration > 0 {
+		packet.SetDuration(duration)
+	}
+
+	err = e.fn(packet)
+	ff.AVCodec_packet_free(packet)
+
+	if errors.Is(err, io.EOF) {
+		return io.EOF
+	} else if err != nil {
+		return err
+	}
+	return e.fn(nil)
 }

@@ -72,13 +72,15 @@ func (err AVError) Error() string {
 		return ""
 	}
 	cBuffer := make([]byte, errBufferSize)
-	if err := C.av_strerror(C.int(err), (*C.char)(unsafe.Pointer(&cBuffer[0])), errBufferSize); err == 0 {
+	if ret := C.av_strerror(C.int(err), (*C.char)(unsafe.Pointer(&cBuffer[0])), errBufferSize); ret == 0 {
 		if n := bytes.IndexByte(cBuffer, 0); n >= 0 {
 			return string(cBuffer[:n])
 		} else {
 			return string(cBuffer)
 		}
 	} else {
+		// av_strerror itself failed (err isn't a code it recognizes) -
+		// report the original value, not av_strerror's own status (ret).
 		return fmt.Sprintf("Error code: %v", int(err))
 	}
 }

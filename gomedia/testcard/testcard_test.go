@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// Packages
+	frame "github.com/mutablelogic/go-media/frame"
 	testcard "github.com/mutablelogic/go-media/gomedia/testcard"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	writer "github.com/mutablelogic/go-media/writer"
@@ -123,12 +124,16 @@ func TestNextFrame(t *testing.T) {
 	var sawNonZero bool
 	var peak float32
 	for i := 0; i < 3; i++ {
-		f, err := tc.NextFrame(ctx)
+		raw, err := tc.NextFrame(ctx)
 		if err != nil {
 			t.Fatalf("NextFrame: %v", err)
 		}
-		if f.StreamID != 0 {
-			t.Fatalf("NextFrame: expected StreamID 0, got %d", f.StreamID)
+		if raw.Stream() != 0 {
+			t.Fatalf("NextFrame: expected Stream() 0, got %d", raw.Stream())
+		}
+		f, ok := raw.(*frame.AudioFrame)
+		if !ok {
+			t.Fatalf("NextFrame: expected *frame.AudioFrame, got %T", raw)
 		}
 		if i > 0 && f.Pts() <= lastPts {
 			t.Fatalf("NextFrame: expected increasing Pts, got %d after %d", f.Pts(), lastPts)

@@ -470,6 +470,21 @@ func (ctx *AVCodecContext) SetTimeBase(time_base AVRational) {
 	ctx.time_base = C.struct_AVRational(time_base)
 }
 
+// PktTimeBase returns the timebase of packets fed to this decoder - distinct
+// from TimeBase (the codec's own nominal rate), and how a decoder learns the
+// timebase incoming packet timestamps are actually expressed in. Some
+// decoders (e.g. the "ssa"/"ass" subtitle decoder) require this to be set
+// before decoding will succeed.
+func (ctx *AVCodecContext) PktTimeBase() AVRational {
+	return (AVRational)(ctx.pkt_timebase)
+}
+
+// SetPktTimeBase sets the timebase of packets that will be fed to this
+// decoder. See PktTimeBase.
+func (ctx *AVCodecContext) SetPktTimeBase(time_base AVRational) {
+	ctx.pkt_timebase = C.struct_AVRational(time_base)
+}
+
 func (ctx *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(ctx.sample_fmt)
 }

@@ -44,10 +44,10 @@ func audioProfile(t *testing.T) *profile.AudioProfile {
 	return p
 }
 
-func silentFrame(t *testing.T, streamID, numSamples int) *frame.Frame {
+func silentFrame(t *testing.T, streamID, numSamples int) *frame.AudioFrame {
 	t.Helper()
 
-	f, err := frame.NewFrame(streamID)
+	f, err := frame.NewAudioFrame(streamID)
 	if err != nil {
 		t.Fatalf("NewFrame: %v", err)
 	}

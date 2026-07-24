@@ -25,7 +25,7 @@ type Source interface {
 	// NextFrame blocks until the next frame is ready, ctx is cancelled, or
 	// the source has no more frames (io.EOF). Frames are paced by the
 	// source itself — callers just pull in a loop.
-	NextFrame(ctx context.Context) (*frame.Frame, error)
+	NextFrame(ctx context.Context) (frame.Frame, error)
 
 	// Close releases resources the source holds (file handles, devices, ...).
 	Close() error

@@ -36,6 +36,19 @@ func audioStream(t *testing.T) *profile.AudioProfile {
 	return p
 }
 
+// subtitleStream returns an "ass" subtitle profile. Of the sampled text
+// subtitle codecs (ass, srt, mov_text, webvtt), only "ass" opens cleanly
+// against this build of libavcodec - see sys/ffmpeg80's subtitle encode
+// tests for details - so it's the one used for subtitle coverage here.
+func subtitleStream(t *testing.T) *profile.SubtitleProfile {
+	t.Helper()
+	p, err := profile.NewSubtitleProfile("ass")
+	if err != nil {
+		t.Skipf("ass encoder not available: %v", err)
+	}
+	return p
+}
+
 func TestCreate(t *testing.T) {
 	output := profile.OutputWithName("mp4")
 	if output == nil {
