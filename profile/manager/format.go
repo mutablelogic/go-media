@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"strings"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
@@ -21,8 +22,20 @@ func (profile *Profile) ListFormats(ctx context.Context, req schema.FormatListRe
 	)
 	defer func() { endSpan(err) }()
 
-	// Match helper
-	matches := func(_ *ff.AVOutputFormat) bool {
+	// Match helper. Name/MimeTypes/Extensions are each a single string that
+	// FFmpeg comma-joins when a format has more than one (e.g. mp4's
+	// extensions are "mp4,m4a,m4v"), so filters match against any one token
+	// rather than the field as a whole.
+	matches := func(format *ff.AVOutputFormat) bool {
+		if req.Name != nil && !hasToken(format.Name(), types.Value(req.Name)) {
+			return false
+		}
+		if req.Type != nil && !hasToken(format.MimeTypes(), types.Value(req.Type)) {
+			return false
+		}
+		if req.Ext != nil && !hasToken(format.Extensions(), types.Value(req.Ext)) {
+			return false
+		}
 		return true
 	}
 
@@ -71,4 +84,18 @@ func (profile *Profile) GetFormat(ctx context.Context, name string) (_ *schema.F
 
 	// Return the format
 	return schema.NewOutputFormat(format), nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// hasToken reports whether value equals (case-insensitively) one of the
+// comma-separated tokens in field.
+func hasToken(field, value string) bool {
+	for _, token := range strings.Split(field, ",") {
+		if strings.EqualFold(strings.TrimSpace(token), value) {
+			return true
+		}
+	}
+	return false
 }

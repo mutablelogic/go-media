@@ -171,7 +171,7 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		if i == 0 {
 			sample_rate.Default = uint64(rate)
 		}
-		sample_rate.Const = append(sample_rate.Const, Option{
+		sample_rate.Const = append(sample_rate.Const, OptionConst{
 			Default: uint64(rate),
 			Type:    "int",
 		})
@@ -187,7 +187,7 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		if i == 0 {
 			sample_format.Default = strings.TrimSpace(format.String())
 		}
-		sample_format.Const = append(sample_format.Const, Option{
+		sample_format.Const = append(sample_format.Const, OptionConst{
 			Default: strings.TrimSpace(format.String()),
 			Type:    "string",
 		})
@@ -206,7 +206,7 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 			}
 		}
 		if desc, err := ff.AVUtil_channel_layout_describe(&layout); err == nil {
-			channel_layout.Const = append(channel_layout.Const, Option{
+			channel_layout.Const = append(channel_layout.Const, OptionConst{
 				Default: strings.TrimSpace(desc),
 				Type:    "string",
 			})
@@ -265,7 +265,7 @@ func VideoOptionsForCodec(codec *ff.AVCodec) []Option {
 		if i == 0 {
 			pixel_format.Default = name
 		}
-		pixel_format.Const = append(pixel_format.Const, Option{
+		pixel_format.Const = append(pixel_format.Const, OptionConst{
 			Default: name,
 			Type:    "string",
 		})
@@ -283,7 +283,7 @@ func VideoOptionsForCodec(codec *ff.AVCodec) []Option {
 		if i == 0 {
 			frame_rate.Default = fps
 		}
-		frame_rate.Const = append(frame_rate.Const, Option{
+		frame_rate.Const = append(frame_rate.Const, OptionConst{
 			Default: fps,
 			Type:    "double",
 		})
@@ -318,7 +318,7 @@ func profileOptionForCodec(codec *ff.AVCodec) Option {
 		if i == 0 {
 			profile.Default = name
 		}
-		profile.Const = append(profile.Const, Option{
+		profile.Const = append(profile.Const, OptionConst{
 			Default: name,
 			Type:    "string",
 		})
@@ -357,14 +357,14 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 	result := []Option{}
 	if class := codec.PrivClass(); class != nil {
 		ffopts := ff.AVUtil_opt_list_from_class(class)
-		consts := make(map[string][]Option, len(ffopts))
+		consts := make(map[string][]OptionConst, len(ffopts))
 		for _, opt := range ffopts {
 			if opt == nil {
 				continue
 			}
 			if opt.Type() == ff.AV_OPT_TYPE_CONST {
 				key := opt.Unit()
-				consts[key] = append(consts[key], NewOption(opt))
+				consts[key] = append(consts[key], NewOptionConst(opt))
 				continue
 			}
 			name := strings.TrimSpace(opt.Name())

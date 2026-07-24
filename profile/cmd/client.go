@@ -14,6 +14,7 @@ import (
 
 type ClientCommands struct {
 	ClientCodecCommands
+	ClientPixelFormatCommands
 	ClientProfileCommands
 }
 

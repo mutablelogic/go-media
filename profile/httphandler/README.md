@@ -1,5 +1,15 @@
 # Profiles
 
+## Capabilities
+
+### GET /containerformat
+
+Returns a list of all available output container formats.
+
+### GET /pixelformat
+
+Returns a list of all available pixel formats.
+
 ## Encoders
 
 Blah

@@ -24,16 +24,16 @@ import (
 //go:embed README.md
 var readme []byte
 
-func RegisterFormatHandlers(manager *manager.Profile, router *httprouter.Router) error {
+func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Router) error {
 	// Parse the documentation
 	documentation := openapi.ParseMarkdown(readme)
 
 	// Add the documentation to the router
-	router.Spec().AddTag("Formats", documentation.Section(2, "Formats").Body)
+	router.Spec().AddTag("Capabilities", documentation.Section(2, "Container Formats").Body)
 
 	return errors.Join(
-		router.Register("format", nil, func(path httprequest.PathItem) {
-			path.Tag("Formats")
+		router.Register("containerformat", nil, func(path httprequest.PathItem) {
+			path.Tag("Capabilities")
 
 			// GET
 			path.Get(func(w http.ResponseWriter, r *http.Request) {
@@ -50,25 +50,40 @@ func RegisterFormatHandlers(manager *manager.Profile, router *httprouter.Router)
 					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 				}
 			}, func(op httprequest.PathOperation) {
-				op.Summary("List Formats")
-				op.Description(documentation.Section(3, "GET /format").Body)
-				op.RequestBody(jsonschema.MustFor[schema.FormatListRequest]())
-				//				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.FormatList](), "List of Formats")
+				op.Summary("List Container Formats")
+				op.Description(documentation.Section(3, "GET /containerformat").Body)
+				op.Query(jsonschema.MustFor[schema.FormatListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.FormatList](), "List of Formats")
 			})
 		}),
-	)
-}
+		router.Register("pixelformat", nil, func(path httprequest.PathItem) {
+			path.Tag("Capabilities")
 
-func RegisterCodecHandlers(manager *manager.Profile, router *httprouter.Router) error {
-	// Parse the documentation
-	documentation := openapi.ParseMarkdown(readme)
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				// Request
+				var req schema.PixelFormatListRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
 
-	// Add the documentation to the router
-	router.Spec().AddTag("Codecs", documentation.Section(2, "Encoders").Body)
-
-	return errors.Join(
+				// Response
+				response, err := manager.ListPixelFormats(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("List Pixel Formats")
+				op.Description(documentation.Section(3, "GET /pixelformat").Body)
+				op.Query(jsonschema.MustFor[schema.PixelFormatListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.PixelFormatList](), "List of Pixel Formats")
+			})
+		}),
 		router.Register("codec", nil, func(path httprequest.PathItem) {
-			path.Tag("Codecs")
+			path.Tag("Capabilities")
 
 			// GET
 			path.Get(func(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +106,7 @@ func RegisterCodecHandlers(manager *manager.Profile, router *httprouter.Router) 
 			})
 		}),
 		router.Register("codec/{name}", nil, func(path httprequest.PathItem) {
-			path.Tag("Codecs")
+			path.Tag("Capabilities")
 
 			// GET
 			path.Get(func(w http.ResponseWriter, r *http.Request) {
