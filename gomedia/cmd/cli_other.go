@@ -81,17 +81,9 @@ func (c *ProbeCmd) Run(ctx server.Cmd) error {
 // CAPABILITIES
 
 type CapabilitiesCLICommands struct {
-	AudioChannels AudioChannelsCmd `cmd:"" name:"audio-channels" help:"List audio channel layouts." group:"CAPABILITIES"`
-	Codecs        CodecCmd         `cmd:"" name:"codecs" help:"List codecs." group:"CAPABILITIES"`
-	Filters       FiltersCmd       `cmd:"" name:"filters" help:"List filters." group:"CAPABILITIES"`
-	Formats       FormatsCmd       `cmd:"" name:"formats" help:"List formats and devices." group:"CAPABILITIES"`
-	PixelFormats  PixelFormatsCmd  `cmd:"" name:"pixel-formats" help:"List pixel formats." group:"CAPABILITIES"`
-	SampleFormats SampleFormatsCmd `cmd:"" name:"sample-formats" help:"List sample formats." group:"CAPABILITIES"`
-}
-
-type AudioChannelsCmd struct {
-	BaseCmd
-	schema.ListAudioChannelLayoutRequest
+	Codecs  CodecCmd   `cmd:"" name:"codecs" help:"List codecs." group:"CAPABILITIES"`
+	Filters FiltersCmd `cmd:"" name:"filters" help:"List filters." group:"CAPABILITIES"`
+	Formats FormatsCmd `cmd:"" name:"formats" help:"List formats and devices." group:"CAPABILITIES"`
 }
 
 type CodecCmd struct {
@@ -109,16 +101,6 @@ type FiltersCmd struct {
 	schema.ListFilterRequest
 }
 
-type PixelFormatsCmd struct {
-	BaseCmd
-	schema.ListPixelFormatRequest
-}
-
-type SampleFormatsCmd struct {
-	BaseCmd
-	schema.ListSampleFormatRequest
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // ENCODING
 
@@ -134,27 +116,6 @@ type AudioSegmentCmd struct {
 	Silence          bool          `flag:"" name:"silence" help:"Enable silence-based segmentation." negatable:"" default:"true"`
 	SilenceDuration  time.Duration `flag:"" name:"silence-duration" help:"Minimum silence duration for silence-based splitting (e.g. 500ms). Also enables silence splitting." default:"0s"`
 	SilenceThreshold float64       `flag:"" name:"silence-threshold" help:"Silence threshold as RMS energy (0.0-1.0). Also enables silence splitting. 0 uses auto threshold (0.005)." default:"0"`
-}
-
-func (c *AudioChannelsCmd) Run(ctx server.Cmd) error {
-	json, termwidth := c.IsJSONOutput(ctx)
-	return c.WithManager(ctx, func(manager *manager.Media) error {
-		resp, err := manager.ListAudioChannelLayouts(ctx.Context(), c.ListAudioChannelLayoutRequest)
-		if err != nil {
-			return err
-		}
-
-		if json {
-			fmt.Println(resp)
-			return nil
-		}
-
-		table := tui.TableFor[schema.AudioChannelLayout](tui.SetWidth(termwidth))
-		if _, err := table.Write(os.Stdout, resp...); err != nil {
-			return err
-		}
-		return nil
-	})
 }
 
 func (c *CodecCmd) Run(ctx server.Cmd) error {
@@ -227,48 +188,6 @@ func (c *FormatsCmd) Run(ctx server.Cmd) error {
 			if _, err := deviceTable.Write(os.Stdout, format.Devices...); err != nil {
 				return err
 			}
-		}
-		return nil
-	})
-}
-
-func (c *PixelFormatsCmd) Run(ctx server.Cmd) error {
-	json, termwidth := c.IsJSONOutput(ctx)
-	return c.WithManager(ctx, func(manager *manager.Media) error {
-		resp, err := manager.ListPixelFormats(ctx.Context(), c.ListPixelFormatRequest)
-		if err != nil {
-			return err
-		}
-
-		if json {
-			fmt.Println(resp)
-			return nil
-		}
-
-		table := tui.TableFor[schema.PixelFormat](tui.SetWidth(termwidth))
-		if _, err := table.Write(os.Stdout, resp...); err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func (c *SampleFormatsCmd) Run(ctx server.Cmd) error {
-	json, termwidth := c.IsJSONOutput(ctx)
-	return c.WithManager(ctx, func(manager *manager.Media) error {
-		resp, err := manager.ListSampleFormats(ctx.Context(), c.ListSampleFormatRequest)
-		if err != nil {
-			return err
-		}
-
-		if json {
-			fmt.Println(resp)
-			return nil
-		}
-
-		table := tui.TableFor[schema.SampleFormat](tui.SetWidth(termwidth))
-		if _, err := table.Write(os.Stdout, resp...); err != nil {
-			return err
 		}
 		return nil
 	})

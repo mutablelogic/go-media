@@ -14,6 +14,10 @@ Returns a list of all available pixel formats.
 
 Returns a list of all available audio sample formats.
 
+### GET /channellayout
+
+Returns a list of all available audio channel layouts.
+
 ## Encoders
 
 Blah

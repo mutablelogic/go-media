@@ -108,6 +108,32 @@ func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Rou
 				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.SampleFormatList](), "List of Sample Formats")
 			})
 		}),
+		router.Register("channellayout", nil, func(path httprequest.PathItem) {
+			path.Tag("Capabilities")
+
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				// Request
+				var req schema.ChannelLayoutListRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				// Response
+				response, err := manager.ListChannelLayouts(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("List Channel Layouts")
+				op.Description(documentation.Section(3, "GET /channellayout").Body)
+				op.Query(jsonschema.MustFor[schema.ChannelLayoutListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.ChannelLayoutList](), "List of Channel Layouts")
+			})
+		}),
 		router.Register("codec", nil, func(path httprequest.PathItem) {
 			path.Tag("Capabilities")
 

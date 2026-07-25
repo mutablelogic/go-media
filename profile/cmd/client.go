@@ -17,6 +17,7 @@ type ClientCommands struct {
 	ClientFormatCommands
 	ClientPixelFormatCommands
 	ClientSampleFormatCommands
+	ClientChannelLayoutCommands
 	ClientProfileCommands
 }
 
