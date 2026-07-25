@@ -10,6 +10,10 @@ Returns a list of all available output container formats.
 
 Returns a list of all available pixel formats.
 
+### GET /sampleformat
+
+Returns a list of all available audio sample formats.
+
 ## Encoders
 
 Blah

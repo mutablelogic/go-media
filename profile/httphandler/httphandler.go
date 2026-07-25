@@ -82,6 +82,32 @@ func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Rou
 				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.PixelFormatList](), "List of Pixel Formats")
 			})
 		}),
+		router.Register("sampleformat", nil, func(path httprequest.PathItem) {
+			path.Tag("Capabilities")
+
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				// Request
+				var req schema.SampleFormatListRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				// Response
+				response, err := manager.ListSampleFormats(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("List Sample Formats")
+				op.Description(documentation.Section(3, "GET /sampleformat").Body)
+				op.Query(jsonschema.MustFor[schema.SampleFormatListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.SampleFormatList](), "List of Sample Formats")
+			})
+		}),
 		router.Register("codec", nil, func(path httprequest.PathItem) {
 			path.Tag("Capabilities")
 
