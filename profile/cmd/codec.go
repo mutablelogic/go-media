@@ -21,6 +21,7 @@ type ClientCodecCommands struct {
 
 type GetCodec struct {
 	Name string `arg:"" name:"name" help:"Name of the codec."`
+	schema.CodecGetRequest
 }
 
 type ListCodecs struct {
@@ -33,7 +34,7 @@ type ListCodecs struct {
 func (cmd *GetCodec) Run(ctx server.Cmd) error {
 	return withClient(ctx, "GetCodec", func(ctx context.Context, client *httpclient.Client) error {
 		// Get the codec
-		codec, err := client.GetCodec(ctx, cmd.Name)
+		codec, err := client.GetCodec(ctx, cmd.Name, cmd.CodecGetRequest)
 		if err != nil {
 			return err
 		}

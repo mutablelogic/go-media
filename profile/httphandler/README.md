@@ -18,17 +18,23 @@ Returns a list of all available audio sample formats.
 
 Returns a list of all available audio channel layouts.
 
-## Encoders
+### GET /device
+
+Returns a list of available input/output audio and video devices.
+
+## Codecs
 
 Blah
 
 ### GET /codec
 
-Returns a list of all available encoders.
+Returns a list of all available codecs (encoders and decoders). Filter by
+`is_encoder` and/or `is_decoder` to narrow the results by capability.
 
 ### GET /codec/{name}
 
-Returns the codec details for the specified encoder name.
+Returns the codec details for the specified name. Tries an encoder first,
+then a decoder, unless `is_encoder` is set to require one direction.
 
 ## Audio Profiles
 

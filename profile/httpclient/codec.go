@@ -23,10 +23,10 @@ func (c *Client) ListCodecs(ctx context.Context, req schema.CodecListRequest) (*
 	return types.Ptr(response), nil
 }
 
-func (c *Client) GetCodec(ctx context.Context, name string) (*schema.Codec, error) {
+func (c *Client) GetCodec(ctx context.Context, name string, req schema.CodecGetRequest) (*schema.Codec, error) {
 	// Perform request
 	var response schema.Codec
-	if err := c.DoWithContext(ctx, nil, &response, client.OptPath("codec", name)); err != nil {
+	if err := c.DoWithContext(ctx, nil, &response, client.OptPath("codec", name), client.OptQuery(req.Query())); err != nil {
 		return nil, err
 	}
 

@@ -134,6 +134,32 @@ func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Rou
 				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.ChannelLayoutList](), "List of Channel Layouts")
 			})
 		}),
+		router.Register("device", nil, func(path httprequest.PathItem) {
+			path.Tag("Capabilities")
+
+			// GET
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				// Request
+				var req schema.DeviceListRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				// Response
+				response, err := manager.ListDevices(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("List Devices")
+				op.Description(documentation.Section(3, "GET /device").Body)
+				op.Query(jsonschema.MustFor[schema.DeviceListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.DeviceList](), "List of Devices")
+			})
+		}),
 		router.Register("codec", nil, func(path httprequest.PathItem) {
 			path.Tag("Capabilities")
 
@@ -152,9 +178,10 @@ func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Rou
 					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 				}
 			}, func(op httprequest.PathOperation) {
-				op.Summary("List Encoders")
+				op.Summary("List Codecs")
 				op.Description(documentation.Section(3, "GET /codec").Body)
-				// TODO: Define query parameters and responses for codec profiles
+				op.Query(jsonschema.MustFor[schema.CodecListRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.CodecList](), "List of Codecs")
 			})
 		}),
 		router.Register("codec/{name}", nil, func(path httprequest.PathItem) {
@@ -162,16 +189,23 @@ func RegisterCapabilityHandlers(manager *manager.Profile, router *httprouter.Rou
 
 			// GET
 			path.Get(func(w http.ResponseWriter, r *http.Request) {
-				response, err := manager.GetCodec(r.Context(), r.PathValue("name"))
+				var req schema.CodecGetRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				response, err := manager.GetCodec(r.Context(), r.PathValue("name"), req)
 				if err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 				} else {
 					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 				}
 			}, func(op httprequest.PathOperation) {
-				op.Summary("Get Encoder")
+				op.Summary("Get Codec")
 				op.Description(documentation.Section(3, "GET /codec/{name}").Body)
-				// TODO: Define query parameters and responses for codec profiles
+				op.Query(jsonschema.MustFor[schema.CodecGetRequest]())
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[schema.Codec](), "Codec")
 			})
 		}),
 	)

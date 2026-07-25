@@ -21,12 +21,16 @@ type Codec struct {
 	Name        string      `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
 	Description string      `json:"description,omitempty"` // Codec description
 	Type        CodecType   `json:"type"`                  // Codec type; "audio", "video", "subtitle"
+	IsEncoder   bool        `json:"is_encoder"`            // Whether this codec can encode
+	IsDecoder   bool        `json:"is_decoder"`            // Whether this codec can decode
 	Opts        []Option    `json:"opts,omitempty"`        // Codec options
 	ctx         *ff.AVCodec `json:"-"`                     // Internal codec
 }
 
 type CodecListRequest struct {
-	Type *CodecType `json:"type,omitempty" enum:"audio,video,subtitle"` // Codec type to filter codecs by; "audio", "video", "subtitle"
+	Type      *CodecType `json:"type,omitempty" enum:"audio,video,subtitle"` // Codec type to filter codecs by; "audio", "video", "subtitle"
+	IsEncoder *bool      `json:"is_encoder,omitempty"`                       // Filter by encoder capability; both encoders and decoders are returned if omitted
+	IsDecoder *bool      `json:"is_decoder,omitempty"`                       // Filter by decoder capability; both encoders and decoders are returned if omitted
 	pg.OffsetLimit
 }
 
@@ -34,6 +38,10 @@ type CodecList struct {
 	CodecListRequest
 	Count uint64   `json:"count"`          // Number of codecs
 	Body  []*Codec `json:"body,omitempty"` // List of codecs
+}
+
+type CodecGetRequest struct {
+	IsEncoder *bool `json:"is_encoder,omitempty"` // Prefer an encoder (true) or decoder (false); tries an encoder then a decoder if omitted
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +55,8 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 		Name:        codec.Name(),
 		Description: codec.LongName(),
 		Type:        CodecType(codec.Type()),
+		IsEncoder:   codec.IsEncoder(),
+		IsDecoder:   codec.IsDecoder(),
 		Opts:        OptionsForCodec(codec),
 		ctx:         codec,
 	}
@@ -95,11 +105,25 @@ func (r CodecListRequest) Query() url.Values {
 	if r.Type != nil {
 		query.Set("type", strconv.FormatUint(uint64(types.Value(r.Type)), 10))
 	}
+	if r.IsEncoder != nil {
+		query.Set("is_encoder", strconv.FormatBool(types.Value(r.IsEncoder)))
+	}
+	if r.IsDecoder != nil {
+		query.Set("is_decoder", strconv.FormatBool(types.Value(r.IsDecoder)))
+	}
 	if r.Offset > 0 {
 		query.Set("offset", strconv.FormatUint(r.Offset, 10))
 	}
 	if r.Limit != nil {
 		query.Set("limit", strconv.FormatUint(types.Value(r.Limit), 10))
+	}
+	return query
+}
+
+func (r CodecGetRequest) Query() url.Values {
+	query := url.Values{}
+	if r.IsEncoder != nil {
+		query.Set("is_encoder", strconv.FormatBool(types.Value(r.IsEncoder)))
 	}
 	return query
 }
@@ -381,6 +405,15 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 				result[i].Const = consts
 			}
 		}
+	}
+
+	// The bitrate/sample_rate/pixel_format/etc. options below describe what
+	// can be configured when *encoding* with this codec — they don't apply
+	// to decoding, where the bitstream (not the caller) dictates format,
+	// rate, etc. Decoders only get their own PrivClass-derived options
+	// above, which is often none.
+	if !codec.IsEncoder() {
+		return result
 	}
 
 	// Return the options - and prepend audio video, subtitle options if applicable

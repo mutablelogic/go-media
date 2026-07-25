@@ -21,9 +21,13 @@ func (profile *Profile) ListCodecs(ctx context.Context, req schema.CodecListRequ
 	)
 	defer func() { endSpan(err) }()
 
-	// Match helper
+	// Match helper. Both encoders and decoders are returned unless IsEncoder
+	// and/or IsDecoder narrow the result by capability.
 	matches := func(c *ff.AVCodec) bool {
-		if !ff.AVCodec_is_encoder(c) {
+		if req.IsEncoder != nil && ff.AVCodec_is_encoder(c) != types.Value(req.IsEncoder) {
+			return false
+		}
+		if req.IsDecoder != nil && ff.AVCodec_is_decoder(c) != types.Value(req.IsDecoder) {
 			return false
 		}
 		if req.Type != nil && c.Type() != ff.AVMediaType(types.Value(req.Type)) {
@@ -63,20 +67,28 @@ func (profile *Profile) ListCodecs(ctx context.Context, req schema.CodecListRequ
 	return types.Ptr(result), nil
 }
 
-func (profile *Profile) GetCodec(ctx context.Context, name string) (_ *schema.Codec, err error) {
+func (profile *Profile) GetCodec(ctx context.Context, name string, req schema.CodecGetRequest) (_ *schema.Codec, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "GetCodec",
 		attribute.String("name", name),
+		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
 
-	// Get the codec by name
-	codec := ff.AVCodec_find_encoder_by_name(name)
+	// Get the codec by name. Defaults to trying an encoder first, falling
+	// back to a decoder, so lookups made before IsEncoder existed keep
+	// resolving the same codec they used to; pass IsEncoder to require one
+	// direction specifically.
+	var codec *ff.AVCodec
+	if req.IsEncoder == nil || types.Value(req.IsEncoder) {
+		codec = ff.AVCodec_find_encoder_by_name(name)
+	}
+	if codec == nil && (req.IsEncoder == nil || !types.Value(req.IsEncoder)) {
+		codec = ff.AVCodec_find_decoder_by_name(name)
+	}
 	if codec == nil {
 		return nil, gomedia.ErrNotFound.Withf("codec %q is not found", name)
-	} else if codec.IsEncoder() == false {
-		return nil, gomedia.ErrBadParameter.Withf("codec %q is not an encoding codec", name)
 	} else if codec.Type() != ff.AVMEDIA_TYPE_AUDIO && codec.Type() != ff.AVMEDIA_TYPE_VIDEO && codec.Type() != ff.AVMEDIA_TYPE_SUBTITLE {
-		return nil, gomedia.ErrBadParameter.Withf("codec %q is not an audio, video or subtitle encoding codec", name)
+		return nil, gomedia.ErrBadParameter.Withf("codec %q is not an audio, video or subtitle codec", name)
 	}
 
 	// Return the codec
