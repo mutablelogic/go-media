@@ -15,8 +15,8 @@ package ffmpeg
 #include <stdlib.h>
 
 // ff_device_list_new allocates an empty AVDeviceInfoList, to be populated with
-// ff_device_list_add and freed with avdevice_free_list_devices - just like a
-// list returned by avdevice_list_input_sources / avdevice_list_output_sinks.
+// ff_device_list_set and freed with avdevice_free_list_devices - just like a
+// list returned by avdevice_list_output_sinks.
 static AVDeviceInfoList *ff_device_list_new(void) {
 	AVDeviceInfoList *list = av_mallocz(sizeof(*list));
 	if (list) {
@@ -30,10 +30,28 @@ static void ff_device_list_free(AVDeviceInfoList *list) {
 	avdevice_free_list_devices(&list);
 }
 
-// ff_device_list_add appends a single-media-type device to list.
-static int ff_device_list_add(AVDeviceInfoList *list, const char *name, const char *description, int media_type, int is_default) {
-	if (!list || !name || !name[0]) {
+// ff_device_list_set places a device at a specific position in list, growing
+// (and null-padding intervening slots in) the devices array as needed.
+// avdevice_free_list_devices and AVDeviceInfoList.Devices() already treat a
+// NULL entry as "no device here", so the gaps are handled transparently -
+// this lets the reported index match what FFmpeg's -audio_device_index
+// option expects, even though it enumerates devices CoreAudio reports as
+// having no output stream too (we just never fill in those slots).
+static int ff_device_list_set(AVDeviceInfoList *list, int index, const char *name, const char *description, int media_type, int is_default) {
+	if (!list || !name || !name[0] || index < 0) {
 		return AVERROR(EINVAL);
+	}
+
+	if (index >= list->nb_devices) {
+		AVDeviceInfo **devices = av_realloc_array(list->devices, index + 1, sizeof(*devices));
+		if (!devices) {
+			return AVERROR(ENOMEM);
+		}
+		for (int i = list->nb_devices; i <= index; i++) {
+			devices[i] = NULL;
+		}
+		list->devices = devices;
+		list->nb_devices = index + 1;
 	}
 
 	AVDeviceInfo *dev = av_mallocz(sizeof(*dev));
@@ -53,26 +71,18 @@ static int ff_device_list_add(AVDeviceInfoList *list, const char *name, const ch
 	dev->media_types[0] = (enum AVMediaType)media_type;
 	dev->nb_media_types = 1;
 
-	AVDeviceInfo **devices = av_realloc_array(list->devices, list->nb_devices + 1, sizeof(*devices));
-	if (!devices) {
-		av_freep(&dev->device_name);
-		av_freep(&dev->device_description);
-		av_freep(&dev->media_types);
-		av_free(dev);
-		return AVERROR(ENOMEM);
-	}
-	list->devices = devices;
-	list->devices[list->nb_devices] = dev;
-	list->nb_devices++;
+	list->devices[index] = dev;
 	if (is_default) {
-		list->default_device = list->nb_devices - 1;
+		list->default_device = index;
 	}
 	return 0;
 }
 
-// ff_coreaudio_list_output_devices appends every CoreAudio device with at
-// least one output stream to list, tagging the system default output device.
-// This exists because FFmpeg's audiotoolbox muxer doesn't implement the
+// ff_coreaudio_list_output_devices places every CoreAudio device with at
+// least one output stream into list at its real CoreAudio device index
+// (matching what FFmpeg's audiotoolbox muxer expects for its
+// "audio_device_index" option), tagging the system default output device.
+// This exists because the audiotoolbox muxer doesn't implement the
 // get_device_list callback that avdevice_list_output_sinks relies on - it
 // only logs its device list as a side effect of actually starting playback.
 static int ff_coreaudio_list_output_devices(AVDeviceInfoList *list) {
@@ -136,7 +146,7 @@ static int ff_coreaudio_list_output_devices(AVDeviceInfoList *list) {
 			continue;
 		}
 
-		int ret = ff_device_list_add(list, namebuf, namebuf, AVMEDIA_TYPE_AUDIO, devID == defaultOutput);
+		int ret = ff_device_list_set(list, i, namebuf, namebuf, AVMEDIA_TYPE_AUDIO, devID == defaultOutput);
 		if (ret < 0) {
 			av_free(devices);
 			return ret;
@@ -154,8 +164,22 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unsafe"
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// AVFoundationDevice describes a single avfoundation input device. Unlike
+// AVDeviceInfo, it carries an Index that is local to its MediaType - video
+// and audio devices are independently numbered from 0, matching what
+// FFmpeg's avfoundation "<video_index>:<audio_index>" input URL syntax
+// expects.
+type AVFoundationDevice struct {
+	Index     int
+	Name      string
+	MediaType AVMediaType
+	IsDefault bool
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -166,21 +190,20 @@ var (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// FALLBACKS
-//
-// FFmpeg's avfoundation demuxer and audiotoolbox muxer both fail the "sanity
-// checks" needed to report AVERROR(ENOSYS) gracefully - neither implements
-// the get_device_list callback that avdevice_list_input_sources /
-// avdevice_list_output_sinks rely on. AVDevice_list_input_sources and
-// AVDevice_list_output_sinks fall back to these platform-specific
-// implementations instead, so callers see a uniform API regardless.
+// AVFOUNDATION
 
-// avDeviceListInputSourcesFallback lists avfoundation input devices by
-// opening the demuxer with list_devices=true and scraping its log output,
-// since that's the only enumeration avfoundation supports.
-func avDeviceListInputSourcesFallback(device *AVInputFormat, device_name string, device_options *AVDictionary) (*AVDeviceInfoList, error) {
-	if device == nil || device.Name() != "avfoundation" {
-		return nil, nil
+// AVFoundationListDevices lists avfoundation input devices by opening the
+// demuxer with list_devices=true and scraping its log output, since that's
+// the only enumeration avfoundation supports.
+//
+// This doesn't go through AVDevice_list_input_sources / AVDeviceInfoList
+// because avfoundation multiplexes two independently-indexed device
+// categories (video, audio) through one demuxer, and the generic
+// AVDeviceInfo has no index field and AVDeviceInfoList only has room for one
+// overall default device - neither can represent that without collisions.
+func AVFoundationListDevices(input *AVInputFormat) []AVFoundationDevice {
+	if input == nil || input.Name() != "avfoundation" {
+		return nil
 	}
 
 	var mu sync.Mutex
@@ -209,12 +232,12 @@ func avDeviceListInputSourcesFallback(device *AVInputFormat, device_name string,
 
 	options := AVUtil_dict_alloc()
 	if options == nil {
-		return nil, nil
+		return nil
 	}
 	defer AVUtil_dict_free(options)
 	AVUtil_dict_set(options, "list_devices", "true", AV_DICT_NONE)
 
-	ctx, _ := AVFormat_open_device(device, options)
+	ctx, _ := AVFormat_open_device(input, options)
 	if ctx != nil {
 		AVFormat_find_stream_info(ctx, nil)
 		AVFormat_close_input(ctx)
@@ -223,29 +246,20 @@ func avDeviceListInputSourcesFallback(device *AVInputFormat, device_name string,
 	mu.Lock()
 	defer mu.Unlock()
 
-	list := C.ff_device_list_new()
-	if list == nil {
-		return nil, nil
-	}
-
-	const (
-		mediaTypeVideo = C.int(C.AVMEDIA_TYPE_VIDEO)
-		mediaTypeAudio = C.int(C.AVMEDIA_TYPE_AUDIO)
-	)
-
-	var currentType C.int
+	var devices []AVFoundationDevice
+	var currentType AVMediaType
 	haveType := false
-	defaultSeen := make(map[C.int]bool)
+	defaultSeen := make(map[AVMediaType]bool)
 
 	for _, line := range capturedLines {
 		line = strings.TrimSpace(line)
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "video devices:") {
-			currentType, haveType = mediaTypeVideo, true
+			currentType, haveType = AVMEDIA_TYPE_VIDEO, true
 			continue
 		}
 		if strings.Contains(lower, "audio devices:") {
-			currentType, haveType = mediaTypeAudio, true
+			currentType, haveType = AVMEDIA_TYPE_AUDIO, true
 			continue
 		}
 		if !haveType {
@@ -270,20 +284,34 @@ func avDeviceListInputSourcesFallback(device *AVInputFormat, device_name string,
 			defaultSeen[currentType] = true
 		}
 
-		cName := C.CString(name)
-		var cIsDefault C.int
-		if isDefault {
-			cIsDefault = 1
-		}
-		C.ff_device_list_add(list, cName, cName, currentType, cIsDefault)
-		C.free(unsafe.Pointer(cName))
+		devices = append(devices, AVFoundationDevice{
+			Index:     index,
+			Name:      name,
+			MediaType: currentType,
+			IsDefault: isDefault,
+		})
 	}
 
-	if list.nb_devices == 0 {
-		C.ff_device_list_free(list)
-		return nil, nil
-	}
-	return (*AVDeviceInfoList)(list), nil
+	return devices
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FALLBACKS
+//
+// FFmpeg's audiotoolbox muxer fails the "sanity checks" needed to report
+// AVERROR(ENOSYS) gracefully - it doesn't implement the get_device_list
+// callback that avdevice_list_output_sinks relies on. AVDevice_list_output_sinks
+// falls back to this platform-specific implementation instead, so callers see
+// a uniform API regardless.
+//
+// avfoundation has the same problem on the input side, but its devices are
+// listed via AVFoundationListDevices above instead of a fallback here - see
+// its doc comment for why.
+
+// avDeviceListInputSourcesFallback has no darwin-specific input formats left
+// to handle: avfoundation is listed via AVFoundationListDevices instead.
+func avDeviceListInputSourcesFallback(device *AVInputFormat, device_name string, device_options *AVDictionary) (*AVDeviceInfoList, error) {
+	return nil, nil
 }
 
 // avDeviceListOutputSinksFallback lists audiotoolbox output devices directly

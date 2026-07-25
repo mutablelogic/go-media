@@ -41,6 +41,27 @@ func (profile *Profile) ListDevices(ctx context.Context, req schema.DeviceListRe
 	}
 
 	addInputDevices := func(format string, input *ff.AVInputFormat) {
+		if input.Name() == "avfoundation" {
+			// avfoundation multiplexes independently-indexed video and audio
+			// devices through one demuxer, which the generic AVDeviceInfoList
+			// shape can't represent - see AVFoundationListDevices for why.
+			for _, av := range ff.AVFoundationListDevices(input) {
+				d := &schema.Device{
+					Format:      format,
+					Index:       av.Index,
+					Name:        av.Name,
+					Description: av.Name,
+					IsDefault:   av.IsDefault,
+					IsInput:     true,
+					MediaTypes:  []string{schema.CodecType(av.MediaType).String()},
+				}
+				if matches(d) {
+					result = append(result, *d)
+				}
+			}
+			return
+		}
+
 		list, err := ff.AVDevice_list_input_sources(input, "", nil)
 		if err != nil || list == nil {
 			return

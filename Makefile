@@ -383,7 +383,6 @@ go-tidy: go-dep
 clean: go-tidy
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} clean -cache
 
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep

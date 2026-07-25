@@ -33,6 +33,31 @@ func (m *Media) ListFormats(_ context.Context, req schema.ListFormatRequest) (sc
 	}
 
 	addInputDevices := func(f *schema.Format, input *ff.AVInputFormat) {
+		if input.Name() == "avfoundation" {
+			// avfoundation multiplexes independently-indexed video and audio
+			// devices through one demuxer, which the generic AVDeviceInfoList
+			// shape can't represent - see AVFoundationListDevices for why.
+			avDevices := ff.AVFoundationListDevices(input)
+			devices := make([]schema.Device, 0, len(avDevices))
+			for _, av := range avDevices {
+				mediaType := "video"
+				if av.MediaType == ff.AVMEDIA_TYPE_AUDIO {
+					mediaType = "audio"
+				}
+				devices = append(devices, schema.Device{
+					Index:       av.Index,
+					Name:        av.Name,
+					Description: av.Name,
+					IsDefault:   av.IsDefault,
+					MediaTypes:  []string{mediaType},
+				})
+			}
+			if len(devices) > 0 {
+				f.SetDevices(devices)
+			}
+			return
+		}
+
 		list, err := ff.AVDevice_list_input_sources(input, "", nil)
 		if err != nil || list == nil {
 			return
