@@ -1,6 +1,7 @@
 package manager_test
 
 import (
+	"strings"
 	"testing"
 
 	// Packages
@@ -24,7 +25,18 @@ func TestListFormats_FilterByName(t *testing.T) {
 	require.Greater(resp.Count, uint64(0))
 	require.Len(resp.Body, int(resp.Count))
 	for _, format := range resp.Body {
-		require.Equal("mp4", format.Name)
+		// Name is comma-joined when a format has more than one (e.g. the mp4
+		// demuxer is "mov,mp4,m4a,3gp,3g2,mj2"), so the filter matches any one
+		// token rather than the field as a whole - same as Ext/Type below.
+		tokens := strings.Split(format.Name, ",")
+		found := false
+		for _, token := range tokens {
+			if strings.EqualFold(strings.TrimSpace(token), "mp4") {
+				found = true
+				break
+			}
+		}
+		require.True(found, "format name %q does not contain token \"mp4\"", format.Name)
 	}
 }
 

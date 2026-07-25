@@ -15,6 +15,17 @@ type Context struct {
 
 	// Otel Tracer (can be nil)
 	Tracer trace.Tracer
+
+	// Progress reports how far the task has got, in task-defined units (e.g.
+	// bytes, frames, streams) - total is 0 if not known in advance. Can be
+	// nil; a task should treat a nil Progress as "nobody's listening" and
+	// skip reporting.
+	Progress func(current, total int64)
+
+	// Result sets the task's output, retrievable afterwards via the
+	// Manager's Status. Can be nil; a task should treat a nil Result as
+	// "nobody's listening" and skip reporting.
+	Result func(any)
 }
 
 type Task interface {

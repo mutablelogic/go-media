@@ -26,39 +26,64 @@ func (profile *Profile) ListFormats(ctx context.Context, req schema.FormatListRe
 	// FFmpeg comma-joins when a format has more than one (e.g. mp4's
 	// extensions are "mp4,m4a,m4v"), so filters match against any one token
 	// rather than the field as a whole.
-	matches := func(format *ff.AVOutputFormat) bool {
-		if req.Name != nil && !hasToken(format.Name(), types.Value(req.Name)) {
+	matches := func(name, mimeTypes, extensions string, isInput, isOutput bool) bool {
+		if req.Name != nil && !hasToken(name, types.Value(req.Name)) {
 			return false
 		}
-		if req.Type != nil && !hasToken(format.MimeTypes(), types.Value(req.Type)) {
+		if req.Type != nil && !hasToken(mimeTypes, types.Value(req.Type)) {
 			return false
 		}
-		if req.Ext != nil && !hasToken(format.Extensions(), types.Value(req.Ext)) {
+		if req.Ext != nil && !hasToken(extensions, types.Value(req.Ext)) {
+			return false
+		}
+		if req.IsInput != nil && isInput != types.Value(req.IsInput) {
+			return false
+		}
+		if req.IsOutput != nil && isOutput != types.Value(req.IsOutput) {
 			return false
 		}
 		return true
 	}
 
-	// Get the list of output formats, applying offset and limit as we iterate.
-	// A limit of zero means return the count only.
-	var opaque uintptr
+	// Get the list of input and output formats, applying offset and limit as
+	// we iterate. A limit of zero means return the count only.
 	var result schema.FormatList
-	for {
-		format := ff.AVFormat_muxer_iterate(&opaque)
-		if format == nil {
-			break
-		}
-		if !matches(format) {
-			continue
+	add := func(f *schema.Format) {
+		if f == nil {
+			return
 		}
 		result.Count += 1
 		if result.Count <= req.Offset {
-			continue
+			return
 		}
 		if req.Limit != nil && uint64(len(result.Body)) >= types.Value(req.Limit) {
+			return
+		}
+		result.Body = append(result.Body, f)
+	}
+
+	var inOpaque uintptr
+	for {
+		format := ff.AVFormat_demuxer_iterate(&inOpaque)
+		if format == nil {
+			break
+		}
+		if !matches(format.Name(), format.MimeTypes(), format.Extensions(), true, false) {
 			continue
 		}
-		result.Body = append(result.Body, schema.NewOutputFormat(format))
+		add(schema.NewInputFormat(format))
+	}
+
+	var outOpaque uintptr
+	for {
+		format := ff.AVFormat_muxer_iterate(&outOpaque)
+		if format == nil {
+			break
+		}
+		if !matches(format.Name(), format.MimeTypes(), format.Extensions(), false, true) {
+			continue
+		}
+		add(schema.NewOutputFormat(format))
 	}
 
 	// Copy the request offset/limit into the result, then clamp the limit to
@@ -76,14 +101,17 @@ func (profile *Profile) GetFormat(ctx context.Context, name string) (_ *schema.F
 	)
 	defer func() { endSpan(err) }()
 
-	// Get the format by name
-	format := ff.AVFormat_guess_format(name, "", "")
-	if format == nil {
-		return nil, gomedia.ErrNotFound.Withf("format %q is not found", name)
+	// Get the format by name - prefer an output (muxer) match, since this is
+	// primarily used to look up an encoding target, then fall back to an
+	// input (demuxer) match.
+	if format := ff.AVFormat_guess_format(name, "", ""); format != nil {
+		return schema.NewOutputFormat(format), nil
+	}
+	if format := ff.AVFormat_find_input_format(name); format != nil {
+		return schema.NewInputFormat(format), nil
 	}
 
-	// Return the format
-	return schema.NewOutputFormat(format), nil
+	return nil, gomedia.ErrNotFound.Withf("format %q is not found", name)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

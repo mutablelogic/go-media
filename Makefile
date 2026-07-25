@@ -377,6 +377,8 @@ mkdir:
 .PHONY: go-tidy
 go-tidy: go-dep
 	@echo Tidy
+	@install -d ${BUILD_DIR}
+	@echo 'module buildartifacts' > ${BUILD_DIR}/go.mod
 	@${GO} mod tidy
 
 .PHONY: clean

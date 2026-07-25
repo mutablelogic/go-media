@@ -2,10 +2,9 @@ package manager
 
 import (
 	"context"
-	"sync"
 
 	// Packages
-	schema "github.com/mutablelogic/go-media/gomedia/schema"
+	task "github.com/mutablelogic/go-media/gomedia/task"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,9 +12,7 @@ import (
 
 type Media struct {
 	opt
-
-	sourcesMu sync.RWMutex
-	sources   map[string]schema.Source
+	tasks *task.Manager
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +24,7 @@ func New(ctx context.Context, opts ...Opt) (_ *Media, err error) {
 	if err := self.apply(opts); err != nil {
 		return nil, err
 	}
+	self.tasks = task.NewManager(self.opt.tracer)
 
 	// Return the media manager
 	return self, nil

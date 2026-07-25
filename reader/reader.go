@@ -12,6 +12,7 @@ import (
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
+	"github.com/mutablelogic/go-media/profile/schema"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
@@ -200,6 +201,14 @@ func (r *Reader) Metadata(keys ...string) []gomedia.Metadata {
 
 	// Return all the metadata
 	return result
+}
+
+// Return the detected input format for the media stream, or nil if unknown
+func (r *Reader) Format() *profile.Format {
+	if r.input == nil {
+		return nil
+	}
+	return schema.NewInputFormat(r.input.Input())
 }
 
 // Return the audio, video, and subtitle streams in the media file as
