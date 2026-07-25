@@ -15,7 +15,7 @@ import (
 // TYPES
 
 type ClientPixelFormatCommands struct {
-	ListPixelFormats ListPixelFormats `cmd:"" name:"pixelformats" help:"List the available pixel formats." group:"CLIENT"`
+	ListPixelFormats ListPixelFormats `cmd:"" name:"pixelformats" help:"List the available pixel formats." group:"CAPABILITIES"`
 }
 
 type ListPixelFormats struct {

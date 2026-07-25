@@ -15,7 +15,7 @@ import (
 // TYPES
 
 type ClientDeviceCommands struct {
-	ListDevices ListDevices `cmd:"" name:"devices" help:"List the available devices." group:"CLIENT"`
+	ListDevices ListDevices `cmd:"" name:"devices" help:"List the available devices." group:"CAPABILITIES"`
 }
 
 type ListDevices struct {

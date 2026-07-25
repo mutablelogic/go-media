@@ -15,7 +15,7 @@ import (
 // TYPES
 
 type ClientSampleFormatCommands struct {
-	ListSampleFormats ListSampleFormats `cmd:"" name:"sampleformats" help:"List the available sample formats." group:"CLIENT"`
+	ListSampleFormats ListSampleFormats `cmd:"" name:"sampleformats" help:"List the available sample formats." group:"CAPABILITIES"`
 }
 
 type ListSampleFormats struct {

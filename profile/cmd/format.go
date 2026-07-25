@@ -15,7 +15,7 @@ import (
 // TYPES
 
 type ClientFormatCommands struct {
-	ListContainerFormats ListContainerFormats `cmd:"" name:"formats" help:"List the available container formats." group:"CLIENT"`
+	ListContainerFormats ListContainerFormats `cmd:"" name:"formats" help:"List the available container formats." group:"CAPABILITIES"`
 }
 
 type ListContainerFormats struct {

@@ -15,7 +15,7 @@ import (
 // TYPES
 
 type ClientChannelLayoutCommands struct {
-	ListChannelLayouts ListChannelLayouts `cmd:"" name:"channellayouts" help:"List the available channel layouts." group:"CLIENT"`
+	ListChannelLayouts ListChannelLayouts `cmd:"" name:"channellayouts" help:"List the available channel layouts." group:"CAPABILITIES"`
 }
 
 type ListChannelLayouts struct {

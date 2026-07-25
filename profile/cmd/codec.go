@@ -15,8 +15,8 @@ import (
 // TYPES
 
 type ClientCodecCommands struct {
-	ListCodecs ListCodecs `cmd:"" name:"codecs" help:"List the available codecs." group:"CLIENT"`
-	GetCodec   GetCodec   `cmd:"" name:"codec" help:"Get the details of a codec." group:"CLIENT"`
+	ListCodecs ListCodecs `cmd:"" name:"codecs" help:"List the available codecs." group:"CAPABILITIES"`
+	GetCodec   GetCodec   `cmd:"" name:"codec" help:"Get the details of a codec." group:"CAPABILITIES"`
 }
 
 type GetCodec struct {
