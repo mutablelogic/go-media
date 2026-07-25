@@ -1,3 +1,5 @@
+//go:build cli
+
 package main
 
 import (
@@ -10,5 +12,4 @@ import (
 
 type CLI struct {
 	cmd.CLICommands
-	cmd.ServerCommands
 }

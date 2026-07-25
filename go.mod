@@ -12,7 +12,6 @@ require (
 	github.com/mutablelogic/go-server v1.7.2
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
 	github.com/stretchr/testify v1.11.1
-	github.com/strukturag/libheif v1.23.1
 	github.com/veandco/go-sdl2 v0.4.40
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0

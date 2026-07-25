@@ -33,14 +33,6 @@ func (m *Media) ListFormats(_ context.Context, req schema.ListFormatRequest) (sc
 	}
 
 	addInputDevices := func(f *schema.Format, input *ff.AVInputFormat) {
-		if input.Name() == "avfoundation" {
-			devices := enumerateAVFoundationDevices(input)
-			if len(devices) > 0 {
-				f.SetDevices(devices)
-			}
-			return
-		}
-
 		list, err := ff.AVDevice_list_input_sources(input, "", nil)
 		if err != nil || list == nil {
 			return
