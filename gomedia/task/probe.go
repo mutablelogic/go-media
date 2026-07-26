@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net/url"
 	"slices"
+	"strings"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
@@ -17,27 +18,24 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PROBE TASK
 
-type ProbeRequest struct {
+type ProbeMediaRequest struct {
 	Reader io.Reader `json:"-"` // supplied from the request body, not a query/JSON field
-	Format string    `json:"format,omitempty" name:"format" help:"Input format name (e.g. mpegts)"`
-	Opts   []string  `json:"opts,omitempty" name:"opts" help:"Input format options"`
+	ProbeRequestOpts
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - QUERY
+// Url is a plain string, not *url.URL - go-server's httprequest.Query has
+// no case for a *url.URL field (only strings, numbers, bools, slices, and
+// time.Time), so a string keeps ProbeSourceRequest decodable as a whole via
+// the generic decoder rather than needing a field-by-field workaround. It's
+// parsed to *url.URL in ProbeSourceTask.Run.
+type ProbeSourceRequest struct {
+	Url string `json:"url" name:"url" help:"URL of the media to probe, e.g. \"https://example.com/sample.mp3\"." example:"https://example.com/sample.mp3"`
+	ProbeRequestOpts
+}
 
-// Query returns the Format/Opts fields as URL query parameters, for a client
-// to attach to the probe request (Reader is carried as the request body, not
-// a query parameter).
-func (r ProbeRequest) Query() url.Values {
-	query := url.Values{}
-	if r.Format != "" {
-		query.Set("format", r.Format)
-	}
-	for _, opt := range r.Opts {
-		query.Add("opts", opt)
-	}
-	return query
+type ProbeRequestOpts struct {
+	Format string   `json:"format,omitempty" name:"format" help:"Input format name (e.g. mpegts)"`
+	Opts   []string `json:"opts,omitempty" name:"opts" help:"Input format options"`
 }
 
 type ProbeResponse struct {
@@ -50,24 +48,48 @@ type ProbeResponse struct {
 	Chapters []profile.Chapter        `json:"chapters,omitempty" help:"Chapter markers found in the input, if any."`
 }
 
-type ProbeTask struct {
-	req ProbeRequest
+type ProbeMediaTask struct {
+	req ProbeMediaRequest
 }
 
-var _ Task = (*ProbeTask)(nil)
+type ProbeSourceTask struct {
+	req ProbeSourceRequest
+}
+
+var _ Task = (*ProbeMediaTask)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewProbeTask(req ProbeRequest) (*ProbeTask, error) {
-	self := &ProbeTask{req: req}
-	return self, nil
+func NewProbeMediaTask(req ProbeMediaRequest) (*ProbeMediaTask, error) {
+	return &ProbeMediaTask{req: req}, nil
+}
+
+func NewProbeSourceTask(req ProbeSourceRequest) (*ProbeSourceTask, error) {
+	return &ProbeSourceTask{req: req}, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// LIFECYCLE
+// PUBLIC METHODS - QUERY
 
-func (task *ProbeTask) Run(ctx Context) (err error) {
+// Query returns the Format/Opts fields as URL query parameters, for a client
+// to attach to the probe request (Reader is carried as the request body, not
+// a query parameter).
+func (r ProbeRequestOpts) Query() url.Values {
+	query := url.Values{}
+	if r.Format != "" {
+		query.Set("format", r.Format)
+	}
+	for _, opt := range r.Opts {
+		query.Add("opts", opt)
+	}
+	return query
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (task *ProbeMediaTask) Run(ctx Context) (err error) {
 	var result ProbeResponse
 	if named, ok := task.req.Reader.(gomedia.NamedReader); ok && named != nil {
 		result.Name = named.Name()
@@ -75,7 +97,8 @@ func (task *ProbeTask) Run(ctx Context) (err error) {
 
 	_, endSpan := otel.StartSpan(ctx.Tracer, ctx, "Probe",
 		attribute.String("input", result.Name),
-		attribute.String("input_format", task.req.Format),
+		attribute.String("format", task.req.Format),
+		attribute.StringSlice("opts", task.req.Opts),
 	)
 	defer func() { endSpan(err) }()
 
@@ -111,6 +134,78 @@ func (task *ProbeTask) Run(ctx Context) (err error) {
 	result.Metadata = profile.NewMetadataList(reader.Metadata())
 	result.Artwork = profile.NewArtworkList(reader.Metadata(gomedia.MetaArtwork))
 	result.Chapters = profile.NewChapterList(reader.Metadata(gomedia.MetaChapter))
+
+	if ctx.Result != nil {
+		ctx.Result(&result)
+	}
+
+	// Return success
+	return nil
+}
+
+func (task *ProbeSourceTask) Run(ctx Context) (err error) {
+	if task.req.Url == "" {
+		return gomedia.ErrBadParameter.With("missing URL")
+	}
+	u, err := url.Parse(task.req.Url)
+	if err != nil {
+		return gomedia.ErrBadParameter.Withf("invalid URL %q: %w", task.req.Url, err)
+	}
+
+	var result ProbeResponse
+	result.Name = u.String()
+
+	_, endSpan := otel.StartSpan(ctx.Tracer, ctx, "ProbeSource",
+		attribute.String("url", result.Name),
+	)
+	defer func() { endSpan(err) }()
+
+	// "device://<format>/<address>" (e.g. "device://avfoundation/0:0",
+	// "device://v4l2//dev/video0") names an input device rather than a URL
+	// FFmpeg can open directly: the demuxer name comes from the host and
+	// the device's own address (whatever ListDevices/WithInput expects for
+	// that format) from the path. Anything else must be a scheme FFmpeg
+	// actually has a protocol registered for (http, https, rtmp, ...) -
+	// checked up front via reader.Protocols so an unsupported scheme fails
+	// fast with a clear error rather than a confusing one from
+	// AVFormat_open_url. Note this only rules out schemes FFmpeg has no
+	// protocol for at all; it doesn't guarantee the URL is otherwise valid
+	// or reachable ("rtsp" itself, for instance, is a container format, not
+	// a protocol, so it never appears in this list even though it's a
+	// perfectly valid scheme to open).
+	inputFormat, address := task.req.Format, u.String()
+	if u.Scheme == "device" {
+		inputFormat = u.Host
+		address = strings.TrimPrefix(u.Path, "/")
+		if inputFormat == "" || address == "" {
+			return gomedia.ErrBadParameter.Withf("invalid device URL %q, expected \"device://<format>/<address>\"", u.String())
+		}
+	} else if !slices.Contains(reader.Protocols(), u.Scheme) {
+		return gomedia.ErrBadParameter.Withf("unsupported URL scheme %q", u.Scheme)
+	}
+
+	rdr, err := reader.Open(address, reader.WithInput(inputFormat, task.req.Opts...))
+	if err != nil {
+		return err
+	}
+	defer rdr.Close()
+
+	if format := rdr.Format(); format != nil {
+		result.Format = &format.FormatMeta
+	}
+	result.Duration = profile.Duration(rdr.Duration())
+
+	streams := rdr.Streams()
+	result.Streams = make([]*profile.StreamProfile, 0, len(streams))
+	for _, id := range slices.Sorted(maps.Keys(streams)) {
+		if sp, ok := streams[id].(*profile.StreamProfile); ok {
+			result.Streams = append(result.Streams, sp)
+		}
+	}
+
+	result.Metadata = profile.NewMetadataList(rdr.Metadata())
+	result.Artwork = profile.NewArtworkList(rdr.Metadata(gomedia.MetaArtwork))
+	result.Chapters = profile.NewChapterList(rdr.Metadata(gomedia.MetaChapter))
 
 	if ctx.Result != nil {
 		ctx.Result(&result)

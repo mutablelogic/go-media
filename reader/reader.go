@@ -12,8 +12,8 @@ import (
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
-	"github.com/mutablelogic/go-media/profile/schema"
 	profile "github.com/mutablelogic/go-media/profile/schema"
+	schema "github.com/mutablelogic/go-media/profile/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 

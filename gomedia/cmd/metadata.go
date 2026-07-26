@@ -16,11 +16,18 @@ import (
 // TYPES
 
 type MetadataCommands struct {
-	Probe ProbeCmd `cmd:"" name:"probe" help:"Probe a media file and return its container format, streams, and metadata." group:"METADATA"`
+	ProbeMedia  ProbeMediaCmd  `cmd:"" name:"probe-media" help:"Probe a media file and return its container format, streams, and metadata." group:"METADATA"`
+	ProbeSource ProbeSourceCmd `cmd:"" name:"probe-source" help:"Probe a URL or device and return its container format, streams, and metadata." group:"METADATA"`
 }
 
-type ProbeCmd struct {
+type ProbeMediaCmd struct {
 	Path   string   `arg:"" name:"path" type:"existingfile" help:"Path to the media file to probe."`
+	Format string   `name:"format" help:"Input format name (e.g. mpegts)."`
+	Opts   []string `name:"opts" help:"Input format options."`
+}
+
+type ProbeSourceCmd struct {
+	Url    string   `arg:"" name:"url" help:"URL to probe, e.g. \"https://example.com/sample.mp3\" or \"device://avfoundation/0:0\"."`
 	Format string   `name:"format" help:"Input format name (e.g. mpegts)."`
 	Opts   []string `name:"opts" help:"Input format options."`
 }
@@ -28,18 +35,20 @@ type ProbeCmd struct {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd *ProbeCmd) Run(ctx server.Cmd) error {
-	return withClient(ctx, "Probe", func(ctx context.Context, client *httpclient.Client) error {
+func (cmd *ProbeMediaCmd) Run(ctx server.Cmd) error {
+	return withClient(ctx, "ProbeMedia", func(ctx context.Context, client *httpclient.Client) error {
 		f, err := os.Open(cmd.Path)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 
-		req := task.ProbeRequest{
+		req := task.ProbeMediaRequest{
 			Reader: f,
-			Format: cmd.Format,
-			Opts:   cmd.Opts,
+			ProbeRequestOpts: task.ProbeRequestOpts{
+				Format: cmd.Format,
+				Opts:   cmd.Opts,
+			},
 		}
 
 		// Upload as multipart/form-data rather than a raw body: only the
@@ -47,7 +56,27 @@ func (cmd *ProbeCmd) Run(ctx server.Cmd) error {
 		// raw request body has no place to put a filename), and *os.File
 		// implements gomedia.NamedReader, so this is what actually shows
 		// up as ProbeResponse.Name.
-		response, err := client.Probe(ctx, req, types.ContentTypeFormData, nil)
+		response, err := client.ProbeMedia(ctx, req, types.ContentTypeFormData, nil)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(types.Stringify(response))
+		return nil
+	})
+}
+
+func (cmd *ProbeSourceCmd) Run(ctx server.Cmd) error {
+	return withClient(ctx, "ProbeSource", func(ctx context.Context, client *httpclient.Client) error {
+		req := task.ProbeSourceRequest{
+			Url: cmd.Url,
+			ProbeRequestOpts: task.ProbeRequestOpts{
+				Format: cmd.Format,
+				Opts:   cmd.Opts,
+			},
+		}
+
+		response, err := client.ProbeSource(ctx, req)
 		if err != nil {
 			return err
 		}

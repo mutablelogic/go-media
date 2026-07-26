@@ -65,14 +65,14 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 	router.Spec().AddTag("Metadata", documentation.Section(2, "Media Metadata").Body)
 
 	return errors.Join(
-		router.Register("probe", nil, func(path httprequest.PathItem) {
+		router.Register("probe/media", nil, func(path httprequest.PathItem) {
 			path.Tag("Metadata")
 
 			// POST
 			path.Post(func(w http.ResponseWriter, r *http.Request) {
 				// Format/Opts come from the query string; Reader is filled in
 				// below depending on the request's content type.
-				var req task.ProbeRequest
+				var req task.ProbeMediaRequest
 				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 					return
@@ -94,7 +94,7 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 					req.Reader = r.Body
 				}
 
-				response, err := manager.Probe(r.Context(), req)
+				response, err := manager.ProbeMedia(r.Context(), req)
 				if err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 				} else {
@@ -102,9 +102,35 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 				}
 			}, func(op httprequest.PathOperation) {
 				op.Summary("Probe Media")
-				op.Description(documentation.Section(3, "POST /probe").Body)
-				op.Query(jsonschema.MustFor[task.ProbeRequest]())
+				op.Description(documentation.Section(3, "POST /probe/media").Body)
+				op.Query(jsonschema.MustFor[task.ProbeMediaRequest]())
 				op.RequestBody(jsonschema.MustFor[FormData](), types.ContentTypeFormData)
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[task.ProbeResponse](), "Media Format, Streams, and Metadata")
+			})
+		}),
+		router.Register("probe/source", nil, func(path httprequest.PathItem) {
+			path.Tag("Metadata")
+
+			// POST - no request body (Url is a plain string field, so the
+			// whole request decodes via httprequest.Query directly, unlike
+			// the *url.URL it used to be).
+			path.Post(func(w http.ResponseWriter, r *http.Request) {
+				var req task.ProbeSourceRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				response, err := manager.ProbeSource(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("Probe Source")
+				op.Description(documentation.Section(3, "POST /probe/source").Body)
+				op.Query(jsonschema.MustFor[task.ProbeSourceRequest]())
 				op.JSONResponse(http.StatusOK, jsonschema.MustFor[task.ProbeResponse](), "Media Format, Streams, and Metadata")
 			})
 		}),

@@ -22,7 +22,7 @@ func sampleFilePath(t *testing.T, name string) string {
 ////////////////////////////////////////////////////////////////////////////////
 // TESTS
 
-func TestProbe(t *testing.T) {
+func TestProbeMedia(t *testing.T) {
 	m, ctx := test.Begin(t)
 	defer test.End(t)
 
@@ -32,7 +32,7 @@ func TestProbe(t *testing.T) {
 	}
 	defer f.Close()
 
-	resp, err := m.Probe(ctx, task.ProbeRequest{Reader: f})
+	resp, err := m.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestProbe(t *testing.T) {
 // reader_test.go's TestReader_Streams_ExcludesArtwork. This just checks
 // probing a file with embedded artwork works at all, since it exercises a
 // different demux path (an extra attached-pic stream) than a plain sample.
-func TestProbe_WithArtwork(t *testing.T) {
+func TestProbeMedia_WithArtwork(t *testing.T) {
 	m, ctx := test.Begin(t)
 	defer test.End(t)
 
@@ -65,7 +65,7 @@ func TestProbe_WithArtwork(t *testing.T) {
 	}
 	defer f.Close()
 
-	resp, err := m.Probe(ctx, task.ProbeRequest{Reader: f})
+	resp, err := m.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,21 +74,21 @@ func TestProbe_WithArtwork(t *testing.T) {
 	}
 }
 
-func TestProbe_NilReader(t *testing.T) {
+func TestProbeMedia_NilReader(t *testing.T) {
 	m, ctx := test.Begin(t)
 	defer test.End(t)
 
-	if _, err := m.Probe(ctx, task.ProbeRequest{Reader: nil}); err == nil {
+	if _, err := m.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: nil}); err == nil {
 		t.Fatal("expected an error for a nil reader")
 	}
 }
 
-func TestProbe_InvalidData(t *testing.T) {
+func TestProbeMedia_InvalidData(t *testing.T) {
 	m, ctx := test.Begin(t)
 	defer test.End(t)
 
-	req := task.ProbeRequest{Reader: strings.NewReader("not a real media file")}
-	if _, err := m.Probe(ctx, req); err == nil {
+	req := task.ProbeMediaRequest{Reader: strings.NewReader("not a real media file")}
+	if _, err := m.ProbeMedia(ctx, req); err == nil {
 		t.Fatal("expected an error for invalid data")
 	}
 }

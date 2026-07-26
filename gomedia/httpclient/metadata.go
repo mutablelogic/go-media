@@ -15,22 +15,22 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Probe uploads req.Reader to the probe endpoint and returns its container
-// format, streams, and metadata. req.Format/req.Opts are attached to the
-// request as query parameters.
+// ProbeMedia uploads req.Reader to the probe endpoint and returns its
+// container format, streams, and metadata. req.Format/req.Opts are attached
+// to the request as query parameters.
 //
 // If contentType is multipart/form-data, req.Reader is streamed as a single
 // "file" field using go-client's streaming multipart encoder (so the whole
 // body is never buffered in memory, matching the server's expected upload
 // shape); for any other content type, req.Reader is streamed directly as
 // the raw request body with that Content-Type. Either way, the caller
-// retains ownership of req.Reader - Probe doesn't close it.
+// retains ownership of req.Reader - ProbeMedia doesn't close it.
 //
 // If req.Reader implements gomedia.NamedReader, its name is used as the
 // uploaded filename. If onRead is non-nil, it's called with the cumulative
 // number of bytes read from req.Reader as the upload progresses, regardless
 // of which of the two upload paths is taken.
-func (c *Client) Probe(ctx context.Context, req task.ProbeRequest, contentType string, onRead func(n int64)) (*task.ProbeResponse, error) {
+func (c *Client) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest, contentType string, onRead func(n int64)) (*task.ProbeResponse, error) {
 	var body client.Payload
 
 	// Determine name of the uploaded file, if any, from the reader.
@@ -58,7 +58,29 @@ func (c *Client) Probe(ctx context.Context, req task.ProbeRequest, contentType s
 	}
 
 	var response task.ProbeResponse
-	if err := c.DoWithContext(ctx, body, &response, client.OptPath("probe"), client.OptQuery(req.Query())); err != nil {
+	if err := c.DoWithContext(ctx, body, &response, client.OptPath("probe", "media"), client.OptQuery(req.Query())); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// ProbeSource probes a URL - a network source FFmpeg can read directly
+// (http, https, rtmp, ...), or a "device://<format>/<address>" URL (see
+// ProbeSourceTask's doc comment) - rather than an uploaded file's bytes.
+func (c *Client) ProbeSource(ctx context.Context, req task.ProbeSourceRequest) (*task.ProbeResponse, error) {
+	if req.Url == "" {
+		return nil, gomedia.ErrBadParameter.With("missing URL")
+	}
+
+	query := req.Query()
+	query.Set("url", req.Url)
+
+	// No request body - client.MethodPost is an empty payload that still
+	// forces the POST method /probe/source expects (a nil payload would
+	// default to GET).
+	var response task.ProbeResponse
+	if err := c.DoWithContext(ctx, client.MethodPost, &response, client.OptPath("probe", "source"), client.OptQuery(query)); err != nil {
 		return nil, err
 	}
 

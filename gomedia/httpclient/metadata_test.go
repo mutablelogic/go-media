@@ -1,6 +1,7 @@
 package httpclient_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func sampleFilePath(t *testing.T, name string) string {
 ////////////////////////////////////////////////////////////////////////////////
 // TESTS
 
-func TestProbe_FormData(t *testing.T) {
+func TestProbeMedia_FormData(t *testing.T) {
 	_, ctx := test.Begin(t)
 	defer test.End(t)
 	c := test.Client(t)
@@ -45,7 +46,7 @@ func TestProbe_FormData(t *testing.T) {
 	// from the one that returns the response), so lastRead needs atomic
 	// access rather than a plain variable.
 	var lastRead atomic.Int64
-	resp, err := c.Probe(ctx, task.ProbeRequest{Reader: f}, types.ContentTypeFormData, func(n int64) { lastRead.Store(n) })
+	resp, err := c.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: f}, types.ContentTypeFormData, func(n int64) { lastRead.Store(n) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestProbe_FormData(t *testing.T) {
 	}
 }
 
-func TestProbe_RawBody(t *testing.T) {
+func TestProbeMedia_RawBody(t *testing.T) {
 	_, ctx := test.Begin(t)
 	defer test.End(t)
 	c := test.Client(t)
@@ -98,7 +99,7 @@ func TestProbe_RawBody(t *testing.T) {
 	}
 
 	var lastRead atomic.Int64
-	resp, err := c.Probe(ctx, task.ProbeRequest{Reader: f}, "audio/mpeg", func(n int64) { lastRead.Store(n) })
+	resp, err := c.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: f}, "audio/mpeg", func(n int64) { lastRead.Store(n) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,13 +129,67 @@ func TestProbe_RawBody(t *testing.T) {
 	}
 }
 
-func TestProbe_InvalidData(t *testing.T) {
+func TestProbeMedia_InvalidData(t *testing.T) {
 	_, ctx := test.Begin(t)
 	defer test.End(t)
 	c := test.Client(t)
 
 	req := strings.NewReader("not a real media file")
-	if _, err := c.Probe(ctx, task.ProbeRequest{Reader: req}, "audio/mpeg", nil); err == nil {
+	if _, err := c.ProbeMedia(ctx, task.ProbeMediaRequest{Reader: req}, "audio/mpeg", nil); err == nil {
 		t.Fatal("expected an error for invalid data")
+	}
+}
+
+// ProbeSource's "file" scheme is a registered FFmpeg protocol (unlike
+// "rtsp", which is a container format, not a protocol - see reader.Protocols'
+// doc comment), so this exercises the full POST /probe/source round trip
+// without needing network access or a real capture device.
+func TestProbeSource_File(t *testing.T) {
+	_, ctx := test.Begin(t)
+	defer test.End(t)
+	c := test.Client(t)
+
+	abs, err := filepath.Abs(sampleFilePath(t, "sample.mp3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.ProbeSource(ctx, task.ProbeSourceRequest{Url: fmt.Sprintf("file://%s", abs)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp == nil {
+		t.Fatal("expected a non-nil response")
+	}
+	if resp.Format == nil {
+		t.Fatal("expected a non-nil Format")
+	}
+	if len(resp.Streams) == 0 {
+		t.Fatal("expected at least one stream")
+	}
+	if s := resp.Streams[0]; s.Par() == nil || s.Par().SampleRate() != 44100 {
+		t.Fatalf("Streams[0].Par().SampleRate() = %v, want 44100", s.Par())
+	}
+}
+
+// An unregistered scheme must be rejected server-side before FFmpeg ever
+// sees it (see ProbeSourceTask's doc comment).
+func TestProbeSource_UnsupportedScheme(t *testing.T) {
+	_, ctx := test.Begin(t)
+	defer test.End(t)
+	c := test.Client(t)
+
+	if _, err := c.ProbeSource(ctx, task.ProbeSourceRequest{Url: "bogus-scheme://example.com"}); err == nil {
+		t.Fatal("expected an error for an unsupported URL scheme")
+	}
+}
+
+func TestProbeSource_MissingURL(t *testing.T) {
+	_, ctx := test.Begin(t)
+	defer test.End(t)
+	c := test.Client(t)
+
+	if _, err := c.ProbeSource(ctx, task.ProbeSourceRequest{}); err == nil {
+		t.Fatal("expected an error for a missing URL")
 	}
 }

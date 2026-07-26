@@ -155,6 +155,21 @@ func AVFormat_avio_read(ctx *AVIOContextEx, buf []byte) int {
 	return int(C.avio_read((*C.struct_AVIOContext)(ctx.AVIOContext), (*C.uint8_t)(&buf[0]), C.int(len(buf))))
 }
 
+// AVFormat_avio_enum_protocols iterates over registered I/O protocols - the
+// URL scheme a Reader/Writer's url actually travels over (e.g. "file",
+// "http", "https", "rtsp", "rtmp", "udp", "tcp", "srt", "pipe", ...), which
+// is a different axis from a container format (AVInputFormat/
+// AVOutputFormat): e.g. "rtsp://host/stream" is demuxed by the "rtsp"
+// AVInputFormat, but reaches the network via the "rtsp" protocol - and some
+// protocols (pipe, concat, ...) have no associated demuxer at all. Pass a
+// pointer to a nil-valued opaque cursor on the first call; it's updated by
+// libavformat on each subsequent call, and the final call (once every
+// protocol has been returned) yields "". If output is true, iterates over
+// output-capable protocols instead of input-capable ones.
+func AVFormat_avio_enum_protocols(opaque *uintptr, output bool) string {
+	return C.GoString(C.avio_enum_protocols((*unsafe.Pointer)(unsafe.Pointer(opaque)), boolToInt(output)))
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CALLBACKS
 
