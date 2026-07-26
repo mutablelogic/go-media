@@ -172,7 +172,11 @@ func (r *Reader) Seek(stream int, d time.Duration) error {
 }
 
 // Return the metadata for the media stream, filtering by the specified keys
-// if there are any. Artwork is returned with the "artwork" key.
+// if there are any. Artwork and chapters are excluded even when keys is
+// empty ("no filter") - artwork because it's binary content rather than a
+// descriptive tag, and chapters because each is a structured start/end/tags
+// value rather than a flat string one, so a caller has to ask for the
+// "artwork"/"chapter" key by name to get either back.
 func (r *Reader) Metadata(keys ...string) []gomedia.Metadata {
 	if r.input == nil {
 		return nil
@@ -190,12 +194,33 @@ func (r *Reader) Metadata(keys ...string) []gomedia.Metadata {
 		}
 	}
 
-	// Obtain any artwork from the streams
-	if len(keys) == 0 || slices.Contains(keys, gomedia.MetaArtwork) {
+	// Obtain any artwork from the streams, only if explicitly requested
+	if slices.Contains(keys, gomedia.MetaArtwork) {
 		for _, stream := range r.input.Streams() {
 			if packet := stream.AttachedPic(); packet != nil {
 				result = append(result, &meta{key: gomedia.MetaArtwork, value: packet.Bytes()})
 			}
+		}
+	}
+
+	// Obtain chapter markers, only if explicitly requested - these live in
+	// their own array on the container (AVFormatContext.chapters), not in
+	// its metadata dict, so they need fetching separately either way.
+	if slices.Contains(keys, gomedia.MetaChapter) {
+		for _, chapter := range r.input.Chapters() {
+			tb := chapter.TimeBase()
+
+			entries := ff.AVUtil_dict_entries(chapter.Metadata())
+			tags := make(map[string]string, len(entries))
+			for _, entry := range entries {
+				tags[entry.Key()] = entry.Value()
+			}
+
+			result = append(result, &meta{key: gomedia.MetaChapter, value: gomedia.Chapter{
+				Start:    time.Duration(ff.AVUtil_rational_rescale_q(chapter.Start(), tb, ff.AVUtil_rational(1, int(time.Second)))),
+				End:      time.Duration(ff.AVUtil_rational_rescale_q(chapter.End(), tb, ff.AVUtil_rational(1, int(time.Second)))),
+				Metadata: tags,
+			}})
 		}
 	}
 

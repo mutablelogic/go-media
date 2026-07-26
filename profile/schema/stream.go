@@ -133,7 +133,7 @@ func (r *StreamProfile) UnmarshalJSON(data []byte) error {
 		if meta.TimeBase != nil {
 			r.timebase = *meta.TimeBase
 		}
-		r.metadata = metadataFromMetaList(meta.Metadata)
+		r.metadata = metadataFromList(meta.Metadata)
 	}
 
 	var par ff.AVCodecParameters
@@ -205,8 +205,8 @@ func (r *StreamProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// metadataFromMetaList is the reverse of newMetadataMetaList.
-func metadataFromMetaList(entries []MetadataMeta) []gomedia.Metadata {
+// metadataFromList is the reverse of NewMetadataList.
+func metadataFromList(entries []Metadata) []gomedia.Metadata {
 	if len(entries) == 0 {
 		return nil
 	}

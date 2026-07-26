@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"sort"
 	"sync"
+	"time"
 
 	// Image imports for decoding
 	_ "image/gif"  // Register GIF decoder for artwork.DecodeConfig
@@ -259,7 +260,10 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 	}
 	// Note: No defer free - ownership transferred to output context via SetMetadata
 
-	// Add metadata entries (but store artwork for later)
+	// Add metadata entries (but store artwork/chapters for later - artwork
+	// needs its own attached-pic stream, and chapters their own array on
+	// the container, so neither belongs in the metadata dict)
+	var chapters []gomedia.Chapter
 	for _, entry := range writer.metadata {
 		// Add artwork streams
 		if entry.Key() == gomedia.MetaArtwork {
@@ -290,6 +294,17 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 			continue
 		}
 
+		// Collect chapter markers, written to the container below, after
+		// this loop - AVFormat_new_chapters needs the final count up front
+		if entry.Key() == gomedia.MetaChapter {
+			chapter, ok := entry.Any().(gomedia.Chapter)
+			if !ok {
+				return nil, errors.Join(gomedia.ErrBadParameter.With("chapter metadata entry's Any() is not a gomedia.Chapter"), writer.Close())
+			}
+			chapters = append(chapters, chapter)
+			continue
+		}
+
 		// Ignore empty keys and values
 		if entry.Key() == "" || entry.Value() == "" {
 			continue
@@ -299,6 +314,37 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 		if err := ff.AVUtil_dict_set(metadata, entry.Key(), entry.Value(), ff.AV_DICT_APPEND); err != nil {
 			ff.AVUtil_dict_free(metadata)
 			return nil, errors.Join(err, writer.Close())
+		}
+	}
+
+	// Write chapter markers to the container - this must happen before
+	// AVFormat_write_header, for muxers (mov/mp4, mkv, ...) that write
+	// chapters in the header rather than the trailer.
+	if len(chapters) > 0 {
+		cchapters, err := ff.AVFormat_new_chapters(writer.output, len(chapters))
+		if err != nil {
+			return nil, errors.Join(err, writer.Close())
+		}
+		for i, chapter := range chapters {
+			cchapters[i].SetId(int64(i))
+			// A time base of 1/time.Second lets Start/End be set directly
+			// from a time.Duration's nanosecond count, with no rescaling.
+			cchapters[i].SetTimeBase(ff.AVUtil_rational(1, int(time.Second)))
+			cchapters[i].SetStart(int64(chapter.Start))
+			cchapters[i].SetEnd(int64(chapter.End))
+
+			if len(chapter.Metadata) == 0 {
+				continue
+			}
+			dict := ff.AVUtil_dict_alloc()
+			for key, value := range chapter.Metadata {
+				if err := ff.AVUtil_dict_set(dict, key, value, ff.AV_DICT_APPEND); err != nil {
+					ff.AVUtil_dict_free(dict)
+					return nil, errors.Join(err, writer.Close())
+				}
+			}
+			// Note: No defer free - ownership transferred via SetMetadata
+			cchapters[i].SetMetadata(dict)
 		}
 	}
 

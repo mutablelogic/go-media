@@ -5,7 +5,6 @@ import (
 
 	// Packages
 	uuid "github.com/google/uuid"
-	gomedia "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -53,14 +52,7 @@ type ProfileMetaStream struct {
 	Index       int              `json:"index"`
 	Disposition ff.AVDisposition `json:"disposition,omitempty"`
 	TimeBase    *ff.AVRational   `json:"timebase,omitempty"`
-	Metadata    []MetadataMeta   `json:"metadata,omitempty"`
-}
-
-// MetadataMeta is a JSON-friendly key/value view of a gomedia.Metadata
-// entry - binary payloads (e.g. artwork) aren't represented here.
-type MetadataMeta struct {
-	Key   string `json:"key"`
-	Value string `json:"value,omitempty"`
+	Metadata    []Metadata       `json:"metadata,omitempty"`
 }
 
 // ProfileMeta is a JSON representation of a Profile, uniform across
@@ -124,7 +116,7 @@ func populateProfileMetaStream(meta *ProfileMeta, v *StreamProfile) {
 		Index:       v.index,
 		Disposition: v.disposition,
 		TimeBase:    v.TimeBase(),
-		Metadata:    newMetadataMetaList(v.metadata),
+		Metadata:    NewMetadataList(v.metadata),
 	}
 	// v.codec (and so meta.Codec, set above from Codec()) is nil whenever
 	// this build has no decoder registered for the stream's codec - common
@@ -147,20 +139,6 @@ func populateProfileMetaStream(meta *ProfileMeta, v *StreamProfile) {
 	case CodecType(ff.AVMEDIA_TYPE_VIDEO):
 		meta.ProfileMetaVideo = profileMetaVideoFromPar(v.Par(), v.codec)
 	}
-}
-
-func newMetadataMetaList(entries []gomedia.Metadata) []MetadataMeta {
-	if len(entries) == 0 {
-		return nil
-	}
-	result := make([]MetadataMeta, 0, len(entries))
-	for _, e := range entries {
-		if e == nil {
-			continue
-		}
-		result = append(result, MetadataMeta{Key: e.Key(), Value: e.Value()})
-	}
-	return result
 }
 
 // profileNameForID looks up a codec's declared profile name by numeric ID -

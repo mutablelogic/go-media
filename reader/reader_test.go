@@ -193,6 +193,63 @@ func writeSampleFileWithArtwork(t *testing.T, path string, artwork []byte) {
 	}
 }
 
+// chapterMeta is a minimal gomedia.Metadata implementation carrying a
+// gomedia.Chapter under the gomedia.MetaChapter key.
+type chapterMeta struct {
+	chapter gomedia.Chapter
+}
+
+func (c chapterMeta) Key() string        { return gomedia.MetaChapter }
+func (c chapterMeta) Value() string      { return c.chapter.Metadata["title"] }
+func (c chapterMeta) Bytes() []byte      { return nil }
+func (c chapterMeta) Image() image.Image { return nil }
+func (c chapterMeta) Any() any           { return c.chapter }
+
+// writeSampleFileWithChapters is like writeSampleFile, but also embeds
+// chapter markers as container metadata, for round-tripping through
+// Metadata().
+func writeSampleFileWithChapters(t *testing.T, path string, chapters []gomedia.Chapter) {
+	t.Helper()
+
+	output := profile.OutputWithName("mp4")
+	if output == nil {
+		t.Fatal("OutputWithName(mp4): nil output")
+	}
+
+	opts := []writer.Opt{writer.WithProfile(0, audioProfile(t))}
+	for _, chapter := range chapters {
+		opts = append(opts, writer.WithMetadata(chapterMeta{chapter: chapter}))
+	}
+
+	w, err := writer.Create(&url.URL{Path: path}, output, opts...)
+	if err != nil {
+		t.Fatalf("writer.Create: %v", err)
+	}
+
+	numSamples := w.FrameSize(0)
+	if numSamples == 0 {
+		numSamples = 1024
+	}
+
+	const numFrames = 100
+	for i := 0; i < numFrames; i++ {
+		f := silentFrame(t, 0, numSamples)
+		f.SetPts(int64(i * numSamples))
+		if err := w.Encode(f); err != nil {
+			f.Close()
+			t.Fatalf("Encode: %v", err)
+		}
+		f.Close()
+	}
+
+	if err := w.Flush(0); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close (writer): %v", err)
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // TESTS
 
@@ -315,11 +372,10 @@ func TestReader_Seek_InvalidStream(t *testing.T) {
 	}
 }
 
-// Regression test: Metadata() called with no keys must still include
-// artwork — the artwork block used to only fire when "artwork" was
-// explicitly requested, silently omitting it from the "return everything"
-// (no filter) case.
-func TestReader_Metadata_Artwork(t *testing.T) {
+// Metadata() called with no keys must exclude artwork - it's binary
+// content, not a descriptive tag, so a caller has to ask for the "artwork"
+// key by name to get it back (see TestReader_Metadata_FilterByKey).
+func TestReader_Metadata_ExcludesArtworkByDefault(t *testing.T) {
 	artwork := testJPEG(t)
 	path := filepath.Join(t.TempDir(), "sample_with_artwork.mp4")
 	writeSampleFileWithArtwork(t, path, artwork)
@@ -330,24 +386,10 @@ func TestReader_Metadata_Artwork(t *testing.T) {
 	}
 	defer r.Close()
 
-	entries := r.Metadata()
-
-	var found gomedia.Metadata
-	count := 0
-	for _, e := range entries {
+	for _, e := range r.Metadata() {
 		if e.Key() == gomedia.MetaArtwork {
-			found = e
-			count++
+			t.Fatal("Metadata(): expected no artwork entry when called with no keys")
 		}
-	}
-	if found == nil {
-		t.Fatal("Metadata(): expected an artwork entry when called with no keys")
-	}
-	if count != 1 {
-		t.Fatalf("Metadata(): expected exactly 1 artwork entry, got %d", count)
-	}
-	if !bytes.Equal(found.Bytes(), artwork) {
-		t.Fatalf("Metadata(): artwork bytes mismatch, got %d bytes, want %d bytes", len(found.Bytes()), len(artwork))
 	}
 }
 
@@ -368,6 +410,78 @@ func TestReader_Metadata_FilterByKey(t *testing.T) {
 	}
 	if entries[0].Key() != gomedia.MetaArtwork {
 		t.Fatalf("Metadata(artwork): got key %q, want %q", entries[0].Key(), gomedia.MetaArtwork)
+	}
+}
+
+// Metadata() called with no keys must exclude chapters too - each one is a
+// structured start/end/tags value, not a flat string, so a caller has to
+// ask for the "chapter" key by name to get them back.
+func TestReader_Metadata_ExcludesChapterByDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sample_with_chapters.mp4")
+	writeSampleFileWithChapters(t, path, []gomedia.Chapter{
+		{Start: 0, End: 500 * time.Millisecond, Metadata: map[string]string{"title": "Intro"}},
+	})
+
+	r, err := reader.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	for _, e := range r.Metadata() {
+		if e.Key() == gomedia.MetaChapter {
+			t.Fatal("Metadata(): expected no chapter entry when called with no keys")
+		}
+	}
+}
+
+// Round-trips chapter markers through writer.WithMetadata and back through
+// Reader.Metadata(gomedia.MetaChapter), checking start/end/title survive.
+func TestReader_Metadata_Chapters(t *testing.T) {
+	want := []gomedia.Chapter{
+		{Start: 0, End: 500 * time.Millisecond, Metadata: map[string]string{"title": "Intro"}},
+		{Start: 500 * time.Millisecond, End: time.Second, Metadata: map[string]string{"title": "Verse"}},
+	}
+
+	path := filepath.Join(t.TempDir(), "sample_with_chapters.mp4")
+	writeSampleFileWithChapters(t, path, want)
+
+	r, err := reader.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	entries := r.Metadata(gomedia.MetaChapter)
+	if len(entries) != len(want) {
+		t.Fatalf("Metadata(chapter): expected %d entries, got %d", len(want), len(entries))
+	}
+
+	// mp4's chapter timescale is coarser than a time.Duration's nanosecond
+	// resolution, so start/end are checked within a tolerance rather than
+	// exactly.
+	const tolerance = 20 * time.Millisecond
+
+	for i, e := range entries {
+		if e.Key() != gomedia.MetaChapter {
+			t.Fatalf("entries[%d]: key = %q, want %q", i, e.Key(), gomedia.MetaChapter)
+		}
+		got, ok := e.Any().(gomedia.Chapter)
+		if !ok {
+			t.Fatalf("entries[%d]: Any() = %T, want gomedia.Chapter", i, e.Any())
+		}
+		if d := got.Start - want[i].Start; d < -tolerance || d > tolerance {
+			t.Fatalf("entries[%d]: Start = %v, want ~%v", i, got.Start, want[i].Start)
+		}
+		if d := got.End - want[i].End; d < -tolerance || d > tolerance {
+			t.Fatalf("entries[%d]: End = %v, want ~%v", i, got.End, want[i].End)
+		}
+		if got.Metadata["title"] != want[i].Metadata["title"] {
+			t.Fatalf("entries[%d]: title = %q, want %q", i, got.Metadata["title"], want[i].Metadata["title"])
+		}
+		if e.Value() != want[i].Metadata["title"] {
+			t.Fatalf("entries[%d]: Value() = %q, want %q", i, e.Value(), want[i].Metadata["title"])
+		}
 	}
 }
 

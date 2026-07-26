@@ -9,7 +9,7 @@ require (
 	github.com/llgcode/draw2d v0.0.0-20260422081035-c4331ac66734
 	github.com/mutablelogic/go-client v1.4.10
 	github.com/mutablelogic/go-pg v1.3.4
-	github.com/mutablelogic/go-server v1.7.2
+	github.com/mutablelogic/go-server v1.7.3
 	github.com/oov/psd v0.0.0-20260122084234-c463b6a89e2f
 	github.com/stretchr/testify v1.11.1
 	github.com/veandco/go-sdl2 v0.4.40

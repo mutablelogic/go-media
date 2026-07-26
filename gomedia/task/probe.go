@@ -41,11 +41,13 @@ func (r ProbeRequest) Query() url.Values {
 }
 
 type ProbeResponse struct {
-	Name     string                   `json:"name,omitempty"`
-	Format   *profile.FormatMeta      `json:"format,omitempty"`
-	Duration profile.Duration         `json:"duration,omitempty"`
-	Streams  []*profile.StreamProfile `json:"streams,omitempty"`
-	Metadata []gomedia.Metadata       `json:"metadata,omitempty"`
+	Name     string                   `json:"name,omitempty" help:"Name of the probed input, if known (e.g. the uploaded filename)." example:"sample.mp3"`
+	Format   *profile.FormatMeta      `json:"format,omitempty" help:"Detected container format."`
+	Duration profile.Duration         `json:"duration,omitempty" help:"Media duration, as a duration string (e.g. \"1h2m3.5s\"); absent if unknown - which is common for streamed, non-seekable input, since duration often can't be estimated without seeking." example:"1h2m3.5s"`
+	Streams  []*profile.StreamProfile `json:"streams,omitempty" help:"Audio, video, subtitle, data, and attachment streams found in the input."`
+	Metadata []profile.Metadata       `json:"metadata,omitempty" help:"Container-level metadata tags, e.g. \"title\", \"artist\"; excludes artwork and chapters."`
+	Artwork  []profile.Artwork        `json:"artwork,omitempty" help:"Embedded artwork (cover art, thumbnail, etc.) found in the input; absent if none was found."`
+	Chapters []profile.Chapter        `json:"chapters,omitempty" help:"Chapter markers found in the input, if any."`
 }
 
 type ProbeTask struct {
@@ -105,10 +107,10 @@ func (task *ProbeTask) Run(ctx Context) (err error) {
 		}
 	}
 
-	// Metadata-level information.
-	//metadata := reader.Metadata()
-
-	// Artwork information.
+	// Metadata-level information
+	result.Metadata = profile.NewMetadataList(reader.Metadata())
+	result.Artwork = profile.NewArtworkList(reader.Metadata(gomedia.MetaArtwork))
+	result.Chapters = profile.NewChapterList(reader.Metadata(gomedia.MetaChapter))
 
 	if ctx.Result != nil {
 		ctx.Result(&result)

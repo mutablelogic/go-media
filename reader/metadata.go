@@ -54,6 +54,8 @@ func (m *meta) Value() string {
 		} else {
 			return ""
 		}
+	case gomedia.Chapter:
+		return v.Metadata["title"]
 	default:
 		return fmt.Sprint(v)
 	}
