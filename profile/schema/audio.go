@@ -16,13 +16,9 @@ import (
 // TYPES
 
 type AudioProfileMeta struct {
-	Name          string          `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
-	Bitrate       *uint64         `json:"bitrate,omitempty"`         // bps
-	Profile       *string         `json:"profile,omitempty"`         // Codec profile; "LC", "HE-AAC", ...
-	SampleRate    *uint64         `json:"sample_rate,omitempty"`     // Hz
-	SampleFormat  *string         `json:"sample_format,omitempty"`   // Audio sample format; "fltp", "s16"
-	ChannelLayout *string         `json:"channel_layout,omitempty"`  // Audio Channel Layout; "mono", "stereo"
-	Opts          json.RawMessage `json:"options,omitempty"`         // Additional codec options
+	Name string `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
+	ProfileMetaAudio
+	Opts json.RawMessage `json:"options,omitempty"` // Additional codec options
 
 	// Unexported fields
 	codec    *ff.AVCodec          `json:"-"` // Internal codec

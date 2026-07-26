@@ -16,14 +16,9 @@ import (
 // TYPES
 
 type VideoProfileMeta struct {
-	Name        string          `json:"codec"  arg:"" required:""` // "libx264", "libx265", "copy", ...
-	Bitrate     *uint64         `json:"bitrate,omitempty"`         // bps
-	Profile     *string         `json:"profile,omitempty"`         // Codec profile; "high", "main", "baseline"
-	Width       *uint64         `json:"width,omitempty"`           // Frame width in pixels
-	Height      *uint64         `json:"height,omitempty"`          // Frame height in pixels
-	PixelFormat *string         `json:"pixel_format,omitempty"`    // Video pixel format; "yuv420p", "nv12"
-	FrameRate   *float64        `json:"frame_rate,omitempty"`      // Frames per second
-	Opts        json.RawMessage `json:"options,omitempty"`         // Additional codec options
+	Name string `json:"codec"  arg:"" required:""` // "libx264", "libx265", "copy", ...
+	ProfileMetaVideo
+	Opts json.RawMessage `json:"options,omitempty"` // Additional codec options
 
 	// Unexported fields
 	codec    *ff.AVCodec          `json:"-"` // Internal codec

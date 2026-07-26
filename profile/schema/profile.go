@@ -22,7 +22,11 @@ type Profile interface {
 	Options() json.RawMessage   // Additional codec-specific options
 }
 
-// ProfileMetaAudio holds the audio-specific fields of a ProfileMeta.
+// ProfileMetaAudio holds the audio-specific fields of a ProfileMeta - the
+// canonical definition of "audio encoding parameters", embedded both here
+// (for StreamProfile, whose values are derived from demuxed codec
+// parameters) and in AudioProfileMeta (whose values are user-configured),
+// so the two can't drift out of sync with each other.
 type ProfileMetaAudio struct {
 	Bitrate       *uint64 `json:"bitrate,omitempty"`        // bps
 	Profile       *string `json:"profile,omitempty"`        // Codec profile; "LC", "HE-AAC", ...
@@ -31,7 +35,8 @@ type ProfileMetaAudio struct {
 	ChannelLayout *string `json:"channel_layout,omitempty"` // Audio channel layout; "mono", "stereo"
 }
 
-// ProfileMetaVideo holds the video-specific fields of a ProfileMeta.
+// ProfileMetaVideo holds the video-specific fields of a ProfileMeta - see
+// ProfileMetaAudio's doc comment; VideoProfileMeta embeds this the same way.
 type ProfileMetaVideo struct {
 	Bitrate     *uint64  `json:"bitrate,omitempty"`      // bps
 	Profile     *string  `json:"profile,omitempty"`      // Codec profile; "high", "main", "baseline"
@@ -95,22 +100,9 @@ func NewProfileMeta(p Profile) *ProfileMeta {
 
 	switch v := p.(type) {
 	case *AudioProfile:
-		meta.ProfileMetaAudio = &ProfileMetaAudio{
-			Bitrate:       v.Bitrate,
-			Profile:       v.Profile,
-			SampleRate:    v.SampleRate,
-			SampleFormat:  v.SampleFormat,
-			ChannelLayout: v.ChannelLayout,
-		}
+		meta.ProfileMetaAudio = &v.ProfileMetaAudio
 	case *VideoProfile:
-		meta.ProfileMetaVideo = &ProfileMetaVideo{
-			Bitrate:     v.Bitrate,
-			Profile:     v.Profile,
-			Width:       v.Width,
-			Height:      v.Height,
-			PixelFormat: v.PixelFormat,
-			FrameRate:   v.FrameRate,
-		}
+		meta.ProfileMetaVideo = &v.ProfileMetaVideo
 	case StreamProfile:
 		populateProfileMetaStream(meta, &v)
 	case *StreamProfile:
