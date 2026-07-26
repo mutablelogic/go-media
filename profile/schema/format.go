@@ -14,24 +14,26 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// InputFormat holds the fields common to both input (demuxer) and output
-// (muxer) formats.
-type InputFormat struct {
-	Name        string   `json:"name" help:"Format name." example:"mp4"`
-	Description string   `json:"description,omitempty" help:"Human-readable format description." example:"MP4 (MPEG-4 Part 14)"`
-	Type        string   `json:"type,omitempty" help:"MIME content type." example:"video/mp4"`
-	Ext         string   `json:"ext,omitempty" help:"File extensions associated with this format." example:"mp4,m4a,m4v"`
-	IsInput     bool     `json:"is_input,omitempty" help:"Whether this format can be used as an input (demuxer)." example:"true"`
-	IsOutput    bool     `json:"is_output,omitempty" help:"Whether this format can be used as an output (muxer)." example:"false"`
-	Opts        []Option `json:"opts,omitempty" help:"Format-specific options."`
+// FormatMeta identifies a format - its name, human-readable description,
+// MIME type, and file extensions - independent of whether it's usable as an
+// input, an output, or what codecs it supports. This is the subset of
+// Format fit to embed in output that isn't specifically about container
+// format capabilities, e.g. ProbeResponse.
+type FormatMeta struct {
+	Name        string `json:"name" help:"Format name." example:"mp4"`
+	Description string `json:"description,omitempty" help:"Human-readable format description." example:"MP4 (MPEG-4 Part 14)"`
+	Type        string `json:"type,omitempty" help:"MIME content type." example:"video/mp4"`
+	Ext         string `json:"ext,omitempty" help:"File extensions associated with this format." example:"mp4,m4a,m4v"`
 }
 
-// Format is an output (muxer) format - a superset of InputFormat that also
-// reports the audio/video/subtitle codecs it supports encoding to. Input
-// (demuxer) formats are represented as a Format too, with Audio/Video/
-// Subtitle left empty, so both can appear together in a FormatList.
+// Format is an output (muxer) format - or an input (demuxer) format,
+// sharing the same shape with Audio/Video/Subtitle left empty, so both can
+// appear together in a FormatList.
 type Format struct {
-	InputFormat
+	FormatMeta
+	IsInput  bool     `json:"is_input,omitempty" help:"Whether this format can be used as an input (demuxer)." example:"true"`
+	IsOutput bool     `json:"is_output,omitempty" help:"Whether this format can be used as an output (muxer)." example:"false"`
+	Opts     []Option `json:"opts,omitempty" help:"Format-specific options."`
 	Audio    []string `json:"audio,omitempty" help:"Audio codecs supported by this format; the first is the default." example:"[\"aac\"]"`
 	Video    []string `json:"video,omitempty" help:"Video codecs supported by this format; the first is the default." example:"[\"h264\"]"`
 	Subtitle []string `json:"subtitle,omitempty" help:"Subtitle codecs supported by this format; the first is the default." example:"[\"mov_text\"]"`
@@ -117,14 +119,14 @@ func NewOutputFormat(format *ff.AVOutputFormat) *Format {
 	}
 
 	return &Format{
-		InputFormat: InputFormat{
+		FormatMeta: FormatMeta{
 			Name:        format.Name(),
 			Description: format.LongName(),
 			Type:        format.MimeTypes(),
 			Ext:         format.Extensions(),
-			IsOutput:    true,
-			Opts:        OptionsForFormat(format),
 		},
+		IsOutput: true,
+		Opts:     OptionsForFormat(format),
 		Audio:    withDefaultFirst(audioCodecs, format.AudioCodec()),
 		Video:    withDefaultFirst(videoCodecs, format.VideoCodec()),
 		Subtitle: withDefaultFirst(subtitleCodecs, format.SubtitleCodec()),
@@ -141,14 +143,14 @@ func NewInputFormat(format *ff.AVInputFormat) *Format {
 	}
 
 	return &Format{
-		InputFormat: InputFormat{
+		FormatMeta: FormatMeta{
 			Name:        format.Name(),
 			Description: format.LongName(),
 			Type:        format.MimeTypes(),
 			Ext:         format.Extensions(),
-			IsInput:     true,
-			Opts:        OptionsForInputFormat(format),
 		},
+		IsInput: true,
+		Opts:    OptionsForInputFormat(format),
 	}
 }
 

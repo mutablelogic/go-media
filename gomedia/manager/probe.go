@@ -24,27 +24,22 @@ func (m *Media) Probe(ctx context.Context, req task.ProbeRequest) (_ *task.Probe
 	)
 	defer func() { endSpan(err) }()
 
-	probeTask, err := task.NewProbeTask(req)
+	// Create a task to probe the input stream.
+	t, err := task.NewProbeTask(req)
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := m.tasks.Add(ctx, "probe", probeTask)
-	if err != nil {
+	// Run the task and wait for it to complete, returning the result.
+	if id, err := m.tasks.Add(ctx, "probe", t); err != nil {
 		return nil, err
-	}
-	if err := m.tasks.Run(ctx, id); err != nil {
+	} else if err := m.tasks.Run(ctx, id); err != nil {
 		return nil, err
-	}
-	status, err := m.tasks.Wait(ctx, id)
-	if err != nil {
+	} else if status, err := m.tasks.Wait(ctx, id); err != nil {
 		return nil, err
-	}
-
-	result, ok := status.Result.(*task.ProbeResponse)
-	if !ok {
+	} else if result, ok := status.Result.(*task.ProbeResponse); !ok || result == nil {
 		return nil, gomedia.ErrInternalError.With("probe task returned an unexpected result type")
+	} else {
+		return result, nil
 	}
-
-	return result, nil
 }

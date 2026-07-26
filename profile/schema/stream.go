@@ -57,10 +57,11 @@ func (m streamMeta) Any() any           { return m.value }
 // LIFECYCLE
 
 // NewStreamProfile describes an existing AVStream (typically obtained from
-// an opened reader.Reader) as a Profile. Returns an error for stream types
-// that can't be meaningfully described this way: data and attachment
-// streams (fonts, generic metadata, ...), and attached-pic streams (cover
-// art, already surfaced separately via Reader.Metadata's "artwork" key).
+// an opened reader.Reader) as a Profile - audio, video, subtitle, data and
+// attachment streams alike, so a caller remuxing a whole container doesn't
+// silently drop any of them. Returns an error for attached-pic streams
+// (cover art, already surfaced separately via Reader.Metadata's "artwork"
+// key), since representing it as a stream too would duplicate that.
 func NewStreamProfile(stream *ff.AVStream) (*StreamProfile, error) {
 	if stream == nil {
 		return nil, gomedia.ErrBadParameter.With("stream is nil")
@@ -69,13 +70,6 @@ func NewStreamProfile(stream *ff.AVStream) (*StreamProfile, error) {
 	par := stream.CodecPar()
 	if par == nil {
 		return nil, gomedia.ErrBadParameter.With("stream has no codec parameters")
-	}
-
-	switch par.CodecType() {
-	case ff.AVMEDIA_TYPE_AUDIO, ff.AVMEDIA_TYPE_VIDEO, ff.AVMEDIA_TYPE_SUBTITLE:
-		// Supported
-	default:
-		return nil, gomedia.ErrBadParameter.Withf("stream %d: unsupported stream type %q", stream.Index(), CodecType(par.CodecType()))
 	}
 
 	if stream.Disposition().Is(ff.AV_DISPOSITION_ATTACHED_PIC) {
@@ -105,6 +99,122 @@ func NewStreamProfile(stream *ff.AVStream) (*StreamProfile, error) {
 
 func (r StreamProfile) String() string {
 	return types.Stringify(r)
+}
+
+// MarshalJSON is required because every field of StreamProfile is
+// unexported (see the type's doc comment) - without it, encoding/json has
+// nothing to marshal and every stream serializes as "{}". ProfileMeta is
+// built from the Profile interface, which StreamProfile fully implements.
+func (r StreamProfile) MarshalJSON() ([]byte, error) {
+	return json.Marshal(NewProfileMeta(r))
+}
+
+// UnmarshalJSON is the counterpart to MarshalJSON - without it, a client
+// decoding a StreamProfile from JSON would silently get a zero-value struct
+// (every field is unexported, so encoding/json has nothing to write into)
+// that then re-marshals as bogus data (e.g. a zero AVCodecParameters, whose
+// zero-valued codec_type of 0 happens to collide with AVMEDIA_TYPE_VIDEO).
+//
+// codec is resolved from CodecMeta's own name, which round-trips exactly
+// (unlike a codec ID's generic name, which can differ from its default
+// decoder's own registered name - e.g. ID "mp3"'s default decoder is
+// "mp3float"; see AVCodecID.UnmarshalJSON). par is then rebuilt field by
+// field from whichever of ProfileMetaAudio/ProfileMetaVideo is present,
+// since ProfileMeta no longer carries a raw AVCodecParameters.
+func (r *StreamProfile) UnmarshalJSON(data []byte) error {
+	meta := new(ProfileMeta)
+	if err := json.Unmarshal(data, meta); err != nil {
+		return err
+	}
+
+	if meta.ProfileMetaStream != nil {
+		r.index = meta.Index
+		r.disposition = meta.Disposition
+		if meta.TimeBase != nil {
+			r.timebase = *meta.TimeBase
+		}
+		r.metadata = metadataFromMetaList(meta.Metadata)
+	}
+
+	var par ff.AVCodecParameters
+	par.SetCodecType(ff.AVMediaType(meta.Type))
+
+	if meta.Codec != nil {
+		if codec := ff.AVCodec_find_decoder_by_name(meta.Codec.Name); codec != nil {
+			r.codec = codec
+		} else if codec := ff.AVCodec_find_encoder_by_name(meta.Codec.Name); codec != nil {
+			r.codec = codec
+		}
+		// r.codec stays nil above whenever this build has no decoder or
+		// encoder registered for the name (e.g. DVB teletext/EPG streams) -
+		// but the ID itself is still resolvable from the name via ffmpeg's
+		// static codec descriptor table, so par.CodecID() doesn't need a
+		// registered codec to round-trip correctly either.
+		if r.codec != nil {
+			par.SetCodecID(r.codec.ID())
+		} else {
+			par.SetCodecID(ff.AVCodecID_from_name(meta.Codec.Name))
+		}
+	}
+
+	switch {
+	case meta.ProfileMetaAudio != nil:
+		a := meta.ProfileMetaAudio
+		if a.Bitrate != nil {
+			par.SetBitRate(int64(*a.Bitrate))
+		}
+		if a.SampleRate != nil {
+			par.SetSampleRate(int(*a.SampleRate))
+		}
+		if a.SampleFormat != nil {
+			par.SetSampleFormat(ff.AVUtil_get_sample_fmt(*a.SampleFormat))
+		}
+		if a.ChannelLayout != nil {
+			var ch ff.AVChannelLayout
+			if err := ff.AVUtil_channel_layout_from_string(&ch, *a.ChannelLayout); err == nil {
+				_ = par.SetChannelLayout(ch)
+			}
+		}
+		if a.Profile != nil && r.codec != nil {
+			if id, err := resolveProfileID(r.codec, *a.Profile); err == nil {
+				par.SetProfile(id)
+			}
+		}
+	case meta.ProfileMetaVideo != nil:
+		v := meta.ProfileMetaVideo
+		if v.Bitrate != nil {
+			par.SetBitRate(int64(*v.Bitrate))
+		}
+		if v.Width != nil {
+			par.SetWidth(int(*v.Width))
+		}
+		if v.Height != nil {
+			par.SetHeight(int(*v.Height))
+		}
+		if v.PixelFormat != nil {
+			par.SetPixelFormat(ff.AVUtil_get_pix_fmt(*v.PixelFormat))
+		}
+		if v.Profile != nil && r.codec != nil {
+			if id, err := resolveProfileID(r.codec, *v.Profile); err == nil {
+				par.SetProfile(id)
+			}
+		}
+	}
+
+	r.par = par
+	return nil
+}
+
+// metadataFromMetaList is the reverse of newMetadataMetaList.
+func metadataFromMetaList(entries []MetadataMeta) []gomedia.Metadata {
+	if len(entries) == 0 {
+		return nil
+	}
+	result := make([]gomedia.Metadata, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, streamMeta{key: e.Key, value: e.Value})
+	}
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////

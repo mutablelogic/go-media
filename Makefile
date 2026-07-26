@@ -28,9 +28,23 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+# zvbi's .pc file links -lintl/-lpng (from its gettext/libpng dependencies)
+# by name only, assuming they're on the default linker search path - which
+# Homebrew's own lib dirs aren't on macOS. Point at each dependency's own
+# keg-only lib dir specifically, NOT the general "brew --prefix"/lib: that
+# directory is also where a separately Homebrew-installed ffmpeg (if
+# present) puts its own libavcodec etc, and empirically that DOES win over
+# this project's own -lavcodec (verified via AVCodec_configuration() showing
+# the wrong build's --prefix when this was tried), silently linking a build
+# with none of this project's codec/license flags. Extend this list if a
+# future dependency's .pc file needs another keg-only lib resolved the same
+# way.
+EXTRA_LIB_DIRS=$(shell brew --prefix gettext 2>/dev/null)/lib $(shell brew --prefix libpng 2>/dev/null)/lib
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries $(foreach d,${EXTRA_LIB_DIRS},-L${d})"
+FFMPEG_EXTRA_LDFLAGS=--extra-ldflags="$(foreach d,${EXTRA_LIB_DIRS},-L${d})"
 else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+FFMPEG_EXTRA_LDFLAGS=
 endif
 
 
@@ -79,7 +93,7 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
 		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
-		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" \
+		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" ${FFMPEG_EXTRA_LDFLAGS} \
 		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg

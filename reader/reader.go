@@ -211,16 +211,17 @@ func (r *Reader) Format() *profile.Format {
 	return schema.NewInputFormat(r.input.Input())
 }
 
-// Return the audio, video, and subtitle streams in the media file as
-// profiles, keyed by their real stream index — mirroring the shape
-// writer.WithProfile expects, so a caller can remux directly:
+// Return every stream in the media file as profiles, keyed by their real
+// stream index — mirroring the shape writer.WithProfile expects, so a
+// caller can remux the whole container directly without dropping any
+// stream:
 //
 //	for i, p := range r.Streams() {
 //	    opts = append(opts, writer.WithProfile(i, p))
 //	}
 //
-// Data/attachment streams and attached-pic (cover art) streams are omitted;
-// artwork is available via Metadata's "artwork" key instead.
+// Attached-pic (cover art) streams are omitted; artwork is available via
+// Metadata's "artwork" key instead.
 func (r *Reader) Streams() map[int]profile.Profile {
 	if r.input == nil {
 		return nil

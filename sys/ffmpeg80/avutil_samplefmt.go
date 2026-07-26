@@ -57,6 +57,17 @@ func (v AVSampleFormat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.String())
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing the
+// string form produced by MarshalJSON (e.g. "fltp").
+func (v *AVSampleFormat) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	*v = AVUtil_get_sample_fmt(s)
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
 

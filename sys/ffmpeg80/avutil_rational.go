@@ -3,6 +3,8 @@ package ffmpeg
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,38 @@ func (r AVRational) MarshalJSON() ([]byte, error) {
 		return json.Marshal(0)
 	}
 	return json.Marshal(fmt.Sprintf("%d/%d", r.num, r.den))
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing either
+// shape MarshalJSON produces: the number 0, or a "num/den" string.
+func (r *AVRational) UnmarshalJSON(data []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if string(raw) == "0" {
+		*r = AVRational{}
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return err
+	}
+	num, den, ok := strings.Cut(s, "/")
+	if !ok {
+		return fmt.Errorf("invalid AVRational %q: expected \"num/den\"", s)
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return fmt.Errorf("invalid AVRational %q: %w", s, err)
+	}
+	d, err := strconv.Atoi(den)
+	if err != nil {
+		return fmt.Errorf("invalid AVRational %q: %w", s, err)
+	}
+	*r = AVUtil_rational(n, d)
+	return nil
 }
 
 func (r AVRational) String() string {

@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -287,5 +288,104 @@ func TestNewStreamProfile_NoMetadata(t *testing.T) {
 		if m.Key() == "title" {
 			t.Fatalf("Metadata(): unexpected %q entry", "title")
 		}
+	}
+}
+
+// Regression test: every field of StreamProfile is unexported, so without
+// its own MarshalJSON, encoding/json has nothing to serialize and it
+// marshals as "{}".
+func TestStreamProfile_MarshalJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sample.mp4")
+	writeSampleFile(t, path, nil)
+
+	streams, cleanup := openStreams(t, path)
+	defer cleanup()
+
+	sp, err := profile.NewStreamProfile(streams[0])
+	if err != nil {
+		t.Fatalf("NewStreamProfile: %v", err)
+	}
+
+	data, err := json.Marshal(sp)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got["type"] != "audio" {
+		t.Fatalf("type = %v, want %q", got["type"], "audio")
+	}
+	// ProfileMetaAudio is embedded anonymously in ProfileMeta, so its
+	// fields flatten to the top level rather than nesting under a "par" key.
+	if rate, ok := got["sample_rate"].(float64); !ok || rate != 44100 {
+		t.Fatalf("sample_rate = %v, want 44100", got["sample_rate"])
+	}
+	// ProfileMeta.UUID uses "omitzero" rather than "omitempty" - unlike
+	// omitempty (which never omits an array like uuid.UUID, since its
+	// length is fixed at 16 regardless of content), omitzero correctly
+	// compares against the type's zero value, so the zero UUID here (a
+	// StreamProfile always has one - it's not a persisted, identifiable
+	// configuration) is omitted rather than serialized as a string of
+	// zeroes.
+	if _, exists := got["id"]; exists {
+		t.Fatalf("expected id to be omitted for a zero UUID, got %v", got["id"])
+	}
+}
+
+// Regression test: without StreamProfile.UnmarshalJSON, decoding the JSON
+// MarshalJSON produces silently yields a zero-value StreamProfile (every
+// field is unexported, so encoding/json has nothing to unmarshal into) -
+// which then re-marshals as a bogus zero-dimension video stream, since a
+// zero AVCodecParameters.codec_type (0) collides with AVMEDIA_TYPE_VIDEO.
+// This is exactly the round trip a client decoding a probe response over
+// HTTP does.
+func TestStreamProfile_JSONRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sample.mp4")
+	writeSampleFile(t, path, nil)
+
+	streams, cleanup := openStreams(t, path)
+	defer cleanup()
+
+	sp, err := profile.NewStreamProfile(streams[0])
+	if err != nil {
+		t.Fatalf("NewStreamProfile: %v", err)
+	}
+
+	data, err := json.Marshal(sp)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got profile.StreamProfile
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Type() != sp.Type() {
+		t.Fatalf("Type() = %v, want %v", got.Type(), sp.Type())
+	}
+	if got.Par() == nil || got.Par().SampleRate() != 44100 {
+		t.Fatalf("Par().SampleRate() = %v, want 44100", got.Par())
+	}
+	if got.Codec() == nil || got.Codec().Name != sp.Codec().Name {
+		t.Fatalf("Codec() = %+v, want %+v", got.Codec(), sp.Codec())
+	}
+
+	// Re-marshaling the round-tripped value must reproduce the same JSON,
+	// not the bogus zero-video shape this was broken as.
+	redata, err := json.Marshal(&got)
+	if err != nil {
+		t.Fatalf("re-Marshal: %v", err)
+	}
+	var got2 map[string]any
+	if err := json.Unmarshal(redata, &got2); err != nil {
+		t.Fatalf("re-Unmarshal: %v", err)
+	}
+	if got2["type"] != "audio" {
+		t.Fatalf("re-marshaled type = %v, want %q", got2["type"], "audio")
 	}
 }

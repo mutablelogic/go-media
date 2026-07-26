@@ -83,6 +83,73 @@ func (ctx AVCodecParameters) MarshalJSON() ([]byte, error) {
 	return json.Marshal(par)
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface, reconstructing
+// ctx from the shape produced by MarshalJSON. String identifiers (codec
+// type/ID, sample/pixel format, channel layout) are resolved back to their
+// ffmpeg enum values via the corresponding lookup functions/UnmarshalJSON
+// implementations - encoding/json auto-allocates whichever of the embedded
+// audio/video pointer structs has matching keys present, mirroring
+// MarshalJSON's own type-switch.
+func (ctx *AVCodecParameters) UnmarshalJSON(data []byte) error {
+	// encoding/json refuses to auto-allocate an embedded pointer field
+	// whose element type is unexported (even a local, function-scoped
+	// type) when unmarshaling - "cannot set embedded pointer to
+	// unexported struct". MarshalJSON's lowercase locals never hit this
+	// since marshaling only reads, never allocates, so these need
+	// capitalized names purely to satisfy that check.
+	type JSONAVCodecParametersAudio struct {
+		SampleFormat  AVSampleFormat  `json:"sample_format"`
+		SampleRate    int             `json:"sample_rate"`
+		ChannelLayout AVChannelLayout `json:"channel_layout"`
+		FrameSize     int             `json:"frame_size,omitempty"`
+	}
+
+	type JSONAVCodecParameterVideo struct {
+		PixelFormat       AVPixelFormat `json:"pixel_format"`
+		Width             int           `json:"width"`
+		Height            int           `json:"height"`
+		SampleAspectRatio AVRational    `json:"sample_aspect_ratio,omitempty"`
+	}
+
+	type jsonAVCodecParameters struct {
+		CodecType AVMediaType `json:"codec_type"`
+		CodecID   AVCodecID   `json:"codec_id,omitempty"`
+		CodecTag  uint32      `json:"codec_tag,omitempty"`
+		BitRate   int64       `json:"bit_rate,omitempty"`
+		*JSONAVCodecParametersAudio
+		*JSONAVCodecParameterVideo
+	}
+
+	var par jsonAVCodecParameters
+	if err := json.Unmarshal(data, &par); err != nil {
+		return err
+	}
+
+	ctx.SetCodecType(par.CodecType)
+	ctx.SetCodecID(par.CodecID)
+	ctx.SetCodecTag(par.CodecTag)
+	ctx.SetBitRate(par.BitRate)
+
+	if par.JSONAVCodecParametersAudio != nil {
+		ctx.SetSampleFormat(par.SampleFormat)
+		ctx.SetSampleRate(par.SampleRate)
+		if par.ChannelLayout.NumChannels() > 0 {
+			if err := ctx.SetChannelLayout(par.ChannelLayout); err != nil {
+				return err
+			}
+		}
+		ctx.SetFrameSize(par.FrameSize)
+	}
+	if par.JSONAVCodecParameterVideo != nil {
+		ctx.SetPixelFormat(par.PixelFormat)
+		ctx.SetWidth(par.Width)
+		ctx.SetHeight(par.Height)
+		ctx.SetSampleAspectRatio(par.SampleAspectRatio)
+	}
+
+	return nil
+}
+
 func (ctx *AVCodecParameters) String() string {
 	return marshalToString(ctx)
 }

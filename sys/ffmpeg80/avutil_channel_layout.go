@@ -74,6 +74,21 @@ func (ch AVChannelLayout) MarshalJSON() ([]byte, error) {
 	}
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing the
+// string form produced by MarshalJSON (e.g. "stereo"), or leaving ch as the
+// zero-channel layout for a null (as MarshalJSON produces for 0 channels).
+func (ch *AVChannelLayout) UnmarshalJSON(data []byte) error {
+	var s *string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == nil || *s == "" {
+		*ch = AVChannelLayout{}
+		return nil
+	}
+	return AVUtil_channel_layout_from_string(ch, *s)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
 

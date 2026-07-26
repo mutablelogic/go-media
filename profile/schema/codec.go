@@ -17,14 +17,20 @@ import (
 
 type CodecType ff.AVMediaType
 
+// CodecMeta identifies a codec - its name, human-readable description, and
+// media type - independent of its encode/decode capability or options.
+type CodecMeta struct {
+	Name        string    `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
+	Description string    `json:"description,omitempty"` // Codec description
+	Type        CodecType `json:"type"`                  // Codec type; "audio", "video", "subtitle"
+}
+
 type Codec struct {
-	Name        string      `json:"name"`                  // Codec name, e.g. "aac", "libmp3lame", "copy", ...
-	Description string      `json:"description,omitempty"` // Codec description
-	Type        CodecType   `json:"type"`                  // Codec type; "audio", "video", "subtitle"
-	IsEncoder   bool        `json:"is_encoder"`            // Whether this codec can encode
-	IsDecoder   bool        `json:"is_decoder"`            // Whether this codec can decode
-	Opts        []Option    `json:"opts,omitempty"`        // Codec options
-	ctx         *ff.AVCodec `json:"-"`                     // Internal codec
+	CodecMeta
+	IsEncoder bool        `json:"is_encoder"`     // Whether this codec can encode
+	IsDecoder bool        `json:"is_decoder"`     // Whether this codec can decode
+	Opts      []Option    `json:"opts,omitempty"` // Codec options
+	ctx       *ff.AVCodec `json:"-"`              // Internal codec
 }
 
 type CodecListRequest struct {
@@ -52,13 +58,15 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 		return nil
 	}
 	return &Codec{
-		Name:        codec.Name(),
-		Description: codec.LongName(),
-		Type:        CodecType(codec.Type()),
-		IsEncoder:   codec.IsEncoder(),
-		IsDecoder:   codec.IsDecoder(),
-		Opts:        OptionsForCodec(codec),
-		ctx:         codec,
+		CodecMeta: CodecMeta{
+			Name:        codec.Name(),
+			Description: codec.LongName(),
+			Type:        CodecType(codec.Type()),
+		},
+		IsEncoder: codec.IsEncoder(),
+		IsDecoder: codec.IsDecoder(),
+		Opts:      OptionsForCodec(codec),
+		ctx:       codec,
 	}
 }
 

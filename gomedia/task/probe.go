@@ -3,6 +3,7 @@ package task
 import (
 	"io"
 	"maps"
+	"net/url"
 	"slices"
 
 	// Packages
@@ -17,16 +18,34 @@ import (
 // PROBE TASK
 
 type ProbeRequest struct {
-	Reader io.Reader
-	Format string   `json:"format,omitempty" name:"format" help:"Input format name (e.g. mpegts)"`
-	Opts   []string `json:"opts,omitempty" name:"opts" help:"Input format options"`
+	Reader io.Reader `json:"-"` // supplied from the request body, not a query/JSON field
+	Format string    `json:"format,omitempty" name:"format" help:"Input format name (e.g. mpegts)"`
+	Opts   []string  `json:"opts,omitempty" name:"opts" help:"Input format options"`
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - QUERY
+
+// Query returns the Format/Opts fields as URL query parameters, for a client
+// to attach to the probe request (Reader is carried as the request body, not
+// a query parameter).
+func (r ProbeRequest) Query() url.Values {
+	query := url.Values{}
+	if r.Format != "" {
+		query.Set("format", r.Format)
+	}
+	for _, opt := range r.Opts {
+		query.Add("opts", opt)
+	}
+	return query
 }
 
 type ProbeResponse struct {
-	Name     string
-	Format   *profile.Format
-	Streams  []*profile.StreamProfile
-	Metadata []gomedia.Metadata
+	Name     string                   `json:"name,omitempty"`
+	Format   *profile.FormatMeta      `json:"format,omitempty"`
+	Duration profile.Duration         `json:"duration,omitempty"`
+	Streams  []*profile.StreamProfile `json:"streams,omitempty"`
+	Metadata []gomedia.Metadata       `json:"metadata,omitempty"`
 }
 
 type ProbeTask struct {
@@ -70,8 +89,13 @@ func (task *ProbeTask) Run(ctx Context) (err error) {
 	}
 	defer reader.Close()
 
-	// Containers and streams information.
-	result.Format = reader.Format()
+	// Containers and streams information. Only the format's identifying
+	// metadata is reported here, not its full input/output/codec-support
+	// details.
+	if format := reader.Format(); format != nil {
+		result.Format = &format.FormatMeta
+	}
+	result.Duration = profile.Duration(reader.Duration())
 
 	streams := reader.Streams()
 	result.Streams = make([]*profile.StreamProfile, 0, len(streams))
@@ -82,7 +106,7 @@ func (task *ProbeTask) Run(ctx Context) (err error) {
 	}
 
 	// Metadata-level information.
-	metadata := reader.Metadata()
+	//metadata := reader.Metadata()
 
 	// Artwork information.
 
