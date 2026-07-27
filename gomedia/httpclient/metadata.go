@@ -65,6 +65,49 @@ func (c *Client) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest, con
 	return &response, nil
 }
 
+// Metadata uploads req.Reader to the metadata endpoint and returns the
+// detected content type and container-level metadata (excludes artwork and
+// chapters, and doesn't probe streams, unlike ProbeMedia). req.Filter/
+// req.Format/req.Opts are attached to the request as query parameters.
+//
+// Upload semantics (contentType, onRead, ownership of req.Reader, and the
+// NamedReader filename convention) are identical to ProbeMedia - see its
+// doc comment.
+func (c *Client) Metadata(ctx context.Context, req task.MetadataRequest, contentType string, onRead func(n int64)) (*task.MetadataResponse, error) {
+	var body client.Payload
+
+	// Determine name of the uploaded file, if any, from the reader.
+	name := ""
+	if named, ok := req.Reader.(gomedia.NamedReader); ok && named != nil {
+		name = named.Name()
+	}
+
+	reader := NewReader(req.Reader, onRead)
+	if contentType == types.ContentTypeFormData {
+		p, err := client.NewStreamingMultipartRequest(struct {
+			File multipart.File `json:"file"`
+		}{
+			File: multipart.File{
+				Path: name,
+				Body: io.NopCloser(reader),
+			},
+		}, types.ContentTypeJSON)
+		if err != nil {
+			return nil, err
+		}
+		body = p
+	} else {
+		body = NewPayload(reader, contentType)
+	}
+
+	var response task.MetadataResponse
+	if err := c.DoWithContext(ctx, body, &response, client.OptPath("metadata"), client.OptQuery(req.Query())); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
 // ProbeSource probes a URL - a network source FFmpeg can read directly
 // (http, https, rtmp, ...), or a "device://<format>/<address>" URL (see
 // ProbeSourceTask's doc comment) - rather than an uploaded file's bytes.

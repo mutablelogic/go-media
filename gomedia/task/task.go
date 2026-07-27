@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 
+	// Packages
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -17,14 +18,11 @@ type Context struct {
 	Tracer trace.Tracer
 
 	// Progress reports how far the task has got, in task-defined units (e.g.
-	// bytes, frames, streams) - total is 0 if not known in advance. Can be
-	// nil; a task should treat a nil Progress as "nobody's listening" and
-	// skip reporting.
+	// bytes, frames, streams) - total is 0 if not known in advance.
 	Progress func(current, total int64)
 
 	// Result sets the task's output, retrievable afterwards via the
-	// Manager's Status. Can be nil; a task should treat a nil Result as
-	// "nobody's listening" and skip reporting.
+	// Manager's Status.
 	Result func(any)
 }
 

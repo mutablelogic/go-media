@@ -12,6 +12,7 @@ import (
 	gomedia "github.com/mutablelogic/go-media"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	reader "github.com/mutablelogic/go-media/reader"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 
@@ -19,7 +20,7 @@ import (
 // PROBE TASK
 
 type ProbeMediaRequest struct {
-	Reader io.Reader `json:"-"` // supplied from the request body, not a query/JSON field
+	Reader io.Reader `json:"-"`
 	ProbeRequestOpts
 }
 
@@ -95,10 +96,9 @@ func (task *ProbeMediaTask) Run(ctx Context) (err error) {
 		result.Name = named.Name()
 	}
 
-	_, endSpan := otel.StartSpan(ctx.Tracer, ctx, "Probe",
-		attribute.String("input", result.Name),
-		attribute.String("format", task.req.Format),
-		attribute.StringSlice("opts", task.req.Opts),
+	_, endSpan := otel.StartSpan(ctx.Tracer, ctx, "ProbeMedia",
+		attribute.String("req", types.Stringify(task.req)),
+		attribute.String("name", result.Name),
 	)
 	defer func() { endSpan(err) }()
 
@@ -135,9 +135,8 @@ func (task *ProbeMediaTask) Run(ctx Context) (err error) {
 	result.Artwork = profile.NewArtworkList(reader.Metadata(gomedia.MetaArtwork))
 	result.Chapters = profile.NewChapterList(reader.Metadata(gomedia.MetaChapter))
 
-	if ctx.Result != nil {
-		ctx.Result(&result)
-	}
+	// Set result
+	ctx.Result(types.Ptr(result))
 
 	// Return success
 	return nil
@@ -207,9 +206,8 @@ func (task *ProbeSourceTask) Run(ctx Context) (err error) {
 	result.Artwork = profile.NewArtworkList(rdr.Metadata(gomedia.MetaArtwork))
 	result.Chapters = profile.NewChapterList(rdr.Metadata(gomedia.MetaChapter))
 
-	if ctx.Result != nil {
-		ctx.Result(&result)
-	}
+	// Set result
+	ctx.Result(types.Ptr(result))
 
 	// Return success
 	return nil

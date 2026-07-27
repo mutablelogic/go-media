@@ -134,6 +134,49 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 				op.JSONResponse(http.StatusOK, jsonschema.MustFor[task.ProbeResponse](), "Media Format, Streams, and Metadata")
 			})
 		}),
+		router.Register("metadata", nil, func(path httprequest.PathItem) {
+			path.Tag("Metadata")
+
+			// POST
+			path.Post(func(w http.ResponseWriter, r *http.Request) {
+				// Filter/Format/Opts come from the query string; Reader is
+				// filled in below depending on the request's content type.
+				var req task.MetadataRequest
+				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+					return
+				}
+
+				// multipart/form-data (a single file field named "file") is a
+				// special case; any other content type reads the raw request
+				// body directly, so a client can just stream media bytes.
+				mediaType, _ := types.ParseContentType(r.Header.Get(types.ContentTypeHeader))
+				if mediaType == types.ContentTypeFormData {
+					var form FormData
+					if err := httprequest.Read(r, &form); err != nil {
+						httpresponse.Error(w, gomedia.HTTPErr(err))
+						return
+					}
+					defer form.File.Body.Close()
+					req.Reader = namedReader{Reader: form.File.Body, name: form.File.Path}
+				} else {
+					req.Reader = r.Body
+				}
+
+				response, err := manager.Metadata(r.Context(), req)
+				if err != nil {
+					httpresponse.Error(w, gomedia.HTTPErr(err))
+				} else {
+					httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+				}
+			}, func(op httprequest.PathOperation) {
+				op.Summary("Extract Metadata")
+				op.Description(documentation.Section(3, "POST /metadata").Body)
+				op.Query(jsonschema.MustFor[task.MetadataRequest]())
+				op.RequestBody(jsonschema.MustFor[FormData](), types.ContentTypeFormData)
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[task.MetadataResponse](), "Content Type and Metadata")
+			})
+		}),
 	)
 }
 

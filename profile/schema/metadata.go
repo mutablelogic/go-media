@@ -16,6 +16,7 @@ import (
 type Metadata struct {
 	Key   string `json:"key" help:"Metadata tag name, e.g. \"title\", \"artist\", \"language\"." example:"title"`
 	Value string `json:"value,omitempty" help:"Metadata tag value." example:"Sample Track"`
+	Any   any    `json:"any,omitempty" help:"Metadata tag value, as a JSON-friendly type (string, number, bool, array, or object)."`
 }
 
 // Artwork is a JSON-friendly view of a gomedia.Metadata entry holding
@@ -54,7 +55,7 @@ func NewMetadataList(entries []gomedia.Metadata) []Metadata {
 		if e == nil {
 			continue
 		}
-		result = append(result, Metadata{Key: e.Key(), Value: e.Value()})
+		result = append(result, Metadata{Key: e.Key(), Value: e.Value(), Any: e.Any()})
 	}
 	return result
 }
