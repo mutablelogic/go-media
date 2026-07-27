@@ -30,6 +30,9 @@ func (profile *Profile) ListCodecs(ctx context.Context, req schema.CodecListRequ
 		if req.IsDecoder != nil && ff.AVCodec_is_decoder(c) != types.Value(req.IsDecoder) {
 			return false
 		}
+		if req.IsHardware != nil && c.Capabilities().Is(ff.AV_CODEC_CAP_HARDWARE) != types.Value(req.IsHardware) {
+			return false
+		}
 		if req.Type != nil && c.Type() != ff.AVMediaType(types.Value(req.Type)) {
 			return false
 		}

@@ -27,16 +27,18 @@ type CodecMeta struct {
 
 type Codec struct {
 	CodecMeta
-	IsEncoder bool        `json:"is_encoder"`     // Whether this codec can encode
-	IsDecoder bool        `json:"is_decoder"`     // Whether this codec can decode
-	Opts      []Option    `json:"opts,omitempty"` // Codec options
-	ctx       *ff.AVCodec `json:"-"`              // Internal codec
+	IsEncoder  bool        `json:"is_encoder"`            // Whether this codec can encode
+	IsDecoder  bool        `json:"is_decoder"`            // Whether this codec can decode
+	IsHardware bool        `json:"is_hardware,omitempty"` // Whether this codec is hardware-accelerated
+	Opts       []Option    `json:"opts,omitempty"`        // Codec options
+	ctx        *ff.AVCodec `json:"-"`                     // Internal codec
 }
 
 type CodecListRequest struct {
-	Type      *CodecType `json:"type,omitempty" enum:"audio,video,subtitle"` // Codec type to filter codecs by; "audio", "video", "subtitle"
-	IsEncoder *bool      `json:"is_encoder,omitempty"`                       // Filter by encoder capability; both encoders and decoders are returned if omitted
-	IsDecoder *bool      `json:"is_decoder,omitempty"`                       // Filter by decoder capability; both encoders and decoders are returned if omitted
+	Type       *CodecType `json:"type,omitempty" enum:"audio,video,subtitle"` // Codec type to filter codecs by; "audio", "video", "subtitle"
+	IsEncoder  *bool      `json:"is_encoder,omitempty"`                       // Filter by encoder capability; both encoders and decoders are returned if omitted
+	IsDecoder  *bool      `json:"is_decoder,omitempty"`                       // Filter by decoder capability; both encoders and decoders are returned if omitted
+	IsHardware *bool      `json:"is_hardware,omitempty"`                      // Filter by hardware acceleration; both hardware and software codecs are returned if omitted
 	pg.OffsetLimit
 }
 
@@ -63,10 +65,11 @@ func NewCodec(codec *ff.AVCodec) *Codec {
 			Description: codec.LongName(),
 			Type:        CodecType(codec.Type()),
 		},
-		IsEncoder: codec.IsEncoder(),
-		IsDecoder: codec.IsDecoder(),
-		Opts:      OptionsForCodec(codec),
-		ctx:       codec,
+		IsEncoder:  codec.IsEncoder(),
+		IsDecoder:  codec.IsDecoder(),
+		IsHardware: codec.Capabilities().Is(ff.AV_CODEC_CAP_HARDWARE),
+		Opts:       OptionsForCodec(codec),
+		ctx:        codec,
 	}
 }
 
@@ -118,6 +121,9 @@ func (r CodecListRequest) Query() url.Values {
 	}
 	if r.IsDecoder != nil {
 		query.Set("is_decoder", strconv.FormatBool(types.Value(r.IsDecoder)))
+	}
+	if r.IsHardware != nil {
+		query.Set("is_hardware", strconv.FormatBool(types.Value(r.IsHardware)))
 	}
 	if r.Offset > 0 {
 		query.Set("offset", strconv.FormatUint(r.Offset, 10))
