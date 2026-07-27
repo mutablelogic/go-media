@@ -58,3 +58,35 @@ func Test_avio_001(t *testing.T) {
 	// Free the context
 	AVFormat_avio_context_free(ctx)
 }
+
+func Test_avio_enum_protocols_001(t *testing.T) {
+	assert := assert.New(t)
+
+	var opaque uintptr
+	var input []string
+	for {
+		name := AVFormat_avio_enum_protocols(&opaque, false)
+		if name == "" {
+			break
+		}
+		input = append(input, name)
+	}
+
+	// "file" is compiled into every FFmpeg build and is always an input
+	// protocol, so its presence is a reasonable sanity check that iteration
+	// actually walked the real list rather than returning immediately.
+	assert.Contains(input, "file")
+	t.Log("input protocols:", input)
+
+	var output []string
+	opaque = 0
+	for {
+		name := AVFormat_avio_enum_protocols(&opaque, true)
+		if name == "" {
+			break
+		}
+		output = append(output, name)
+	}
+	assert.Contains(output, "file")
+	t.Log("output protocols:", output)
+}

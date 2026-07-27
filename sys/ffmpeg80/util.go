@@ -127,6 +127,13 @@ func cAVStreamSlice(p unsafe.Pointer, sz C.int) []*AVStream {
 	return (*[1 << 30]*AVStream)(p)[:int(sz)]
 }
 
+func cAVChapterSlice(p unsafe.Pointer, sz C.int) []*AVChapter {
+	if p == nil || sz <= 0 {
+		return nil
+	}
+	return (*[1 << 30]*AVChapter)(p)[:int(sz)]
+}
+
 func cAVDeviceInfoSlice(p unsafe.Pointer, sz C.int) []*AVDeviceInfo {
 	if p == nil || sz <= 0 {
 		return nil

@@ -1,12 +1,12 @@
 package manager
 
 import (
-	// Packages
 	"strings"
 
-	"github.com/hala-systems/fabric-service/pkg/types"
+	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	schema "github.com/mutablelogic/go-media/profile/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	trace "go.opentelemetry.io/otel/trace"
 )
 

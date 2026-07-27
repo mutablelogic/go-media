@@ -12,6 +12,7 @@ import (
 /*
 #cgo pkg-config: libavcodec libavutil
 #include <libavcodec/avcodec.h>
+#include <libavcodec/codec_desc.h>
 #include <libavutil/opt.h>
 */
 import "C"
@@ -237,6 +238,31 @@ func (v AVCodecCap) MarshalJSON() ([]byte, error) {
 
 func (v AVCodecID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.String())
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing the
+// string form produced by MarshalJSON (e.g. "mp3", "aac") - there's no
+// direct name-to-ID lookup in ffmpeg, so this resolves it via whichever of
+// a decoder or encoder is registered for that name.
+func (v *AVCodecID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*v = AV_CODEC_ID_NONE
+		return nil
+	}
+	if codec := AVCodec_find_decoder_by_name(s); codec != nil {
+		*v = codec.ID()
+		return nil
+	}
+	if codec := AVCodec_find_encoder_by_name(s); codec != nil {
+		*v = codec.ID()
+		return nil
+	}
+	*v = AV_CODEC_ID_NONE
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -470,6 +496,21 @@ func (ctx *AVCodecContext) SetTimeBase(time_base AVRational) {
 	ctx.time_base = C.struct_AVRational(time_base)
 }
 
+// PktTimeBase returns the timebase of packets fed to this decoder - distinct
+// from TimeBase (the codec's own nominal rate), and how a decoder learns the
+// timebase incoming packet timestamps are actually expressed in. Some
+// decoders (e.g. the "ssa"/"ass" subtitle decoder) require this to be set
+// before decoding will succeed.
+func (ctx *AVCodecContext) PktTimeBase() AVRational {
+	return (AVRational)(ctx.pkt_timebase)
+}
+
+// SetPktTimeBase sets the timebase of packets that will be fed to this
+// decoder. See PktTimeBase.
+func (ctx *AVCodecContext) SetPktTimeBase(time_base AVRational) {
+	ctx.pkt_timebase = C.struct_AVRational(time_base)
+}
+
 func (ctx *AVCodecContext) SampleFormat() AVSampleFormat {
 	return AVSampleFormat(ctx.sample_fmt)
 }
@@ -647,4 +688,33 @@ func (v AVCodecID) Name() string {
 
 func (v AVCodecID) Type() AVMediaType {
 	return AVMediaType(C.avcodec_get_type(C.enum_AVCodecID(v)))
+}
+
+// AVCodecID_from_name resolves a codec ID from the name String()/Name()
+// produces, via ffmpeg's static codec descriptor table - unlike
+// AVCodec_find_decoder_by_name/_encoder_by_name, this doesn't require a
+// decoder or encoder to actually be registered for it, so it also resolves
+// codecs this build can't itself en/decode (e.g. "epg", "dvb_teletext"
+// without libzvbi). Returns AV_CODEC_ID_NONE if name is unrecognized.
+func AVCodecID_from_name(name string) AVCodecID {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	desc := C.avcodec_descriptor_get_by_name(cName)
+	if desc == nil {
+		return AV_CODEC_ID_NONE
+	}
+	return AVCodecID(desc.id)
+}
+
+// LongName returns the codec's human-readable description from ffmpeg's
+// static codec descriptor table - unlike Codec()/AVCodec_find_decoder, this
+// doesn't require an encoder or decoder to actually be registered for the
+// ID, so it's available even for codecs this build can't itself en/decode.
+// Returns "" if the ID is unrecognized.
+func (v AVCodecID) LongName() string {
+	desc := C.avcodec_descriptor_get(C.enum_AVCodecID(v))
+	if desc == nil {
+		return ""
+	}
+	return C.GoString(desc.long_name)
 }

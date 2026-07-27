@@ -39,7 +39,7 @@ failure.
 
 ```bash
 # Basic dependencies (required)
-brew install pkg-config cmake nasm curl freetype lame opus libvorbis libvpx x264 x265
+brew install pkg-config cmake nasm curl freetype lame opus libvorbis libvpx x264 x265 zvbi
 
 # Recommended, for HEIF/AVIF decoding (libde265, aom, dav1d)
 brew install libde265 aom dav1d jpeg

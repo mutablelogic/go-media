@@ -2,13 +2,12 @@ package manager
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
 
 	// Packages
 	uuid "github.com/google/uuid"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
 	schema "github.com/mutablelogic/go-media/profile/schema"
-	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	pg "github.com/mutablelogic/go-pg"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	attribute "go.opentelemetry.io/otel/attribute"
@@ -17,61 +16,53 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (profile *Profile) ListAudioCodecs(ctx context.Context) (_ *schema.AudioCodecList, err error) {
-	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "ListAudioCodecs")
-	defer func() { endSpan(err) }()
-
-	// Match helper
-	matches := func(c *ff.AVCodec) bool {
-		if !ff.AVCodec_is_encoder(c) {
-			return false
-		}
-		if c.Type() != ff.AVMEDIA_TYPE_AUDIO {
-			return false
-		}
-		return true
-	}
-
-	// Get the list of audio codecs
-	var opaque uintptr
-	var result schema.AudioCodecList
-	for {
-		codec := ff.AVCodec_iterate(&opaque)
-		if codec == nil {
-			break
-		}
-		if !matches(codec) {
-			continue
-		}
-		result.Body = append(result.Body, schema.AudioCodec{
-			Name:        codec.Name(),
-			Description: codec.LongName(),
-		})
-	}
-	result.Count = uint64(len(result.Body))
-
-	// Return success
-	return types.Ptr(result), nil
-}
-
-func (profile *Profile) CreateAudioProfile(ctx context.Context, codec string, opts url.Values) (_ *schema.AudioProfile, err error) {
+func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "CreateAudioProfile",
-		attribute.String("codec", codec),
-		attribute.String("opts", opts.Encode()),
+		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
 
 	var result schema.AudioProfile
 	if err := profile.Tx(ctx, func(conn pg.Conn) error {
 		// Create the audio profile
-		audioProfile, err := schema.NewAudioProfile(codec)
+		audioProfile, err := schema.NewAudioProfile(req.Name)
 		if err != nil {
 			return err
 		}
 
-		// Apply options from the URL values
-		if err := audioProfile.Set(opts); err != nil {
-			return err
+		// Set options
+		if req.Bitrate != nil {
+			if err := audioProfile.Set(schema.OptionBitrate, types.Value(req.Bitrate)); err != nil {
+				return err
+			}
+		}
+		if req.SampleRate != nil {
+			if err := audioProfile.Set(schema.OptionSampleRate, types.Value(req.SampleRate)); err != nil {
+				return err
+			}
+		}
+		if req.SampleFormat != nil {
+			if err := audioProfile.Set(schema.OptionSampleFormat, types.Value(req.SampleFormat)); err != nil {
+				return err
+			}
+		}
+		if req.ChannelLayout != nil {
+			if err := audioProfile.Set(schema.OptionChannelLayout, types.Value(req.ChannelLayout)); err != nil {
+				return err
+			}
+		}
+
+		// Unmarshal the options JSON into a map
+		if req.Opts != nil {
+			var opts map[string]any
+			if err := json.Unmarshal(req.Opts, &opts); err != nil {
+				return err
+			}
+			for name, value := range opts {
+				if err := audioProfile.Set(name, value); err != nil {
+					return err
+				}
+			}
 		}
 
 		// Insert the audio profile into the database
@@ -110,6 +101,21 @@ func (profile *Profile) DeleteAudioProfile(ctx context.Context, uuid uuid.UUID) 
 
 	var result schema.AudioProfile
 	if err := profile.PoolConn.Delete(ctx, &result, schema.AudioProfileUUID(uuid)); err != nil {
+		return nil, pg.NormalizeError(err)
+	}
+
+	return types.Ptr(result), nil
+}
+
+func (profile *Profile) UpdateAudioProfile(ctx context.Context, uuid uuid.UUID, meta schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
+	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "UpdateAudioProfile",
+		attribute.String("uuid", uuid.String()),
+	)
+	defer func() { endSpan(err) }()
+
+	var result schema.AudioProfile
+	// TODO: Set each option in the meta to the audio profile to validate it
+	if err := profile.PoolConn.Update(ctx, &result, schema.AudioProfileUUID(uuid), meta); err != nil {
 		return nil, pg.NormalizeError(err)
 	}
 

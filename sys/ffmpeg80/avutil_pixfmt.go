@@ -345,6 +345,21 @@ func (v AVPixelFormat) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing the
+// "name" field of the object produced by MarshalJSON (e.g. "yuv420p") -
+// IsRGB/HasAlpha/IsPlanar are derived, not independent state, so they're
+// ignored on the way back in.
+func (v *AVPixelFormat) UnmarshalJSON(data []byte) error {
+	var obj struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*v = AVUtil_get_pix_fmt(obj.Name)
+	return nil
+}
+
 func (v AVPixelFormat) String() string {
 	if f := AVUtil_get_pix_fmt_name(v); f != "" {
 		return f

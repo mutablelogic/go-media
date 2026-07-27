@@ -13,12 +13,12 @@ jobs:
         go-version: ["1.25", "1.26"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
       - name: Run tests
         run: |
-          sudo apt -y update && sudo apt -y install nasm libde265-dev libaom-dev libdav1d-dev
+          sudo apt -y update && sudo apt -y install nasm libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
           make test

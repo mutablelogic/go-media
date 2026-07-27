@@ -22,6 +22,18 @@ type (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+// Standards-compliance levels, for use with AVFormat_query_codec.
+const (
+	FF_COMPLIANCE_VERY_STRICT  = C.FF_COMPLIANCE_VERY_STRICT  // Strictly conform to an older, more strict version of the spec or reference software.
+	FF_COMPLIANCE_STRICT       = C.FF_COMPLIANCE_STRICT       // Strictly conform to all the things in the spec no matter what consequences.
+	FF_COMPLIANCE_NORMAL       = C.FF_COMPLIANCE_NORMAL       // Default
+	FF_COMPLIANCE_UNOFFICIAL   = C.FF_COMPLIANCE_UNOFFICIAL   // Allow unofficial extensions
+	FF_COMPLIANCE_EXPERIMENTAL = C.FF_COMPLIANCE_EXPERIMENTAL // Allow nonstandardized experimental things.
+)
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (ctx *AVOutputFormat) MarshalJSON() ([]byte, error) {
@@ -90,8 +102,34 @@ func (ctx *AVOutputFormat) PrivClass() *AVClass {
 	return (*AVClass)(ctx.priv_class)
 }
 
+// CodecTags returns the codec tag tables associated with this output format.
+// Each returned table is opaque; use its ID and Tag methods to query it.
+func (ctx *AVOutputFormat) CodecTags() []*AVCodecTag {
+	var tables []*AVCodecTag
+	ptr := uintptr(unsafe.Pointer(ctx.codec_tag))
+	if ptr == 0 {
+		return nil
+	}
+	for {
+		table := *(**C.struct_AVCodecTag)(unsafe.Pointer(ptr))
+		if table == nil {
+			break
+		}
+		tables = append(tables, (*AVCodecTag)(table))
+		ptr += unsafe.Sizeof(uintptr(0))
+	}
+	return tables
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // BINDINGS
+
+// AVFormat_query_codec reports whether a codec is supported by an output format.
+// It returns 1 if the codec can be stored in this format, 0 if it cannot, and a
+// negative number if this cannot be determined.
+func AVFormat_query_codec(ofmt *AVOutputFormat, id AVCodecID, stdCompliance int) int {
+	return int(C.avformat_query_codec((*C.AVOutputFormat)(ofmt), C.enum_AVCodecID(id), C.int(stdCompliance)))
+}
 
 // Iterate over all AVOutputFormats
 func AVFormat_muxer_iterate(opaque *uintptr) *AVOutputFormat {

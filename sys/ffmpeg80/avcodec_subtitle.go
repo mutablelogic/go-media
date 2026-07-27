@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"encoding/json"
+	"errors"
 	"unsafe"
 )
 
@@ -11,6 +12,8 @@ import (
 /*
 #cgo pkg-config: libavcodec libavutil
 #include <libavcodec/avcodec.h>
+#include <libavutil/mem.h>
+#include <stdlib.h>
 */
 import "C"
 
@@ -39,6 +42,81 @@ const (
 // Free all allocated data in the given subtitle struct.
 func AVSubtitle_free(sub *AVSubtitle) {
 	C.avsubtitle_free((*C.struct_AVSubtitle)(sub))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AVSubtitle CONSTRUCTION (for encoding)
+
+// NewSubtitle creates an empty subtitle with the given PTS (in AV_TIME_BASE
+// units, matching AVSubtitle's own documented convention). Use SetText to
+// add content before passing it to AVCodec_encode_subtitle.
+func NewSubtitle(pts int64) *AVSubtitle {
+	sub := &AVSubtitle{}
+	sub.pts = C.int64_t(pts)
+	return sub
+}
+
+// SetText replaces any existing rects with a single SUBTITLE_TEXT rect
+// containing text, displayed from startMs to endMs. Use this for plain-text
+// subtitle codecs (srt, webvtt, mov_text, ...).
+func (sub *AVSubtitle) SetText(text string, startMs, endMs uint32) error {
+	return sub.setRect(SUBTITLE_TEXT, text, startMs, endMs)
+}
+
+// SetASS replaces any existing rects with a single SUBTITLE_ASS rect, for
+// the "ass" subtitle codec. dialogue is the event's comma-separated field
+// list as used internally by FFmpeg's ASS handling - everything a
+// "Dialogue:" line carries after the timing fields, e.g.
+// "0,Default,,0,0,0,,Hello world" (Layer,Style,Name,MarginL,MarginR,MarginV,Effect,Text).
+func (sub *AVSubtitle) SetASS(dialogue string, startMs, endMs uint32) error {
+	return sub.setRect(SUBTITLE_ASS, dialogue, startMs, endMs)
+}
+
+// setRect replaces any existing rects with a single rect of the given type
+// and text/ass content (SUBTITLE_TEXT uses the rect's text field,
+// SUBTITLE_ASS its ass field). The rect and its content are allocated with
+// FFmpeg's own allocator, so AVSubtitle_free can release them the same way
+// it releases a decoded subtitle's rects.
+func (sub *AVSubtitle) setRect(t AVSubtitleType, content string, startMs, endMs uint32) error {
+	// Discard any existing rects before replacing them
+	if sub.num_rects > 0 {
+		C.avsubtitle_free((*C.struct_AVSubtitle)(sub))
+	}
+
+	rect := (*C.struct_AVSubtitleRect)(C.av_mallocz(C.size_t(unsafe.Sizeof(C.struct_AVSubtitleRect{}))))
+	if rect == nil {
+		return errors.New("failed to allocate subtitle rect")
+	}
+	rect._type = C.enum_AVSubtitleType(t)
+
+	cContent := C.CString(content)
+	avContent := C.av_strdup(cContent)
+	C.free(unsafe.Pointer(cContent))
+	if avContent == nil {
+		C.av_free(unsafe.Pointer(rect))
+		return errors.New("failed to allocate subtitle content")
+	}
+	switch t {
+	case SUBTITLE_ASS:
+		rect.ass = avContent
+	default:
+		rect.text = avContent
+	}
+
+	rects := (**C.struct_AVSubtitleRect)(C.av_malloc(C.size_t(unsafe.Sizeof(rect))))
+	if rects == nil {
+		C.av_freep(unsafe.Pointer(&avContent))
+		C.av_free(unsafe.Pointer(rect))
+		return errors.New("failed to allocate subtitle rects array")
+	}
+	*rects = rect
+
+	sub.rects = rects
+	sub.num_rects = 1
+	sub.start_display_time = C.uint32_t(startMs)
+	sub.end_display_time = C.uint32_t(endMs)
+
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

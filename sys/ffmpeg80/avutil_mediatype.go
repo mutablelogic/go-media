@@ -60,6 +60,30 @@ func (v AVMediaType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.String())
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface, parsing the
+// string form produced by MarshalJSON (e.g. "AVMEDIA_TYPE_AUDIO").
+func (v *AVMediaType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	switch s {
+	case "AVMEDIA_TYPE_VIDEO":
+		*v = AVMEDIA_TYPE_VIDEO
+	case "AVMEDIA_TYPE_AUDIO":
+		*v = AVMEDIA_TYPE_AUDIO
+	case "AVMEDIA_TYPE_DATA":
+		*v = AVMEDIA_TYPE_DATA
+	case "AVMEDIA_TYPE_SUBTITLE":
+		*v = AVMEDIA_TYPE_SUBTITLE
+	case "AVMEDIA_TYPE_ATTACHMENT":
+		*v = AVMEDIA_TYPE_ATTACHMENT
+	default:
+		*v = AVMEDIA_TYPE_UNKNOWN
+	}
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 

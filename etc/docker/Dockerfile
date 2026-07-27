@@ -11,7 +11,7 @@ COPY . .
 # Install dependencies
 RUN set -x && apt update -y \
   && apt install -y ca-certificates lsb-release build-essential cmake nasm curl pkg-config \
-  && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev \
+  && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev libzvbi-dev \
   && apt install -y libvulkan-dev \
   && apt install -y libde265-dev libaom-dev libdav1d-dev
 
@@ -25,7 +25,7 @@ ARG ARCH
 ARG SOURCE
 RUN set -x && apt update -y \
   && apt install -y ca-certificates lsb-release \
-  && apt install -y libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 libx264-164 libx265-215 libnuma1 \
+  && apt install -y libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 libx264-164 libx265-215 libnuma1 libzvbi0 \
   && apt install -y libvulkan1 vulkan-tools \
   && apt install -y libde265-0 libaom3 libdav1d7 libgomp1
 

@@ -61,16 +61,20 @@ func AVCodec_send_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 
 // Decode a subtitle message. Returns the decoded subtitle or nil if no subtitle
 // could be decompressed. Returns an error on failure.
+//
+// Unlike the send/receive APIs, avcodec_decode_subtitle2 returns the number
+// of bytes consumed from the packet (>= 0) on success - only a negative
+// value is an error.
 func AVCodec_decode_subtitle(ctx *AVCodecContext, pkt *AVPacket) (*AVSubtitle, error) {
 	sub := &AVSubtitle{}
 	var got_sub C.int
-	if err := AVError(C.avcodec_decode_subtitle2(
+	if ret := C.avcodec_decode_subtitle2(
 		(*C.AVCodecContext)(ctx),
 		(*C.AVSubtitle)(sub),
 		&got_sub,
 		(*C.AVPacket)(pkt),
-	)); err != 0 {
-		return nil, err
+	); ret < 0 {
+		return nil, AVError(ret)
 	}
 	if got_sub == 0 {
 		return nil, nil

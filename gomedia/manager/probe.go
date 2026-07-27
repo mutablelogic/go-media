@@ -2,15 +2,12 @@ package manager
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
-	goschema "github.com/mutablelogic/go-media/gomedia/schema"
-	metadata "github.com/mutablelogic/go-media/metadata"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
-	ffschema "github.com/mutablelogic/go-media/pkg/ffmpeg/schema"
+	gomedia "github.com/mutablelogic/go-media"
+	task "github.com/mutablelogic/go-media/gomedia/task"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 
@@ -18,57 +15,61 @@ import (
 // PUBLIC METHODS
 
 // Probe a media stream from any reader and return information about its
-// container format and streams.
-func (m *Media) Probe(ctx context.Context, req goschema.ProbeRequest) (_ *goschema.ProbeResponse, err error) {
-	name := "reader"
-	if named, ok := req.Reader.(metadata.NamedStream); ok {
-		name = named.Name()
-	}
-
-	_, endSpan := otel.StartSpan(m.tracer, ctx, "Probe",
-		attribute.String("input", name),
-		attribute.String("input_format", req.InputFormat),
+// container format and streams. The probe runs as a task tracked by the
+// Media's task manager, so it's cancelled along with any other running task
+// if Run's context is cancelled while the probe is in flight.
+func (m *Media) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest) (_ *task.ProbeResponse, err error) {
+	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "ProbeMedia",
+		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
 
-	if req.Reader == nil {
-		return nil, errors.New("nil reader")
-	}
-
-	reader, err := ffmpeg.NewReader(req.Reader, ffmpeg.WithInput(req.InputFormat, req.InputOpts...))
+	// Create a task to probe the input stream.
+	t, err := task.NewProbeMediaTask(req)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 
-	// Format-level information.
-	var formatName, formatDesc string
-	var mimeTypes []string
-	if inputFormat := reader.InputFormat(); inputFormat != nil {
-		formatName = inputFormat.Name()
-		formatDesc = inputFormat.LongName()
-		if mt := inputFormat.MimeTypes(); mt != "" {
-			mimeTypes = strings.Split(mt, ",")
-		}
+	// Run the task and wait for it to complete, returning the result.
+	if id, err := m.tasks.Add(ctx, "probe", t); err != nil {
+		return nil, err
+	} else if err := m.tasks.Run(ctx, id); err != nil {
+		return nil, err
+	} else if status, err := m.tasks.Wait(ctx, id); err != nil {
+		return nil, err
+	} else if result, ok := status.Result.(*task.ProbeResponse); !ok || result == nil {
+		return nil, gomedia.ErrInternalError.With("probe task returned an unexpected result type")
+	} else {
+		return result, nil
+	}
+}
+
+// ProbeSource probes a URL - a device (see ProbeSourceTask's doc comment for
+// the "device://" scheme), or a network source FFmpeg can read directly
+// (http, https, rtmp, ...) - rather than an already-open reader. Like
+// Probe, this runs as a task tracked by the Media's task manager.
+func (m *Media) ProbeSource(ctx context.Context, req task.ProbeSourceRequest) (_ *task.ProbeResponse, err error) {
+	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "ProbeSource",
+		attribute.String("req", types.Stringify(req)),
+	)
+	defer func() { endSpan(err) }()
+
+	// Create a task to probe the source.
+	t, err := task.NewProbeSourceTask(req)
+	if err != nil {
+		return nil, err
 	}
 
-	// Stream information.
-	avStreams := reader.AVStreams()
-	streams := make([]*goschema.Stream, 0, len(avStreams))
-	for _, avStream := range avStreams {
-		if s := ffschema.NewStream(avStream); s != nil {
-			streams = append(streams, goschema.WrapStream(s))
-		}
+	// Run the task and wait for it to complete, returning the result.
+	if id, err := m.tasks.Add(ctx, "probe", t); err != nil {
+		return nil, err
+	} else if err := m.tasks.Run(ctx, id); err != nil {
+		return nil, err
+	} else if status, err := m.tasks.Wait(ctx, id); err != nil {
+		return nil, err
+	} else if result, ok := status.Result.(*task.ProbeResponse); !ok || result == nil {
+		return nil, gomedia.ErrInternalError.With("probe task returned an unexpected result type")
+	} else {
+		return result, nil
 	}
-
-	// Response
-	resp := &goschema.ProbeResponse{
-		Format:      formatName,
-		Description: formatDesc,
-		MimeTypes:   mimeTypes,
-		Duration:    reader.Duration().Seconds(),
-		Streams:     streams,
-	}
-
-	return resp, nil
 }

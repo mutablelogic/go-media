@@ -3,24 +3,30 @@ package manager
 import (
 	"context"
 	"log/slog"
+	"time"
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+// shutdownTimeout bounds how long Run waits for in-flight tasks to stop
+// gracefully after its context is cancelled, so a stuck task can't hang
+// shutdown forever.
+const shutdownTimeout = 30 * time.Second
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Run blocks until the context is canceled and returns the context error.
+// Run blocks until the context is canceled, then cancels any tasks still
+// running on the Media's task manager and waits (up to shutdownTimeout) for
+// them to stop before returning.
 func (m *Media) Run(ctx context.Context, _ *slog.Logger) (err error) {
-	// If the context is cancelled while starting up (before the runloop's own
-	// graceful shutdown handling takes over), don't report that as a failure.
-	defer func() {
-		if err != nil && ctx.Err() != nil {
-			err = nil
-		}
-	}()
-
 	// Wait for the context to be canceled
 	<-ctx.Done()
 
-	// Return success
-	return nil
+	// Cancel any running tasks and wait for them to stop gracefully
+	closeCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	return m.tasks.Close(closeCtx)
 }

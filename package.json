@@ -1,0 +1,19 @@
+{
+  "name": "go-media",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node ts/build.js",
+    "watch": "node ts/build.js --watch",
+    "serve": "node ts/build.js --serve"
+  },
+  "dependencies": {
+    "@carbon/web-components": "^2.59.0",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
+  }
+}

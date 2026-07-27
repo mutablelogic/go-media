@@ -4,20 +4,27 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
 
 	// Packages
+	httpclient "github.com/mutablelogic/go-media/gomedia/httpclient"
+	httphandler "github.com/mutablelogic/go-media/gomedia/httphandler"
 	manager "github.com/mutablelogic/go-media/gomedia/manager"
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 var (
-	shared  *manager.Media
-	cancels cancelRegistry
+	shared       *manager.Media
+	sharedClient *httpclient.Client
+	sharedServer *httptest.Server
+	cancels      cancelRegistry
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,17 +70,32 @@ func (r *cancelRegistry) Clear() {
 // LIFECYCLE
 
 // Main is the test main function for tests. It starts up a container and runs the tests,
-// providing a manager instance to each test.
+// providing a manager instance, and an HTTP client wired to a test server with
+// the standard handlers registered, to each test.
 func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...manager.Opt) {
 	media, err := manager.New(context.Background(), opts...)
 	if err != nil {
 		panic(err)
 	}
 	shared = media
+
+	router, err := httprouter.NewRouter(context.Background(), http.NewServeMux(), "/", "", "Test API", "1.0.0")
+	if err != nil {
+		panic(err)
+	}
+	if err := httphandler.RegisterMetadataHandlers(media, router); err != nil {
+		panic(err)
+	}
+	sharedServer = httptest.NewServer(router)
+	sharedClient, err = httpclient.New(sharedServer.URL)
+	if err != nil {
+		panic(err)
+	}
+
 	runCtx, runCancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- manager.Run(runCtx, slog.Default())
+		runDone <- media.Run(runCtx, slog.Default())
 	}()
 
 	teardown := func() {}
@@ -93,7 +115,10 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 	if err := <-runDone; err != nil && !errors.Is(err, context.Canceled) {
 		panic(err)
 	}
+	sharedServer.Close()
 	shared = nil
+	sharedClient = nil
+	sharedServer = nil
 	teardown()
 
 	os.Exit(code)
@@ -122,6 +147,16 @@ func Begin(t *testing.T) (*manager.Media, context.Context) {
 		}
 	})
 	return shared, ctx
+}
+
+// Client returns the shared HTTP client, wired to a test server with the
+// standard handlers registered.
+func Client(t *testing.T) *httpclient.Client {
+	t.Helper()
+	if sharedClient == nil {
+		t.Fatal("test client is not initialized; call test.Main from TestMain")
+	}
+	return sharedClient
 }
 
 // End releases the per-test context created by Begin.

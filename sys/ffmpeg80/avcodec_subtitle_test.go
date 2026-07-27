@@ -242,6 +242,100 @@ func Test_subtitle_decode_api_001(t *testing.T) {
 	}
 }
 
+// SetText/SetASS build rects using FFmpeg's own allocator (av_mallocz,
+// av_strdup) so AVSubtitle_free can release them the same way it releases a
+// decoded subtitle's rects - this exercises that round trip.
+func Test_subtitle_settext_001(t *testing.T) {
+	sub := ff.NewSubtitle(12345)
+	defer ff.AVSubtitle_free(sub)
+
+	if err := sub.SetText("hello world", 100, 2000); err != nil {
+		t.Fatalf("SetText: %v", err)
+	}
+	if sub.PTS() != 12345 {
+		t.Fatalf("PTS() = %d, want 12345", sub.PTS())
+	}
+	if sub.NumRects() != 1 {
+		t.Fatalf("NumRects() = %d, want 1", sub.NumRects())
+	}
+
+	rects := sub.Rects()
+	if len(rects) != 1 {
+		t.Fatalf("Rects() len = %d, want 1", len(rects))
+	}
+	if rects[0].Type() != ff.SUBTITLE_TEXT {
+		t.Fatalf("Rects()[0].Type() = %v, want SUBTITLE_TEXT", rects[0].Type())
+	}
+	if rects[0].Text() != "hello world" {
+		t.Fatalf("Rects()[0].Text() = %q, want %q", rects[0].Text(), "hello world")
+	}
+	if sub.StartDisplayTime() != 100 || sub.EndDisplayTime() != 2000 {
+		t.Fatalf("display times = [%d,%d], want [100,2000]", sub.StartDisplayTime(), sub.EndDisplayTime())
+	}
+}
+
+// SetText/SetASS replace any prior rects, rather than leaking or appending
+// to them.
+func Test_subtitle_settext_replaces_prior_rect(t *testing.T) {
+	sub := ff.NewSubtitle(0)
+	defer ff.AVSubtitle_free(sub)
+
+	if err := sub.SetText("first", 0, 1000); err != nil {
+		t.Fatalf("SetText: %v", err)
+	}
+	if err := sub.SetText("second", 0, 1000); err != nil {
+		t.Fatalf("SetText (replace): %v", err)
+	}
+	if sub.NumRects() != 1 {
+		t.Fatalf("NumRects() = %d, want 1", sub.NumRects())
+	}
+	if got := sub.Rects()[0].Text(); got != "second" {
+		t.Fatalf("Rects()[0].Text() = %q, want %q", got, "second")
+	}
+}
+
+// End-to-end: encode a SetASS-built subtitle with the real "ass" encoder.
+// (Of the sampled text subtitle encoders - ass, srt, mov_text, webvtt - only
+// "ass" opens cleanly against this build of libavcodec; the others fail
+// AVCodec_open with AVERROR_INVALIDDATA for reasons unrelated to these
+// bindings, so "ass" is the one used here to prove the construction/encode
+// path genuinely works end to end.)
+func Test_subtitle_encode_ass_001(t *testing.T) {
+	codec := ff.AVCodec_find_encoder_by_name("ass")
+	if codec == nil {
+		t.Skip("ass encoder not available")
+	}
+
+	ctx := ff.AVCodec_alloc_context(codec)
+	if ctx == nil {
+		t.Fatal("failed to allocate codec context")
+	}
+	defer ff.AVCodec_free_context(ctx)
+
+	ctx.SetTimeBase(ff.AVUtil_rational(1, 100))
+	if err := ff.AVCodec_open(ctx, codec, nil); err != nil {
+		t.Fatalf("AVCodec_open: %v", err)
+	}
+
+	sub := ff.NewSubtitle(0)
+	defer ff.AVSubtitle_free(sub)
+	if err := sub.SetASS("0,Default,,0,0,0,,Hello world", 0, 1000); err != nil {
+		t.Fatalf("SetASS: %v", err)
+	}
+
+	buf := make([]byte, 65536)
+	n, err := ff.AVCodec_encode_subtitle(ctx, buf, sub)
+	if err != nil {
+		t.Fatalf("AVCodec_encode_subtitle: %v", err)
+	}
+	if n == 0 {
+		t.Fatal("expected some encoded bytes")
+	}
+	if got := string(buf[:n]); got != "0,Default,,0,0,0,,Hello world" {
+		t.Fatalf("encoded = %q, want %q", got, "0,Default,,0,0,0,,Hello world")
+	}
+}
+
 func Test_subtitle_encode_api_001(t *testing.T) {
 	// Test that the encode function exists and has correct signature
 	// We can't actually encode without a proper context and subtitle

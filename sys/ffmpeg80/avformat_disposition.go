@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +115,34 @@ func (v AVDisposition) FlagString() string {
 
 func (v AVDisposition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.String())
+}
+
+// UnmarshalJSON is the counterpart to MarshalJSON, parsing the "|"-joined
+// flag names (e.g. "DEFAULT|FORCED") String produces back into their bit
+// values.
+func (v *AVDisposition) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	*v = 0
+	if s == "" {
+		return nil
+	}
+	for _, name := range strings.Split(s, "|") {
+		found := false
+		for f := AV_DISPOSITION_MIN; f <= AV_DISPOSITION_MAX; f <<= 1 {
+			if f.FlagString() == name {
+				*v |= f
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("invalid AVDisposition flag %q", name)
+		}
+	}
+	return nil
 }
 
 func (f AVDisposition) Is(flag AVDisposition) bool {

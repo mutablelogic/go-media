@@ -517,6 +517,94 @@ func Test_avcodec_parameters_json_audio(t *testing.T) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// TEST JSON ROUND TRIP
+
+// Regression test: a client decoding AVCodecParameters from JSON (e.g. after
+// a probe result crosses an HTTP boundary) used to have no UnmarshalJSON at
+// all, silently producing a zero-valued struct whose zero codec_type (0)
+// happens to collide with AVMEDIA_TYPE_VIDEO - so an audio stream would
+// re-marshal as a bogus zero-dimension video one.
+func Test_avcodec_parameters_json_roundtrip_audio(t *testing.T) {
+	assert := assert.New(t)
+
+	src := AVCodec_parameters_alloc()
+	assert.NotNil(src)
+	defer AVCodec_parameters_free(src)
+
+	src.SetCodecType(AVMEDIA_TYPE_AUDIO)
+	src.SetCodecID(AV_CODEC_ID_MP2)
+	src.SetCodecTag(0x1234)
+	src.SetBitRate(128000)
+	src.SetSampleFormat(AV_SAMPLE_FMT_S16)
+	src.SetSampleRate(48000)
+	src.SetFrameSize(1024)
+
+	var layout AVChannelLayout
+	AVUtil_channel_layout_default(&layout, 2)
+	assert.NoError(src.SetChannelLayout(layout))
+
+	data, err := json.Marshal(src)
+	assert.NoError(err)
+
+	dst := AVCodec_parameters_alloc()
+	assert.NotNil(dst)
+	defer AVCodec_parameters_free(dst)
+
+	assert.NoError(json.Unmarshal(data, dst))
+
+	assert.Equal(AVMEDIA_TYPE_AUDIO, dst.CodecType())
+	assert.Equal(AV_CODEC_ID_MP2, dst.CodecID())
+	assert.Equal(uint32(0x1234), dst.CodecTag())
+	assert.Equal(int64(128000), dst.BitRate())
+	assert.Equal(AV_SAMPLE_FMT_S16, dst.SampleFormat())
+	assert.Equal(48000, dst.SampleRate())
+	assert.Equal(1024, dst.FrameSize())
+	assert.Equal(2, dst.ChannelLayout().NumChannels())
+
+	// Must not pick up any video-shaped defaults.
+	assert.Equal(AV_PIX_FMT_NONE, dst.PixelFormat())
+	assert.Equal(0, dst.Width())
+	assert.Equal(0, dst.Height())
+}
+
+func Test_avcodec_parameters_json_roundtrip_video(t *testing.T) {
+	assert := assert.New(t)
+
+	src := AVCodec_parameters_alloc()
+	assert.NotNil(src)
+	defer AVCodec_parameters_free(src)
+
+	src.SetCodecType(AVMEDIA_TYPE_VIDEO)
+	src.SetCodecID(AV_CODEC_ID_H264)
+	src.SetBitRate(5000000)
+	src.SetWidth(1920)
+	src.SetHeight(1080)
+	src.SetPixelFormat(AV_PIX_FMT_YUV420P)
+	src.SetSampleAspectRatio(AVUtil_rational(16, 9))
+
+	data, err := json.Marshal(src)
+	assert.NoError(err)
+
+	dst := AVCodec_parameters_alloc()
+	assert.NotNil(dst)
+	defer AVCodec_parameters_free(dst)
+
+	assert.NoError(json.Unmarshal(data, dst))
+
+	assert.Equal(AVMEDIA_TYPE_VIDEO, dst.CodecType())
+	assert.Equal(AV_CODEC_ID_H264, dst.CodecID())
+	assert.Equal(int64(5000000), dst.BitRate())
+	assert.Equal(1920, dst.Width())
+	assert.Equal(1080, dst.Height())
+	assert.Equal(AV_PIX_FMT_YUV420P, dst.PixelFormat())
+	assert.True(AVUtil_rational_equal(AVUtil_rational(16, 9), dst.SampleAspectRatio()))
+
+	// Must not pick up any audio-shaped defaults.
+	assert.Equal(AV_SAMPLE_FMT_NONE, dst.SampleFormat())
+	assert.Equal(0, dst.SampleRate())
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // TEST STRING
 
 func Test_avcodec_parameters_string(t *testing.T) {

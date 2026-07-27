@@ -1,12 +1,18 @@
 package manager
 
-import "context"
+import (
+	"context"
+
+	// Packages
+	task "github.com/mutablelogic/go-media/gomedia/task"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Media struct {
 	opt
+	tasks *task.Manager
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +24,7 @@ func New(ctx context.Context, opts ...Opt) (_ *Media, err error) {
 	if err := self.apply(opts); err != nil {
 		return nil, err
 	}
+	self.tasks = task.NewManager(self.opt.tracer)
 
 	// Return the media manager
 	return self, nil

@@ -120,6 +120,10 @@ func (ctx *AVFormatContext) NumChapters() uint {
 	return uint(ctx.nb_chapters)
 }
 
+func (ctx *AVFormatContext) Chapters() []*AVChapter {
+	return cAVChapterSlice(unsafe.Pointer(ctx.chapters), C.int(ctx.nb_chapters))
+}
+
 func (ctx *AVFormatContext) NumPrograms() uint {
 	return uint(ctx.nb_programs)
 }

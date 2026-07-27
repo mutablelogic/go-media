@@ -2,6 +2,7 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
+NPM ?= $(shell which npm 2>/dev/null)
 
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
@@ -27,9 +28,23 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
-CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries"
+# zvbi's .pc file links -lintl/-lpng (from its gettext/libpng dependencies)
+# by name only, assuming they're on the default linker search path - which
+# Homebrew's own lib dirs aren't on macOS. Point at each dependency's own
+# keg-only lib dir specifically, NOT the general "brew --prefix"/lib: that
+# directory is also where a separately Homebrew-installed ffmpeg (if
+# present) puts its own libavcodec etc, and empirically that DOES win over
+# this project's own -lavcodec (verified via AVCodec_configuration() showing
+# the wrong build's --prefix when this was tried), silently linking a build
+# with none of this project's codec/license flags. Extend this list if a
+# future dependency's .pc file needs another keg-only lib resolved the same
+# way.
+EXTRA_LIB_DIRS=$(shell brew --prefix gettext 2>/dev/null)/lib $(shell brew --prefix libpng 2>/dev/null)/lib
+CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries $(foreach d,${EXTRA_LIB_DIRS},-L${d})"
+FFMPEG_EXTRA_LDFLAGS=--extra-ldflags="$(foreach d,${EXTRA_LIB_DIRS},-L${d})"
 else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+FFMPEG_EXTRA_LDFLAGS=
 endif
 
 
@@ -78,7 +93,7 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 	@cd ${BUILD_DIR}/${FFMPEG_VERSION} && ./configure \
 		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
-		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" \
+		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" ${FFMPEG_EXTRA_LDFLAGS} \
 		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
 
 # Build ffmpeg
@@ -288,8 +303,18 @@ docker-push: docker-dep
 
 # Print out the version
 .PHONY: docker-version
-docker-version: docker-dep 
+docker-version: docker-dep
 	@echo "tag=${VERSION}"
+
+###############################################################################
+# TYPESCRIPT
+
+TS_DIR := ts
+
+.PHONY: ts
+ts: npm-dep mkdir
+	@echo Build TypeScript
+	@${NPM} install --silent && node $(TS_DIR)/build.js
 
 ###############################################################################
 # TESTS
@@ -352,6 +377,10 @@ docker-dep:
 pkconfig-dep:
 	@test -f "$(PKG_CONFIG)" && test -x "$(PKG_CONFIG)"  || (echo "Missing pkg-config binary" && exit 1)
 
+.PHONY: npm-dep
+npm-dep:
+	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary" && exit 1)
+
 
 .PHONY: mkdir
 mkdir:
@@ -362,13 +391,14 @@ mkdir:
 .PHONY: go-tidy
 go-tidy: go-dep
 	@echo Tidy
+	@install -d ${BUILD_DIR}
+	@echo 'module buildartifacts' > ${BUILD_DIR}/go.mod
 	@${GO} mod tidy
 
 .PHONY: clean
 clean: go-tidy
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} clean -cache
 
 # Check for FFmpeg dependencies
 .PHONY: ffmpeg-dep
@@ -399,6 +429,70 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vidstab && echo "--enable-libvidstab"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libvmaf && echo "--enable-libvmaf"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openh264 && echo "--enable-libopenh264"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists gsm && echo "--enable-libgsm"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists speex && echo "--enable-libspeex"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists twolame && echo "--enable-libtwolame"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists theora && echo "--enable-libtheora"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists shine && echo "--enable-libshine"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libilbc && echo "--enable-libilbc"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists codec2 && echo "--enable-libcodec2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lc3 && echo "--enable-liblc3"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libmysofa && echo "--enable-libmysofa"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libgme && echo "--enable-libgme"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libmodplug && echo "--enable-libmodplug"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libopenmpt && echo "--enable-libopenmpt"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opencore-amrnb && echo "--enable-libopencore-amrnb"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opencore-amrwb && echo "--enable-libopencore-amrwb"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vo-amrwbenc && echo "--enable-libvo-amrwbenc"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists rubberband && echo "--enable-librubberband"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libbs2b && echo "--enable-libbs2b"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists kvazaar && echo "--enable-libkvazaar"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists davs2 && echo "--enable-libdavs2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists uavs3d && echo "--enable-libuavs3d"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xavs2 && echo "--enable-libxavs2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vvenc && echo "--enable-libvvenc"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xeve && echo "--enable-libxeve"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xevd && echo "--enable-libxevd"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists oapv && echo "--enable-liboapv"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libjxl && echo "--enable-libjxl"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fontconfig && echo "--enable-libfontconfig"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fribidi && echo "--enable-libfribidi"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists harfbuzz && echo "--enable-libharfbuzz"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists aribb24 && echo "--enable-libaribb24"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libaribcaption && echo "--enable-libaribcaption"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists caca && echo "--enable-libcaca"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librsvg-2.0 && echo "--enable-librsvg"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lcms2 && echo "--enable-lcms2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lensfun && echo "--enable-liblensfun"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists tesseract && echo "--enable-libtesseract"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libqrencode && echo "--enable-libqrencode"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libplacebo && echo "--enable-libplacebo"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openssl && echo "--enable-openssl"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists mbedtls && echo "--enable-mbedtls"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librtmp && echo "--enable-librtmp"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libssh && echo "--enable-libssh"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librist && echo "--enable-librist"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librabbitmq && echo "--enable-librabbitmq"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libzmq && echo "--enable-libzmq"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libxml-2.0 && echo "--enable-libxml2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists smbclient && echo "--enable-libsmbclient"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists snappy && echo "--enable-libsnappy"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists dvdread && echo "--enable-libdvdread"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists dvdnav && echo "--enable-libdvdnav"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libcdio libcdio_paranoia && echo "--enable-libcdio"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libpulse && echo "--enable-libpulse"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists jack && echo "--enable-libjack"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libv4l2 && echo "--enable-libv4l2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libdc1394-2 && echo "--enable-libdc1394"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libiec61883 && echo "--enable-libiec61883"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openal && echo "--enable-openal"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openvino && echo "--enable-libopenvino"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opencv4 && echo "--enable-libopencv"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists pocketsphinx && echo "--enable-pocketsphinx"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vapoursynth && echo "--enable-vapoursynth"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lilv-0 && echo "--enable-lv2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libklvanc && echo "--enable-libklvanc"))
 	@echo "FFmpeg configuration: $(FFMPEG_CONFIG)"
 
 # Check for libheif dependencies

@@ -14,8 +14,8 @@ import (
 type Opt func(*opt) error
 
 type opt struct {
-	tracer         trace.Tracer
-	acoustIDClient *chromaprint.Client
+	tracer      trace.Tracer
+	chromaprint *chromaprint.Client
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,14 +48,14 @@ func WithTracer(tracer trace.Tracer) Opt {
 	}
 }
 
-// WithAcoustIDKey creates and stores an AcoustID lookup client.
-func WithAcoustIDKey(key string, opts ...client.ClientOpt) Opt {
+// WithChromaprintKey creates and stores a Chromaprint client.
+func WithChromaprintKey(key string, opts ...client.ClientOpt) Opt {
 	return func(o *opt) error {
 		c, err := chromaprint.NewClient(key, opts...)
 		if err != nil {
 			return err
 		} else {
-			o.acoustIDClient = c
+			o.chromaprint = c
 		}
 		return nil
 	}
