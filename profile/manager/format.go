@@ -45,6 +45,25 @@ func (profile *Profile) ListFormats(ctx context.Context, req schema.FormatListRe
 		return true
 	}
 
+	// Device-specific demuxers/muxers (avfoundation, v4l2, alsa, ...) are
+	// registered into the same global list that AVFormat_demuxer_iterate and
+	// AVFormat_muxer_iterate walk, but they're exposed separately via
+	// ListDevices, so build the set of their names here to exclude them below.
+	inputDevices := make(map[string]bool)
+	for d := ff.AVDevice_input_audio_device_first(); d != nil; d = ff.AVDevice_input_audio_device_next(d) {
+		inputDevices[d.Name()] = true
+	}
+	for d := ff.AVDevice_input_video_device_first(); d != nil; d = ff.AVDevice_input_video_device_next(d) {
+		inputDevices[d.Name()] = true
+	}
+	outputDevices := make(map[string]bool)
+	for d := ff.AVDevice_output_audio_device_first(); d != nil; d = ff.AVDevice_output_audio_device_next(d) {
+		outputDevices[d.Name()] = true
+	}
+	for d := ff.AVDevice_output_video_device_first(); d != nil; d = ff.AVDevice_output_video_device_next(d) {
+		outputDevices[d.Name()] = true
+	}
+
 	// Get the list of input and output formats, applying offset and limit as
 	// we iterate. A limit of zero means return the count only.
 	var result schema.FormatList
@@ -68,6 +87,9 @@ func (profile *Profile) ListFormats(ctx context.Context, req schema.FormatListRe
 		if format == nil {
 			break
 		}
+		if inputDevices[format.Name()] {
+			continue
+		}
 		if !matches(format.Name(), format.MimeTypes(), format.Extensions(), true, false) {
 			continue
 		}
@@ -79,6 +101,9 @@ func (profile *Profile) ListFormats(ctx context.Context, req schema.FormatListRe
 		format := ff.AVFormat_muxer_iterate(&outOpaque)
 		if format == nil {
 			break
+		}
+		if outputDevices[format.Name()] {
+			continue
 		}
 		if !matches(format.Name(), format.MimeTypes(), format.Extensions(), false, true) {
 			continue

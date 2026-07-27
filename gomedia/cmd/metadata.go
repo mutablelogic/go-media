@@ -34,8 +34,7 @@ type ProbeSourceCmd struct {
 }
 
 type MetadataCmd struct {
-	Path   string `arg:"" name:"path" type:"existingfile" help:"Path to the media file to extract metadata from."`
-	Filter string `name:"filter" help:"Filter for metadata keys to include in the result: \"namespace:\" (all keys in that namespace), \"name\" (this name in any namespace), or \"namespace:name\" (one specific key); empty means include all keys."`
+	Path string `arg:"" name:"path" type:"existingfile" help:"Path to the media file to extract metadata from."`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -100,19 +99,10 @@ func (cmd *MetadataCmd) Run(ctx server.Cmd) error {
 		}
 		defer f.Close()
 
-		req := task.MetadataRequest{
+		// Upload as multipart/form-data
+		response, err := client.Metadata(ctx, task.MetadataRequest{
 			Reader: f,
-		}
-		if cmd.Filter != "" {
-			req.Filter = types.Ptr(cmd.Filter)
-		}
-
-		// Upload as multipart/form-data rather than a raw body: only the
-		// form-data path carries the file's name through to the server (a
-		// raw request body has no place to put a filename), and *os.File
-		// implements gomedia.NamedReader, so this is what actually shows
-		// up as MetadataResponse.Name.
-		response, err := client.Metadata(ctx, req, types.ContentTypeFormData, nil)
+		}, types.ContentTypeFormData, nil)
 		if err != nil {
 			return err
 		}

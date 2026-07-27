@@ -51,7 +51,7 @@ type FormatListRequest struct {
 type FormatList struct {
 	FormatListRequest
 	Count uint64    `json:"count" help:"Number of formats." example:"1"`
-	Body  []*Format `json:"body" help:"List of formats."`
+	Body  []*Format `json:"body,omitempty" help:"List of formats."`
 }
 
 ////////////////////////////////////////////////////////////////////////////////

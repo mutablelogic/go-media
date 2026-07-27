@@ -90,3 +90,18 @@ func TestListFormats_NoFilterReturnsMultiple(t *testing.T) {
 	require.NotNil(resp)
 	require.Greater(resp.Count, uint64(1))
 }
+
+func TestListFormats_ExcludesDevices(t *testing.T) {
+	require := require.New(t)
+	mgr, ctx := test.Begin(t)
+	defer test.End(t)
+
+	resp, err := mgr.ListFormats(ctx, schema.FormatListRequest{})
+	require.NoError(err)
+	require.NotNil(resp)
+	for _, format := range resp.Body {
+		devices, err := mgr.ListDevices(ctx, schema.DeviceListRequest{Format: types.Ptr(format.Name)})
+		require.NoError(err)
+		require.Empty(devices, "format %q should not be a device format", format.Name)
+	}
+}
