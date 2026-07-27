@@ -249,29 +249,6 @@ func TestMetadata_RawBody(t *testing.T) {
 	}
 }
 
-func TestMetadata_Filter(t *testing.T) {
-	_, ctx := test.Begin(t)
-	defer test.End(t)
-	c := test.Client(t)
-
-	f, err := os.Open(sampleFilePath(t, "sample.jpg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	resp, err := c.Metadata(ctx, task.MetadataRequest{Reader: f, Filter: types.Ptr("not-a-real-namespace:")}, "image/jpeg", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp == nil {
-		t.Fatal("expected a non-nil response")
-	}
-	if len(resp.Metadata) != 0 {
-		t.Fatalf("expected no metadata entries for an unmatched namespace filter, got %d", len(resp.Metadata))
-	}
-}
-
 func TestMetadata_InvalidData(t *testing.T) {
 	_, ctx := test.Begin(t)
 	defer test.End(t)

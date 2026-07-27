@@ -9,6 +9,7 @@ import (
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
 	gomedia "github.com/mutablelogic/go-media"
+	frame "github.com/mutablelogic/go-media/frame"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	reader "github.com/mutablelogic/go-media/reader"
 	writer "github.com/mutablelogic/go-media/writer"
@@ -82,10 +83,19 @@ func (task *AudioEncodeMediaRequest) Run(ctx Context) (err error) {
 		return err
 	}
 
-	// Decode the requested stream, re-encoding every frame straight into the
-	// output - w.Encode is an Encoder.Encode method value, which already
-	// matches reader.FrameFn's signature.
-	dec, err := reader.NewDecoder(w.Encode)
+	// Decode the requested stream, buffering samples through an audioFIFO so
+	// every frame handed to the encoder (bar the last) carries exactly the
+	// number of samples it expects - the decoder's own frame size otherwise
+	// rarely matches (e.g. mp3's 1152-sample frames feeding an AAC encoder
+	// that requires 1024).
+	fifo := newAudioFIFO(streamID, w.FrameSize(streamID), w.Encode)
+	dec, err := reader.NewDecoder(func(f frame.Frame) error {
+		af, ok := f.(*frame.AudioFrame)
+		if !ok {
+			return gomedia.ErrBadParameter.Withf("stream %d: expected an audio frame, got %T", streamID, f)
+		}
+		return fifo.write(af)
+	})
 	if err != nil {
 		return errors.Join(err, w.Close())
 	}
@@ -93,6 +103,9 @@ func (task *AudioEncodeMediaRequest) Run(ctx Context) (err error) {
 		return errors.Join(err, w.Close())
 	}
 	if err := rd.Decode(ctx, nil, dec); err != nil {
+		return errors.Join(err, w.Close())
+	}
+	if err := fifo.flush(); err != nil {
 		return errors.Join(err, w.Close())
 	}
 	if err := w.Flush(streamID); err != nil {
