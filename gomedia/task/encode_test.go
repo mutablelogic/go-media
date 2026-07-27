@@ -60,6 +60,13 @@ func sourceFilePath(t *testing.T) string {
 		if err := f.AllocateBuffers(); err != nil {
 			t.Fatalf("AllocateBuffers: %v", err)
 		}
+		numPlanes := 1
+		if ff.AVUtil_sample_fmt_is_planar(f.SampleFormat()) {
+			numPlanes = f.NumChannels()
+		}
+		for p := 0; p < numPlanes; p++ {
+			clear(f.Bytes(p))
+		}
 		f.SetPts(int64(i * numSamples))
 
 		if err := w.Encode(f); err != nil {
