@@ -9,6 +9,7 @@ import (
 	multipart "github.com/mutablelogic/go-client/pkg/multipart"
 	gomedia "github.com/mutablelogic/go-media"
 	task "github.com/mutablelogic/go-media/gomedia/task"
+	taskmetadata "github.com/mutablelogic/go-media/task/metadata"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -73,7 +74,7 @@ func (c *Client) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest, con
 // Upload semantics (contentType, onRead, ownership of req.Reader, and the
 // NamedReader filename convention) are identical to ProbeMedia - see its
 // doc comment.
-func (c *Client) Metadata(ctx context.Context, req task.MetadataRequest, contentType string, onRead func(n int64)) (*task.MetadataResponse, error) {
+func (c *Client) Metadata(ctx context.Context, req taskmetadata.MetadataRequest, contentType string, onRead func(n int64)) (*taskmetadata.MetadataResponse, error) {
 	var body client.Payload
 
 	// Determine name of the uploaded file, if any, from the reader.
@@ -100,7 +101,7 @@ func (c *Client) Metadata(ctx context.Context, req task.MetadataRequest, content
 		body = NewPayload(reader, contentType)
 	}
 
-	var response task.MetadataResponse
+	var response taskmetadata.MetadataResponse
 	if err := c.DoWithContext(ctx, body, &response, client.OptPath("metadata"), client.OptQuery(req.Query())); err != nil {
 		return nil, err
 	}

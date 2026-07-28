@@ -229,7 +229,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 					return
 				} else if codec := strings.TrimSpace(req.Name); codec == "" {
-					httpresponse.Error(w, gomedia.ErrBadParameter.With("missing required field 'codec'"))
+					httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.With("missing required field 'codec'")))
 					return
 				}
 
@@ -252,7 +252,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 			// GET
 			path.Get(func(w http.ResponseWriter, r *http.Request) {
 				if uuid, err := uuid.Parse(r.PathValue("uuid")); err != nil {
-					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.Withf("invalid uuid: %v", err)))
 					return
 				} else if response, err := manager.GetAudioProfile(r.Context(), uuid); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
@@ -268,7 +268,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 			// DELETE
 			path.Delete(func(w http.ResponseWriter, r *http.Request) {
 				if uuid, err := uuid.Parse(r.PathValue("uuid")); err != nil {
-					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.Withf("invalid uuid: %v", err)))
 					return
 				} else if response, err := manager.DeleteAudioProfile(r.Context(), uuid); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
@@ -287,7 +287,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 				var req schema.AudioProfileMeta
 				uuid, err := uuid.Parse(r.PathValue("uuid"))
 				if err != nil {
-					httpresponse.Error(w, gomedia.ErrBadParameter.Withf("invalid uuid: %v", err))
+					httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.Withf("invalid uuid: %v", err)))
 					return
 				} else if err := httprequest.Read(r, &req); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))

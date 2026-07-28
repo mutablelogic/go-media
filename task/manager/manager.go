@@ -31,6 +31,7 @@ type Manager struct {
 	order   []uuid.UUID   // insertion order, so List is deterministic
 	running bool          // set by Run once it's watching tasks, cleared once it stops
 	ready   chan struct{} // closed once Run sets running - lets callers (tests, startup code) wait for it
+	events  *broadcaster  // fans out task events to Subscribe callers
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,7 @@ func New(ctx context.Context, opts ...Opt) (_ *Manager, err error) {
 		self.tasks = make(map[uuid.UUID]*entry)
 		self.order = make([]uuid.UUID, 0)
 		self.ready = make(chan struct{})
+		self.events = newBroadcaster()
 	}
 
 	// Return the task manager
@@ -60,21 +62,43 @@ func (m *Manager) Ready() <-chan struct{} {
 	return m.ready
 }
 
+// Subscribe registers fn to be called for every event a task emits - Add,
+// Start, a task reporting progress or a result, Cancel, a task's Run
+// goroutine returning, and Remove (see schema.Event). It blocks until ctx
+// is done or the Manager itself stops (its own Run returns), whichever
+// comes first, at which point fn is unregistered and Subscribe returns.
+//
+// fn is called synchronously from whichever goroutine made the change, so
+// it must not block or call back into the Manager other than to Subscribe/
+// unsubscribe.
+func (m *Manager) Subscribe(ctx context.Context, fn func(*schema.Event)) error {
+	return m.events.Subscribe(ctx, fn)
+}
+
 // Run the task manager until ctx is cancelled, at which point it cancels
 // every task still running and waits for each to finish (i.e. for its Run
 // goroutine to return) or for ctx to be done a second time (e.g. a shutdown
-// deadline), whichever comes first. Must be called exactly once.
+// deadline), whichever comes first. Run refuses to run a second time - once
+// it returns (or while it's still running), calling it again just returns
+// an error rather than panicking or restarting anything.
 func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
-	log.DebugContext(ctx, "Starting task manager")
-
 	m.Lock()
+	select {
+	case <-m.ready:
+		m.Unlock()
+		return gomedia.ErrBadParameter.With("task manager has already been run")
+	default:
+	}
 	m.running = true
 	m.Unlock()
 	close(m.ready)
 
-	<-ctx.Done()
+	// Runs until ctx is done, then unblocks every Subscribe caller.
+	log.DebugContext(ctx, "Starting task manager")
+	m.events.Run(ctx)
 	log.DebugContext(ctx, "Stopping task manager")
 
+	// Stop every task still running
 	m.Lock()
 	m.running = false
 	order := slices.Clone(m.order)
@@ -90,10 +114,13 @@ func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
 		}
 
 		e.Lock()
-		if e.Cancel() {
-			pending = append(pending, e.done)
-		}
+		cancelled := e.Cancel()
+		status := e.status
 		e.Unlock()
+		if cancelled {
+			pending = append(pending, e.done)
+			m.events.emit(schema.EventCancelled, status)
+		}
 	}
 
 	// Wait for pending tasks to finish
@@ -125,15 +152,18 @@ func (m *Manager) Add(ctx context.Context, name string, task schema.Task) (_ uui
 	}
 
 	id := uuid.New()
+	status := schema.Status{UUID: id, Name: name, Task: task.Task()}
 
 	m.Lock()
-	defer m.Unlock()
 	m.tasks[id] = &entry{
 		task:   task,
-		status: schema.Status{UUID: id, Name: name},
+		status: status,
 		done:   make(chan struct{}),
 	}
 	m.order = append(m.order, id)
+	m.Unlock()
+
+	m.events.emit(schema.EventAdded, status)
 
 	return id, nil
 }
@@ -157,36 +187,47 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 	}
 
 	e.Lock()
-	defer e.Unlock()
 	if !e.status.Started.IsZero() {
+		e.Unlock()
 		return gomedia.ErrBadParameter.Withf("task %q already started", id)
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
 	e.status.Started = time.Now()
 	e.cancel = cancel
+	status := e.status
+	e.Unlock()
+
+	m.events.emit(schema.EventStarted, status)
 
 	go func() {
 		runErr := e.task.Run(schema.Context{
 			Context: runCtx,
 			Progress: func(current, total uint64) {
 				e.Lock()
-				defer e.Unlock()
 				e.status.Progress = schema.Progress{Current: current, Total: total}
+				status := e.status
+				e.Unlock()
+				m.events.emit(schema.EventProgress, status)
 			},
 			Result: func(result any) {
 				e.Lock()
-				defer e.Unlock()
 				e.status.Result = result
+				status := e.status
+				e.Unlock()
+				m.events.emit(schema.EventResult, status)
 			},
 		})
 
 		e.Lock()
 		e.status.Finished = time.Now()
 		e.status.Err = runErr
+		status := e.status
 		e.Unlock()
 
 		close(e.done)
+
+		m.events.emit(schema.EventFinished, status)
 	}()
 
 	return nil
@@ -210,8 +251,13 @@ func (m *Manager) Cancel(ctx context.Context, id uuid.UUID) (err error) {
 	}
 
 	e.Lock()
-	defer e.Unlock()
-	e.Cancel()
+	cancelled := e.Cancel()
+	status := e.status
+	e.Unlock()
+
+	if cancelled {
+		m.events.emit(schema.EventCancelled, status)
+	}
 
 	return nil
 }
@@ -236,17 +282,20 @@ func (m *Manager) Remove(ctx context.Context, id uuid.UUID) (err error) {
 
 	e.Lock()
 	running := !e.status.Started.IsZero() && e.status.Finished.IsZero()
+	status := e.status
 	e.Unlock()
 	if running {
 		return gomedia.ErrBadParameter.Withf("task %q is still running", id)
 	}
 
 	m.Lock()
-	defer m.Unlock()
 	delete(m.tasks, id)
 	m.order = slices.DeleteFunc(m.order, func(other uuid.UUID) bool {
 		return other == id
 	})
+	m.Unlock()
+
+	m.events.emit(schema.EventRemoved, status)
 
 	return nil
 }

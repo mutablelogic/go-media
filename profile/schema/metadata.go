@@ -1,6 +1,8 @@
 package schema
 
 import (
+	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -40,6 +42,37 @@ type Chapter struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
+
+// NewMetadata builds a Metadata entry from a key and an arbitrary value.
+// Value is always a display-friendly string - the value itself, if it's
+// already a string, or its fmt.Sprint representation otherwise. Any
+// additionally carries the original value when it wasn't already a plain
+// string, so JSON-friendly types (numbers, bools, slices, objects) survive
+// round-tripping instead of being flattened to their string form.
+func NewMetadata(key string, value any) Metadata {
+	if s, ok := value.(string); ok {
+		return Metadata{Key: key, Value: s}
+	}
+	return Metadata{Key: key, Value: fmt.Sprint(value), Any: value}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// MarshalJSON omits Any from the output when it's redundant with Value -
+// e.g. a metadata handler whose stored value is already a plain string, so
+// Any() and Value() return the exact same thing. Any exists to carry richer
+// JSON-friendly types (numbers, bools, slices, objects) beyond what the
+// display string can hold; showing both when Any adds nothing over Value is
+// just noise.
+func (m Metadata) MarshalJSON() ([]byte, error) {
+	type jsonMetadata Metadata
+	out := jsonMetadata(m)
+	if s, ok := m.Any.(string); ok && s == m.Value {
+		out.Any = nil
+	}
+	return json.Marshal(out)
+}
 
 // NewMetadataList converts gomedia.Metadata entries (an interface - which
 // encoding/json can marshal but never unmarshal, having no concrete type to

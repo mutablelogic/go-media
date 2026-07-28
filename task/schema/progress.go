@@ -6,7 +6,7 @@ package schema
 // Progress reports how far a running task has got. Total is 0 if not known in
 // advance, in which case a percentage can't be computed.
 type Progress struct {
-	Current uint64 `json:"current" help:"How far the task has got, in task-defined units (e.g. bytes, frames, streams)." example:"512"`
+	Current uint64 `json:"current,omitempty" help:"How far the task has got, in task-defined units (e.g. bytes, frames, streams)." example:"512"`
 	Total   uint64 `json:"total,omitempty" help:"Total amount of work for the task, in the same units as current; 0 if not known in advance." example:"1024"`
 }
 

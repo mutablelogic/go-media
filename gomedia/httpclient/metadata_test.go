@@ -11,6 +11,7 @@ import (
 	// Packages
 	task "github.com/mutablelogic/go-media/gomedia/task"
 	test "github.com/mutablelogic/go-media/gomedia/test"
+	taskmetadata "github.com/mutablelogic/go-media/task/metadata"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -196,7 +197,7 @@ func TestMetadata_FormData(t *testing.T) {
 	defer f.Close()
 
 	var lastRead atomic.Int64
-	resp, err := c.Metadata(ctx, task.MetadataRequest{Reader: f}, types.ContentTypeFormData, func(n int64) { lastRead.Store(n) })
+	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: f}, types.ContentTypeFormData, func(n int64) { lastRead.Store(n) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestMetadata_RawBody(t *testing.T) {
 	defer f.Close()
 
 	var lastRead atomic.Int64
-	resp, err := c.Metadata(ctx, task.MetadataRequest{Reader: f}, "image/jpeg", func(n int64) { lastRead.Store(n) })
+	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: f}, "image/jpeg", func(n int64) { lastRead.Store(n) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,14 +250,25 @@ func TestMetadata_RawBody(t *testing.T) {
 	}
 }
 
+// Plain text has no registered metadata handler, so the server-side task
+// fails on its second pass - but its first pass (content type detection)
+// already succeeded, so Metadata treats that failure as a warning and still
+// returns the partial result rather than a hard error.
 func TestMetadata_InvalidData(t *testing.T) {
 	_, ctx := test.Begin(t)
 	defer test.End(t)
 	c := test.Client(t)
 
 	req := strings.NewReader("not a real media file")
-	if _, err := c.Metadata(ctx, task.MetadataRequest{Reader: req}, "audio/mpeg", nil); err == nil {
-		t.Fatal("expected an error for invalid data")
+	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: req}, "audio/mpeg", nil)
+	if err != nil {
+		t.Fatalf("expected no error (a warning, not a failure), got %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected a non-nil response")
+	}
+	if resp.Type != "text/plain" {
+		t.Fatalf("Type = %q, want %q", resp.Type, "text/plain")
 	}
 }
 

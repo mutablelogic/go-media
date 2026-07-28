@@ -14,6 +14,7 @@ import (
 	httpclient "github.com/mutablelogic/go-media/gomedia/httpclient"
 	httphandler "github.com/mutablelogic/go-media/gomedia/httphandler"
 	manager "github.com/mutablelogic/go-media/gomedia/manager"
+	taskmanager "github.com/mutablelogic/go-media/task/manager"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 )
 
@@ -73,6 +74,22 @@ func (r *cancelRegistry) Clear() {
 // providing a manager instance, and an HTTP client wired to a test server with
 // the standard handlers registered, to each test.
 func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...manager.Opt) {
+	taskMgr, err := taskmanager.New(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	taskRunCtx, taskRunCancel := context.WithCancel(context.Background())
+	taskRunDone := make(chan error, 1)
+	go func() {
+		taskRunDone <- taskMgr.Run(taskRunCtx, slog.Default())
+	}()
+	<-taskMgr.Ready()
+
+	// A caller-supplied WithTaskManager (if any) takes precedence over this
+	// default, since it's listed first and apply() applies options in order.
+	opts = append([]manager.Opt{manager.WithTaskManager(taskMgr)}, opts...)
+
 	media, err := manager.New(context.Background(), opts...)
 	if err != nil {
 		panic(err)
@@ -113,6 +130,10 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 	cancels.Clear()
 	runCancel()
 	if err := <-runDone; err != nil && !errors.Is(err, context.Canceled) {
+		panic(err)
+	}
+	taskRunCancel()
+	if err := <-taskRunDone; err != nil && !errors.Is(err, context.Canceled) {
 		panic(err)
 	}
 	sharedServer.Close()

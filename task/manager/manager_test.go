@@ -3,6 +3,7 @@ package manager_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -25,6 +26,10 @@ type fakeTask struct {
 	done         chan struct{}
 	runErr       error
 	ignoreCancel bool
+}
+
+func (t *fakeTask) Task() string {
+	return "fake"
 }
 
 func (t *fakeTask) Run(ctx schema.Context) error {
@@ -90,6 +95,29 @@ func TestManager_NotRunning(t *testing.T) {
 	require.Error(mgr.Remove(ctx, uuid.New()))
 	_, err = mgr.Wait(ctx, uuid.New())
 	require.Error(err)
+}
+
+func TestManager_RunTwiceFails(t *testing.T) {
+	require := require.New(t)
+
+	mgr, err := manager.New(context.Background())
+	require.NoError(err)
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runDone := make(chan error, 1)
+	go func() { runDone <- mgr.Run(runCtx, slog.Default()) }()
+	<-mgr.Ready()
+
+	// Calling Run again while it's still running must fail rather than
+	// panicking on a second close(m.ready).
+	require.Error(mgr.Run(context.Background(), slog.Default()))
+
+	cancel()
+	require.NoError(<-runDone)
+
+	// And after it's finished, it still refuses to run again.
+	require.Error(mgr.Run(context.Background(), slog.Default()))
 }
 
 func TestManager_StartCompletes(t *testing.T) {
