@@ -8,7 +8,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Opt is a functional option for filer manager configuration.
+// Opt is a functional option for task manager configuration.
 type Opt func(*opt) error
 
 type opt struct {

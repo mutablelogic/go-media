@@ -162,6 +162,16 @@ func AVUtil_frame_get_num_planes(frame *AVFrame) int {
 	return 0
 }
 
+// Set up dst as a new reference to the same data described by src, sharing
+// its underlying buffer(s) (bumping their refcount) rather than copying -
+// dst must already be allocated but not yet hold any buffers of its own.
+func AVUtil_frame_ref(dst, src *AVFrame) error {
+	if ret := AVError(C.av_frame_ref((*C.struct_AVFrame)(dst), (*C.struct_AVFrame)(src))); ret != 0 {
+		return ret
+	}
+	return nil
+}
+
 // Copy frame data
 func AVUtil_frame_copy(dst, src *AVFrame) error {
 	if ret := AVError(C.av_frame_copy((*C.struct_AVFrame)(dst), (*C.struct_AVFrame)(src))); ret < 0 {

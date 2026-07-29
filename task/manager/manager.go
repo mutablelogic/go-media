@@ -37,7 +37,7 @@ type Manager struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// New creates a new media object
+// New creates a new task manager
 func New(ctx context.Context, opts ...Opt) (_ *Manager, err error) {
 	self := new(Manager)
 	if err := self.apply(opts); err != nil {
@@ -302,9 +302,10 @@ func (m *Manager) Remove(ctx context.Context, id uuid.UUID) (err error) {
 
 // Wait blocks until the task registered under id finishes, or until ctx is
 // done, whichever comes first, then returns its final status. It returns an
-// error if the task hasn't been started (there's nothing to wait for), or if
-// the task itself returned an error (joined into err, alongside a context
-// error if ctx is what ended the wait).
+// error if the task hasn't been started (there's nothing to wait for), if
+// ctx ends the wait first (no status is returned in that case, since the
+// task may still be running), or if the task itself returned an error (its
+// status is still returned alongside that error).
 func (m *Manager) Wait(ctx context.Context, id uuid.UUID) (_ *schema.Status, err error) {
 	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "Wait",
 		attribute.String("uuid", id.String()),

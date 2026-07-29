@@ -331,6 +331,45 @@ func TestWriter_EncodeFrame(t *testing.T) {
 	}
 }
 
+// Every other Encode test feeds silentFrame, which already matches
+// audioStream's aac profile (fltp stereo @ 44.1kHz) exactly - so they only
+// ever exercise the resampler's fast pass-through path. This one feeds a
+// deliberately mismatched format (s16 mono @ 8kHz, in irregular chunk
+// sizes) to prove Writer.Encode actually resamples via the stream's
+// resampler, end to end, rather than just wiring it in unused.
+func TestWriter_EncodeFrame_Resampled(t *testing.T) {
+	output := profile.OutputWithName("mp4")
+	if output == nil {
+		t.Fatal("OutputWithName(mp4): nil output")
+	}
+
+	var buf bytes.Buffer
+	w, err := writer.NewWriter(&buf, output, writer.WithProfile(0, audioStream(t)))
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		f := mismatchedFrame(t, 0, 512)
+		if err := w.Encode(f); err != nil {
+			f.Close()
+			t.Fatalf("Encode: %v", err)
+		}
+		f.Close()
+	}
+
+	if err := w.Flush(0); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Fatal("expected non-empty output buffer")
+	}
+}
+
 func TestClose_Idempotent(t *testing.T) {
 	output := profile.OutputWithName("mp4")
 	if output == nil {
@@ -347,5 +386,44 @@ func TestClose_Idempotent(t *testing.T) {
 	}
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close (second): %v", err)
+	}
+}
+
+// Regression test for Close's safety-net flush: every other Encode test
+// calls Flush(0) explicitly before Close, so none of them actually exercise
+// Close's own flush loop. This one relies on Close alone to drain the
+// resampler's pending partial chunk and the codec's own buffered packets -
+// this exact path previously deadlocked (Close held its lock across a
+// Flush call whose packets loop back through the same lock via
+// writePacket), so this also guards against that regressing.
+func TestWriter_Close_FlushesWithoutExplicitFlush(t *testing.T) {
+	output := profile.OutputWithName("mp4")
+	if output == nil {
+		t.Fatal("OutputWithName(mp4): nil output")
+	}
+
+	var buf bytes.Buffer
+	w, err := writer.NewWriter(&buf, output, writer.WithProfile(0, audioStream(t)))
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+
+	// Mismatched, irregular-sized chunks - guarantees the resampler has a
+	// partial chunk still pending when Close is called.
+	for i := 0; i < 10; i++ {
+		f := mismatchedFrame(t, 0, 512)
+		if err := w.Encode(f); err != nil {
+			f.Close()
+			t.Fatalf("Encode: %v", err)
+		}
+		f.Close()
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Fatal("expected non-empty output buffer")
 	}
 }
