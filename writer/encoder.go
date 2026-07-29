@@ -178,14 +178,20 @@ func (e *Encoder) Encode(f frame.Frame) error {
 
 // Flush signals end-of-stream to the codec registered for streamID and
 // passes any remaining buffered packets to the Encoder's callback. This is
-// a no-op for a subtitle stream: subtitles use a legacy API with no
-// buffering, so there is nothing to flush.
+// a no-op for a subtitle stream (subtitles use a legacy API with no
+// buffering, so there is nothing to flush) and for a stream whose codec
+// isn't actually an encoder (e.g. a StreamProfile fed to Add purely to copy
+// a demuxed stream's parameters/extradata onto the muxed output for a
+// remux - avcodec_send_frame is only valid against a real encoder context).
 func (e *Encoder) Flush(streamID int) error {
 	ctx, err := e.contextFor(streamID)
 	if err != nil {
 		return err
 	}
 	if ctx.CodecType() == ff.AVMEDIA_TYPE_SUBTITLE {
+		return nil
+	}
+	if codec := ctx.Codec(); codec == nil || !codec.IsEncoder() {
 		return nil
 	}
 	return e.encode(ctx, streamID, nil)
