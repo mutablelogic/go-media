@@ -3,6 +3,7 @@ package httphandler_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -102,6 +103,36 @@ func TestEncodeHandler_JSON(t *testing.T) {
 	require.NoError(json.NewDecoder(resp.Body).Decode(&status))
 	require.NotZero(status.UUID)
 	require.Equal("encoder", status.Task)
+}
+
+// TestEncodeHandler_JSON_FileSurvivesAsyncRead is a regression test: Encode
+// doesn't wait for the task to finish, so for the default (JSON) response
+// this handler returns almost immediately - well before the task's own
+// goroutine has necessarily even started reading the uploaded file. A
+// defer tied to the handler's own return would close (and for a large
+// upload spooled to disk, delete) that file out from under the still-running
+// task. This drives the request through the real HTTP handler and then
+// waits for the task itself to finish, to prove the file lived long enough.
+func TestEncodeHandler_JSON_FileSurvivesAsyncRead(t *testing.T) {
+	require := require.New(t)
+	test.Begin(t)
+	defer test.End(t)
+
+	resp := postEncode(t, aacRequestJSON(t), "")
+	defer resp.Body.Close()
+	require.Equal(http.StatusAccepted, resp.StatusCode)
+
+	var status taskschema.Status
+	require.NoError(json.NewDecoder(resp.Body).Decode(&status))
+
+	final, err := test.TaskManager(t).Wait(context.Background(), status.UUID)
+	require.NoError(err)
+	require.Equal(taskschema.StateDone, final.State())
+
+	result, ok := final.Result.(*taskencoder.EncodeResponse)
+	require.True(ok, "expected *taskencoder.EncodeResponse, got %T", final.Result)
+	require.NotEmpty(result.Path)
+	defer os.Remove(result.Path)
 }
 
 // TestEncodeHandler_EventStream checks the text/event-stream response:

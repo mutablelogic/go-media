@@ -28,10 +28,11 @@ type Manager struct {
 	opt
 	sync.Mutex
 	tasks   map[uuid.UUID]*entry
-	order   []uuid.UUID   // insertion order, so List is deterministic
-	running bool          // set by Run once it's watching tasks, cleared once it stops
-	ready   chan struct{} // closed once Run sets running - lets callers (tests, startup code) wait for it
-	events  *broadcaster  // fans out task events to Subscribe callers
+	order   []uuid.UUID     // insertion order, so List is deterministic
+	running bool            // set by Run once it's watching tasks, cleared once it stops
+	runCtx  context.Context // Run's own ctx - every task's execution is scoped to this, not whatever ctx Start happened to be called with
+	ready   chan struct{}   // closed once Run sets running - lets callers (tests, startup code) wait for it
+	events  *broadcaster    // fans out task events to Subscribe callers
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +91,7 @@ func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
 	default:
 	}
 	m.running = true
+	m.runCtx = ctx
 	m.Unlock()
 	close(m.ready)
 
@@ -172,9 +174,13 @@ func (m *Manager) Add(ctx context.Context, name string, task schema.Task) (_ uui
 	return id, nil
 }
 
-// Start runs the task registered under id in a new goroutine, using ctx as
-// the parent for cancellation and tracing, and returns immediately - use
-// Cancel to stop the task, and Wait to block until it finishes.
+// Start runs the task registered under id in a new goroutine and returns
+// immediately - use Cancel to stop the task, and Wait to block until it
+// finishes. ctx scopes only this call itself (e.g. its otel span); the
+// task's own execution is scoped to Run's ctx instead, so it isn't cut short
+// by the caller's ctx ending (e.g. an HTTP request's context, once that
+// request's handler returns) - Run's own shutdown sequence is what cancels
+// every still-running task, not this one.
 func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "Start",
 		attribute.String("uuid", id.String()),
@@ -196,7 +202,9 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 		return gomedia.ErrBadParameter.Withf("task %q already started", id)
 	}
 
-	runCtx, cancel := context.WithCancel(ctx)
+	m.Lock()
+	runCtx, cancel := context.WithCancel(m.runCtx)
+	m.Unlock()
 	e.status.Started = time.Now()
 	e.cancel = cancel
 	status := e.status

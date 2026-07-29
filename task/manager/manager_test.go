@@ -145,6 +145,45 @@ func TestManager_StartCompletes(t *testing.T) {
 	require.Greater(status.Duration(), time.Duration(0))
 }
 
+// TestManager_StartOutlivesCallerContext is a regression test: a task's own
+// execution must be scoped to Run's ctx, not whatever ctx Start happened to
+// be called with - otherwise a caller whose own ctx ends shortly after
+// Start returns (e.g. an HTTP request's context, once its handler returns
+// without waiting for the task) would cut the task short, even though it's
+// meant to keep running independently.
+func TestManager_StartOutlivesCallerContext(t *testing.T) {
+	require := require.New(t)
+	mgr, _ := test.Begin(t)
+	defer test.End(t)
+
+	ft := &fakeTask{done: make(chan struct{})}
+
+	id, err := mgr.Add(context.Background(), "probe", ft)
+	require.NoError(err)
+
+	// An already-cancelled ctx, scoping only this Start call - if Start
+	// wrongly used it as the task's own execution context too, the task
+	// would immediately observe ctx.Done() and return ctx.Err(), rather
+	// than actually running until ft.done closes.
+	startCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.NoError(mgr.Start(startCtx, id))
+
+	// Wait with a short deadline of its own - if the bug were present, the
+	// task would already be finished (with context.Canceled as its error)
+	// well before this expires, and Wait would return that immediately
+	// instead of timing out.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	_, err = mgr.Wait(waitCtx, id)
+	require.ErrorIs(err, context.DeadlineExceeded)
+
+	close(ft.done)
+	status, err := mgr.Wait(context.Background(), id)
+	require.NoError(err)
+	require.Equal(schema.StateDone, status.State())
+}
+
 func TestManager_StartTwiceFails(t *testing.T) {
 	require := require.New(t)
 	mgr, ctx := test.Begin(t)

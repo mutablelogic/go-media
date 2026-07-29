@@ -56,13 +56,13 @@ func RegisterEncoderHandlers(manager *manager.Media, tasks *taskmanager.Manager,
 				httpresponse.Error(w, gomedia.HTTPErr(err))
 				return
 			}
-			defer form.File.Body.Close()
 
 			// The file part supplies the reader; the request part supplies
 			// everything else (EncodeRequest.Reader is excluded from JSON, so
 			// unmarshaling into it directly is safe).
 			var req taskencoder.EncodeRequest
 			if err := json.Unmarshal([]byte(form.Request), &req); err != nil {
+				form.File.Body.Close()
 				httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.Withf("invalid request: %v", err)))
 				return
 			}
@@ -70,9 +70,24 @@ func RegisterEncoderHandlers(manager *manager.Media, tasks *taskmanager.Manager,
 
 			status, err := manager.Encode(r.Context(), req)
 			if err != nil {
+				form.File.Body.Close()
 				httpresponse.Error(w, gomedia.HTTPErr(err))
 				return
 			}
+
+			// The task reads from form.File.Body asynchronously, and keeps
+			// doing so after this handler returns - Encode doesn't wait for
+			// it to finish. Closing the body on a defer tied to the handler,
+			// as every earlier return path in this function does, would
+			// race the task's own reads - closing, and for a large upload
+			// spooled to disk deleting, the file out from under it. Hand
+			// ownership off to the task's own lifetime instead: a
+			// background wait, using its own context since it must outlive
+			// this request.
+			go func() {
+				_, _ = tasks.Wait(context.Background(), status.UUID)
+				form.File.Body.Close()
+			}()
 
 			accept, err := types.AcceptContentType(r)
 			if err != nil {
