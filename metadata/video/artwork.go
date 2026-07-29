@@ -11,7 +11,7 @@ import (
 	gomedia "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/metadata"
 	imageutil "github.com/mutablelogic/go-media/metadata/image"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	reader "github.com/mutablelogic/go-media/reader"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,17 +26,17 @@ func init() {
 			return nil, nil
 		}
 
-		reader, err := ffmpeg.NewReader(r)
+		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err
 		}
-		defer reader.Close()
+		defer rd.Close()
 
 		// Attached-picture streams (e.g. an MP4 "covr" atom or ID3 APIC
 		// frame), if any. A file can carry more than one; the first is
 		// keyed "artwork:cover", subsequent ones "artwork:cover-2", and
 		// so on.
-		artwork := reader.Metadata(ffmpeg.MetaArtwork)
+		artwork := rd.Metadata(gomedia.MetaArtwork)
 		if len(artwork) == 0 {
 			return nil, nil
 		}

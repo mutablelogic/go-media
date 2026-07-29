@@ -8,6 +8,7 @@ import (
 	// Packages
 	httpclient "github.com/mutablelogic/go-media/gomedia/httpclient"
 	task "github.com/mutablelogic/go-media/gomedia/task"
+	taskmetadata "github.com/mutablelogic/go-media/task/metadata"
 	server "github.com/mutablelogic/go-server"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -100,7 +101,7 @@ func (cmd *MetadataCmd) Run(ctx server.Cmd) error {
 		defer f.Close()
 
 		// Upload as multipart/form-data
-		response, err := client.Metadata(ctx, task.MetadataRequest{
+		response, err := client.Metadata(ctx, taskmetadata.MetadataRequest{
 			Reader: f,
 		}, types.ContentTypeFormData, nil)
 		if err != nil {

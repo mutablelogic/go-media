@@ -10,6 +10,7 @@ import (
 	gomedia "github.com/mutablelogic/go-media"
 	manager "github.com/mutablelogic/go-media/gomedia/manager"
 	task "github.com/mutablelogic/go-media/gomedia/task"
+	taskmetadata "github.com/mutablelogic/go-media/task/metadata"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
@@ -141,7 +142,7 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 			path.Post(func(w http.ResponseWriter, r *http.Request) {
 				// Filter/Format/Opts come from the query string; Reader is
 				// filled in below depending on the request's content type.
-				var req task.MetadataRequest
+				var req taskmetadata.MetadataRequest
 				if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 					return
@@ -172,9 +173,9 @@ func RegisterMetadataHandlers(manager *manager.Media, router *httprouter.Router)
 			}, func(op httprequest.PathOperation) {
 				op.Summary("Extract Metadata")
 				op.Description(documentation.Section(3, "POST /metadata").Body)
-				op.Query(jsonschema.MustFor[task.MetadataRequest]())
+				op.Query(jsonschema.MustFor[taskmetadata.MetadataRequest]())
 				op.RequestBody(jsonschema.MustFor[FormData](), types.ContentTypeFormData)
-				op.JSONResponse(http.StatusOK, jsonschema.MustFor[task.MetadataResponse](), "Content Type and Metadata")
+				op.JSONResponse(http.StatusOK, jsonschema.MustFor[taskmetadata.MetadataResponse](), "Content Type and Metadata")
 			})
 		}),
 	)

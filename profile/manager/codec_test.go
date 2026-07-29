@@ -134,6 +134,31 @@ func TestListCodecsFilterIsEncoderAndIsDecoderCombined(t *testing.T) {
 	require.Empty(resp.Body)
 }
 
+func TestListCodecsFilterIsHardware(t *testing.T) {
+	require := require.New(t)
+	mgr, ctx := test.Begin(t)
+	defer test.End(t)
+
+	full, err := mgr.ListCodecs(ctx, schema.CodecListRequest{})
+	require.NoError(err)
+
+	hardware, err := mgr.ListCodecs(ctx, schema.CodecListRequest{IsHardware: types.Ptr(true)})
+	require.NoError(err)
+	for _, codec := range hardware.Body {
+		require.True(codec.IsHardware)
+	}
+
+	software, err := mgr.ListCodecs(ctx, schema.CodecListRequest{IsHardware: types.Ptr(false)})
+	require.NoError(err)
+	for _, codec := range software.Body {
+		require.False(codec.IsHardware)
+	}
+
+	// Whether or not this ffmpeg build registers any hardware codecs, the two
+	// filters must partition the full result set exactly.
+	require.Equal(full.Count, hardware.Count+software.Count)
+}
+
 func TestGetCodecDefaultsToEncoderThenDecoder(t *testing.T) {
 	require := require.New(t)
 	mgr, ctx := test.Begin(t)

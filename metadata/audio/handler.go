@@ -13,7 +13,8 @@ import (
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/metadata"
-	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
+	reader "github.com/mutablelogic/go-media/reader"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,24 +50,24 @@ func (m meta) Value() string {
 
 func init() {
 	// Suppress ffmpeg's own logging
-	ffmpeg.SetLogging(false, nil)
+	ff.AVUtil_log_set_level(ff.AV_LOG_ERROR)
 
 	// Add metadata handler for audio files
 	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
-		reader, err := ffmpeg.NewReader(r)
+		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err
 		}
-		defer reader.Close()
+		defer rd.Close()
 
 		entries := make(map[string]gomedia.Metadata)
 
 		// Duration
-		entries["audio:Duration"] = meta{key: "audio:Duration", value: reader.Duration()}
+		entries["audio:Duration"] = meta{key: "audio:Duration", value: rd.Duration()}
 
 		// Tags, normalized and mapped onto dc:/audio: keys where a
 		// canonical mapping exists; noisy or uninteresting tags are dropped
-		for _, tag := range reader.Metadata() {
+		for _, tag := range rd.Metadata() {
 			key := sanitizeKey(tag.Key())
 			if key == "" {
 				continue
