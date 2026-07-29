@@ -31,6 +31,13 @@ type Task interface {
 	// implementation, unlike the caller-chosen name passed to Manager.Add.
 	Task() string
 
+	// Validate reports whether the task is well-formed and can be run at
+	// all (e.g. a non-nil reader). Manager.Add calls this before the task
+	// is even registered, so a malformed request is rejected immediately
+	// rather than accepted as a task that's already doomed to fail once
+	// started.
+	Validate() error
+
 	// Run the task
 	Run(ctx Context) error
 }

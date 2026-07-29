@@ -136,8 +136,9 @@ func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
 	return nil
 }
 
-// Add registers task under name and returns its UUID. The task isn't run
-// until Start is called with that UUID.
+// Add validates task and, if well-formed, registers it under name and
+// returns its UUID. The task isn't run until Start is called with that
+// UUID.
 func (m *Manager) Add(ctx context.Context, name string, task schema.Task) (_ uuid.UUID, err error) {
 	_, endSpan := otel.StartSpan(m.tracer, ctx, "Add",
 		attribute.String("name", name),
@@ -149,6 +150,9 @@ func (m *Manager) Add(ctx context.Context, name string, task schema.Task) (_ uui
 	}
 	if task == nil {
 		return uuid.UUID{}, gomedia.ErrBadParameter.With("nil task")
+	}
+	if err := task.Validate(); err != nil {
+		return uuid.UUID{}, err
 	}
 
 	id := uuid.New()

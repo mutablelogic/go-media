@@ -15,8 +15,9 @@ import (
 // by an AVSubtitle, which FFmpeg represents and codes completely separately
 // from AVFrame, via its own legacy encode/decode API).
 type Frame interface {
-	Stream() int  // The stream this frame belongs to
-	Close() error // Release the frame's resources
+	Stream() int   // The stream this frame belongs to
+	SetStream(int) // Reassign the stream this frame belongs to
+	Close() error  // Release the frame's resources
 }
 
 // mediaFrame is the shared implementation behind AudioFrame and VideoFrame.
@@ -80,6 +81,13 @@ func NewSubtitleFrame(stream int, sub *ff.AVSubtitle) *SubtitleFrame {
 
 func (f *mediaFrame) Stream() int { return f.stream }
 
+// SetStream reassigns the stream this frame is tagged as belonging to -
+// used when the stream numbering a frame was decoded with doesn't match the
+// numbering an output needs it encoded under (e.g. task/encoder, which
+// extracts a subset of an input's streams into a densely, zero-based
+// renumbered output).
+func (f *mediaFrame) SetStream(stream int) { f.stream = stream }
+
 // Close releases the frame's resources.
 func (f *mediaFrame) Close() error {
 	if f.AVFrame != nil {
@@ -90,6 +98,10 @@ func (f *mediaFrame) Close() error {
 }
 
 func (f *SubtitleFrame) Stream() int { return f.stream }
+
+// SetStream reassigns the stream this frame is tagged as belonging to - see
+// mediaFrame.SetStream.
+func (f *SubtitleFrame) SetStream(stream int) { f.stream = stream }
 
 // Close releases the subtitle's resources.
 func (f *SubtitleFrame) Close() error {

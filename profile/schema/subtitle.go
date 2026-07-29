@@ -70,6 +70,33 @@ func NewSubtitleProfile(codec string) (*SubtitleProfile, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because codec/par/opts are unexported (see
+// NewSubtitleProfile) - without it, a client decoding a SubtitleProfile from
+// JSON would get one with a valid Name but a nil codec, which panics the
+// first time it's used (e.g. writer.WithProfile). Resolves the codec from
+// the decoded Name, exactly as NewSubtitleProfile does.
+func (r *SubtitleProfile) UnmarshalJSON(data []byte) error {
+	type alias SubtitleProfile
+	aux := (*alias)(r)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_SUBTITLE || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not a subtitle encoding codec", r.Name)
+	}
+	r.codec = encoder
+	r.opts = optionsForCodec(encoder)
+
+	return r.setPar()
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r SubtitleProfile) String() string {

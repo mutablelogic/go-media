@@ -20,6 +20,10 @@ import (
 // PUBLIC METHODS
 
 func (req *MetadataRequest) Run(ctx schema.Context) error {
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
 	// Create a new ReadSeeker from the Reader.
 	// This will read the entire reader into memory if it is not already a ReadSeeker.
 	seeker, err := schema.NewReadSeeker(req.Reader)

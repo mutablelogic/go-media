@@ -66,6 +66,34 @@ func NewVideoProfile(codec string) (*VideoProfile, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because codec/par/timebase/opts are unexported
+// (see NewVideoProfile) - without it, a client decoding a VideoProfile from
+// JSON would get one with a valid Name but a nil codec, which panics the
+// first time it's used (e.g. writer.WithProfile). Resolves the codec from
+// the decoded Name, exactly as NewVideoProfile does, then rebuilds par from
+// whichever exported fields (Bitrate, Width, ...) were decoded.
+func (r *VideoProfile) UnmarshalJSON(data []byte) error {
+	type alias VideoProfile
+	aux := (*alias)(r)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_VIDEO || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not a video encoding codec", r.Name)
+	}
+	r.codec = encoder
+	r.opts = optionsForCodec(encoder)
+
+	return r.setPar()
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r VideoProfile) String() string {

@@ -70,6 +70,7 @@ func (runner *RunServer) Run(ctx server.Cmd) error {
 						profilehttphandler.RegisterAudioProfileHandlers(profiles, router),
 						taskhttphandler.RegisterTaskHandlers(tasks, router),
 						mediahttphandler.RegisterMetadataHandlers(media, router),
+						mediahttphandler.RegisterEncoderHandlers(media, tasks, router),
 					)
 				})
 

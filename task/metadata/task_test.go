@@ -49,16 +49,14 @@ func TestMetadataTask(t *testing.T) {
 	require.Equal("audio/mpeg", result.Type)
 }
 
+// TestMetadataTask_NilReader checks that a malformed request is rejected by
+// Add itself (via MetadataRequest.Validate), before a task is even
+// registered - not just eventually, once waited on.
 func TestMetadataTask_NilReader(t *testing.T) {
 	require := require.New(t)
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	id, err := mgr.Add(ctx, "metadata", &metadata.MetadataRequest{Reader: nil})
-	require.NoError(err)
-	require.NoError(mgr.Start(ctx, id))
-
-	status, err := mgr.Wait(ctx, id)
+	_, err := mgr.Add(ctx, "metadata", &metadata.MetadataRequest{Reader: nil})
 	require.Error(err)
-	require.Equal(schema.StateError, status.State())
 }

@@ -32,6 +32,10 @@ func (t *fakeTask) Task() string {
 	return "fake"
 }
 
+func (t *fakeTask) Validate() error {
+	return nil
+}
+
 func (t *fakeTask) Run(ctx schema.Context) error {
 	if ctx.Progress != nil {
 		ctx.Progress(1, 2)

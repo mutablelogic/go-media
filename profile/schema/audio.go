@@ -66,6 +66,34 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because codec/par/timebase/opts are unexported
+// (see NewAudioProfile) - without it, a client decoding an AudioProfile from
+// JSON would get one with a valid Name but a nil codec, which panics the
+// first time it's used (e.g. writer.WithProfile). Resolves the codec from
+// the decoded Name, exactly as NewAudioProfile does, then rebuilds par from
+// whichever exported fields (Bitrate, SampleRate, ...) were decoded.
+func (r *AudioProfile) UnmarshalJSON(data []byte) error {
+	type alias AudioProfile
+	aux := (*alias)(r)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Name)
+	}
+	r.codec = encoder
+	r.opts = optionsForCodec(encoder)
+
+	return r.setPar()
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r AudioProfile) String() string {

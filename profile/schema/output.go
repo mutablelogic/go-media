@@ -6,6 +6,7 @@ import (
 
 	// Packages
 	uuid "github.com/google/uuid"
+	gomedia "github.com/mutablelogic/go-media"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 )
 
@@ -70,6 +71,30 @@ func OutputWithType(contenttype string, opt ...Option) *Output {
 			ctx: ctx,
 		},
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because ctx is unexported (see OutputWithName) -
+// without it, a client decoding an Output from JSON would get one with a
+// valid Format but a nil Context(), which every consumer (e.g. writer.Create)
+// treats as "no such format". Resolves ctx from the decoded Format, exactly
+// as OutputWithName does.
+func (o *Output) UnmarshalJSON(data []byte) error {
+	type alias Output
+	aux := (*alias)(o)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	ctx := ff.AVFormat_guess_format(o.Format, "", "")
+	if ctx == nil {
+		return gomedia.ErrBadParameter.Withf("output format %q is not found", o.Format)
+	}
+	o.ctx = ctx
+
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
