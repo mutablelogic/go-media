@@ -51,6 +51,42 @@ func silentFrame(t *testing.T, streamID, numSamples int) *frame.AudioFrame {
 	return frame
 }
 
+// mismatchedFrame builds an audio frame in a deliberately different format
+// (s16 mono @ 8kHz) from silentFrame's (fltp stereo @ 44.1kHz) - the format
+// audioStream's aac profile expects. Used to force Writer.Encode's resampler
+// into a real conversion rather than the fast pass-through path.
+func mismatchedFrame(t *testing.T, streamID, numSamples int) *frame.AudioFrame {
+	t.Helper()
+
+	frame, err := frame.NewAudioFrame(streamID)
+	if err != nil {
+		t.Fatalf("NewFrame: %v", err)
+	}
+
+	frame.SetSampleFormat(ff.AVUtil_get_sample_fmt("s16"))
+	frame.SetSampleRate(8000)
+
+	var ch ff.AVChannelLayout
+	if err := ff.AVUtil_channel_layout_from_string(&ch, "mono"); err != nil {
+		t.Fatalf("AVUtil_channel_layout_from_string: %v", err)
+	}
+	if err := frame.SetChannelLayout(ch); err != nil {
+		t.Fatalf("SetChannelLayout: %v", err)
+	}
+	frame.SetNumSamples(numSamples)
+
+	if err := frame.AllocateBuffers(); err != nil {
+		t.Fatalf("AllocateBuffers: %v", err)
+	}
+
+	samples := frame.Int16(0)
+	for i := range samples {
+		samples[i] = 0
+	}
+
+	return frame
+}
+
 func newTestEncoder(t *testing.T, fn writer.PacketFn) *writer.Encoder {
 	t.Helper()
 	if fn == nil {

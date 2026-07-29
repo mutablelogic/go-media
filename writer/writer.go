@@ -23,6 +23,7 @@ import (
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
+	frame "github.com/mutablelogic/go-media/frame"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -32,17 +33,20 @@ import (
 // TYPES
 
 // Writer is a wrapper around an AVFormatContext that provides a higher-level
-// interface for writing media files. It embeds an Encoder, giving it Add,
-// Encode, Flush and FrameSize for free — one codec context per stream,
-// opened alongside each stream's AVStream in open().
+// interface for writing media files. It embeds an Encoder, giving it Add and
+// FrameSize for free — one codec context per stream, opened alongside each
+// stream's AVStream in open(). Encode and Flush are overridden (see below) to
+// resample/rescale a frame into the exact format its stream's codec expects
+// before handing it to the embedded Encoder.
 type Writer struct {
 	sync.Mutex
 	opts
 	*Encoder
-	output  *ff.AVFormatContext
-	header  bool           // Track if header was successfully written (for Close)
-	artwork map[int][]byte // Map of stream index to artwork data
-	once    sync.Once
+	output     *ff.AVFormatContext
+	header     bool               // Track if header was successfully written (for Close)
+	artwork    map[int][]byte     // Map of stream index to artwork data
+	resamplers map[int]*Resampler // Map of stream index to its resampler, if any (audio/video only)
+	once       sync.Once
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -132,6 +136,25 @@ func NewWriter(w io.Writer, output *profile.Output, opts ...Opt) (*Writer, error
 func (w *Writer) Close() error {
 	var result error
 
+	// Flush every stream first, so any samples not yet forming a full chunk
+	// (via its resampler) and any packets still buffered inside its codec
+	// (e.g. B-frame reordering delay) are written before the trailer, even
+	// if the caller never called Flush itself. A stream the caller already
+	// flushed returns io.EOF here - that just means there was nothing left,
+	// not a real error.
+	//
+	// This must happen before the lock below is taken: Flush's packets flow
+	// through the embedded Encoder's callback (writePacket), which takes
+	// the same lock itself on every call - holding it here too would
+	// deadlock.
+	if w.header && w.output != nil {
+		for stream := range w.streams {
+			if err := w.Flush(stream); err != nil && !errors.Is(err, io.EOF) {
+				result = errors.Join(result, err)
+			}
+		}
+	}
+
 	// Mutex lock to ensure thread safety
 	w.Lock()
 	defer w.Unlock()
@@ -153,6 +176,13 @@ func (w *Writer) Close() error {
 		result = errors.Join(result, w.Encoder.Close())
 	}
 
+	// Close every stream's resampler, freeing the swr/sws contexts they own -
+	// already flushed above, so nothing left to drain here.
+	for _, r := range w.resamplers {
+		result = errors.Join(result, r.Close())
+	}
+	w.resamplers = nil
+
 	// Free output resources
 	if w.output != nil {
 		result = errors.Join(result, ff.AVFormat_close_writer(w.output))
@@ -168,13 +198,46 @@ func (w *Writer) Close() error {
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Encode converts f via its stream's resampler (built in open(), if the
+// stream is audio/video) into the exact format its codec was opened with,
+// then hands the result to the embedded Encoder. Frames for a stream with no
+// registered resampler (subtitles) pass straight through.
+func (w *Writer) Encode(f frame.Frame) error {
+	if f == nil {
+		return gomedia.ErrBadParameter.With("nil frame")
+	}
+	r, ok := w.resamplers[f.Stream()]
+	if !ok {
+		return w.Encoder.Encode(f)
+	}
+	return r.Process(f, w.Encoder.Encode)
+}
+
+// Flush drains stream's resampler (if any) of any samples not yet forming a
+// full frame, then flushes the encoder. Resampler.Process(nil, ...) is
+// documented as a no-op for video/passthrough, so this only does real work
+// for audio. Safe to call more than once for the same stream - the encoder
+// returns io.EOF for a stream already flushed, rather than an error.
+func (w *Writer) Flush(stream int) error {
+	if r, ok := w.resamplers[stream]; ok {
+		if err := r.Process(nil, w.Encoder.Encode); err != nil {
+			return err
+		}
+	}
+	return w.Encoder.Flush(stream)
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 	var result error
 
-	// Initialize the artwork map
+	// Initialize the artwork and resampler maps
 	writer.artwork = make(map[int][]byte)
+	writer.resamplers = make(map[int]*Resampler)
 
 	// Create streams in a deterministic order (map iteration order is
 	// randomized, but stream creation order determines each stream's
@@ -215,6 +278,30 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 		if err := writer.Encoder.Add(id, profile, codecFlags...); err != nil {
 			result = errors.Join(result, err)
 			continue
+		}
+
+		// Build a resampler for audio/video streams, so Writer.Encode can
+		// convert an incoming frame into the exact format this stream's
+		// codec was opened with, rather than requiring the caller to do it.
+		// profile.Par() (Go-managed) is used here rather than the codec
+		// parameters just opened above (C-allocated, freed further down) -
+		// the resampler holds onto this pointer for its entire lifetime, so
+		// it must not be one that gets freed out from under it.
+		switch ff.AVMediaType(profile.Type()) {
+		case ff.AVMEDIA_TYPE_AUDIO:
+			r, err := newAudioResampler(profile.Par(), writer.Encoder.FrameSize(id))
+			if err != nil {
+				result = errors.Join(result, err)
+				continue
+			}
+			writer.resamplers[id] = r
+		case ff.AVMEDIA_TYPE_VIDEO:
+			r, err := newVideoRescaler(profile.Par(), types.Value(profile.TimeBase()))
+			if err != nil {
+				result = errors.Join(result, err)
+				continue
+			}
+			writer.resamplers[id] = r
 		}
 
 		// Copy codec parameters from the now-opened codec context
