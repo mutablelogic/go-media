@@ -324,8 +324,20 @@ func (r *audioResampler) processUnbounded(in *ff.AVFrame, fn func(*frame.AudioFr
 
 		// Offer the full capacity every call - swr shrinks AVFrame's
 		// NumSamples to the actual count written, so it must be reset
-		// before each call or output would shrink monotonically.
+		// before each call or output would shrink monotonically. This must
+		// come before MakeWritable below: a clone allocates sized to
+		// whatever NumSamples currently is, so it has to already be back
+		// at full capacity, not left at a previous call's shrunk count.
 		r.dest.SetNumSamples(r.capacity)
+
+		// dest may still be referenced by the encoder from a previous
+		// fn(r.dest) call - avcodec_send_frame is documented to possibly
+		// keep a reference rather than copy, so overwriting it in place
+		// here could corrupt a frame the encoder hasn't finished with yet.
+		// MakeWritable clones a fresh buffer instead when that's the case.
+		if err := r.dest.MakeWritable(); err != nil {
+			return err
+		}
 		if err := ff.SWResample_convert_frame(r.ctx, in, r.dest.AVFrame); err != nil {
 			return err
 		}
@@ -389,6 +401,15 @@ func (r *audioResampler) processChunked(in *ff.AVFrame, flush bool, fn func(*fra
 func (r *audioResampler) accumulate(n int, fn func(*frame.AudioFrame) error) error {
 	for off := 0; off < n; {
 		take := min(n-off, r.frameSize-r.pending)
+
+		// dest may still be referenced by the encoder from a previous
+		// fn(r.dest) call - see processUnbounded for why this must happen
+		// before writing into it. dest's NumSamples never changes here
+		// (always r.capacity), so no reordering concern like
+		// processUnbounded's - just needs to happen before the copy below.
+		if err := r.dest.MakeWritable(); err != nil {
+			return err
+		}
 		copyAudioSamples(r.dest, r.pending, r.scratch, off, take)
 		r.pending += take
 		off += take
@@ -558,6 +579,14 @@ func (r *videoRescaler) process(src *frame.VideoFrame, fn func(*frame.VideoFrame
 	}
 
 	if err := ff.AVUtil_frame_copy_props(r.dest.AVFrame, src.AVFrame); err != nil {
+		return err
+	}
+
+	// dest may still be referenced by the encoder from a previous fn(r.dest)
+	// call - see audioResampler.processUnbounded for why this must happen
+	// before writing into it. dest's width/height/format never change once
+	// allocated, so there's no reordering concern like processUnbounded's.
+	if err := r.dest.MakeWritable(); err != nil {
 		return err
 	}
 	if err := ff.SWScale_scale_frame(r.ctx, r.dest.AVFrame, src.AVFrame, false); err != nil {

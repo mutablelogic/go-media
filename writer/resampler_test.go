@@ -88,6 +88,52 @@ func newYUV420PFrame(t *testing.T, stream, width, height int) *frame.VideoFrame 
 	return f
 }
 
+// newS32MonoFrame builds a mono s32 audio frame carrying exactly samples -
+// a different sample format from newS16MonoFrame's, so feeding it where s16
+// is the target forces a real (if simple) format conversion rather than the
+// resampler's fast pass-through path.
+func newS32MonoFrame(t *testing.T, stream, rate int, samples []int32) *frame.AudioFrame {
+	t.Helper()
+	f, err := frame.NewAudioFrame(stream)
+	if err != nil {
+		t.Fatalf("NewAudioFrame: %v", err)
+	}
+	f.SetSampleFormat(ff.AVUtil_get_sample_fmt("s32"))
+	f.SetSampleRate(rate)
+
+	var ch ff.AVChannelLayout
+	if err := ff.AVUtil_channel_layout_from_string(&ch, "mono"); err != nil {
+		t.Fatalf("AVUtil_channel_layout_from_string: %v", err)
+	}
+	if err := f.SetChannelLayout(ch); err != nil {
+		t.Fatalf("SetChannelLayout: %v", err)
+	}
+	f.SetNumSamples(len(samples))
+	if err := f.AllocateBuffers(); err != nil {
+		t.Fatalf("AllocateBuffers: %v", err)
+	}
+	copy(f.Int32(0), samples)
+	return f
+}
+
+// refAVFrame takes a new reference to src's underlying buffer(s) - sharing
+// them (bumped refcount) rather than copying - simulating an encoder that
+// retains a reference to a frame handed to it rather than copying it, per
+// avcodec_send_frame's documented contract.
+func refAVFrame(t *testing.T, src *ff.AVFrame) *ff.AVFrame {
+	t.Helper()
+	ref := ff.AVUtil_frame_alloc()
+	if ref == nil {
+		t.Fatal("AVUtil_frame_alloc: nil")
+	}
+	if err := ff.AVUtil_frame_ref(ref, src); err != nil {
+		ff.AVUtil_frame_free(ref)
+		t.Fatalf("AVUtil_frame_ref: %v", err)
+	}
+	t.Cleanup(func() { ff.AVUtil_frame_free(ref) })
+	return ref
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // AUDIO - frameSize accumulation across process() calls (bug #2)
 
@@ -428,6 +474,131 @@ func TestAudioResampler_SourceChangeDrainsAndReinitializes(t *testing.T) {
 	}
 }
 
+// Regression test for reusing r.dest across calls without protecting it
+// first: avcodec_send_frame is documented to possibly keep a reference to
+// a frame rather than copy it, so overwriting dest's buffer in place on a
+// later call can corrupt a frame the encoder (simulated here via a real
+// AVFrame ref, sharing the same underlying buffer) hasn't released yet.
+// Exercises the frameSize<=0 (unbounded) path specifically.
+func TestAudioResampler_Unbounded_MakeWritableProtectsPreviousFrame(t *testing.T) {
+	const rate = 8000
+	par := audioCodecParameters(t, "s16", rate, "mono")
+	r, err := NewResampler(par, 0, ff.AVRational{})
+	if err != nil {
+		t.Fatalf("NewResampler: %v", err)
+	}
+	defer r.audio.Close()
+
+	var refs []*ff.AVFrame
+	var snapshots [][]int16
+	emit := func(f frame.Frame) error {
+		af := f.(*frame.AudioFrame)
+		ref := refAVFrame(t, af.AVFrame)
+		refs = append(refs, ref)
+		snap := make([]int16, ref.NumSamples())
+		copy(snap, ref.Int16(0))
+		snapshots = append(snapshots, snap)
+		return nil
+	}
+
+	// s32 mono source against an s16 mono target - a real format
+	// conversion (not the fast path), so dest is genuinely written to by
+	// swr on every call. Two calls with clearly different content: if
+	// dest's buffer were overwritten in place, the first call's still-
+	// referenced frame would end up showing the second call's values.
+	samples1 := make([]int32, 50)
+	for i := range samples1 {
+		samples1[i] = 1 << 20
+	}
+	src1 := newS32MonoFrame(t, 0, rate, samples1)
+	if err := r.Process(src1, emit); err != nil {
+		t.Fatalf("Process(1): %v", err)
+	}
+	src1.Close()
+
+	samples2 := make([]int32, 50)
+	for i := range samples2 {
+		samples2[i] = -(1 << 20)
+	}
+	src2 := newS32MonoFrame(t, 0, rate, samples2)
+	if err := r.Process(src2, emit); err != nil {
+		t.Fatalf("Process(2): %v", err)
+	}
+	src2.Close()
+
+	if len(refs) != 2 {
+		t.Fatalf("got %d emitted frames, want 2", len(refs))
+	}
+	for i, ref := range refs {
+		got, want := ref.Int16(0), snapshots[i]
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("frame %d sample %d = %d, want %d (buffer corrupted by a later call)", i, j, got[j], want[j])
+			}
+		}
+	}
+}
+
+// Same regression as TestAudioResampler_Unbounded_MakeWritableProtectsPreviousFrame,
+// but for the frameSize>0 (chunked) path, which writes into r.dest via
+// accumulate/copyAudioSamples rather than swr directly.
+func TestAudioResampler_Chunked_MakeWritableProtectsPreviousFrame(t *testing.T) {
+	const rate = 8000
+	const frameSize = 50
+	par := audioCodecParameters(t, "s16", rate, "mono")
+	r, err := NewResampler(par, frameSize, ff.AVRational{})
+	if err != nil {
+		t.Fatalf("NewResampler: %v", err)
+	}
+	defer r.audio.Close()
+
+	var refs []*ff.AVFrame
+	var snapshots [][]int16
+	emit := func(f frame.Frame) error {
+		af := f.(*frame.AudioFrame)
+		ref := refAVFrame(t, af.AVFrame)
+		refs = append(refs, ref)
+		snap := make([]int16, ref.NumSamples())
+		copy(snap, ref.Int16(0))
+		snapshots = append(snapshots, snap)
+		return nil
+	}
+
+	// Exactly frameSize samples each call, so each call completes and
+	// emits exactly one chunk - two calls with clearly different content.
+	samples1 := make([]int32, frameSize)
+	for i := range samples1 {
+		samples1[i] = 1 << 20
+	}
+	src1 := newS32MonoFrame(t, 0, rate, samples1)
+	if err := r.Process(src1, emit); err != nil {
+		t.Fatalf("Process(1): %v", err)
+	}
+	src1.Close()
+
+	samples2 := make([]int32, frameSize)
+	for i := range samples2 {
+		samples2[i] = -(1 << 20)
+	}
+	src2 := newS32MonoFrame(t, 0, rate, samples2)
+	if err := r.Process(src2, emit); err != nil {
+		t.Fatalf("Process(2): %v", err)
+	}
+	src2.Close()
+
+	if len(refs) != 2 {
+		t.Fatalf("got %d emitted frames, want 2", len(refs))
+	}
+	for i, ref := range refs {
+		got, want := ref.Int16(0), snapshots[i]
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("frame %d sample %d = %d, want %d (buffer corrupted by a later call)", i, j, got[j], want[j])
+			}
+		}
+	}
+}
+
 func TestAudioResampler_Close_Idempotent(t *testing.T) {
 	par := audioCodecParameters(t, "s16", 8000, "mono")
 	r, err := NewResampler(par, 100, ff.AVRational{})
@@ -550,6 +721,64 @@ func TestVideoRescaler_OwnsPtsAcrossSourceSwitch(t *testing.T) {
 		}
 		if gotTb[i] != target {
 			t.Fatalf("frame %d: timebase = %v, want %v (must ignore src's own timebase)", i, gotTb[i], target)
+		}
+	}
+}
+
+// Same regression as the audio MakeWritable tests, for the video rescale
+// path, which writes into r.dest via SWScale_scale_frame.
+func TestVideoRescaler_MakeWritableProtectsPreviousFrame(t *testing.T) {
+	par := videoCodecParameters(t, "yuv420p", 160, 120)
+	r, err := NewResampler(par, 0, ff.AVUtil_rational(1, 25))
+	if err != nil {
+		t.Fatalf("NewResampler: %v", err)
+	}
+	defer r.video.Close()
+
+	var refs []*ff.AVFrame
+	var snapshots [][]byte
+	emit := func(f frame.Frame) error {
+		vf := f.(*frame.VideoFrame)
+		ref := refAVFrame(t, vf.AVFrame)
+		refs = append(refs, ref)
+		snap := make([]byte, len(ref.Bytes(0)))
+		copy(snap, ref.Bytes(0))
+		snapshots = append(snapshots, snap)
+		return nil
+	}
+
+	// A different size from the 160x120 target forces a real rescale (not
+	// the fast path), so dest is genuinely written to every call. Two
+	// calls with clearly different luma fill values: if dest's buffer were
+	// overwritten in place, the first call's still-referenced frame would
+	// end up showing the second call's values.
+	src1 := newYUV420PFrame(t, 0, 320, 240)
+	for i := range src1.Bytes(0) {
+		src1.Bytes(0)[i] = 10
+	}
+	if err := r.Process(src1, emit); err != nil {
+		t.Fatalf("Process(1): %v", err)
+	}
+	src1.Close()
+
+	src2 := newYUV420PFrame(t, 0, 320, 240)
+	for i := range src2.Bytes(0) {
+		src2.Bytes(0)[i] = 200
+	}
+	if err := r.Process(src2, emit); err != nil {
+		t.Fatalf("Process(2): %v", err)
+	}
+	src2.Close()
+
+	if len(refs) != 2 {
+		t.Fatalf("got %d emitted frames, want 2", len(refs))
+	}
+	for i, ref := range refs {
+		got, want := ref.Bytes(0), snapshots[i]
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("frame %d byte %d = %d, want %d (buffer corrupted by a later call)", i, j, got[j], want[j])
+			}
 		}
 	}
 }
