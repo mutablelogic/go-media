@@ -189,8 +189,8 @@ func (r VideoProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // Insert binds values and returns the insert query for a video profile row.
 func (r VideoProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("codec", r.Name)
-	bind.Set(OptionBitrate, r.Bitrate)
-	bind.Set(OptionProfile, r.Profile)
+	bind.Set("bitrate", r.Bitrate)
+	bind.Set("profile", r.Profile)
 	bind.Set(OptionWidth, r.Width)
 	bind.Set(OptionHeight, r.Height)
 	bind.Set(OptionPixelFormat, r.PixelFormat)
@@ -208,10 +208,10 @@ func (r VideoProfileMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
-		bind.Append("patch", `"`+OptionBitrate+`" = `+bind.Set(OptionBitrate, bitrate))
+		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
 	}
 	if value := strings.TrimSpace(types.Value(r.Profile)); value != "" {
-		bind.Append("patch", `"`+OptionProfile+`" = `+bind.Set(OptionProfile, value))
+		bind.Append("patch", `"profile" = `+bind.Set("profile", value))
 	}
 	if width := types.Value(r.Width); width > 0 {
 		bind.Append("patch", `"`+OptionWidth+`" = `+bind.Set(OptionWidth, width))
@@ -260,9 +260,9 @@ func (r *VideoProfileMeta) Set(name string, value any) error {
 	// Remove existing option
 	if value == nil {
 		switch name {
-		case OptionBitrate:
+		case OptionVideoBitrate:
 			r.Bitrate = nil
-		case OptionProfile:
+		case OptionVideoProfile:
 			if len(r.codec.Profiles()) > 0 {
 				r.Profile = nil
 			} else {
@@ -284,9 +284,9 @@ func (r *VideoProfileMeta) Set(name string, value any) error {
 	} else {
 		// Set the option value
 		switch name {
-		case OptionBitrate:
+		case OptionVideoBitrate:
 			r.Bitrate = types.Ptr(value.(uint64))
-		case OptionProfile:
+		case OptionVideoProfile:
 			// Some encoders (e.g. libx264, libx265) expose "profile" only as
 			// their own private string option rather than the generic
 			// AVCodecParameters.profile field, and don't declare anything

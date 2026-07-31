@@ -22,6 +22,7 @@ type ClientProfileCommands struct {
 }
 
 type CreateAudioProfileCmd struct {
+	Name string `arg:"" required:"" name:"codec" help:"Codec name, e.g. aac, libmp3lame, copy."`
 	schema.AudioProfileMeta
 }
 
@@ -44,7 +45,10 @@ type UpdateAudioProfileCmd struct {
 func (cmd *CreateAudioProfileCmd) Run(ctx server.Cmd) error {
 	return withClient(ctx, "CreateAudioProfile", func(ctx context.Context, client *httpclient.Client) error {
 		// Create the audio profile
-		profile, err := client.CreateAudioProfile(ctx, cmd.AudioProfileMeta)
+		profile, err := client.CreateAudioProfile(ctx, schema.AudioProfile{
+			Name:             cmd.Name,
+			AudioProfileMeta: cmd.AudioProfileMeta,
+		})
 		if err != nil {
 			return err
 		}
@@ -89,7 +93,9 @@ func (cmd *DeleteAudioProfileCmd) Run(ctx server.Cmd) error {
 func (cmd *UpdateAudioProfileCmd) Run(ctx server.Cmd) error {
 	return withClient(ctx, "UpdateAudioProfile", func(ctx context.Context, client *httpclient.Client) error {
 		// Update the audio profile
-		profile, err := client.UpdateAudioProfile(ctx, cmd.UUID, cmd.AudioProfileMeta)
+		profile, err := client.UpdateAudioProfile(ctx, cmd.UUID, schema.AudioProfile{
+			AudioProfileMeta: cmd.AudioProfileMeta,
+		})
 		if err != nil {
 			return err
 		}

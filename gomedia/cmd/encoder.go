@@ -107,7 +107,7 @@ func (cmd *EncodeCmd) request(f *os.File) (taskencoder.EncodeRequest, error) {
 			return req, err
 		}
 		if cmd.AudioBitrate > 0 {
-			if err := audio.Set(profile.OptionBitrate, cmd.AudioBitrate); err != nil {
+			if err := audio.Set(profile.OptionAudioBitrate, cmd.AudioBitrate); err != nil {
 				return req, err
 			}
 		}
@@ -135,7 +135,7 @@ func (cmd *EncodeCmd) request(f *os.File) (taskencoder.EncodeRequest, error) {
 			return req, err
 		}
 		if cmd.VideoBitrate > 0 {
-			if err := video.Set(profile.OptionBitrate, cmd.VideoBitrate); err != nil {
+			if err := video.Set(profile.OptionVideoBitrate, cmd.VideoBitrate); err != nil {
 				return req, err
 			}
 		}

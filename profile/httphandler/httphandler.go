@@ -224,7 +224,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 
 			// POST
 			path.Post(func(w http.ResponseWriter, r *http.Request) {
-				var req schema.AudioProfileMeta
+				var req schema.AudioProfile
 				if err := httprequest.Read(r, &req); err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(err))
 					return
@@ -284,7 +284,7 @@ func RegisterAudioProfileHandlers(manager *manager.Profile, router *httprouter.R
 
 			// PATCH
 			path.Patch(func(w http.ResponseWriter, r *http.Request) {
-				var req schema.AudioProfileMeta
+				var req schema.AudioProfile
 				uuid, err := uuid.Parse(r.PathValue("uuid"))
 				if err != nil {
 					httpresponse.Error(w, gomedia.HTTPErr(gomedia.ErrBadParameter.Withf("invalid uuid: %v", err)))

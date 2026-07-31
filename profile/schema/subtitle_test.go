@@ -90,8 +90,8 @@ func TestOptionsForCodec_NoProfileOption_Subtitle(t *testing.T) {
 		t.Skip("srt encoder not available")
 	}
 	for _, opt := range schema.OptionsForCodec(codec) {
-		if opt.Name == schema.OptionProfile {
-			t.Fatalf("OptionsForCodec(srt): unexpected %q option for a codec with no profile concept", schema.OptionProfile)
+		if opt.Name == schema.OptionAudioProfile || opt.Name == schema.OptionVideoProfile {
+			t.Fatalf("OptionsForCodec(srt): unexpected %q option for a codec with no profile concept", opt.Name)
 		}
 	}
 }

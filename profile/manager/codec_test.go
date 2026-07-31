@@ -199,7 +199,7 @@ func TestGetCodecDecoderOptsExcludeEncodeOnlyTemplate(t *testing.T) {
 	require.True(decoder.IsDecoder)
 
 	encodeOnly := map[string]bool{
-		schema.OptionBitrate:       true,
+		schema.OptionAudioBitrate:  true,
 		schema.OptionSampleRate:    true,
 		schema.OptionSampleFormat:  true,
 		schema.OptionChannelLayout: true,

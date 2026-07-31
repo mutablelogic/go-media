@@ -8,7 +8,7 @@ INSERT INTO ${"schema"}."audio" (
 	"channel_layout",
 	"opts"
 ) VALUES (
-	@codec,
+	@name,
 	@bitrate,
 	@profile,
 	@sample_rate,

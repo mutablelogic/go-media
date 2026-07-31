@@ -25,7 +25,7 @@ func TestCreateAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	profile, err := mgr.CreateAudioProfile(ctx, schema.AudioProfileMeta{Name: "aac"})
+	profile, err := mgr.CreateAudioProfile(ctx, schema.AudioProfile{Name: "aac"})
 	require.NoError(err)
 	require.NotNil(profile)
 	require.NotEqual(uuid.Nil, profile.Id)
@@ -41,7 +41,7 @@ func TestGetAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfileMeta{Name: "aac"})
+	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfile{Name: "aac"})
 	require.NoError(err)
 	require.NotNil(created)
 	require.NotEqual(uuid.Nil, created.Id)
@@ -68,7 +68,7 @@ func TestDeleteAudioProfile(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfileMeta{Name: "aac"})
+	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfile{Name: "aac"})
 	require.NoError(err)
 	require.NotNil(created)
 	require.NotEqual(uuid.Nil, created.Id)
@@ -92,7 +92,7 @@ func TestDeleteAudioProfileGone(t *testing.T) {
 	mgr, ctx := test.Begin(t)
 	defer test.End(t)
 
-	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfileMeta{Name: "aac"})
+	created, err := mgr.CreateAudioProfile(ctx, schema.AudioProfile{Name: "aac"})
 	require.NoError(err)
 
 	_, err = mgr.DeleteAudioProfile(ctx, created.Id)
