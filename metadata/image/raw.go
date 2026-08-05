@@ -67,6 +67,7 @@ func init() {
 			}
 		}
 
+		mirrorDCDate(entries)
 		return metadata.FilterMetadata(entries, o), nil
 	}, "tiff", "exif", "image", "dc", "artwork")
 }

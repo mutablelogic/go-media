@@ -8,6 +8,7 @@ import (
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/metadata"
+	exif "github.com/mutablelogic/go-media/pkg/exif"
 	heif "github.com/mutablelogic/go-media/pkg/heif"
 )
 
@@ -27,10 +28,23 @@ func init() {
 		}
 		defer h.Close()
 
+		// Collect raw metadata items, separating out the EXIF tags so they
+		// can be enriched the same way as JPEG/RAW (parsed dates, decimal
+		// GPS coordinates, float rationals) via the shared helper, rather
+		// than leaking libexif's raw Rational types through Any().
 		entries := make(map[string]gomedia.Metadata)
+		var tags []*exif.Tag
 		for _, m := range h.Metadata() {
+			if tag, ok := m.(*exif.Tag); ok {
+				tags = append(tags, tag)
+				continue
+			}
 			entries[m.Key()] = m
 		}
+		for key, m := range exifTagsToMetadata(tags) {
+			entries[key] = m
+		}
+		mirrorDCDate(entries)
 
 		return metadata.FilterMetadata(entries, o), nil
 	}, "tiff", "exif", "dc", "xmp")

@@ -8,12 +8,13 @@ import (
 	"time"
 
 	// Packages
+	gomedia "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/metadata"
 )
 
 const testDir = "../../etc/test"
 
-// Test_handler_000 checks that video:Duration and tag metadata are
+// Test_handler_000 checks that video:duration and tag metadata are
 // extracted end-to-end via GetMetadata for a real video/* file.
 func Test_handler_000(t *testing.T) {
 	path := testDir + "/sample.mp4"
@@ -45,12 +46,12 @@ func Test_handler_000(t *testing.T) {
 		t.Errorf("dc:title = %q, want %q", got["dc:title"], "Sample From Big Buck Bunny")
 	}
 
-	durVal, ok := got["video:Duration"]
+	durVal, ok := got["video:duration"]
 	if !ok {
-		t.Fatal("expected video:Duration in metadata")
+		t.Fatal("expected video:duration in metadata")
 	}
 	for _, m := range meta {
-		if m.Key() != "video:Duration" {
+		if m.Key() != "video:duration" {
 			continue
 		}
 		d, ok := m.Any().(time.Duration)
@@ -68,7 +69,7 @@ func Test_handler_000(t *testing.T) {
 			t.Errorf("Value() seconds = %v, want > 0", sec)
 		}
 	}
-	t.Logf("video:Duration = %s", durVal)
+	t.Logf("video:duration = %s", durVal)
 }
 
 // Test_sanitizeKey_000 checks that common tag key variants are mapped onto
@@ -80,9 +81,9 @@ func Test_sanitizeKey_000(t *testing.T) {
 		{"title", "dc:title"},
 		{"director", "dc:creator"},
 		{"description", "dc:description"},
-		{"synopsis", "video:Synopsis"},
-		{"date", "video:Year"},
-		{"year", "video:Year"},
+		{"synopsis", "video:synopsis"},
+		{"date", "video:year"},
+		{"year", "video:year"},
 		{"encoder", "video:encoder"},
 	}
 	for _, test := range tests {
@@ -102,5 +103,61 @@ func Test_sanitizeKey_001(t *testing.T) {
 		if got := sanitizeKey(key); got != "" {
 			t.Errorf("sanitizeKey(%q) = %q, want \"\" (dropped)", key, got)
 		}
+	}
+}
+
+// Test_buildVideoEntries_000 checks that "synopsis" becomes dc:description
+// when there's no dedicated "description" tag, and isn't also surfaced
+// under its own video:synopsis key.
+func Test_buildVideoEntries_000(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "synopsis", value: "a synopsis"},
+	})
+	if _, ok := entries["video:synopsis"]; ok {
+		t.Error("did not expect a standalone video:synopsis key")
+	}
+	if got, ok := entries["dc:description"]; !ok || got.Value() != "a synopsis" {
+		t.Errorf("dc:description = %v, want %q", got, "a synopsis")
+	}
+}
+
+// Test_buildVideoEntries_001 checks that a dedicated "description" tag
+// takes precedence over "synopsis", which still doesn't leak under any key.
+func Test_buildVideoEntries_001(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "synopsis", value: "a synopsis"},
+		meta{key: "description", value: "a description"},
+	})
+	if got, ok := entries["dc:description"]; !ok || got.Value() != "a description" {
+		t.Errorf("dc:description = %v, want %q", got, "a description")
+	}
+	if _, ok := entries["video:synopsis"]; ok {
+		t.Error("did not expect a standalone video:synopsis key")
+	}
+}
+
+// Test_buildVideoEntries_002 checks that "creation_time" is mirrored to
+// dc:date, reformatted as RFC 3339, alongside the original
+// video:creation-time key.
+func Test_buildVideoEntries_002(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "creation_time", value: "2023-01-15T10:30:00.000000Z"},
+	})
+	if got, ok := entries["video:creation-time"]; !ok || got.Value() != "2023-01-15T10:30:00.000000Z" {
+		t.Errorf("video:creation-time = %v, want the raw tag value", got)
+	}
+	if got, ok := entries["dc:date"]; !ok || got.Value() != "2023-01-15T10:30:00Z" {
+		t.Errorf("dc:date = %v, want %q", got, "2023-01-15T10:30:00Z")
+	}
+}
+
+// Test_buildVideoEntries_003 checks that an unparseable "creation_time"
+// doesn't produce a dc:date entry.
+func Test_buildVideoEntries_003(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "creation_time", value: "not-a-timestamp"},
+	})
+	if _, ok := entries["dc:date"]; ok {
+		t.Error("did not expect dc:date for an unparseable creation_time")
 	}
 }

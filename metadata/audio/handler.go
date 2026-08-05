@@ -63,7 +63,7 @@ func init() {
 		entries := make(map[string]gomedia.Metadata)
 
 		// Duration
-		entries["audio:Duration"] = meta{key: "audio:Duration", value: rd.Duration()}
+		entries["audio:duration"] = meta{key: "audio:duration", value: rd.Duration()}
 
 		// Tags, normalized and mapped onto dc:/audio: keys where a
 		// canonical mapping exists; noisy or uninteresting tags are dropped
@@ -112,7 +112,7 @@ func sanitizeKey(key string) string {
 	case "genre", "music-genre":
 		return "audio:Genre"
 	case "originalyear", "year", "date", "originaldate", "tdor":
-		return "audio:Year"
+		return "audio:year"
 	case "itunes-cddb-tracknumber", "track", "tracknumber":
 		return "audio:Track"
 	}
