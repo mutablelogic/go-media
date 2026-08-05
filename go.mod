@@ -3,6 +3,7 @@ module github.com/mutablelogic/go-media
 go 1.25.0
 
 require (
+	github.com/alecthomas/kong v1.16.0
 	github.com/djthorpe/go-errors v1.0.3
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
@@ -23,7 +24,6 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/alecthomas/kong v1.16.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

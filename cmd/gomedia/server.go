@@ -16,6 +16,7 @@ import (
 	task "github.com/mutablelogic/go-media/task/cmd"
 	taskhttphandler "github.com/mutablelogic/go-media/task/httphandler"
 	taskmanager "github.com/mutablelogic/go-media/task/manager"
+	tmdbcmd "github.com/mutablelogic/go-media/tmdb/cmd"
 	pg "github.com/mutablelogic/go-pg"
 	pgcmd "github.com/mutablelogic/go-pg/pkg/cmd"
 	server "github.com/mutablelogic/go-server"
@@ -33,6 +34,7 @@ type CLI struct {
 	Task      task.ClientCommands    `embed:""`
 	RunServer RunServer              `cmd:"" name:"run" help:"Run the gomedia server." group:"SERVER"`
 	servercmd.OpenAPICommands
+	TMDB tmdbcmd.ClientCommands `embed:""`
 }
 
 type RunServer struct {
