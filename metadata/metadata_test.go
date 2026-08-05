@@ -34,7 +34,7 @@ func (f fakeMetadata) Any() any           { return string(f) }
 // by setting *called to true, so a test can identify which of several
 // registered handlers was actually returned/invoked.
 func markerHandler(called *bool) HandlerFunc {
-	return func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	return func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		*called = true
 		return nil, nil
 	}
@@ -79,7 +79,7 @@ func Test_metadata_003(t *testing.T) {
 	if len(handlers) != 1 {
 		t.Fatalf("expected 1 handler, got %d", len(handlers))
 	}
-	if _, err := handlers[0](context.Background(), nil, ""); err != nil {
+	if _, err := handlers[0](context.Background(), nil, &Opts{}); err != nil {
 		t.Fatal(err)
 	}
 	if !called {
@@ -98,7 +98,7 @@ func Test_metadata_004(t *testing.T) {
 		t.Fatalf("expected 2 handlers, got %d", len(handlers))
 	}
 	for _, h := range handlers {
-		if _, err := h(context.Background(), nil, ""); err != nil {
+		if _, err := h(context.Background(), nil, &Opts{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -119,7 +119,7 @@ func Test_metadata_005(t *testing.T) {
 	if len(handlers) != 1 {
 		t.Fatalf("expected 1 handler, got %d", len(handlers))
 	}
-	if _, err := handlers[0](context.Background(), nil, ""); err != nil {
+	if _, err := handlers[0](context.Background(), nil, &Opts{}); err != nil {
 		t.Fatal(err)
 	}
 	if !initial {
@@ -156,48 +156,48 @@ func Test_metadata_006(t *testing.T) {
 	wg.Wait()
 }
 
-// Regression test: GetMetadata should only run handlers registered for the
-// namespace named by an explicit "namespace:" or "namespace:name" filter.
+// Regression test: GetMetadata should only run handlers registered for a
+// namespace explicitly requested via WithNamespace.
 func Test_metadata_007(t *testing.T) {
 	var tiffCalled, exifCalled bool
-	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		tiffCalled = true
 		return nil, nil
 	}, "tiff")
-	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		exifCalled = true
 		return nil, nil
 	}, "exif")
 
-	if _, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/007", "tiff:Make"); err != nil {
+	if _, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/007", WithNamespace("tiff")); err != nil {
 		t.Fatal(err)
 	}
 	if !tiffCalled {
-		t.Fatal(`expected the "tiff" handler to be invoked for filter "tiff:Make"`)
+		t.Fatal(`expected the "tiff" handler to be invoked for WithNamespace("tiff")`)
 	}
 	if exifCalled {
-		t.Fatal(`expected the "exif" handler NOT to be invoked for filter "tiff:Make"`)
+		t.Fatal(`expected the "exif" handler NOT to be invoked for WithNamespace("tiff")`)
 	}
 }
 
-// A bare name filter (no namespace prefix) can't be pruned by namespace,
-// since any handler's namespace could contain a tag with that name.
+// Requesting multiple namespaces via WithNamespace should run every handler
+// that matches any one of them.
 func Test_metadata_008(t *testing.T) {
 	var tiffCalled, exifCalled bool
-	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		tiffCalled = true
 		return nil, nil
 	}, "tiff")
-	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		exifCalled = true
 		return nil, nil
 	}, "exif")
 
-	if _, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/008", "Make"); err != nil {
+	if _, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/008", WithNamespace("tiff", "exif")); err != nil {
 		t.Fatal(err)
 	}
 	if !tiffCalled || !exifCalled {
-		t.Fatal("expected both handlers to be invoked for a bare-name filter")
+		t.Fatal("expected both handlers to be invoked when both their namespaces are requested")
 	}
 }
 
@@ -207,7 +207,7 @@ func Test_metadata_008(t *testing.T) {
 func Test_metadata_009(t *testing.T) {
 	AddHandler(regexp.MustCompile("^x-test/009$"), markerHandler(new(bool)), "tiff")
 
-	meta, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/009", "gps:Latitude")
+	meta, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/009", WithNamespace("gps"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,14 +221,14 @@ func Test_metadata_009(t *testing.T) {
 // the successful handler, alongside the failing handler's error as a
 // warning, rather than discarding it.
 func Test_metadata_010(t *testing.T) {
-	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		return nil, errors.New("boom")
 	}, "broken")
-	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		return []gomedia.Metadata{fakeMetadata("ok:value")}, nil
 	}, "ok")
 
-	meta, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/010", "")
+	meta, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/010")
 	if err == nil {
 		t.Fatal("expected the failing handler's error to be returned")
 	}
@@ -246,7 +246,7 @@ func Test_metadata_011(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/011", ""); err == nil {
+	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/011"); err == nil {
 		t.Fatal("expected an error for an already-canceled context")
 	}
 	if called {
@@ -262,12 +262,12 @@ func Test_metadata_012(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxKey{}, "hello")
 
 	var got any
-	AddHandler(regexp.MustCompile("^x-test/012$"), func(ctx context.Context, _ io.Reader, _ string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/012$"), func(ctx context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
 		got = ctx.Value(ctxKey{})
 		return nil, nil
 	}, "x")
 
-	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/012", ""); err != nil {
+	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/012"); err != nil {
 		t.Fatal(err)
 	}
 	if got != "hello" {
@@ -281,7 +281,7 @@ func Test_metadata_012(t *testing.T) {
 // leak it.
 func Test_metadata_013(t *testing.T) {
 	var ran bool
-	AddHandler(regexp.MustCompile("^x-test/013$"), func(_ context.Context, _ io.Reader, _ string) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/013$"), func(_ context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
 		time.Sleep(20 * time.Millisecond)
 		ran = true
 		return nil, nil
@@ -293,7 +293,7 @@ func Test_metadata_013(t *testing.T) {
 		cancel()
 	}()
 
-	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/013", ""); err != nil {
+	if _, err := GetMetadata(ctx, strings.NewReader("data"), "x-test/013"); err != nil {
 		t.Fatal(err)
 	}
 	if !ran {

@@ -37,7 +37,7 @@ func init() {
 	mime.AddExtensionType(".psd", "application/vnd.adobe.photoshop")
 	mime.AddExtensionType(".psb", "application/vnd.adobe.photoshop")
 
-	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
@@ -48,11 +48,12 @@ func init() {
 			return nil, err
 		}
 
-		return photoshopMetadata(cfg, filter)
+		return photoshopMetadata(cfg, o)
 	}, "photoshop", "xmp")
 
-	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
-		if filter != "artwork:" && filter != "artwork:thumbnail" {
+	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		// Reject unless the "artwork" namespace was requested
+		if !o.HasNamespace("artwork") {
 			return nil, nil
 		}
 
@@ -70,7 +71,7 @@ func init() {
 	}, "artwork")
 }
 
-func photoshopMetadata(cfg psd.Config, filter string) ([]gomedia.Metadata, error) {
+func photoshopMetadata(cfg psd.Config, o *metadata.Opts) ([]gomedia.Metadata, error) {
 	entries := map[string]gomedia.Metadata{
 		"photoshop:Format":    meta{key: "photoshop:Format", value: photoshopFormat(cfg.Version)},
 		"photoshop:Version":   meta{key: "photoshop:Version", value: cfg.Version},
@@ -89,7 +90,7 @@ func photoshopMetadata(cfg psd.Config, filter string) ([]gomedia.Metadata, error
 		}
 	}
 
-	return metadata.FilterMetadata(entries, filter), nil
+	return metadata.FilterMetadata(entries, o), nil
 }
 
 func photoshopFormat(version int) string {

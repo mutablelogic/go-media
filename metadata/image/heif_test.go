@@ -26,7 +26,7 @@ func Test_heif_metadata_000(t *testing.T) {
 	}
 	defer f.Close()
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "tiff:")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("tiff"))
 	if err != nil {
 		t.Fatal(err)
 	}

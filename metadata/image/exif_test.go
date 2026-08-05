@@ -41,7 +41,7 @@ func Test_image_000(t *testing.T) {
 			}
 			defer f.Close()
 
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
+			meta, err := metadata.GetMetadata(context.Background(), f, contentType)
 			if err != nil {
 				// A handler error is a warning, not fatal: other handlers
 				// for the same content type may still have succeeded.

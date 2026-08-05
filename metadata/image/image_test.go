@@ -40,7 +40,7 @@ func Test_image_metadata_000(t *testing.T) {
 			}
 			defer f.Close()
 
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, "image:")
+			meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("image"))
 			if err != nil {
 				t.Fatal(err)
 			}

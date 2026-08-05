@@ -56,7 +56,7 @@ func (req *MetadataRequest) Run(ctx schema.Context) error {
 	}
 
 	// Second pass: extract metadata
-	items, err := metadata.GetMetadata(ctx, seeker, contentType, "")
+	items, err := metadata.GetMetadata(ctx, seeker, contentType)
 	if err != nil && len(items) == 0 {
 		return err
 	} else if err != nil {
@@ -74,7 +74,7 @@ func (req *MetadataRequest) Run(ctx schema.Context) error {
 	}
 
 	// Third pass: extract artwork
-	items, err = metadata.GetMetadata(ctx, seeker, contentType, "artwork:")
+	items, err = metadata.GetMetadata(ctx, seeker, contentType, metadata.WithNamespace("artwork"))
 	if err != nil && len(items) == 0 {
 		return err
 	} else if err != nil {

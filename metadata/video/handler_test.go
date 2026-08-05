@@ -31,7 +31,7 @@ func Test_handler_000(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType)
 	if err != nil {
 		t.Fatal(err)
 	}

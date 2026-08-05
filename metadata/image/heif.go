@@ -15,7 +15,7 @@ import (
 // LIFECYCLE
 
 func init() {
-	metadata.AddHandler(regexp.MustCompile(`^image/(?:heic|heics|heif|heifs|avif|avis)$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^image/(?:heic|heics|heif|heifs|avif|avis)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
@@ -32,11 +32,12 @@ func init() {
 			entries[m.Key()] = m
 		}
 
-		return metadata.FilterMetadata(entries, filter), nil
+		return metadata.FilterMetadata(entries, o), nil
 	}, "tiff", "exif", "dc", "xmp")
 
-	metadata.AddHandler(regexp.MustCompile(`^image/(?:heic|heics|heif|heifs|avif|avis)$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
-		if filter != "artwork:" && filter != "artwork:thumbnail" {
+	metadata.AddHandler(regexp.MustCompile(`^image/(?:heic|heics|heif|heifs|avif|avis)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		// Reject unless the "artwork" namespace was requested
+		if !o.HasNamespace("artwork") {
 			return nil, nil
 		}
 

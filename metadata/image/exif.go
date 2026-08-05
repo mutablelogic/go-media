@@ -244,7 +244,7 @@ func exifTagsToMetadata(tags []*exif.Tag) map[string]gomedia.Metadata {
 
 func init() {
 	// Add metadata handler for jpeg files
-	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Retrieve the EXIF metadata from the JPEG file
 		f, err := exif.Read(r)
 		if err != nil {
@@ -253,6 +253,6 @@ func init() {
 		defer f.Close()
 
 		entries := exifTagsToMetadata(f.Tags())
-		return metadata.FilterMetadata(entries, filter), nil
+		return metadata.FilterMetadata(entries, o), nil
 	}, "tiff", "exif")
 }

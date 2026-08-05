@@ -31,7 +31,7 @@ func Test_raw_000(t *testing.T) {
 	}
 	defer f.Close()
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType)
 	if err != nil {
 		// The generic image/* decoder handler is expected to fail on RAW
 		// bytes (they're not a stdlib-decodable image container); that's a
@@ -73,17 +73,9 @@ func Test_raw_000(t *testing.T) {
 // Test_raw_001 checks that namespace-scoped filters only return entries
 // from that namespace.
 func Test_raw_001(t *testing.T) {
-	tests := []struct {
-		filter    string
-		namespace string
-	}{
-		{"tiff:", "tiff"},
-		{"exif:", "exif"},
-		{"dc:", "dc"},
-		{"image:", "image"},
-	}
-	for _, test := range tests {
-		t.Run(test.filter, func(t *testing.T) {
+	namespaces := []string{"tiff", "exif", "dc", "image"}
+	for _, namespace := range namespaces {
+		t.Run(namespace, func(t *testing.T) {
 			path := filepath.Join(TEST_DIR, rawTestFile)
 			contentType := contentTypeForFile(t, path)
 
@@ -93,49 +85,45 @@ func Test_raw_001(t *testing.T) {
 			}
 			defer f.Close()
 
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, test.filter)
+			meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace(namespace))
 			if err != nil {
 				// image: also matches the generic image/* decoder handler,
 				// which is expected to fail on RAW bytes
 				t.Logf("warning: %v", err)
 			}
 			if len(meta) == 0 {
-				t.Fatalf("expected at least one entry for filter %q", test.filter)
+				t.Fatalf("expected at least one entry for namespace %q", namespace)
 			}
 			for _, m := range meta {
-				namespace, _, _ := strings.Cut(m.Key(), ":")
-				if !strings.EqualFold(namespace, test.namespace) {
-					t.Errorf("key %q does not belong to namespace %q", m.Key(), test.namespace)
+				ns, _, _ := strings.Cut(m.Key(), ":")
+				if !strings.EqualFold(ns, namespace) {
+					t.Errorf("key %q does not belong to namespace %q", m.Key(), namespace)
 				}
 			}
 		})
 	}
 }
 
-// Test_raw_002 checks that filter="artwork:"/"artwork:thumbnail" extracts
-// the embedded preview image as a valid, decodable thumbnail.
+// Test_raw_002 checks that requesting the "artwork" namespace extracts the
+// embedded preview image as a valid, decodable thumbnail.
 func Test_raw_002(t *testing.T) {
-	for _, filter := range []string{"artwork:", "artwork:thumbnail"} {
-		t.Run(filter, func(t *testing.T) {
-			path := filepath.Join(TEST_DIR, rawTestFile)
-			contentType := contentTypeForFile(t, path)
+	path := filepath.Join(TEST_DIR, rawTestFile)
+	contentType := contentTypeForFile(t, path)
 
-			f, err := os.Open(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, filter)
-			if err != nil {
-				// The generic image/* artwork handler also matches this
-				// content type and is expected to fail decoding RAW bytes
-				t.Logf("warning: %v", err)
-			}
-			if len(meta) != 1 {
-				t.Fatalf("expected 1 artwork entry, got %d", len(meta))
-			}
-			assertArtwork(t, meta[0])
-		})
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer f.Close()
+
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("artwork"))
+	if err != nil {
+		// The generic image/* artwork handler also matches this content
+		// type and is expected to fail decoding RAW bytes
+		t.Logf("warning: %v", err)
+	}
+	if len(meta) != 1 {
+		t.Fatalf("expected 1 artwork entry, got %d", len(meta))
+	}
+	assertArtwork(t, meta[0])
 }
