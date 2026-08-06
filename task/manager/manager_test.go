@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -182,6 +183,65 @@ func TestManager_StartOutlivesCallerContext(t *testing.T) {
 	status, err := mgr.Wait(context.Background(), id)
 	require.NoError(err)
 	require.Equal(schema.StateDone, status.State())
+}
+
+// TestManager_StartConcurrentWithGetTask is a regression test for a
+// suspected lock-order inversion between Start (which briefly held a
+// task's own lock while acquiring the Manager's) and GetTask/Cancel/
+// Remove/Wait (which acquire the two locks sequentially, never nested) -
+// see the comment in Start for the details. It hammers Start and GetTask
+// concurrently across many tasks and requires the whole thing to finish
+// well within a generous deadline; a reintroduced lock-order inversion
+// would hang this test rather than fail an assertion, so the real
+// assertion here is "this returns at all."
+func TestManager_StartConcurrentWithGetTask(t *testing.T) {
+	require := require.New(t)
+	mgr, ctx := test.Begin(t)
+	defer test.End(t)
+
+	const n = 50
+	ids := make([]uuid.UUID, n)
+	tasks := make([]*fakeTask, n)
+	for i := range ids {
+		tasks[i] = &fakeTask{done: make(chan struct{})}
+		id, err := mgr.Add(ctx, "probe", tasks[i])
+		require.NoError(err)
+		ids[i] = id
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		wg.Add(2 * n)
+		for _, id := range ids {
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				_ = mgr.Start(ctx, id)
+			}(id)
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					_, _ = mgr.GetTask(ctx, id)
+				}
+			}(id)
+		}
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start/GetTask deadlocked under concurrent load")
+	}
+
+	for _, task := range tasks {
+		close(task.done)
+	}
+	for _, id := range ids {
+		_, err := mgr.Wait(ctx, id)
+		require.NoError(err)
+	}
 }
 
 func TestManager_StartTwiceFails(t *testing.T) {
