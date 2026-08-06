@@ -24,13 +24,20 @@ type entry struct {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// Cancel if it's currently running, and reports whether it
-// did so. The caller must hold e's lock.
-func (e *entry) Cancel() bool {
+// Cancel marks e cancelled if it's currently running, and returns the
+// context.CancelFunc to actually stop it, or nil if there's nothing to
+// cancel (never started, or already finished). The caller must hold e's
+// lock for this call, but must call the returned func only after releasing
+// it - and, if a Cancelled event is going to be emitted, only after that
+// emit has completed. Calling it cancels the task's own ctx, which
+// synchronously unblocks its Run goroutine; that goroutine then races to
+// re-acquire e's lock for its own Finished bookkeeping, so calling the
+// func too early can let a Finished event overtake a Cancelled event that
+// logically preceded it.
+func (e *entry) Cancel() (context.CancelFunc, bool) {
 	if e.cancel == nil || !e.status.Finished.IsZero() {
-		return false
+		return nil, false
 	}
 	e.status.Cancelled = true
-	e.cancel()
-	return true
+	return e.cancel, true
 }

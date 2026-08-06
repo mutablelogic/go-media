@@ -82,12 +82,12 @@ func TestAudioProfile_Set_Profile_Unsupported(t *testing.T) {
 
 	options := schema.OptionsForCodec(ff.AVCodec_find_encoder_by_name("aac"))
 	for _, opt := range options {
-		if opt.Name == schema.OptionProfile {
+		if opt.Name == schema.OptionAudioProfile {
 			t.Skip("aac encoder now declares a profile option; this codec no longer demonstrates the unsupported case")
 		}
 	}
 
-	if err := profile.Set(schema.OptionProfile, "LC"); err == nil {
+	if err := profile.Set(schema.OptionAudioProfile, "LC"); err == nil {
 		t.Fatal("Set(profile): expected error for codec with no profile concept")
 	}
 }
@@ -101,8 +101,8 @@ func TestOptionsForCodec_NoProfileOption_Audio(t *testing.T) {
 		t.Skip("libmp3lame encoder not available")
 	}
 	for _, opt := range schema.OptionsForCodec(codec) {
-		if opt.Name == schema.OptionProfile {
-			t.Fatalf("OptionsForCodec(libmp3lame): unexpected %q option for a codec with no profile concept", schema.OptionProfile)
+		if opt.Name == schema.OptionAudioProfile {
+			t.Fatalf("OptionsForCodec(libmp3lame): unexpected %q option for a codec with no profile concept", schema.OptionAudioProfile)
 		}
 	}
 }
@@ -113,7 +113,7 @@ func TestAudioProfile_Set_Bitrate(t *testing.T) {
 		t.Fatalf("NewAudioProfile(aac): %v", err)
 	}
 
-	if err := profile.Set(schema.OptionBitrate, uint64(128000)); err != nil {
+	if err := profile.Set(schema.OptionAudioBitrate, uint64(128000)); err != nil {
 		t.Fatalf("Set(bitrate): %v", err)
 	}
 	if got := profile.Par().BitRate(); got != 128000 {

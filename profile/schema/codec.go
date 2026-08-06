@@ -190,7 +190,7 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 
 	// Bitrate Option
 	bitrate := Option{
-		Name:        OptionBitrate,
+		Name:        OptionAudioBitrate,
 		Description: "Audio bitrate in bits per second.",
 		Type:        "int",
 		Unit:        "bps",
@@ -258,7 +258,7 @@ func AudioOptionsForCodec(codec *ff.AVCodec) []Option {
 		// Codecs that expose profile only as their own private option
 		// (e.g. libx264/libx265) still get it via the private-class
 		// extraction in OptionsForCodec, without needing it added here.
-		result = append(result, profileOptionForCodec(codec))
+		result = append(result, profileOptionForCodec(codec, OptionAudioProfile))
 	}
 	return append(result, sample_rate, sample_format, channel_layout)
 }
@@ -270,7 +270,7 @@ func VideoOptionsForCodec(codec *ff.AVCodec) []Option {
 
 	// Bitrate Option
 	bitrate := Option{
-		Name:        OptionBitrate,
+		Name:        OptionVideoBitrate,
 		Description: "Video bitrate in bits per second.",
 		Type:        "int",
 		Unit:        "bps",
@@ -334,17 +334,18 @@ func VideoOptionsForCodec(codec *ff.AVCodec) []Option {
 		// Codecs that expose profile only as their own private option
 		// (e.g. libx264/libx265) still get it via the private-class
 		// extraction in OptionsForCodec, without needing it added here.
-		result = append(result, profileOptionForCodec(codec))
+		result = append(result, profileOptionForCodec(codec, OptionVideoProfile))
 	}
 	return append(result, width, height, pixel_format, frame_rate)
 }
 
 // profileOptionForCodec builds the shared "profile" Option (e.g. h264's
 // baseline/main/high, or aac's LC/HE-AAC/HE-AACv2), listing every profile
-// the codec advertises as a Const choice.
-func profileOptionForCodec(codec *ff.AVCodec) Option {
+// the codec advertises as a Const choice. name is OptionAudioProfile or
+// OptionVideoProfile, since the two are distinct options.
+func profileOptionForCodec(codec *ff.AVCodec, name string) Option {
 	profile := Option{
-		Name:        OptionProfile,
+		Name:        name,
 		Description: "Codec profile.",
 		Type:        "string",
 	}
@@ -409,7 +410,24 @@ func OptionsForCodec(codec *ff.AVCodec) []Option {
 			if name == "" {
 				continue
 			}
-			result = append(result, NewOption(opt))
+			// A codec's own private "profile" AVOption (e.g. libx264,
+			// libx265, prores_ks) is renamed to the audio/video-qualified
+			// name so it lands under the same catalog key as the synthetic
+			// profile option built by AudioOptionsForCodec/VideoOptionsForCodec
+			// below - letting the codec's own option dict take over for
+			// codecs that declare no static codec.Profiles() list (see the
+			// "profile" case in AudioProfileMeta.Set / VideoProfileMeta.Set).
+			if name == "profile" {
+				switch codec.Type() {
+				case ff.AVMEDIA_TYPE_AUDIO:
+					name = OptionAudioProfile
+				case ff.AVMEDIA_TYPE_VIDEO:
+					name = OptionVideoProfile
+				}
+			}
+			ffOption := NewOption(opt)
+			ffOption.Name = name
+			result = append(result, ffOption)
 		}
 
 		// Append the constants to the options

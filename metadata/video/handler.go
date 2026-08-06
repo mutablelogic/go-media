@@ -53,34 +53,63 @@ func init() {
 	ff.AVUtil_log_set_level(ff.AV_LOG_ERROR)
 
 	// Add metadata handler for video files
-	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "ffmpeg", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err
 		}
 		defer rd.Close()
 
-		entries := make(map[string]gomedia.Metadata)
+		entries := buildVideoEntries(rd.Metadata())
+		entries["video:duration"] = meta{key: "video:duration", value: rd.Duration()}
 
-		// Duration
-		entries["video:Duration"] = meta{key: "video:Duration", value: rd.Duration()}
-
-		// Tags, normalized and mapped onto dc:/video: keys where a
-		// canonical mapping exists; noisy or uninteresting tags are dropped
-		for _, tag := range rd.Metadata() {
-			key := sanitizeKey(tag.Key())
-			if key == "" {
-				continue
-			}
-			entries[key] = meta{key: key, value: tag.Value()}
-		}
-
-		return metadata.FilterMetadata(entries, filter), nil
+		return metadata.FilterMetadata(entries, o), nil
 	}, "dc", "video")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// buildVideoEntries normalizes a container's raw tags and maps them onto
+// dc:/video: keys where a canonical mapping exists (see sanitizeKey),
+// dropping noisy or uninteresting tags. It's kept separate from the
+// ffmpeg-backed handler so the merge logic below - which needs to see
+// every tag before deciding some of the output - can be tested without a
+// real media file:
+//
+//   - "synopsis" only becomes dc:description when there's no dedicated
+//     "description" tag to prefer instead; it's never surfaced as its own
+//     video:synopsis key.
+//   - "creation-time" is additionally mirrored to dc:date, reformatted as
+//     RFC 3339, whenever it parses as a timestamp.
+func buildVideoEntries(tags []gomedia.Metadata) map[string]gomedia.Metadata {
+	entries := make(map[string]gomedia.Metadata)
+
+	var synopsis, creationTime string
+	for _, tag := range tags {
+		key := sanitizeKey(tag.Key())
+		if key == "" {
+			continue
+		}
+		switch key {
+		case "video:synopsis":
+			synopsis = tag.Value()
+			continue
+		case "video:creation-time":
+			creationTime = tag.Value()
+		}
+		entries[key] = meta{key: key, value: tag.Value()}
+	}
+
+	if _, ok := entries["dc:description"]; !ok && synopsis != "" {
+		entries["dc:description"] = meta{key: "dc:description", value: synopsis}
+	}
+	if t, err := time.Parse(time.RFC3339Nano, creationTime); err == nil {
+		entries["dc:date"] = meta{key: "dc:date", value: t.Format(time.RFC3339)}
+	}
+
+	return entries
+}
 
 // sanitizeKey normalizes a raw ffmpeg/format tag key into a
 // "namespace:name" metadata key, mapping common variant spellings onto a
@@ -108,9 +137,9 @@ func sanitizeKey(key string) string {
 	case "description":
 		return "dc:description"
 	case "synopsis":
-		return "video:Synopsis"
+		return "video:synopsis"
 	case "date", "year":
-		return "video:Year"
+		return "video:year"
 	}
 
 	return "video:" + key

@@ -19,7 +19,7 @@ import (
 
 func init() {
 	// Add metadata handler for RAW camera files
-	metadata.AddHandler(raw.ContentTypes, func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(raw.ContentTypes, "raw", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		data, err := raw.Read(r)
 		if err != nil {
 			return nil, err
@@ -60,13 +60,14 @@ func init() {
 
 			// If artwork was requested, extract/resize/encode the embedded
 			// thumbnail the same way a standalone image file would be
-			if filter == "artwork:" || filter == "artwork:thumbnail" {
+			if o.HasNamespace("artwork") {
 				if m, err := ExtractArtwork(thumb, "artwork:thumbnail"); err == nil {
 					entries["artwork:thumbnail"] = m
 				}
 			}
 		}
 
-		return metadata.FilterMetadata(entries, filter), nil
+		mirrorDCDate(entries)
+		return metadata.FilterMetadata(entries, o), nil
 	}, "tiff", "exif", "image", "dc", "artwork")
 }

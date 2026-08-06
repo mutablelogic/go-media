@@ -2,9 +2,11 @@ package manager_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	// Packages
 	manager "github.com/mutablelogic/go-media/gomedia/manager"
@@ -36,9 +38,12 @@ func TestMetadata_NoTaskManager(t *testing.T) {
 // just when waiting was interrupted, so an early "if err != nil { return }"
 // right after Wait used to skip the cleanup Remove call entirely - a failed
 // metadata task would linger in the task manager forever, visible via
-// `gomedia tasks`. A nil reader fails before Run ever has a result to set
-// (schema.NewReadSeeker rejects it as its very first statement), so this is
-// a genuinely fatal case, unlike TestMetadata_ReturnsPartialResultOnWarning.
+// `gomedia tasks`. The request must fail during Run, not at Add (a nil
+// reader is now rejected there, by MetadataRequest.Validate, before a task
+// even exists to clean up) - a reader whose first Read errors gets past
+// Validate but still fails Run's very first statement, schema.NewReadSeeker,
+// so this is still a genuinely fatal, pre-result case, unlike
+// TestMetadata_ReturnsPartialResultOnWarning.
 func TestMetadata_RemovesFailedTaskFromManager(t *testing.T) {
 	taskMgr, err := taskmanager.New(context.Background())
 	if err != nil {
@@ -59,9 +64,9 @@ func TestMetadata_RemovesFailedTaskFromManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := taskmetadata.MetadataRequest{Reader: nil}
+	req := taskmetadata.MetadataRequest{Reader: iotest.ErrReader(errors.New("boom"))}
 	if _, err := media.Metadata(context.Background(), req); err == nil {
-		t.Fatal("expected an error for a nil reader")
+		t.Fatal("expected an error for a reader that fails on Read")
 	}
 
 	after, err := taskMgr.ListTasks(context.Background(), taskschema.TaskListRequest{})

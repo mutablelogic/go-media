@@ -13,7 +13,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (c *Client) CreateAudioProfile(ctx context.Context, req schema.AudioProfileMeta) (*schema.AudioProfile, error) {
+func (c *Client) CreateAudioProfile(ctx context.Context, req schema.AudioProfile) (*schema.AudioProfile, error) {
 	r, err := client.NewJSONRequest(req)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (c *Client) DeleteAudioProfile(ctx context.Context, uuid string) (*schema.A
 	return types.Ptr(response), nil
 }
 
-func (c *Client) UpdateAudioProfile(ctx context.Context, uuid string, req schema.AudioProfileMeta) (*schema.AudioProfile, error) {
+func (c *Client) UpdateAudioProfile(ctx context.Context, uuid string, req schema.AudioProfile) (*schema.AudioProfile, error) {
 	r, err := client.NewJSONRequestEx(http.MethodPatch, req, types.ContentTypeAny)
 	if err != nil {
 		return nil, err

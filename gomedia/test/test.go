@@ -22,10 +22,11 @@ import (
 // GLOBALS
 
 var (
-	shared       *manager.Media
-	sharedClient *httpclient.Client
-	sharedServer *httptest.Server
-	cancels      cancelRegistry
+	shared            *manager.Media
+	sharedTaskManager *taskmanager.Manager
+	sharedClient      *httpclient.Client
+	sharedServer      *httptest.Server
+	cancels           cancelRegistry
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,6 +90,7 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 	// A caller-supplied WithTaskManager (if any) takes precedence over this
 	// default, since it's listed first and apply() applies options in order.
 	opts = append([]manager.Opt{manager.WithTaskManager(taskMgr)}, opts...)
+	sharedTaskManager = taskMgr
 
 	media, err := manager.New(context.Background(), opts...)
 	if err != nil {
@@ -101,6 +103,9 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 		panic(err)
 	}
 	if err := httphandler.RegisterMetadataHandlers(media, router); err != nil {
+		panic(err)
+	}
+	if err := httphandler.RegisterEncoderHandlers(media, taskMgr, router); err != nil {
 		panic(err)
 	}
 	sharedServer = httptest.NewServer(router)
@@ -138,6 +143,7 @@ func Main(m *testing.M, setup func(*manager.Media) (func(), error), opts ...mana
 	}
 	sharedServer.Close()
 	shared = nil
+	sharedTaskManager = nil
 	sharedClient = nil
 	sharedServer = nil
 	teardown()
@@ -170,6 +176,17 @@ func Begin(t *testing.T) (*manager.Media, context.Context) {
 	return shared, ctx
 }
 
+// TaskManager returns the shared task manager - useful for a test to wait on
+// or inspect a task started by the Media under test (e.g. Media.Encode),
+// which doesn't wait for completion itself.
+func TaskManager(t *testing.T) *taskmanager.Manager {
+	t.Helper()
+	if sharedTaskManager == nil {
+		t.Fatal("test task manager is not initialized; call test.Main from TestMain")
+	}
+	return sharedTaskManager
+}
+
 // Client returns the shared HTTP client, wired to a test server with the
 // standard handlers registered.
 func Client(t *testing.T) *httpclient.Client {
@@ -178,6 +195,17 @@ func Client(t *testing.T) *httpclient.Client {
 		t.Fatal("test client is not initialized; call test.Main from TestMain")
 	}
 	return sharedClient
+}
+
+// ServerURL returns the base URL of the shared test server - useful for a
+// test that needs to make a raw HTTP request (e.g. a multipart upload with a
+// custom Accept header) rather than going through Client.
+func ServerURL(t *testing.T) string {
+	t.Helper()
+	if sharedServer == nil {
+		t.Fatal("test server is not initialized; call test.Main from TestMain")
+	}
+	return sharedServer.URL
 }
 
 // End releases the per-test context created by Begin.

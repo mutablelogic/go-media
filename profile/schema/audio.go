@@ -16,7 +16,6 @@ import (
 // TYPES
 
 type AudioProfileMeta struct {
-	Name string `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
 	ProfileMetaAudio
 	Opts json.RawMessage `json:"options,omitempty"` // Additional codec options
 
@@ -28,7 +27,8 @@ type AudioProfileMeta struct {
 }
 
 type AudioProfile struct {
-	Id uuid.UUID `json:"id,omitempty"` // Unique identifier for the audio profile
+	Id   uuid.UUID `json:"id,omitempty"`              // Unique identifier for the audio profile
+	Name string    `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
 	AudioProfileMeta
 }
 
@@ -49,8 +49,8 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 	}
 
 	self := &AudioProfile{
+		Name: encoder.Name(),
 		AudioProfileMeta: AudioProfileMeta{
-			Name:  encoder.Name(),
 			codec: encoder,
 			opts:  optionsForCodec(encoder),
 		},
@@ -63,6 +63,34 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 
 	// Return success
 	return self, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because codec/par/timebase/opts are unexported
+// (see NewAudioProfile) - without it, a client decoding an AudioProfile from
+// JSON would get one with a valid Name but a nil codec, which panics the
+// first time it's used (e.g. writer.WithProfile). Resolves the codec from
+// the decoded Name, exactly as NewAudioProfile does, then rebuilds par from
+// whichever exported fields (Bitrate, SampleRate, ...) were decoded.
+func (r *AudioProfile) UnmarshalJSON(data []byte) error {
+	type alias AudioProfile
+	aux := (*alias)(r)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Name)
+	}
+	r.codec = encoder
+	r.opts = optionsForCodec(encoder)
+
+	return r.setPar()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,11 +186,14 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - WRITER
 
-// Insert binds values and returns the insert query for an audio profile row.
-func (r AudioProfileMeta) Insert(bind *pg.Bind) (string, error) {
-	bind.Set("codec", r.Name)
-	bind.Set(OptionBitrate, r.Bitrate)
-	bind.Set(OptionProfile, r.Profile)
+// Insert binds values and returns the insert (or, if Id is set, upsert)
+// query for an audio profile row. Id is set when seeding a profile with a
+// deterministic id (see profile/manager's seed loader and schema.SeedUUID);
+// a normal create leaves the database to generate one.
+func (r AudioProfile) Insert(bind *pg.Bind) (string, error) {
+	bind.Set("name", r.Name)
+	bind.Set("bitrate", r.Bitrate)
+	bind.Set("profile", r.Profile)
 	bind.Set(OptionSampleRate, r.SampleRate)
 	bind.Set(OptionSampleFormat, r.SampleFormat)
 	bind.Set(OptionChannelLayout, r.ChannelLayout)
@@ -171,18 +202,23 @@ func (r AudioProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	} else {
 		bind.Set("opts", r.Opts)
 	}
+	if r.Id != uuid.Nil {
+		bind.Set("id", r.Id)
+		return bind.Query("profile.audio_upsert"), nil
+	}
 	return bind.Query("profile.audio_insert"), nil
 }
 
-// Update binds patch values for an audio profile row update.
-func (r AudioProfileMeta) Update(bind *pg.Bind) error {
+// Update binds patch values for an audio profile row update. The codec name
+// is immutable once a profile is created, so it is never part of the patch.
+func (r AudioProfile) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
-		bind.Append("patch", `"`+OptionBitrate+`" = `+bind.Set(OptionBitrate, bitrate))
+		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
 	}
 	if value := strings.TrimSpace(types.Value(r.Profile)); value != "" {
-		bind.Append("patch", `"`+OptionProfile+`" = `+bind.Set(OptionProfile, value))
+		bind.Append("patch", `"profile" = `+bind.Set("profile", value))
 	}
 	if sampleRate := types.Value(r.SampleRate); sampleRate > 0 {
 		bind.Append("patch", `"`+OptionSampleRate+`" = `+bind.Set(OptionSampleRate, sampleRate))
@@ -214,7 +250,7 @@ func (r *AudioProfileMeta) Set(name string, value any) error {
 	// Check for existing option
 	opt, exists := r.opts[name]
 	if !exists {
-		return gomedia.ErrBadParameter.Withf("option %q is not supported by codec %q", name, r.Name)
+		return gomedia.ErrBadParameter.Withf("option %q is not supported by codec %q", name, r.codec.Name())
 	}
 
 	// Unmarshal the options JSON into a map
@@ -228,9 +264,9 @@ func (r *AudioProfileMeta) Set(name string, value any) error {
 	// Remove existing option
 	if value == nil {
 		switch name {
-		case OptionBitrate:
+		case OptionAudioBitrate:
 			r.Bitrate = nil
-		case OptionProfile:
+		case OptionAudioProfile:
 			if len(r.codec.Profiles()) > 0 {
 				r.Profile = nil
 			} else {
@@ -250,9 +286,9 @@ func (r *AudioProfileMeta) Set(name string, value any) error {
 	} else {
 		// Set the option value
 		switch name {
-		case OptionBitrate:
+		case OptionAudioBitrate:
 			r.Bitrate = types.Ptr(value.(uint64))
-		case OptionProfile:
+		case OptionAudioProfile:
 			// Codecs that expose "profile" only as their own private string
 			// option (rather than the generic AVCodecParameters.profile
 			// field) don't declare anything in codec.Profiles() — for

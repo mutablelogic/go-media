@@ -27,8 +27,8 @@ type Profile interface {
 // parameters) and in AudioProfileMeta (whose values are user-configured),
 // so the two can't drift out of sync with each other.
 type ProfileMetaAudio struct {
-	Bitrate       *uint64 `json:"bitrate,omitempty"`        // bps
-	Profile       *string `json:"profile,omitempty"`        // Codec profile; "LC", "HE-AAC", ...
+	Bitrate       *uint64 `json:"audio_bitrate,omitempty"`  // bps
+	Profile       *string `json:"audio_profile,omitempty"`  // Codec profile; "LC", "HE-AAC", ...
 	SampleRate    *uint64 `json:"sample_rate,omitempty"`    // Hz
 	SampleFormat  *string `json:"sample_format,omitempty"`  // Audio sample format; "fltp", "s16"
 	ChannelLayout *string `json:"channel_layout,omitempty"` // Audio channel layout; "mono", "stereo"
@@ -37,12 +37,12 @@ type ProfileMetaAudio struct {
 // ProfileMetaVideo holds the video-specific fields of a ProfileMeta - see
 // ProfileMetaAudio's doc comment; VideoProfileMeta embeds this the same way.
 type ProfileMetaVideo struct {
-	Bitrate     *uint64  `json:"bitrate,omitempty"`      // bps
-	Profile     *string  `json:"profile,omitempty"`      // Codec profile; "high", "main", "baseline"
-	Width       *uint64  `json:"width,omitempty"`        // Frame width in pixels
-	Height      *uint64  `json:"height,omitempty"`       // Frame height in pixels
-	PixelFormat *string  `json:"pixel_format,omitempty"` // Video pixel format; "yuv420p", "nv12"
-	FrameRate   *float64 `json:"frame_rate,omitempty"`   // Frames per second
+	Bitrate     *uint64  `json:"video_bitrate,omitempty"` // bps
+	Profile     *string  `json:"video_profile,omitempty"` // Codec profile; "high", "main", "baseline"
+	Width       *uint64  `json:"width,omitempty"`         // Frame width in pixels
+	Height      *uint64  `json:"height,omitempty"`        // Frame height in pixels
+	PixelFormat *string  `json:"pixel_format,omitempty"`  // Video pixel format; "yuv420p", "nv12"
+	FrameRate   *float64 `json:"frame_rate,omitempty"`    // Frames per second
 }
 
 // ProfileMetaStream holds the fields specific to a stream already discovered
@@ -214,17 +214,18 @@ func profileMetaVideoFromPar(par *ff.AVCodecParameters, codec *ff.AVCodec) *Prof
 // GLOBALS
 
 const (
-	OptionBitrate = "bitrate"
-
 	// Audio options
-	OptionProfile       = "profile"
+	OptionAudioBitrate  = "audio_bitrate"
+	OptionAudioProfile  = "audio_profile"
 	OptionSampleRate    = "sample_rate"
 	OptionSampleFormat  = "sample_format"
 	OptionChannelLayout = "channel_layout"
 
 	// Video options
-	OptionWidth       = "width"
-	OptionHeight      = "height"
-	OptionPixelFormat = "pixel_format"
-	OptionFrameRate   = "frame_rate"
+	OptionVideoBitrate = "video_bitrate"
+	OptionVideoProfile = "video_profile"
+	OptionWidth        = "width"
+	OptionHeight       = "height"
+	OptionPixelFormat  = "pixel_format"
+	OptionFrameRate    = "frame_rate"
 )

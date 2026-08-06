@@ -66,6 +66,34 @@ func NewVideoProfile(codec string) (*VideoProfile, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// MARSHALING
+
+// UnmarshalJSON is required because codec/par/timebase/opts are unexported
+// (see NewVideoProfile) - without it, a client decoding a VideoProfile from
+// JSON would get one with a valid Name but a nil codec, which panics the
+// first time it's used (e.g. writer.WithProfile). Resolves the codec from
+// the decoded Name, exactly as NewVideoProfile does, then rebuilds par from
+// whichever exported fields (Bitrate, Width, ...) were decoded.
+func (r *VideoProfile) UnmarshalJSON(data []byte) error {
+	type alias VideoProfile
+	aux := (*alias)(r)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
+	if encoder == nil {
+		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
+	} else if encoder.Type() != ff.AVMEDIA_TYPE_VIDEO || encoder.IsEncoder() == false {
+		return gomedia.ErrBadParameter.Withf("codec %q is not a video encoding codec", r.Name)
+	}
+	r.codec = encoder
+	r.opts = optionsForCodec(encoder)
+
+	return r.setPar()
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r VideoProfile) String() string {
@@ -158,11 +186,28 @@ func (r VideoProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - WRITER
 
+// Insert binds values and returns the insert (or, if Id is set, upsert)
+// query for a video profile row. Id is set when seeding a profile with a
+// deterministic id (see profile/manager's seed loader and schema.SeedUUID);
+// a normal create leaves the database to generate one. Defined on
+// VideoProfile (rather than relying on VideoProfileMeta.Insert below) since
+// only the outer type has access to Id.
+func (r VideoProfile) Insert(bind *pg.Bind) (string, error) {
+	if _, err := r.VideoProfileMeta.Insert(bind); err != nil {
+		return "", err
+	}
+	if r.Id != uuid.Nil {
+		bind.Set("id", r.Id)
+		return bind.Query("profile.video_upsert"), nil
+	}
+	return bind.Query("profile.video_insert"), nil
+}
+
 // Insert binds values and returns the insert query for a video profile row.
 func (r VideoProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("codec", r.Name)
-	bind.Set(OptionBitrate, r.Bitrate)
-	bind.Set(OptionProfile, r.Profile)
+	bind.Set("bitrate", r.Bitrate)
+	bind.Set("profile", r.Profile)
 	bind.Set(OptionWidth, r.Width)
 	bind.Set(OptionHeight, r.Height)
 	bind.Set(OptionPixelFormat, r.PixelFormat)
@@ -180,10 +225,10 @@ func (r VideoProfileMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
-		bind.Append("patch", `"`+OptionBitrate+`" = `+bind.Set(OptionBitrate, bitrate))
+		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
 	}
 	if value := strings.TrimSpace(types.Value(r.Profile)); value != "" {
-		bind.Append("patch", `"`+OptionProfile+`" = `+bind.Set(OptionProfile, value))
+		bind.Append("patch", `"profile" = `+bind.Set("profile", value))
 	}
 	if width := types.Value(r.Width); width > 0 {
 		bind.Append("patch", `"`+OptionWidth+`" = `+bind.Set(OptionWidth, width))
@@ -232,9 +277,9 @@ func (r *VideoProfileMeta) Set(name string, value any) error {
 	// Remove existing option
 	if value == nil {
 		switch name {
-		case OptionBitrate:
+		case OptionVideoBitrate:
 			r.Bitrate = nil
-		case OptionProfile:
+		case OptionVideoProfile:
 			if len(r.codec.Profiles()) > 0 {
 				r.Profile = nil
 			} else {
@@ -256,9 +301,9 @@ func (r *VideoProfileMeta) Set(name string, value any) error {
 	} else {
 		// Set the option value
 		switch name {
-		case OptionBitrate:
+		case OptionVideoBitrate:
 			r.Bitrate = types.Ptr(value.(uint64))
-		case OptionProfile:
+		case OptionVideoProfile:
 			// Some encoders (e.g. libx264, libx265) expose "profile" only as
 			// their own private string option rather than the generic
 			// AVCodecParameters.profile field, and don't declare anything

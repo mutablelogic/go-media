@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	// Packages
+	gomedia "github.com/mutablelogic/go-media"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	task "github.com/mutablelogic/go-media/task/schema"
 )
@@ -40,4 +41,12 @@ func (r MetadataRequest) Query() url.Values {
 // Task identifies this task's kind, for Status.Task.
 func (r *MetadataRequest) Task() string {
 	return "metadata"
+}
+
+// Validate checks that r is well-formed: a non-nil Reader.
+func (r *MetadataRequest) Validate() error {
+	if r.Reader == nil {
+		return gomedia.ErrBadParameter.With("nil reader")
+	}
+	return nil
 }

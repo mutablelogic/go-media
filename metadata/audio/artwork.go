@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -19,10 +18,9 @@ import (
 
 func init() {
 	// Add metadata handler for embedded cover art in audio files
-	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
-		// Reject unless an "artwork:" namespace filter was requested
-		namespace, _, hasNamespace := strings.Cut(strings.ToLower(filter), ":")
-		if !hasNamespace || namespace != "artwork" {
+	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), "artwork", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		// Reject unless the "artwork" namespace was requested
+		if !o.HasNamespace("artwork") {
 			return nil, nil
 		}
 
@@ -54,6 +52,6 @@ func init() {
 			entries[key] = m
 		}
 
-		return metadata.FilterMetadata(entries, filter), nil
+		return metadata.FilterMetadata(entries, o), nil
 	}, "artwork")
 }

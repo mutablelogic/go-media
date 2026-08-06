@@ -14,37 +14,33 @@ import (
 	_ "github.com/mutablelogic/go-media/metadata/image"
 )
 
-// Test_artwork_000 checks that filter="artwork:" and "artwork:thumbnail"
-// both return a single, valid artwork entry.
+// Test_artwork_000 checks that requesting the "artwork" namespace returns a
+// single, valid artwork entry.
 func Test_artwork_000(t *testing.T) {
-	for _, filter := range []string{"artwork:", "artwork:thumbnail"} {
-		t.Run(filter, func(t *testing.T) {
-			path := filepath.Join(TEST_DIR, "sample.jpg")
-			contentType := contentTypeForFile(t, path)
+	path := filepath.Join(TEST_DIR, "sample.jpg")
+	contentType := contentTypeForFile(t, path)
 
-			f, err := os.Open(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer f.Close()
-
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, filter)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(meta) != 1 {
-				t.Fatalf("expected 1 artwork entry, got %d", len(meta))
-			}
-			assertArtwork(t, meta[0])
-		})
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer f.Close()
+
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("artwork"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(meta) != 1 {
+		t.Fatalf("expected 1 artwork entry, got %d", len(meta))
+	}
+	assertArtwork(t, meta[0])
 }
 
-// Test_artwork_001 checks that filters unrelated to artwork don't trigger
-// artwork extraction.
+// Test_artwork_001 checks that namespaces other than "artwork" (including
+// no namespace filter at all) don't trigger artwork extraction.
 func Test_artwork_001(t *testing.T) {
-	for _, filter := range []string{"", "tiff:", "image:"} {
-		t.Run(filter, func(t *testing.T) {
+	for _, namespace := range []string{"", "tiff", "image"} {
+		t.Run(namespace, func(t *testing.T) {
 			path := filepath.Join(TEST_DIR, "sample.jpg")
 			contentType := contentTypeForFile(t, path)
 
@@ -54,13 +50,18 @@ func Test_artwork_001(t *testing.T) {
 			}
 			defer f.Close()
 
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, filter)
+			var opts []metadata.Option
+			if namespace != "" {
+				opts = append(opts, metadata.WithNamespace(namespace))
+			}
+
+			meta, err := metadata.GetMetadata(context.Background(), f, contentType, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, m := range meta {
 				if m.Key() == "artwork:thumbnail" {
-					t.Fatalf("did not expect artwork:thumbnail for filter %q", filter)
+					t.Fatalf("did not expect artwork:thumbnail for namespace %q", namespace)
 				}
 			}
 		})
@@ -84,7 +85,7 @@ func Test_artwork_002(t *testing.T) {
 	}
 	defer f.Close()
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "artwork:")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("artwork"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func Test_artwork_003(t *testing.T) {
 	}
 	defer f.Close()
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "artwork:")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("artwork"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +148,7 @@ func Test_artwork_004(t *testing.T) {
 			}
 			defer f.Close()
 
-			meta, err := metadata.GetMetadata(context.Background(), f, contentType, "artwork:")
+			meta, err := metadata.GetMetadata(context.Background(), f, contentType, metadata.WithNamespace("artwork"))
 			if err != nil {
 				t.Fatal(err)
 			}

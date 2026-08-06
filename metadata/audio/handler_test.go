@@ -13,7 +13,7 @@ import (
 
 const testDir = "../../etc/test"
 
-// Test_handler_000 checks that audio:Duration is extracted end-to-end via
+// Test_handler_000 checks that audio:duration is extracted end-to-end via
 // GetMetadata for a real audio/* file.
 func Test_handler_000(t *testing.T) {
 	path := testDir + "/sample.mp3"
@@ -31,14 +31,14 @@ func Test_handler_000(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
+	meta, err := metadata.GetMetadata(context.Background(), f, contentType)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var found bool
 	for _, m := range meta {
-		if m.Key() != "audio:Duration" {
+		if m.Key() != "audio:duration" {
 			continue
 		}
 		found = true
@@ -56,10 +56,10 @@ func Test_handler_000(t *testing.T) {
 		if sec <= 0 {
 			t.Errorf("Value() seconds = %v, want > 0", sec)
 		}
-		t.Logf("audio:Duration = %s (Any()=%v)", m.Value(), d)
+		t.Logf("audio:duration = %s (Any()=%v)", m.Value(), d)
 	}
 	if !found {
-		t.Fatal("expected audio:Duration in metadata")
+		t.Fatal("expected audio:duration in metadata")
 	}
 }
 
@@ -77,8 +77,8 @@ func Test_sanitizeKey_000(t *testing.T) {
 		{"AlbumTitle", "audio:Album"},
 		{"genre", "audio:Genre"},
 		{"music_genre", "audio:Genre"},
-		{"year", "audio:Year"},
-		{"originaldate", "audio:Year"},
+		{"year", "audio:year"},
+		{"originaldate", "audio:year"},
 		{"track", "audio:Track"},
 		{"iTunes_CDDB_TrackNumber", "audio:Track"},
 		{"encoder", "audio:encoder"},

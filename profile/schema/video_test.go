@@ -94,8 +94,8 @@ func TestOptionsForCodec_NoProfileOption_Video(t *testing.T) {
 		t.Skip("rawvideo encoder not available")
 	}
 	for _, opt := range schema.OptionsForCodec(codec) {
-		if opt.Name == schema.OptionProfile {
-			t.Fatalf("OptionsForCodec(rawvideo): unexpected %q option for a codec with no profile concept", schema.OptionProfile)
+		if opt.Name == schema.OptionVideoProfile {
+			t.Fatalf("OptionsForCodec(rawvideo): unexpected %q option for a codec with no profile concept", schema.OptionVideoProfile)
 		}
 	}
 }
@@ -120,7 +120,7 @@ func TestVideoProfile_Set_Profile(t *testing.T) {
 		t.Skipf("prores_ks encoder not available: %v", err)
 	}
 
-	if err := profile.Set(schema.OptionProfile, "proxy"); err != nil {
+	if err := profile.Set(schema.OptionVideoProfile, "proxy"); err != nil {
 		t.Fatalf("Set(profile, %q): %v", "proxy", err)
 	}
 	if got := profile.Par().Profile(); got == int(ff.AV_PROFILE_UNKNOWN) {
@@ -133,7 +133,7 @@ func TestVideoProfile_Set_Profile_Invalid(t *testing.T) {
 	if err != nil {
 		t.Skipf("prores_ks encoder not available: %v", err)
 	}
-	if err := profile.Set(schema.OptionProfile, "not_a_real_profile"); err == nil {
+	if err := profile.Set(schema.OptionVideoProfile, "not_a_real_profile"); err == nil {
 		t.Fatal("Set(profile): expected error for unknown profile")
 	}
 }
@@ -149,7 +149,7 @@ func TestVideoProfile_Set_Profile_PrivateOptionFallback(t *testing.T) {
 		t.Skipf("libx264 encoder not available: %v", err)
 	}
 
-	if err := profile.Set(schema.OptionProfile, "high"); err != nil {
+	if err := profile.Set(schema.OptionVideoProfile, "high"); err != nil {
 		t.Fatalf("Set(profile, \"high\"): %v", err)
 	}
 	if got := profile.Par().Profile(); got != int(ff.AV_PROFILE_UNKNOWN) {

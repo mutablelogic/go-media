@@ -27,6 +27,18 @@ func metadataMap(items []gomedia.Metadata) map[string]gomedia.Metadata {
 	return out
 }
 
+// opts builds a *metadata.Opts from Options, for tests that call
+// photoshopMetadata directly rather than going through GetMetadata.
+func opts(o ...metadata.Option) *metadata.Opts {
+	out := &metadata.Opts{}
+	for _, opt := range o {
+		if err := opt(out); err != nil {
+			panic(err)
+		}
+	}
+	return out
+}
+
 func TestPhotoshopMetadataFromConfig(t *testing.T) {
 	var x bytes.Buffer
 	doc := xmp.New()
@@ -47,7 +59,7 @@ func TestPhotoshopMetadataFromConfig(t *testing.T) {
 		Res: map[int]psd.ImageResource{
 			photoshopXMPResourceID: {Data: x.Bytes()},
 		},
-	}, "")
+	}, opts())
 	if err != nil {
 		t.Fatalf("photoshopMetadata: %v", err)
 	}
@@ -83,7 +95,7 @@ func TestPhotoshopMetadataFromConfig(t *testing.T) {
 		Res: map[int]psd.ImageResource{
 			photoshopXMPResourceID: {Data: x.Bytes()},
 		},
-	}, "xmp:")
+	}, opts(metadata.WithNamespace("xmp")))
 	if err != nil {
 		t.Fatalf("photoshopMetadata(filter): %v", err)
 	}

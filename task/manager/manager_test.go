@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,10 @@ type fakeTask struct {
 
 func (t *fakeTask) Task() string {
 	return "fake"
+}
+
+func (t *fakeTask) Validate() error {
+	return nil
 }
 
 func (t *fakeTask) Run(ctx schema.Context) error {
@@ -139,6 +144,104 @@ func TestManager_StartCompletes(t *testing.T) {
 	require.Equal(schema.Progress{Current: 1, Total: 2}, status.Progress)
 	require.Equal("fake result", status.Result)
 	require.Greater(status.Duration(), time.Duration(0))
+}
+
+// TestManager_StartOutlivesCallerContext is a regression test: a task's own
+// execution must be scoped to Run's ctx, not whatever ctx Start happened to
+// be called with - otherwise a caller whose own ctx ends shortly after
+// Start returns (e.g. an HTTP request's context, once its handler returns
+// without waiting for the task) would cut the task short, even though it's
+// meant to keep running independently.
+func TestManager_StartOutlivesCallerContext(t *testing.T) {
+	require := require.New(t)
+	mgr, _ := test.Begin(t)
+	defer test.End(t)
+
+	ft := &fakeTask{done: make(chan struct{})}
+
+	id, err := mgr.Add(context.Background(), "probe", ft)
+	require.NoError(err)
+
+	// An already-cancelled ctx, scoping only this Start call - if Start
+	// wrongly used it as the task's own execution context too, the task
+	// would immediately observe ctx.Done() and return ctx.Err(), rather
+	// than actually running until ft.done closes.
+	startCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.NoError(mgr.Start(startCtx, id))
+
+	// Wait with a short deadline of its own - if the bug were present, the
+	// task would already be finished (with context.Canceled as its error)
+	// well before this expires, and Wait would return that immediately
+	// instead of timing out.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	_, err = mgr.Wait(waitCtx, id)
+	require.ErrorIs(err, context.DeadlineExceeded)
+
+	close(ft.done)
+	status, err := mgr.Wait(context.Background(), id)
+	require.NoError(err)
+	require.Equal(schema.StateDone, status.State())
+}
+
+// TestManager_StartConcurrentWithGetTask is a regression test for a
+// suspected lock-order inversion between Start (which briefly held a
+// task's own lock while acquiring the Manager's) and GetTask/Cancel/
+// Remove/Wait (which acquire the two locks sequentially, never nested) -
+// see the comment in Start for the details. It hammers Start and GetTask
+// concurrently across many tasks and requires the whole thing to finish
+// well within a generous deadline; a reintroduced lock-order inversion
+// would hang this test rather than fail an assertion, so the real
+// assertion here is "this returns at all."
+func TestManager_StartConcurrentWithGetTask(t *testing.T) {
+	require := require.New(t)
+	mgr, ctx := test.Begin(t)
+	defer test.End(t)
+
+	const n = 50
+	ids := make([]uuid.UUID, n)
+	tasks := make([]*fakeTask, n)
+	for i := range ids {
+		tasks[i] = &fakeTask{done: make(chan struct{})}
+		id, err := mgr.Add(ctx, "probe", tasks[i])
+		require.NoError(err)
+		ids[i] = id
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		wg.Add(2 * n)
+		for _, id := range ids {
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				_ = mgr.Start(ctx, id)
+			}(id)
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					_, _ = mgr.GetTask(ctx, id)
+				}
+			}(id)
+		}
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start/GetTask deadlocked under concurrent load")
+	}
+
+	for _, task := range tasks {
+		close(task.done)
+	}
+	for _, id := range ids {
+		_, err := mgr.Wait(ctx, id)
+		require.NoError(err)
+	}
 }
 
 func TestManager_StartTwiceFails(t *testing.T) {

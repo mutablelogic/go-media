@@ -53,7 +53,7 @@ func init() {
 	ff.AVUtil_log_set_level(ff.AV_LOG_ERROR)
 
 	// Add metadata handler for audio files
-	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), "ffmpeg", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err
@@ -63,7 +63,7 @@ func init() {
 		entries := make(map[string]gomedia.Metadata)
 
 		// Duration
-		entries["audio:Duration"] = meta{key: "audio:Duration", value: rd.Duration()}
+		entries["audio:duration"] = meta{key: "audio:duration", value: rd.Duration()}
 
 		// Tags, normalized and mapped onto dc:/audio: keys where a
 		// canonical mapping exists; noisy or uninteresting tags are dropped
@@ -75,7 +75,7 @@ func init() {
 			entries[key] = meta{key: key, value: tag.Value()}
 		}
 
-		return metadata.FilterMetadata(entries, filter), nil
+		return metadata.FilterMetadata(entries, o), nil
 	}, "dc", "audio")
 }
 
@@ -112,7 +112,7 @@ func sanitizeKey(key string) string {
 	case "genre", "music-genre":
 		return "audio:Genre"
 	case "originalyear", "year", "date", "originaldate", "tdor":
-		return "audio:Year"
+		return "audio:year"
 	case "itunes-cddb-tracknumber", "track", "tracknumber":
 		return "audio:Track"
 	}

@@ -16,7 +16,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
+func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.AudioProfile) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "CreateAudioProfile",
 		attribute.String("req", types.Stringify(req)),
 	)
@@ -32,7 +32,7 @@ func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.Audio
 
 		// Set options
 		if req.Bitrate != nil {
-			if err := audioProfile.Set(schema.OptionBitrate, types.Value(req.Bitrate)); err != nil {
+			if err := audioProfile.Set(schema.OptionAudioBitrate, types.Value(req.Bitrate)); err != nil {
 				return err
 			}
 		}
@@ -93,6 +93,26 @@ func (profile *Profile) GetAudioProfile(ctx context.Context, uuid uuid.UUID) (_ 
 	return types.Ptr(result), nil
 }
 
+func (profile *Profile) ResolveAudioProfile(ctx context.Context, req *schema.AudioProfile) (_ *schema.AudioProfile, err error) {
+	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "ResolveAudioProfile",
+		attribute.String("req", types.Stringify(req)),
+	)
+	defer func() { endSpan(err) }()
+
+	// Retrieve an existing audio profile if the UUID is set
+	result := types.Value(req)
+	if req.Id != uuid.Nil {
+		var base schema.AudioProfile
+		if err := profile.PoolConn.Get(ctx, &base, schema.AudioProfileUUID(req.Id)); err != nil {
+			return nil, pg.NormalizeError(err)
+		}
+		// TODO: Merge
+	}
+
+	// Return the resolved audio profile
+	return types.Ptr(result), nil
+}
+
 func (profile *Profile) DeleteAudioProfile(ctx context.Context, uuid uuid.UUID) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "DeleteAudioProfile",
 		attribute.String("uuid", uuid.String()),
@@ -107,7 +127,7 @@ func (profile *Profile) DeleteAudioProfile(ctx context.Context, uuid uuid.UUID) 
 	return types.Ptr(result), nil
 }
 
-func (profile *Profile) UpdateAudioProfile(ctx context.Context, uuid uuid.UUID, meta schema.AudioProfileMeta) (_ *schema.AudioProfile, err error) {
+func (profile *Profile) UpdateAudioProfile(ctx context.Context, uuid uuid.UUID, meta schema.AudioProfile) (_ *schema.AudioProfile, err error) {
 	ctx, endSpan := otel.StartSpan(profile.tracer, ctx, "UpdateAudioProfile",
 		attribute.String("uuid", uuid.String()),
 	)

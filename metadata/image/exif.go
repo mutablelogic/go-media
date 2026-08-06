@@ -157,8 +157,8 @@ func singleRationalToFloat(tag *exif.Tag) (float64, bool) {
 
 // exifTagsToMetadata converts raw EXIF tags into gomedia.Metadata, keyed by
 // "namespace:name" tag key, replacing date/time, GPS and other rational
-// tags with their parsed equivalents (see timeMetadata, floatMetadata).
-// It is shared by the JPEG handler and, for RAW files, the embedded
+// tags with their parsed equivalents (see timeMetadata, floatMetadata). It
+// is shared by the JPEG handler and, for RAW files, the embedded
 // thumbnail's EXIF data.
 func exifTagsToMetadata(tags []*exif.Tag) map[string]gomedia.Metadata {
 	// Create a map of tags first
@@ -239,12 +239,34 @@ func exifTagsToMetadata(tags []*exif.Tag) map[string]gomedia.Metadata {
 	return entries
 }
 
+// mirrorDCDate sets entries["dc:date"] to the most specific available
+// capture date/time, if any: DateTimeOriginal (when the image was
+// captured) is preferred over DateTimeDigitized or DateTime (the file's
+// own, possibly-later, modification time). It works from the final,
+// fully-merged entries map (rather than being folded into
+// exifTagsToMetadata) since RAW files' own curated DateTimeOriginal (see
+// pkg/raw/meta.go) isn't a timeMetadata value and only exists once merged
+// into the caller's entries map - checking Any() rather than the concrete
+// type handles both sources uniformly.
+func mirrorDCDate(entries map[string]gomedia.Metadata) {
+	for _, key := range []string{"exif:DateTimeOriginal", "exif:DateTimeDigitized", "tiff:DateTime"} {
+		m, ok := entries[key]
+		if !ok {
+			continue
+		}
+		if t, ok := m.Any().(time.Time); ok {
+			entries["dc:date"] = timeMetadata{key: "dc:date", t: t}
+			return
+		}
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func init() {
 	// Add metadata handler for jpeg files
-	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), "exif", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Retrieve the EXIF metadata from the JPEG file
 		f, err := exif.Read(r)
 		if err != nil {
@@ -253,6 +275,7 @@ func init() {
 		defer f.Close()
 
 		entries := exifTagsToMetadata(f.Tags())
-		return metadata.FilterMetadata(entries, filter), nil
-	}, "tiff", "exif")
+		mirrorDCDate(entries)
+		return metadata.FilterMetadata(entries, o), nil
+	}, "tiff", "exif", "dc")
 }

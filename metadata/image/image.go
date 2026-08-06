@@ -68,7 +68,7 @@ func (m *imageMetadata) Any() any {
 
 func init() {
 	// Add metadata handler for image files in general
-	metadata.AddHandler(regexp.MustCompile("^image/.*$"), func(_ context.Context, r io.Reader, filter string) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile("^image/.*$"), "image", func(_ context.Context, r io.Reader, _ *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Decode the image
 		img, format, err := image.Decode(r)
 		if err != nil {
