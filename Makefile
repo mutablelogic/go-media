@@ -6,7 +6,7 @@ CURL=$(shell which curl)
 NPM ?= $(shell which npm 2>/dev/null)
 
 # Curl retry policy for flaky downloads
-CURL_RETRY_FLAGS = --fail --location --retry 3 --retry-delay 5 --retry-all-errors
+CURL_RETRY_FLAGS = --fail --location --retry 5 --retry-delay 10 --retry-all-errors
 
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
@@ -84,8 +84,8 @@ $(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 ${BUILD_DIR}/${FFMPEG_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
 		echo "Downloading $(FFMPEG_VERSION)"; \
-		$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
-		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)"; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz && \
+		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)" && \
 		rm -f "$(BUILD_DIR)/ffmpeg.tar.gz"; \
 	fi
 
