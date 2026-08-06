@@ -186,7 +186,10 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - WRITER
 
-// Insert binds values and returns the insert query for an audio profile row.
+// Insert binds values and returns the insert (or, if Id is set, upsert)
+// query for an audio profile row. Id is set when seeding a profile with a
+// deterministic id (see profile/manager's seed loader and schema.SeedUUID);
+// a normal create leaves the database to generate one.
 func (r AudioProfile) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("name", r.Name)
 	bind.Set("bitrate", r.Bitrate)
@@ -198,6 +201,10 @@ func (r AudioProfile) Insert(bind *pg.Bind) (string, error) {
 		bind.Set("opts", map[string]any{})
 	} else {
 		bind.Set("opts", r.Opts)
+	}
+	if r.Id != uuid.Nil {
+		bind.Set("id", r.Id)
+		return bind.Query("profile.audio_upsert"), nil
 	}
 	return bind.Query("profile.audio_insert"), nil
 }

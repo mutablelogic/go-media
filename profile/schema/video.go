@@ -186,6 +186,23 @@ func (r VideoProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - WRITER
 
+// Insert binds values and returns the insert (or, if Id is set, upsert)
+// query for a video profile row. Id is set when seeding a profile with a
+// deterministic id (see profile/manager's seed loader and schema.SeedUUID);
+// a normal create leaves the database to generate one. Defined on
+// VideoProfile (rather than relying on VideoProfileMeta.Insert below) since
+// only the outer type has access to Id.
+func (r VideoProfile) Insert(bind *pg.Bind) (string, error) {
+	if _, err := r.VideoProfileMeta.Insert(bind); err != nil {
+		return "", err
+	}
+	if r.Id != uuid.Nil {
+		bind.Set("id", r.Id)
+		return bind.Query("profile.video_upsert"), nil
+	}
+	return bind.Query("profile.video_insert"), nil
+}
+
 // Insert binds values and returns the insert query for a video profile row.
 func (r VideoProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("codec", r.Name)

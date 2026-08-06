@@ -80,10 +80,9 @@ $(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 ${BUILD_DIR}/${FFMPEG_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
 		echo "Downloading $(FFMPEG_VERSION)"; \
-		mkdir -p $(BUILD_DIR)/${FFMPEG_VERSION}; \
-		curl -L -o $(BUILD_DIR)/ffmpeg.tar.gz https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
-		tar -xzf $(BUILD_DIR)/ffmpeg.tar.gz -C $(BUILD_DIR); \
-		rm -f $(BUILD_DIR)/ffmpeg.tar.gz; \
+		curl --fail --location --retry 3 --retry-delay 5 --retry-all-errors -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
+		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)"; \
+		rm -f "$(BUILD_DIR)/ffmpeg.tar.gz"; \
 	fi
 
 # Configure ffmpeg
