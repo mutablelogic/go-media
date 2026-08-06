@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	// Packages
+	metadata "github.com/mutablelogic/go-media/metadata"
 	pg "github.com/mutablelogic/go-pg"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -24,8 +25,13 @@ type Context struct {
 	// Result sets the task's output, retrievable afterwards via the
 	// Manager's Status.
 	Result func(any)
+
+	// Return the metadata options, used by the metadata task
+	MetaOpts func() []metadata.Option
 }
 
+// Task is the interface that all tasks must implement. A task is a unit of work that can be run asynchronously,
+// and can report progress and results back to the caller.
 type Task interface {
 	// Task returns the task's own kind, e.g. "metadata" - fixed by the
 	// implementation, unlike the caller-chosen name passed to Manager.Add.

@@ -21,7 +21,7 @@ import (
 // task manager afterwards (see task/httphandler), for a caller to poll,
 // stream events for, or cancel by its UUID.
 func (m *Media) Encode(ctx context.Context, req taskencoder.EncodeRequest) (_ *taskschema.Status, err error) {
-	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "Encode",
+	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "gomedia.encode",
 		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()

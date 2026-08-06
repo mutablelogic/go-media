@@ -6,6 +6,7 @@ import (
 	gomedia "github.com/mutablelogic/go-media"
 	tmdb "github.com/mutablelogic/go-media/tmdb/httpclient"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	trace "go.opentelemetry.io/otel/trace"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +15,9 @@ import (
 type Opts struct {
 	// List of namespaces that the caller is interested in.
 	namespaces []string
+
+	// Add OTEL tracing
+	tracer trace.Tracer
 
 	// When non-nil, this is the TMDB client used to fetch metadata from TMDB.
 	tmdb *tmdb.Client
@@ -55,6 +59,14 @@ func applyOptions(opts ...Option) (*Opts, error) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Set the otel tracer to use for metadata operations.
+func WithTracer(tracer trace.Tracer) Option {
+	return func(o *Opts) error {
+		o.tracer = tracer
+		return nil
+	}
+}
 
 // Return only the metadata from the given namespaces.
 func WithNamespace(ns ...string) Option {

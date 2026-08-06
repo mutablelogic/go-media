@@ -2,6 +2,8 @@ package manager
 
 import (
 	// Packages
+	client "github.com/mutablelogic/go-client"
+	metadata "github.com/mutablelogic/go-media/metadata"
 	trace "go.opentelemetry.io/otel/trace"
 )
 
@@ -12,7 +14,8 @@ import (
 type Opt func(*opt) error
 
 type opt struct {
-	tracer trace.Tracer
+	metaopts []metadata.Option
+	tracer   trace.Tracer
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +44,15 @@ func (o *opt) defaults() {}
 func WithTracer(tracer trace.Tracer) Opt {
 	return func(o *opt) error {
 		o.tracer = tracer
+		o.metaopts = append(o.metaopts, metadata.WithTracer(tracer))
+		return nil
+	}
+}
+
+// WithTMDB enables TMDB metadata extraction, using the given token and client options.
+func WithTMDB(token string, clientopts ...client.ClientOpt) Opt {
+	return func(o *opt) error {
+		o.metaopts = append(o.metaopts, metadata.WithTMDB(token, clientopts...))
 		return nil
 	}
 }

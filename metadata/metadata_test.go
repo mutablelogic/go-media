@@ -50,7 +50,7 @@ func Test_metadata_000(t *testing.T) {
 			t.Fatal("expected panic for nil regexp")
 		}
 	}()
-	AddHandler(nil, markerHandler(new(bool)))
+	AddHandler(nil, "test", markerHandler(new(bool)))
 }
 
 func Test_metadata_001(t *testing.T) {
@@ -60,7 +60,7 @@ func Test_metadata_001(t *testing.T) {
 			t.Fatal("expected panic for nil handler")
 		}
 	}()
-	AddHandler(regexp.MustCompile("^x-test/001$"), nil)
+	AddHandler(regexp.MustCompile("^x-test/001$"), "test", nil)
 }
 
 func Test_metadata_002(t *testing.T) {
@@ -73,7 +73,7 @@ func Test_metadata_002(t *testing.T) {
 func Test_metadata_003(t *testing.T) {
 	// A registered handler should be returned for a matching content type
 	var called bool
-	AddHandler(regexp.MustCompile("^x-test/003$"), markerHandler(&called))
+	AddHandler(regexp.MustCompile("^x-test/003$"), "test", markerHandler(&called))
 
 	handlers := GetHandlers("x-test/003")
 	if len(handlers) != 1 {
@@ -90,8 +90,8 @@ func Test_metadata_003(t *testing.T) {
 func Test_metadata_004(t *testing.T) {
 	// When multiple handlers match, all of them should be returned
 	var a, b bool
-	AddHandler(regexp.MustCompile("^x-test/004$"), markerHandler(&a))
-	AddHandler(regexp.MustCompile("^x-test/004$"), markerHandler(&b))
+	AddHandler(regexp.MustCompile("^x-test/004$"), "a", markerHandler(&a))
+	AddHandler(regexp.MustCompile("^x-test/004$"), "b", markerHandler(&b))
 
 	handlers := GetHandlers("x-test/004")
 	if len(handlers) != 2 {
@@ -112,7 +112,7 @@ func Test_metadata_004(t *testing.T) {
 // lookup, rather than the stale cached entry being returned forever.
 func Test_metadata_005(t *testing.T) {
 	var initial, later bool
-	AddHandler(regexp.MustCompile("^x-test/005$"), markerHandler(&initial))
+	AddHandler(regexp.MustCompile("^x-test/005$"), "initial", markerHandler(&initial))
 
 	// Prime the cache
 	handlers := GetHandlers("x-test/005")
@@ -127,7 +127,7 @@ func Test_metadata_005(t *testing.T) {
 	}
 
 	// Register another handler for the same content type
-	AddHandler(regexp.MustCompile("^x-test/005$"), markerHandler(&later))
+	AddHandler(regexp.MustCompile("^x-test/005$"), "later", markerHandler(&later))
 
 	handlers2 := GetHandlers("x-test/005")
 	if len(handlers2) != 2 {
@@ -138,8 +138,8 @@ func Test_metadata_005(t *testing.T) {
 // Regression test: concurrent calls to GetHandlers (with AddHandler
 // interleaved) must not race on the internal cache.
 func Test_metadata_006(t *testing.T) {
-	AddHandler(regexp.MustCompile("^x-test/006-a$"), markerHandler(new(bool)))
-	AddHandler(regexp.MustCompile("^x-test/006-b$"), markerHandler(new(bool)))
+	AddHandler(regexp.MustCompile("^x-test/006-a$"), "a", markerHandler(new(bool)))
+	AddHandler(regexp.MustCompile("^x-test/006-b$"), "b", markerHandler(new(bool)))
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -160,11 +160,11 @@ func Test_metadata_006(t *testing.T) {
 // namespace explicitly requested via WithNamespace.
 func Test_metadata_007(t *testing.T) {
 	var tiffCalled, exifCalled bool
-	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/007$"), "tiff", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		tiffCalled = true
 		return nil, nil
 	}, "tiff")
-	AddHandler(regexp.MustCompile("^x-test/007$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/007$"), "exif", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		exifCalled = true
 		return nil, nil
 	}, "exif")
@@ -184,11 +184,11 @@ func Test_metadata_007(t *testing.T) {
 // that matches any one of them.
 func Test_metadata_008(t *testing.T) {
 	var tiffCalled, exifCalled bool
-	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/008$"), "tiff", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		tiffCalled = true
 		return nil, nil
 	}, "tiff")
-	AddHandler(regexp.MustCompile("^x-test/008$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/008$"), "exif", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		exifCalled = true
 		return nil, nil
 	}, "exif")
@@ -205,7 +205,7 @@ func Test_metadata_008(t *testing.T) {
 // return no metadata and no error, since the content type itself is
 // supported, just not by anything in that namespace.
 func Test_metadata_009(t *testing.T) {
-	AddHandler(regexp.MustCompile("^x-test/009$"), markerHandler(new(bool)), "tiff")
+	AddHandler(regexp.MustCompile("^x-test/009$"), "tiff", markerHandler(new(bool)), "tiff")
 
 	meta, err := GetMetadata(context.Background(), strings.NewReader("data"), "x-test/009", WithNamespace("gps"))
 	if err != nil {
@@ -221,10 +221,10 @@ func Test_metadata_009(t *testing.T) {
 // the successful handler, alongside the failing handler's error as a
 // warning, rather than discarding it.
 func Test_metadata_010(t *testing.T) {
-	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/010$"), "broken", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		return nil, errors.New("boom")
 	}, "broken")
-	AddHandler(regexp.MustCompile("^x-test/010$"), func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/010$"), "ok", func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error) {
 		return []gomedia.Metadata{fakeMetadata("ok:value")}, nil
 	}, "ok")
 
@@ -241,7 +241,7 @@ func Test_metadata_010(t *testing.T) {
 // return immediately without invoking any handlers.
 func Test_metadata_011(t *testing.T) {
 	var called bool
-	AddHandler(regexp.MustCompile("^x-test/011$"), markerHandler(&called), "x")
+	AddHandler(regexp.MustCompile("^x-test/011$"), "x", markerHandler(&called), "x")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -262,7 +262,7 @@ func Test_metadata_012(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxKey{}, "hello")
 
 	var got any
-	AddHandler(regexp.MustCompile("^x-test/012$"), func(ctx context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/012$"), "x", func(ctx context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
 		got = ctx.Value(ctxKey{})
 		return nil, nil
 	}, "x")
@@ -281,7 +281,7 @@ func Test_metadata_012(t *testing.T) {
 // leak it.
 func Test_metadata_013(t *testing.T) {
 	var ran bool
-	AddHandler(regexp.MustCompile("^x-test/013$"), func(_ context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
+	AddHandler(regexp.MustCompile("^x-test/013$"), "x", func(_ context.Context, _ io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
 		time.Sleep(20 * time.Millisecond)
 		ran = true
 		return nil, nil

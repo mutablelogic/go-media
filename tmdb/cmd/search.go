@@ -29,7 +29,7 @@ func (cmd *SearchMoviesCmd) Run(ctx server.Cmd, client *ClientCommands) error {
 	logger := ctx.Logger()
 	return withClient(ctx, client.Token, "SearchMovies", func(ctx context.Context, c *httpclient.Client) error {
 		logger.InfoContext(ctx, "Performing Search", "req", types.Stringify(cmd.MovieSearchRequest))
-		resp, err := c.SearchMovies(ctx, &cmd.MovieSearchRequest)
+		resp, err := c.SearchMovies(ctx, cmd.MovieSearchRequest)
 		if err != nil {
 			return err
 		}

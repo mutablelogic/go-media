@@ -138,7 +138,7 @@ func thumbnailArtwork(img image.Image) (gomedia.Metadata, error) {
 
 func init() {
 	// Add metadata handler for image files in general
-	metadata.AddHandler(regexp.MustCompile("^image/.*$"), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile("^image/.*$"), "artwork", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Reject unless the "artwork" namespace was requested
 		if !o.HasNamespace("artwork") {
 			return nil, nil

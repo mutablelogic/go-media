@@ -13,8 +13,12 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type ClientCommands struct {
+type Config struct {
 	Token string `flag:"" name:"tmdb-token" env:"TMDB_TOKEN" help:"TMDB API Read Access Token."`
+}
+
+type ClientCommands struct {
+	Config
 	SearchCommands
 }
 

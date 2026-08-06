@@ -21,7 +21,7 @@ func init() {
 	// Add metadata handler for video files: looks up the movie named by the
 	// input's filename (see gomedia.NamedReader) on TMDB. Requires a TMDB
 	// client (see WithTMDB); does nothing without one.
-	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "tmdb", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		client := o.TMDB()
 		if client == nil {
 			return nil, nil

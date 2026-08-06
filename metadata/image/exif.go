@@ -266,7 +266,7 @@ func mirrorDCDate(entries map[string]gomedia.Metadata) {
 
 func init() {
 	// Add metadata handler for jpeg files
-	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile("^image/jpeg$"), "exif", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Retrieve the EXIF metadata from the JPEG file
 		f, err := exif.Read(r)
 		if err != nil {

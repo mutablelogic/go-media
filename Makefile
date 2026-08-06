@@ -361,8 +361,9 @@ test-metadata:
 
 .PHONY: test-gomedia
 test-gomedia: 
-	@echo ... test task gomedia
+	@echo ... test task profile gomedia
 	@${CGO_ENV} ${GO} test ${ARGS} ./task/...
+	@${CGO_ENV} ${GO} test ${ARGS} ./profile/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
 
 ###############################################################################

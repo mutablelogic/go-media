@@ -19,7 +19,7 @@ import (
 // Media's task manager, so it's cancelled along with any other running task
 // if Run's context is cancelled while the probe is in flight.
 func (m *Media) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest) (_ *task.ProbeResponse, err error) {
-	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "ProbeMedia",
+	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "gomedia.probemedia",
 		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
@@ -49,7 +49,7 @@ func (m *Media) ProbeMedia(ctx context.Context, req task.ProbeMediaRequest) (_ *
 // (http, https, rtmp, ...) - rather than an already-open reader. Like
 // Probe, this runs as a task tracked by the Media's task manager.
 func (m *Media) ProbeSource(ctx context.Context, req task.ProbeSourceRequest) (_ *task.ProbeResponse, err error) {
-	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "ProbeSource",
+	ctx, endSpan := otel.StartSpan(m.opt.tracer, ctx, "gomedia.probesource",
 		attribute.String("req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()

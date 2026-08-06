@@ -37,7 +37,7 @@ func init() {
 	mime.AddExtensionType(".psd", "application/vnd.adobe.photoshop")
 	mime.AddExtensionType(".psb", "application/vnd.adobe.photoshop")
 
-	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), "photoshop", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
@@ -51,7 +51,7 @@ func init() {
 		return photoshopMetadata(cfg, o)
 	}, "photoshop", "xmp")
 
-	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^(?:application|image)/(?:vnd\.adobe\.photoshop|photoshop|x-photoshop)$`), "artwork", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		// Reject unless the "artwork" namespace was requested
 		if !o.HasNamespace("artwork") {
 			return nil, nil

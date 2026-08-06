@@ -34,11 +34,11 @@ type CLI struct {
 	Task      task.ClientCommands    `embed:""`
 	RunServer RunServer              `cmd:"" name:"run" help:"Run the gomedia server." group:"SERVER"`
 	servercmd.OpenAPICommands
-	TMDB tmdbcmd.ClientCommands `embed:""`
 }
 
 type RunServer struct {
 	pgcmd.PostgresFlags
+	tmdbcmd.Config
 	servercmd.RunServer
 }
 
@@ -117,8 +117,22 @@ func (runner *RunServer) WithProfileManager(ctx server.Cmd, conn pg.PoolConn, fn
 }
 
 func (runner *RunServer) WithTaskManager(ctx server.Cmd, fn func(*taskmanager.Manager) error) error {
+	// Add options
+	opts := []taskmanager.Opt{
+		taskmanager.WithTracer(ctx.Tracer()),
+	}
+
+	// Add TMDB API metadata lookup
+	if runner.Config.Token != "" {
+		if _, clientopts, err := ctx.ClientEndpoint(); err != nil {
+			return err
+		} else {
+			ctx.Logger().DebugContext(ctx.Context(), "Enabling TMDB metadata lookup")
+			opts = append(opts, taskmanager.WithTMDB(runner.Config.Token, clientopts...))
+		}
+	}
+
 	// Create a manager and then call the function with the manager, returning any error
-	opts := []taskmanager.Opt{taskmanager.WithTracer(ctx.Tracer())}
 	if manager, err := taskmanager.New(ctx.Context(), opts...); err != nil {
 		return err
 	} else {

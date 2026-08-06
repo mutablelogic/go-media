@@ -11,8 +11,10 @@ import (
 	uuid "github.com/google/uuid"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
 	gomedia "github.com/mutablelogic/go-media"
+	metadata "github.com/mutablelogic/go-media/metadata"
 	schema "github.com/mutablelogic/go-media/task/schema"
 	attribute "go.opentelemetry.io/otel/attribute"
+	trace "go.opentelemetry.io/otel/trace"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +182,12 @@ func (m *Manager) Add(ctx context.Context, name string, task schema.Task) (_ uui
 // task's own execution is scoped to Run's ctx instead, so it isn't cut short
 // by the caller's ctx ending (e.g. an HTTP request's context, once that
 // request's handler returns) - Run's own shutdown sequence is what cancels
-// every still-running task, not this one.
+// every still-running task, not this one. The task's execution span is
+// still parented under this call's own "Start" span (and transitively
+// whatever ctx carried in, if anything), so it shows up as a normal child
+// in the same trace rather than a separately linked one that's easy to
+// lose track of in a UI - only cancellation is decoupled from ctx, not the
+// trace itself.
 func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "Start",
 		attribute.String("uuid", id.String()),
@@ -212,7 +219,19 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 
 	m.events.emit(schema.EventStarted, status)
 
+	// Graft this call's own span context onto runCtx, so the task's
+	// execution span parents under it (and transitively under ctx's own
+	// trace, if any) despite runCtx otherwise carrying no span of its own.
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		runCtx = trace.ContextWithSpanContext(runCtx, sc)
+	}
+
 	go func() {
+		runCtx, endRunSpan := otel.StartSpan(m.tracer, runCtx, "Task.Run",
+			attribute.String("uuid", id.String()),
+			attribute.String("task", status.Task),
+		)
+
 		runErr := e.task.Run(schema.Context{
 			Context: runCtx,
 			Progress: func(current, total uint64) {
@@ -229,7 +248,11 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 				e.Unlock()
 				m.events.emit(schema.EventResult, status)
 			},
+			MetaOpts: func() []metadata.Option {
+				return m.metaopts
+			},
 		})
+		endRunSpan(runErr)
 
 		e.Lock()
 		e.status.Finished = time.Now()

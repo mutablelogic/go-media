@@ -10,7 +10,11 @@ import (
 	"sync"
 
 	// Packages
+
+	"github.com/mutablelogic/go-client/pkg/otel"
 	gomedia "github.com/mutablelogic/go-media"
+	types "github.com/mutablelogic/go-server/pkg/types"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +31,7 @@ import (
 type HandlerFunc func(context.Context, io.Reader, *Opts) ([]gomedia.Metadata, error)
 
 type entry struct {
+	name       string
 	re         *regexp.Regexp
 	namespaces []string
 	handler    HandlerFunc
@@ -52,17 +57,20 @@ var cached = make(map[string][]entry)
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Add a metadata handler for a given regular expression, along with the
-// namespaces (e.g. "exif", "tiff") of metadata it can produce. A caller
-// that requests specific namespaces via WithNamespace will only run
-// handlers registered for one of those namespaces.
-func AddHandler(re *regexp.Regexp, fn HandlerFunc, namespaces ...string) {
+// Add a metadata handler for a given regular expression, along with a short
+// name identifying it (e.g. "ffmpeg", "tmdb", "artwork" - used to name its
+// span, "metadata.Handler.<name>", so it's distinguishable from other
+// handlers in a trace) and the namespaces (e.g. "exif", "tiff") of metadata
+// it can produce. A caller that requests specific namespaces via
+// WithNamespace will only run handlers registered for one of those
+// namespaces.
+func AddHandler(re *regexp.Regexp, name string, fn HandlerFunc, namespaces ...string) {
 	if re == nil || fn == nil {
 		panic(gomedia.ErrBadParameter.With("nil regex or handler"))
 	}
 	handlerlock.Lock()
 	defer handlerlock.Unlock()
-	handlers = append(handlers, entry{re: re, namespaces: namespaces, handler: fn})
+	handlers = append(handlers, entry{name: name, re: re, namespaces: namespaces, handler: fn})
 	cached = make(map[string][]entry)
 }
 
@@ -89,40 +97,46 @@ func GetHandlers(contentType string) []HandlerFunc {
 // passed to every handler and checked before any work starts, but
 // GetMetadata otherwise waits for all handlers to finish rather than
 // returning early on cancellation.
-func GetMetadata(ctx context.Context, r io.Reader, contentType string, opts ...Option) ([]gomedia.Metadata, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	entries := getEntries(contentType)
-	if len(entries) == 0 {
-		return nil, gomedia.ErrNotImplemented.With("no handler for content type ", contentType)
-	}
-
+func GetMetadata(parent context.Context, r io.Reader, contentType string, opts ...Option) (_ []gomedia.Metadata, err error) {
 	// Apply options
 	o, err := applyOptions(opts...)
 	if err != nil {
 		return nil, err
 	}
 
+	// Start the span
+	ctx, endSpan := otel.StartSpan(o.tracer, parent, "metadata.GetMetadata",
+		attribute.String("r", types.Stringify(r)),
+		attribute.String("contentType", types.Stringify(contentType)),
+	)
+	defer func() { endSpan(err) }()
+
+	// Check for cancellation before doing any work
+	if err := parent.Err(); err != nil {
+		return nil, err
+	}
+
+	// Check for handlers registered for this content type. If none, return
+	entries := getEntries(contentType)
+	if len(entries) == 0 {
+		return nil, gomedia.ErrNotImplemented.With("no handler for content type ", contentType)
+	}
+
 	// Narrow down to the handlers that can produce one of the requested
 	// namespaces, if any were given via WithNamespace. No namespaces
 	// requested means no pruning, since any handler could be relevant.
-	var selected []HandlerFunc
+	var selected []entry
 	if len(o.namespaces) > 0 {
 		for _, entry := range entries {
 			for _, namespace := range o.namespaces {
 				if containsFold(entry.namespaces, namespace) {
-					selected = append(selected, entry.handler)
+					selected = append(selected, entry)
 					break
 				}
 			}
 		}
 	} else {
-		selected = make([]HandlerFunc, len(entries))
-		for i, entry := range entries {
-			selected[i] = entry.handler
-		}
+		selected = entries
 	}
 	if len(selected) == 0 {
 		return nil, nil
@@ -137,15 +151,13 @@ func GetMetadata(ctx context.Context, r io.Reader, contentType string, opts ...O
 	if _, err := io.Copy(&buf, r); err != nil {
 		return nil, err
 	}
-	data := buf.Bytes()
-	named, _ := r.(gomedia.NamedReader)
-
+	source, _ := r.(gomedia.NamedReader)
 	newReader := func() io.Reader {
-		br := bytes.NewReader(data)
-		if named == nil {
+		br := bytes.NewReader(buf.Bytes())
+		if source == nil {
 			return br
 		}
-		return namedReader{br, named.Name()}
+		return namedReader{br, source.Name()}
 	}
 
 	var (
@@ -154,24 +166,38 @@ func GetMetadata(ctx context.Context, r io.Reader, contentType string, opts ...O
 		allMeta []gomedia.Metadata
 		errs    error
 	)
-	wg.Add(len(selected))
-	for _, handler := range selected {
-		go func(handler HandlerFunc) {
-			defer wg.Done()
-			meta, err := handler(ctx, newReader(), o)
 
+	wg.Add(len(selected))
+	for _, sel := range selected {
+		go func(sel entry) {
+			defer wg.Done()
+
+			// Start the span, as a child of GetMetadata's own span, named
+			// for this handler (e.g. "metadata.Handler.tmdb") so it's
+			// distinguishable from other handlers in a trace.
+			spanName := "metadata.Handler"
+			if sel.name != "" {
+				spanName += "." + sel.name
+			}
+			var err error
+			ctx, endSpan := otel.StartSpan(o.tracer, ctx, spanName)
+			defer func() { endSpan(err) }()
+
+			// Execute the handler and collect its metadata and any error it returned. If the handler
+			meta, err := sel.handler(ctx, newReader(), o)
+
+			// Collate errors and metadata
 			mu.Lock()
 			defer mu.Unlock()
-			if err != nil {
-				errs = errors.Join(errs, err)
-				return
-			}
+			errs = errors.Join(errs, err)
 			allMeta = append(allMeta, meta...)
-		}(handler)
+		}(sel)
 	}
 
+	// Wait for all handlers to complete
 	wg.Wait()
 
+	// Return all metadata and any errors
 	return allMeta, errs
 }
 

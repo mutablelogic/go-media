@@ -19,7 +19,7 @@ import (
 
 func init() {
 	// Add metadata handler for RAW camera files
-	metadata.AddHandler(raw.ContentTypes, func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(raw.ContentTypes, "raw", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		data, err := raw.Read(r)
 		if err != nil {
 			return nil, err

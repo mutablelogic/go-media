@@ -53,7 +53,7 @@ func init() {
 	ff.AVUtil_log_set_level(ff.AV_LOG_ERROR)
 
 	// Add metadata handler for video files
-	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "ffmpeg", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err
