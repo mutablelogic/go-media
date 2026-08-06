@@ -2,7 +2,11 @@
 GO=$(shell which go)
 DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
+CURL=$(shell which curl)
 NPM ?= $(shell which npm 2>/dev/null)
+
+# Curl retry policy for flaky downloads
+CURL_RETRY_FLAGS = --fail --location --retry 3 --retry-delay 5 --retry-all-errors
 
 # Default parallelism
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
@@ -80,7 +84,7 @@ $(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 ${BUILD_DIR}/${FFMPEG_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
 		echo "Downloading $(FFMPEG_VERSION)"; \
-		curl --fail --location --retry 3 --retry-delay 5 --retry-all-errors -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; \
 		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)"; \
 		rm -f "$(BUILD_DIR)/ffmpeg.tar.gz"; \
 	fi
@@ -115,7 +119,7 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(CHROMAPRINT_VERSION)" ]; then \
 		echo "Downloading $(CHROMAPRINT_VERSION)"; \
 		mkdir -p $(BUILD_DIR)/${CHROMAPRINT_VERSION}; \
-		curl -L -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.5.1/$(CHROMAPRINT_VERSION).tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.5.1/$(CHROMAPRINT_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/chromaprint.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
 	fi
@@ -169,7 +173,7 @@ chromaprint: chromaprint-build
 ${BUILD_DIR}/libraw-${LIBRAW_VERSION}:
 	if [ ! -d "$(BUILD_DIR)/libraw-$(LIBRAW_VERSION)" ]; then \
 		echo "Downloading $(LIBRAW_VERSION)"; \
-		curl -L -o $(BUILD_DIR)/libraw.tar.gz https://www.libraw.org/data/LibRaw-${LIBRAW_VERSION}.tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/libraw.tar.gz https://www.libraw.org/data/LibRaw-${LIBRAW_VERSION}.tar.gz; \
 		tar -xzf $(BUILD_DIR)/libraw.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libraw.tar.gz; \
 		mv $(BUILD_DIR)/LibRaw-${LIBRAW_VERSION} $(BUILD_DIR)/libraw-${LIBRAW_VERSION}; \
@@ -207,7 +211,7 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/libexif-$(LIBEXIF_VERSION)" ]; then \
 		echo "Downloading $(LIBEXIF_VERSION)"; \
 		mkdir -p $(BUILD_DIR)/libexif-${LIBEXIF_VERSION}; \
-		curl -L -o $(BUILD_DIR)/libexif.tar.gz https://github.com/libexif/libexif/releases/download/v$(LIBEXIF_VERSION)/libexif-$(LIBEXIF_VERSION).tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/libexif.tar.gz https://github.com/libexif/libexif/releases/download/v$(LIBEXIF_VERSION)/libexif-$(LIBEXIF_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/libexif.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libexif.tar.gz; \
 	fi
@@ -242,7 +246,7 @@ ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/libheif-$(LIBHEIF_VERSION)" ]; then \
 		echo "Downloading $(LIBHEIF_VERSION)"; \
 		mkdir -p $(BUILD_DIR)/libheif-${LIBHEIF_VERSION}; \
-		curl -L -o $(BUILD_DIR)/libheif.tar.gz https://github.com/strukturag/libheif/releases/download/v$(LIBHEIF_VERSION)/libheif-$(LIBHEIF_VERSION).tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/libheif.tar.gz https://github.com/strukturag/libheif/releases/download/v$(LIBHEIF_VERSION)/libheif-$(LIBHEIF_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/libheif.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/libheif.tar.gz; \
 	fi
