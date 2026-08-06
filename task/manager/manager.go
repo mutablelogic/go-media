@@ -118,12 +118,16 @@ func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
 		}
 
 		e.Lock()
-		cancelled := e.Cancel()
+		cancelFn, cancelled := e.Cancel()
 		status := e.status
 		e.Unlock()
 		if cancelled {
 			pending = append(pending, e.done)
+			// Emit before actually cancelling, so a Cancelled event is
+			// never overtaken by the Finished event it causes (see the
+			// doc comment on entry.Cancel).
 			m.events.emit(schema.EventCancelled, status)
+			cancelFn()
 		}
 	}
 
@@ -293,12 +297,16 @@ func (m *Manager) Cancel(ctx context.Context, id uuid.UUID) (err error) {
 	}
 
 	e.Lock()
-	cancelled := e.Cancel()
+	cancelFn, cancelled := e.Cancel()
 	status := e.status
 	e.Unlock()
 
 	if cancelled {
+		// Emit before actually cancelling, so a Cancelled event is never
+		// overtaken by the Finished event it causes (see the doc comment
+		// on entry.Cancel).
 		m.events.emit(schema.EventCancelled, status)
+		cancelFn()
 	}
 
 	return nil
