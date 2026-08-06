@@ -203,15 +203,22 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 		return err
 	}
 
-	e.Lock()
-	if !e.status.Started.IsZero() {
-		e.Unlock()
-		return gomedia.ErrBadParameter.Withf("task %q already started", id)
-	}
-
+	// m.runCtx is set once, under the same critical section in which Run
+	// flips m.running to true (see Run) - checkRunning above already
+	// established happens-before with that, so it's safe to read here in
+	// its own lock/unlock pair, without ever holding m and e at once (every
+	// other method in this file follows the same rule, to keep the two
+	// locks from nesting in opposite orders and risking a deadlock).
 	m.Lock()
 	runCtx, cancel := context.WithCancel(m.runCtx)
 	m.Unlock()
+
+	e.Lock()
+	if !e.status.Started.IsZero() {
+		e.Unlock()
+		cancel()
+		return gomedia.ErrBadParameter.Withf("task %q already started", id)
+	}
 	e.status.Started = time.Now()
 	e.cancel = cancel
 	status := e.status
