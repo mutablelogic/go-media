@@ -1,0 +1,13 @@
+
+# Video configuration
+video:
+  - id: "00000000-0000-0000-0000-000000000201"
+    description: "540p H.264 video profile"
+    codec: "libx264"
+    video_bitrate: 2000000
+    profile: high
+    width: 960
+    height: 540
+    pixel_format: yuv420p
+    options:
+      preset: veryslow

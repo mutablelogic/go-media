@@ -1,0 +1,13 @@
+
+# Format configuration
+format:
+  - id: "00000000-0000-0000-0000-000000000301"
+    name: hls-vod
+    description: "HLS, video-on-demand, 4s segments"
+    options:
+      hls_time: 4
+      hls_playlist_type: vod
+      hls_flags: independent_segments
+      g: 100
+      keyint_min: 100
+      sc_threshold: 0

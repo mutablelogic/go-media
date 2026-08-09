@@ -22,8 +22,9 @@ import (
 // "height", dvbsub's "min_bpp", dvdsub's "palette") flow through Opts like
 // any other private codec option, the same as x264's crf/preset.
 type SubtitleProfileMeta struct {
-	Name string          `json:"codec"  arg:"" required:""` // "srt", "ass", "webvtt", "mov_text", "copy", ...
-	Opts json.RawMessage `json:"options,omitempty"`         // Additional codec options
+	Name        string          `json:"codec"  arg:"" required:""` // "srt", "ass", "webvtt", "mov_text", "copy", ...
+	Description *string         `json:"description,omitempty"`
+	Opts        json.RawMessage `json:"options,omitempty"` // Additional codec options
 
 	// Unexported fields
 	codec *ff.AVCodec          `json:"-"` // Internal codec
@@ -142,9 +143,9 @@ func (r SubtitleProfile) Options() json.RawMessage {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
-// Expected column order: id, codec, opts.
+// Expected column order: id, codec, description, opts.
 func (r *SubtitleProfile) Scan(row pg.Row) error {
-	if err := row.Scan(&r.Id, &r.Name, &r.Opts); err != nil {
+	if err := row.Scan(&r.Id, &r.Name, &r.Description, &r.Opts); err != nil {
 		return err
 	}
 
@@ -192,6 +193,7 @@ func (r SubtitleProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // Insert binds values and returns the insert query for a subtitle profile row.
 func (r SubtitleProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("codec", r.Name)
+	bind.Set("description", r.Description)
 	if r.Opts == nil {
 		bind.Set("opts", map[string]any{})
 	} else {
@@ -204,6 +206,9 @@ func (r SubtitleProfileMeta) Insert(bind *pg.Bind) (string, error) {
 func (r SubtitleProfileMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
+	if r.Description != nil {
+		bind.Append("patch", `"description" = `+bind.Set("description", r.Description))
+	}
 	if r.Opts != nil {
 		bind.Append("patch", `"opts" = `+bind.Set("opts", r.Opts))
 	}

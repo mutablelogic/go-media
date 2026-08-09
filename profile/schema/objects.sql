@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS ${"schema"}."audio" (
 	"id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	"codec" TEXT NOT NULL,
+	"description" TEXT NULL,
 	"bitrate" INTEGER NULL,
 	"profile" TEXT NULL,
 	"sample_rate" INTEGER NULL,
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS ${"schema"}."audio" (
 CREATE TABLE IF NOT EXISTS ${"schema"}."video" (
 	"id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	"codec" TEXT NOT NULL,
+	"description" TEXT NULL,
 	"bitrate" INTEGER NULL,
 	"profile" TEXT NULL,
 	"width" INTEGER NULL,
@@ -27,6 +29,7 @@ CREATE TABLE IF NOT EXISTS ${"schema"}."video" (
 CREATE TABLE IF NOT EXISTS ${"schema"}."subtitle" (
 	"id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	"codec" TEXT NOT NULL,
+	"description" TEXT NULL,
 	"opts" JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 

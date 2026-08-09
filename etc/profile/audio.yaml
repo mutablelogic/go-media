@@ -1,0 +1,26 @@
+
+# Audio configuration
+audio:
+  - id: "00000000-0000-0000-0000-000000000101"
+    description: "16kbps AAC mono audio profile"
+    codec: "aac"
+    audio_bitrate: 16000
+    channel_layout: "mono"
+
+  - id: "00000000-0000-0000-0000-000000000102"
+    description: "32kbps AAC stereo audio profile"
+    codec: "aac"
+    audio_bitrate: 32000
+    channel_layout: "stereo"
+
+  - id: "00000000-0000-0000-0000-000000000103"
+    description: "64kbps AAC stereo audio profile"
+    codec: "aac"
+    audio_bitrate: 64000
+    channel_layout: "stereo"
+
+  - id: "00000000-0000-0000-0000-000000000104"
+    description: "128kbps AAC stereo audio profile"
+    codec: "aac"
+    audio_bitrate: 128000
+    channel_layout: "stereo"

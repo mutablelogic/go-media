@@ -31,6 +31,7 @@ func (profile *Profile) CreateAudioProfile(ctx context.Context, req schema.Audio
 		}
 
 		// Set options
+		audioProfile.Description = req.Description
 		if req.Bitrate != nil {
 			if err := audioProfile.Set(schema.OptionAudioBitrate, types.Value(req.Bitrate)); err != nil {
 				return err

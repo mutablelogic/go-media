@@ -139,9 +139,9 @@ func (r VideoProfile) Options() json.RawMessage {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
-// Expected column order: id, codec, bitrate, profile, width, height, pixel_format, frame_rate, opts.
+// Expected column order: id, codec, description, bitrate, profile, width, height, pixel_format, frame_rate, opts.
 func (r *VideoProfile) Scan(row pg.Row) error {
-	if err := row.Scan(&r.Id, &r.Name, &r.Bitrate, &r.Profile, &r.Width, &r.Height, &r.PixelFormat, &r.FrameRate, &r.Opts); err != nil {
+	if err := row.Scan(&r.Id, &r.Name, &r.Description, &r.Bitrate, &r.Profile, &r.Width, &r.Height, &r.PixelFormat, &r.FrameRate, &r.Opts); err != nil {
 		return err
 	}
 
@@ -206,6 +206,7 @@ func (r VideoProfile) Insert(bind *pg.Bind) (string, error) {
 // Insert binds values and returns the insert query for a video profile row.
 func (r VideoProfileMeta) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("codec", r.Name)
+	bind.Set("description", r.Description)
 	bind.Set("bitrate", r.Bitrate)
 	bind.Set("profile", r.Profile)
 	bind.Set(OptionWidth, r.Width)
@@ -224,6 +225,9 @@ func (r VideoProfileMeta) Insert(bind *pg.Bind) (string, error) {
 func (r VideoProfileMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
+	if r.Description != nil {
+		bind.Append("patch", `"description" = `+bind.Set("description", r.Description))
+	}
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
 		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
 	}

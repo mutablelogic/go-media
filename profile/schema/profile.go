@@ -12,6 +12,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// The interface for any profile type
 type Profile interface {
 	UUID() uuid.UUID            // Unique identifier for this profile
 	Type() CodecType            // Type for this profile
@@ -27,22 +28,24 @@ type Profile interface {
 // parameters) and in AudioProfileMeta (whose values are user-configured),
 // so the two can't drift out of sync with each other.
 type ProfileMetaAudio struct {
-	Bitrate       *uint64 `json:"audio_bitrate,omitempty"`  // bps
-	Profile       *string `json:"audio_profile,omitempty"`  // Codec profile; "LC", "HE-AAC", ...
-	SampleRate    *uint64 `json:"sample_rate,omitempty"`    // Hz
-	SampleFormat  *string `json:"sample_format,omitempty"`  // Audio sample format; "fltp", "s16"
-	ChannelLayout *string `json:"channel_layout,omitempty"` // Audio channel layout; "mono", "stereo"
+	Description   *string `json:"description,omitempty" yaml:"description,omitempty" help:"Human-readable description of the profile." example:"128kbps AAC stereo"`
+	Bitrate       *uint64 `json:"audio_bitrate,omitempty" yaml:"audio_bitrate,omitempty" help:"Audio bitrate in bits per second (bps)." example:"128000"`
+	Profile       *string `json:"audio_profile,omitempty" yaml:"audio_profile,omitempty" help:"Codec profile name." example:"LC"`
+	SampleRate    *uint64 `json:"sample_rate,omitempty" yaml:"sample_rate,omitempty" help:"Audio sample rate in hertz (Hz)." example:"48000"`
+	SampleFormat  *string `json:"sample_format,omitempty" yaml:"sample_format,omitempty" help:"Audio sample format." example:"fltp"`
+	ChannelLayout *string `json:"channel_layout,omitempty" yaml:"channel_layout,omitempty" help:"Audio channel layout." example:"stereo"`
 }
 
 // ProfileMetaVideo holds the video-specific fields of a ProfileMeta - see
 // ProfileMetaAudio's doc comment; VideoProfileMeta embeds this the same way.
 type ProfileMetaVideo struct {
-	Bitrate     *uint64  `json:"video_bitrate,omitempty"` // bps
-	Profile     *string  `json:"video_profile,omitempty"` // Codec profile; "high", "main", "baseline"
-	Width       *uint64  `json:"width,omitempty"`         // Frame width in pixels
-	Height      *uint64  `json:"height,omitempty"`        // Frame height in pixels
-	PixelFormat *string  `json:"pixel_format,omitempty"`  // Video pixel format; "yuv420p", "nv12"
-	FrameRate   *float64 `json:"frame_rate,omitempty"`    // Frames per second
+	Description *string  `json:"description,omitempty" yaml:"description,omitempty"`     // Human-readable description of the profile
+	Bitrate     *uint64  `json:"video_bitrate,omitempty" yaml:"video_bitrate,omitempty"` // bps
+	Profile     *string  `json:"video_profile,omitempty" yaml:"video_profile,omitempty"` // Codec profile; "high", "main", "baseline"
+	Width       *uint64  `json:"width,omitempty" yaml:"width,omitempty"`                 // Frame width in pixels
+	Height      *uint64  `json:"height,omitempty" yaml:"height,omitempty"`               // Frame height in pixels
+	PixelFormat *string  `json:"pixel_format,omitempty" yaml:"pixel_format,omitempty"`   // Video pixel format; "yuv420p", "nv12"
+	FrameRate   *float64 `json:"frame_rate,omitempty" yaml:"frame_rate,omitempty"`       // Frames per second
 }
 
 // ProfileMetaStream holds the fields specific to a stream already discovered

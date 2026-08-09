@@ -1,6 +1,7 @@
 -- profile.audio_insert
 INSERT INTO ${"schema"}."audio" (
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -9,6 +10,7 @@ INSERT INTO ${"schema"}."audio" (
 	"opts"
 ) VALUES (
 	@name,
+	@description,
 	@bitrate,
 	@profile,
 	@sample_rate,
@@ -18,6 +20,7 @@ INSERT INTO ${"schema"}."audio" (
 ) RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -29,6 +32,7 @@ INSERT INTO ${"schema"}."audio" (
 SELECT
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -48,6 +52,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -66,6 +71,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -77,6 +83,7 @@ RETURNING
 INSERT INTO ${"schema"}."audio" (
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -86,6 +93,7 @@ INSERT INTO ${"schema"}."audio" (
 ) VALUES (
 	@id,
 	@name,
+	@description,
 	@bitrate,
 	@profile,
 	@sample_rate,
@@ -94,6 +102,7 @@ INSERT INTO ${"schema"}."audio" (
 	@opts
 ) ON CONFLICT ("id") DO UPDATE SET
 	"codec" = EXCLUDED."codec",
+	"description" = EXCLUDED."description",
 	"bitrate" = EXCLUDED."bitrate",
 	"profile" = EXCLUDED."profile",
 	"sample_rate" = EXCLUDED."sample_rate",
@@ -103,6 +112,7 @@ INSERT INTO ${"schema"}."audio" (
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"sample_rate",
@@ -113,6 +123,7 @@ RETURNING
 -- profile.video_insert
 INSERT INTO ${"schema"}."video" (
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -122,6 +133,7 @@ INSERT INTO ${"schema"}."video" (
 	"opts"
 ) VALUES (
 	@codec,
+	@description,
 	@bitrate,
 	@profile,
 	@width,
@@ -132,6 +144,7 @@ INSERT INTO ${"schema"}."video" (
 ) RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -144,6 +157,7 @@ INSERT INTO ${"schema"}."video" (
 SELECT
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -164,6 +178,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -182,6 +197,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -194,6 +210,7 @@ RETURNING
 INSERT INTO ${"schema"}."video" (
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -204,6 +221,7 @@ INSERT INTO ${"schema"}."video" (
 ) VALUES (
 	@id,
 	@codec,
+	@description,
 	@bitrate,
 	@profile,
 	@width,
@@ -213,6 +231,7 @@ INSERT INTO ${"schema"}."video" (
 	@opts
 ) ON CONFLICT ("id") DO UPDATE SET
 	"codec" = EXCLUDED."codec",
+	"description" = EXCLUDED."description",
 	"bitrate" = EXCLUDED."bitrate",
 	"profile" = EXCLUDED."profile",
 	"width" = EXCLUDED."width",
@@ -223,6 +242,7 @@ INSERT INTO ${"schema"}."video" (
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"bitrate",
 	"profile",
 	"width",
@@ -234,19 +254,23 @@ RETURNING
 -- profile.subtitle_insert
 INSERT INTO ${"schema"}."subtitle" (
 	"codec",
+	"description",
 	"opts"
 ) VALUES (
 	@codec,
+	@description,
 	@opts
 ) RETURNING
 	"id",
 	"codec",
+	"description",
 	"opts";
 
 -- profile.subtitle_get
 SELECT
 	"id",
 	"codec",
+	"description",
 	"opts"
 FROM
 	${"schema"}."subtitle"
@@ -261,6 +285,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"opts";
 
 -- profile.subtitle_update
@@ -273,6 +298,7 @@ WHERE
 RETURNING
 	"id",
 	"codec",
+	"description",
 	"opts";
 
 -- profile.format_insert

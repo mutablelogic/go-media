@@ -10,14 +10,15 @@ import (
 	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	pg "github.com/mutablelogic/go-pg"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	yaml "gopkg.in/yaml.v3"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type AudioProfileMeta struct {
-	ProfileMetaAudio
-	Opts json.RawMessage `json:"options,omitempty"` // Additional codec options
+	ProfileMetaAudio `yaml:",inline"`
+	Opts             json.RawMessage `json:"options,omitempty"` // Additional codec options
 
 	// Unexported fields
 	codec    *ff.AVCodec          `json:"-"` // Internal codec
@@ -27,9 +28,9 @@ type AudioProfileMeta struct {
 }
 
 type AudioProfile struct {
-	Id   uuid.UUID `json:"id,omitempty"`              // Unique identifier for the audio profile
-	Name string    `json:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
-	AudioProfileMeta
+	Id               uuid.UUID `json:"id,omitempty"`                           // Unique identifier for the audio profile
+	Name             string    `json:"codec" yaml:"codec"  arg:"" required:""` // "aac", "libmp3lame", "copy", ...
+	AudioProfileMeta `yaml:",inline"`
 }
 
 type AudioProfileUUID uuid.UUID
@@ -39,7 +40,7 @@ var _ Profile = (*AudioProfile)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewAudioProfile(codec string) (*AudioProfile, error) {
+func NewAudioProfile(codec, description string) (*AudioProfile, error) {
 	// Create a new audio profile with default values
 	encoder := ff.AVCodec_find_encoder_by_name(codec)
 	if encoder == nil {
@@ -51,6 +52,9 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 	self := &AudioProfile{
 		Name: encoder.Name(),
 		AudioProfileMeta: AudioProfileMeta{
+			ProfileMetaAudio: ProfileMetaAudio{
+				Description: types.Ptr(description),
+			},
 			codec: encoder,
 			opts:  optionsForCodec(encoder),
 		},
@@ -68,29 +72,43 @@ func NewAudioProfile(codec string) (*AudioProfile, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // MARSHALING
 
-// UnmarshalJSON is required because codec/par/timebase/opts are unexported
-// (see NewAudioProfile) - without it, a client decoding an AudioProfile from
-// JSON would get one with a valid Name but a nil codec, which panics the
-// first time it's used (e.g. writer.WithProfile). Resolves the codec from
-// the decoded Name, exactly as NewAudioProfile does, then rebuilds par from
-// whichever exported fields (Bitrate, SampleRate, ...) were decoded.
 func (r *AudioProfile) UnmarshalJSON(data []byte) error {
 	type alias AudioProfile
 	aux := (*alias)(r)
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
+	} else if err := r.unmarshalCodec(); err != nil {
+		return err
+	} else {
+		return r.setPar()
 	}
+}
 
+func (r *AudioProfile) UnmarshalYAML(value *yaml.Node) error {
+	type alias AudioProfile
+	aux := (*alias)(r)
+	if err := value.Decode(aux); err != nil {
+		return err
+	} else if err := r.unmarshalCodec(); err != nil {
+		return err
+	} else {
+		return r.setPar()
+	}
+}
+
+func (r *AudioProfile) unmarshalCodec() error {
 	encoder := ff.AVCodec_find_encoder_by_name(r.Name)
 	if encoder == nil {
 		return gomedia.ErrBadParameter.Withf("codec %q is not found", r.Name)
 	} else if encoder.Type() != ff.AVMEDIA_TYPE_AUDIO || encoder.IsEncoder() == false {
 		return gomedia.ErrBadParameter.Withf("codec %q is not an audio encoding codec", r.Name)
+	} else {
+		r.codec = encoder
+		r.opts = optionsForCodec(encoder)
 	}
-	r.codec = encoder
-	r.opts = optionsForCodec(encoder)
 
-	return r.setPar()
+	// Return success
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,9 +157,9 @@ func (r AudioProfile) Options() json.RawMessage {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - READER
 
-// Expected column order: id, codec, bitrate, profile, sample_rate, sample_format, channel_layout, opts.
+// Expected column order: id, codec, description, bitrate, profile, sample_rate, sample_format, channel_layout, opts.
 func (r *AudioProfile) Scan(row pg.Row) error {
-	if err := row.Scan(&r.Id, &r.Name, &r.Bitrate, &r.Profile, &r.SampleRate, &r.SampleFormat, &r.ChannelLayout, &r.Opts); err != nil {
+	if err := row.Scan(&r.Id, &r.Name, &r.Description, &r.Bitrate, &r.Profile, &r.SampleRate, &r.SampleFormat, &r.ChannelLayout, &r.Opts); err != nil {
 		return err
 	}
 
@@ -192,6 +210,7 @@ func (r AudioProfileUUID) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // a normal create leaves the database to generate one.
 func (r AudioProfile) Insert(bind *pg.Bind) (string, error) {
 	bind.Set("name", r.Name)
+	bind.Set("description", r.Description)
 	bind.Set("bitrate", r.Bitrate)
 	bind.Set("profile", r.Profile)
 	bind.Set(OptionSampleRate, r.SampleRate)
@@ -214,6 +233,9 @@ func (r AudioProfile) Insert(bind *pg.Bind) (string, error) {
 func (r AudioProfile) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 
+	if r.Description != nil {
+		bind.Append("patch", `"description" = `+bind.Set("description", r.Description))
+	}
 	if bitrate := types.Value(r.Bitrate); bitrate > 0 {
 		bind.Append("patch", `"bitrate" = `+bind.Set("bitrate", bitrate))
 	}
