@@ -239,10 +239,18 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 	fi
 
 .PHONY: libexif-configure
+# --disable-nls: go-media reads EXIF tags as structured data, not translated
+# human-readable strings, so there's no need for libexif's gettext-based
+# National Language Support. Without this, configure enables it whenever it
+# finds gettext/libintl available (as MSYS2 does), requiring -lintl at link
+# time, which nothing here provides - undefined reference to libintl_*.
+# Doesn't affect Linux (glibc has gettext built in, no separate libintl) or
+# macOS (Homebrew's gettext is keg-only, off configure's default search
+# path, so it was already silently detected as absent there).
 libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 	@echo "Configuring libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
-		--disable-docs --enable-year2038  \
+		--disable-docs --disable-nls --enable-year2038  \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --disable-shared
 
