@@ -35,7 +35,9 @@ func Test_avformat_demux_001(t *testing.T) {
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
-	defer AVFormat_free_context(input)
+	// AVFormat_close_input, not AVFormat_free_context: see the comment on
+	// the equivalent case in avformat_context_test.go.
+	defer AVFormat_close_input(input)
 
 	t.Log(input)
 }
@@ -53,7 +55,9 @@ func Test_avformat_demux_002(t *testing.T) {
 	if !assert.NoError(err) {
 		t.FailNow()
 	}
-	defer AVFormat_free_context(input)
+	// AVFormat_close_input, not AVFormat_free_context: only closing properly
+	// frees the file handle AVFormat_open_url opened internally.
+	defer AVFormat_close_input(input)
 
 	packet := AVCodec_packet_alloc()
 	if !assert.NotNil(packet) {
