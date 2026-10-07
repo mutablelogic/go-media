@@ -11,7 +11,16 @@ import (
 
 /*
 #cgo pkg-config: libchromaprint libavcodec
-#cgo LDFLAGS: -lstdc++
+// No "#cgo LDFLAGS: -lstdc++" here: it's redundant (the Makefile already
+// sets CGO_LDFLAGS="-lstdc++ ..." globally, and libchromaprint.pc's own
+// Libs line has -lstdc++ positioned correctly after -lchromaprint), and
+// when many packages needing libstdc++ link into one binary (e.g.
+// gomedia/httpclient, which pulls in ffmpeg+chromaprint+libexif+libraw+
+// libheif together), cgo appears to deduplicate the identical -lstdc++
+// string across packages and keep this one's position over pkg-config's -
+// too early relative to -lchromaprint for Windows' strict single-pass
+// linker, undefined reference to std::string symbols chromaprint's C++
+// internals use.
 #cgo darwin LDFLAGS: -framework Accelerate
 // Without this, chromaprint.h unconditionally decorates every function with
 // __declspec(dllimport) on Windows, which only makes sense when linking
