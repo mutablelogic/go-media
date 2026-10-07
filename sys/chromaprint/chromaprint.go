@@ -13,6 +13,14 @@ import (
 #cgo pkg-config: libchromaprint libavcodec
 #cgo LDFLAGS: -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
+// Without this, chromaprint.h unconditionally decorates every function with
+// __declspec(dllimport) on Windows, which only makes sense when linking
+// against a DLL's import library. We build and link chromaprint statically
+// there (see the Makefile's chromaprint target), so the linker looks for
+// __imp_-prefixed symbols that don't exist in a plain static archive -
+// undefined reference at link time. Harmless to define on every platform:
+// chromaprint.h only consults this macro in its Windows branch.
+#define CHROMAPRINT_NODLL
 #include <chromaprint.h>
 */
 import "C"
