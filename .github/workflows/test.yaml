@@ -41,11 +41,11 @@ jobs:
         # check with --static, which also needs libxml2.pc's Requires.private
         # (liblzma) to resolve - hence liblzma-dev below even though nothing
         # directly asks for it.
-        run: sudo apt -y update && sudo apt -y install nasm libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
+        run: sudo apt -y update && sudo apt -y install nasm cmake libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
 
       - name: Install build tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install pkg-config nasm
+        run: brew install pkg-config nasm cmake
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
@@ -65,14 +65,14 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-cmake
 
-      - name: Run ffmpeg bindings tests (Unix)
+      - name: Run tests (Unix)
         if: runner.os != 'Windows'
         shell: bash
-        # test-ffmpeg now declares its own build prerequisites (ffmpeg, libraw)
-        run: make test-ffmpeg
+        run: make test
 
-      - name: Run ffmpeg bindings tests (Windows)
+      - name: Run tests (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: make test-ffmpeg
+        run: make test
