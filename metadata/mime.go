@@ -52,7 +52,13 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 	if named, ok := r.(NamedStream); ok {
 		ext := strings.ToLower(filepath.Ext(named.Name()))
 		if forced, ok := extensionContentTypes[ext]; ok {
-			extType = forced.ContentType
+			// These extensions are deliberately curated because byte-sniffing
+			// gets them wrong or leaves them ambiguous (e.g. .m4a sniffs as
+			// video/mp4), so the extension is authoritative here - no need
+			// to read the stream at all. Extensions not in this map (e.g.
+			// .ts, which is either TypeScript source or an MPEG transport
+			// stream) must still be sniffed below.
+			return mime.ParseMediaType(forced.ContentType)
 		} else if ext != "" {
 			extType = mime.TypeByExtension(ext)
 		}
@@ -65,13 +71,6 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
 	if mediaType := http.DetectContentType(buf[:n]); mediaType != types.ContentTypeBinary {
-		// Extension-based override for known cases like .m4a, where MP4 byte
-		// signatures are otherwise reported as video/mp4.
-		if extType != "" {
-			if mediaType == "video/mp4" || mediaType == "application/mp4" {
-				return mime.ParseMediaType(extType)
-			}
-		}
 		return mime.ParseMediaType(mediaType)
 	}
 
