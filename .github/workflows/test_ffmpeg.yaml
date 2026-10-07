@@ -64,13 +64,16 @@ jobs:
             nasm
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
 
       - name: Build ffmpeg and run bindings tests (Unix)
         if: runner.os != 'Windows'
         shell: bash
-        run: make ffmpeg test-ffmpeg
+        # libraw is required too: reader -> metadata -> pkg/raw (blank
+        # import) -> sys/libraw. writer and frame don't need it.
+        run: make ffmpeg libraw test-ffmpeg
 
       - name: Build ffmpeg and run bindings tests (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: make ffmpeg test-ffmpeg
+        run: make ffmpeg libraw test-ffmpeg
