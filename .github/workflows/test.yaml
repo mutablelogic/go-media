@@ -44,11 +44,48 @@ jobs:
         # an error: Unspecified". Mirrors the Linux apt list.
         run: brew install pkg-config nasm cmake libde265 aom dav1d
 
-      - name: Setup Docker (macOS/Windows)
-        # Linux runners already have a Docker daemon. profile/manager's tests
-        # spin up a real Postgres via testcontainers, which needs one.
-        if: runner.os == 'macOS' || runner.os == 'Windows'
-        uses: docker/setup-docker-action@v4
+      - name: Start PostgreSQL (macOS)
+        # profile/manager's tests default to a Docker testcontainer, which
+        # ubuntu-latest's built-in daemon handles fine, but installing a
+        # working Docker daemon on macOS/Windows runners (e.g. via
+        # docker/setup-docker-action) took 7+ minutes. A native Postgres,
+        # pointed at via GOMEDIA_TEST_DATABASE_URL (see profile/test/test.go),
+        # is far faster - same approach as go-omodie's test.yml.
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install postgresql@17
+          pgdata="$(brew --prefix)/var/postgresql@17"
+          if [[ ! -f "$pgdata/PG_VERSION" ]]; then
+            "$(brew --prefix postgresql@17)/bin/initdb" -D "$pgdata" --username "$(id -un)" --auth-local=trust --auth-host=scram-sha-256
+          fi
+          brew services start postgresql@17
+          pg_bin="$(brew --prefix postgresql@17)/bin"
+          echo "$pg_bin" >> "$GITHUB_PATH"
+          export PATH="$pg_bin:$PATH"
+          for attempt in {1..60}; do
+            if pg_isready -h 127.0.0.1 -p 5432; then
+              break
+            fi
+            sleep 1
+          done
+          psql -d postgres -c "ALTER USER \"$(id -un)\" WITH PASSWORD 'runner'"
+          echo "GOMEDIA_TEST_DATABASE_URL=postgres://$(id -un):runner@127.0.0.1:5432/postgres?sslmode=disable" >> "$GITHUB_ENV"
+
+      - name: Start PostgreSQL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-Service -Name postgresql-x64-17 -StartupType Manual
+          Start-Service -Name postgresql-x64-17
+          $pgIsReady = 'C:\Program Files\PostgreSQL\17\bin\pg_isready.exe'
+          for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            & $pgIsReady -h 127.0.0.1 -p 5432 -U postgres
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 1
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not become ready' }
+          Add-Content -Path $env:GITHUB_ENV -Value 'GOMEDIA_TEST_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/postgres?sslmode=disable'
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
