@@ -44,6 +44,12 @@ jobs:
         # an error: Unspecified". Mirrors the Linux apt list.
         run: brew install pkg-config nasm cmake libde265 aom dav1d
 
+      - name: Setup Docker (macOS/Windows)
+        # Linux runners already have a Docker daemon. profile/manager's tests
+        # spin up a real Postgres via testcontainers, which needs one.
+        if: runner.os == 'macOS' || runner.os == 'Windows'
+        uses: docker/setup-docker-action@v4
+
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
