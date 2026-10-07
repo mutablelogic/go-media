@@ -1,4 +1,4 @@
-name: "Test ffmpeg bindings (WIP)"
+name: "Test (WIP)"
 
 on:
   workflow_dispatch:
@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  test-ffmpeg:
-    name: Test ffmpeg (${{ matrix.os }})
+  test:
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       # Report results for every platform, even if one fails
