@@ -1,7 +1,7 @@
 package httpclient_test
 
 import (
-	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +21,21 @@ import (
 func sampleFilePath(t *testing.T, name string) string {
 	t.Helper()
 	return filepath.Join("..", "..", "etc", "test", name)
+}
+
+// fileURL turns an absolute filesystem path into a "file://" URL string.
+// fmt.Sprintf("file://%s", path) breaks on Windows: a path like
+// `D:\foo\bar` isn't slash-separated, and its drive-letter colon parses as
+// a host:port separator ("invalid port \"\\foo\\bar\" after host"). A
+// leading "/" is also required - without one, "file://D:/foo/bar" still
+// parses "D" as the host for the same reason; "file:///D:/foo/bar" (note
+// the third slash) is the standard form for a Windows path as a file URL.
+func fileURL(path string) string {
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +170,7 @@ func TestProbeSource_File(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := c.ProbeSource(ctx, task.ProbeSourceRequest{Url: fmt.Sprintf("file://%s", abs)})
+	resp, err := c.ProbeSource(ctx, task.ProbeSourceRequest{Url: fileURL(abs)})
 	if err != nil {
 		t.Fatal(err)
 	}
