@@ -201,12 +201,15 @@ libraw-build: libraw-configure
 # functions). On Windows, htonl/ntohl (used for byte-swapping in RAW parsing)
 # live in Winsock rather than libc, so -lws2_32 is needed too - appended here,
 # rather than relying on link-line order, since a static lib can only resolve
-# symbols from libraries listed after it.
+# symbols from libraries listed after it. Appended to the end of the Libs:
+# line (rather than matched/inserted after "-lraw -lstdc++") since libraw's
+# own ./configure doesn't generate that substring consistently across
+# platforms - e.g. not on Windows, where this previously silently no-op'd.
 .PHONY: libraw
 libraw: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
-	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz -lm$(if $(filter windows,${OS}), -lws2_32)|' "${PREFIX}/lib/pkgconfig/libraw.pc"
+	@sed -i.bak '/^Libs:/ s/$$/ -lz -lm$(if $(filter windows,${OS}), -lws2_32)/' "${PREFIX}/lib/pkgconfig/libraw.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
 	@${GO} clean -cache
 
