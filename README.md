@@ -232,8 +232,7 @@ func main() {
 
 ### Low-Level FFmpeg Bindings
 
-For direct FFmpeg access, use `sys/ffmpeg80` (the default; `sys/ffmpeg71` and `sys/ffmpeg61`
-are also available, selected via the Makefile's `SYS_VERSION`):
+For direct FFmpeg access, use `sys/ffmpeg80`, selected via the Makefile's `SYS_VERSION`:
 
 ```go
 import (
@@ -248,7 +247,7 @@ graph := ff.AVFilterGraph_alloc()
 ## Project Structure
 
 ```text
-sys/ffmpeg80/, sys/ffmpeg71/, sys/ffmpeg61/  # Low-level CGO FFmpeg bindings
+sys/ffmpeg80/                                # Low-level CGO FFmpeg bindings
 sys/libheif/, sys/libraw/, sys/libexif/      # Low-level CGO bindings for image metadata/codecs
 sys/chromaprint/, sys/dvb/                   # Other low-level bindings
 

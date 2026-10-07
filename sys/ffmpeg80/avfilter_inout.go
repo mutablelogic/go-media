@@ -1,13 +1,17 @@
 package ffmpeg
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"unsafe"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CGO
 
 /*
-#cgo pkg-config: libavfilter
+#cgo pkg-config: libavfilter libavutil
 #include <libavfilter/avfilter.h>
+#include <libavutil/mem.h>
 */
 import "C"
 
@@ -71,7 +75,19 @@ func AVFilterInOut_alloc(name string, filter *AVFilterContext, pad int) *AVFilte
 	if inout == nil {
 		return nil
 	}
-	inout.name = C.CString(name)
+	// inout is allocated by avfilter_inout_alloc (av_mallocz) and freed by
+	// avfilter_inout_free, which releases name with av_freep. Allocating name
+	// with C.CString (libc malloc) would hand a mismatched allocator to that
+	// free - deterministically a heap error on Windows/_aligned_free or
+	// wherever FFmpeg and the cgo runtime link different C runtimes
+	// (reported upstream). Use av_strdup instead, mirroring avcodec_subtitle.go.
+	cName := C.CString(name)
+	inout.name = C.av_strdup(cName)
+	C.free(unsafe.Pointer(cName))
+	if inout.name == nil {
+		C.avfilter_inout_free(&inout)
+		return nil
+	}
 	inout.filter_ctx = (*C.AVFilterContext)(filter)
 	inout.pad_idx = C.int(pad)
 	inout.next = nil

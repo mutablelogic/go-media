@@ -5,7 +5,7 @@
 This Go module provides CGO bindings to several media C libraries, layered consistently:
 
 1. **sys/\*** - low-level CGO bindings, mirroring each C library's API 1:1
-   - `sys/ffmpeg80/` (default), plus `sys/ffmpeg71/`, `sys/ffmpeg61/` - FFmpeg bindings, selected via `SYS_VERSION` in the Makefile
+   - `sys/ffmpeg80/` - FFmpeg bindings, selected via `SYS_VERSION` in the Makefile
    - `sys/libheif/`, `sys/libraw/`, `sys/libexif/`, `sys/chromaprint/`, `sys/dvb/`
 2. **pkg/\*** - high-level, idiomatic Go APIs per library
    - `pkg/ffmpeg/` - Reader, Decoder, Encoder, Resampler, Frame abstractions
