@@ -30,7 +30,13 @@ func AVFormat_open_reader(reader *AVIOContextEx, format *AVInputFormat, options 
 	if ctx == nil {
 		return nil, AVError(syscall.ENOMEM)
 	} else {
-		ctx.pb = (*C.struct_AVIOContext)(unsafe.Pointer(reader.AVIOContext))
+		// AVFMT_FLAG_CUSTOM_IO tells avformat_close_input not to close reader
+		// itself - the caller (Reader.Close) owns it and frees it separately
+		// via AVFormat_avio_context_free. Without this flag set, FFmpeg
+		// assumes it opened pb itself and avio_close()s it, double-freeing
+		// alongside that separate call.
+		ctx.SetPb(reader)
+		ctx.SetFlags(ctx.Flags() | AVFMT_FLAG_CUSTOM_IO)
 	}
 
 	// Open the stream
