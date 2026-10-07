@@ -152,17 +152,20 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 		-B ${BUILD_DIR}
 
 # Build chromaprint
+# cmake --build is generator-agnostic: a bare `make` here would fail whenever
+# cmake picks Ninja instead of Unix Makefiles (e.g. MSYS2, where ninja is on
+# PATH alongside the mingw-w64 toolchain), since no Makefile gets generated.
 .PHONY: chromaprint-build
 chromaprint-build: chromaprint-configure
 	@echo "Building ${CHROMAPRINT_VERSION} with ${JOBS} jobs"
-	@cd $(BUILD_DIR) && make -j$(JOBS)
+	@cmake --build ${BUILD_DIR} -j$(JOBS)
 
 # Install chromaprint
 # Create a modified pkg-config file that ensures correct linking order for C++
 .PHONY: chromaprint
 chromaprint: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
-	@cd $(BUILD_DIR) && make install
+	@cmake --install ${BUILD_DIR}
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 

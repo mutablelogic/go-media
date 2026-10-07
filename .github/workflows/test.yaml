@@ -35,17 +35,14 @@ jobs:
 
       - name: Install build tools (Linux)
         if: runner.os == 'Linux'
-        # libxml2-dev is already present on ubuntu-latest, which is enough for
-        # the Makefile's own (non-static) pkg-config check to enable
-        # --enable-libxml2. But ffmpeg's ./configure runs every pkg-config
-        # check with --static, which also needs libxml2.pc's Requires.private
-        # (liblzma) to resolve - hence liblzma-dev below even though nothing
-        # directly asks for it.
         run: sudo apt -y update && sudo apt -y install nasm cmake libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
 
       - name: Install build tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install pkg-config nasm cmake
+        # libde265/aom/dav1d give libheif an actual decoder to test against -
+        # without one, every heif test fails with "Decoder plugin generated
+        # an error: Unspecified". Mirrors the Linux apt list.
+        run: brew install pkg-config nasm cmake libde265 aom dav1d
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
@@ -66,6 +63,9 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libde265
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
 
       - name: Run tests (Unix)
         if: runner.os != 'Windows'
