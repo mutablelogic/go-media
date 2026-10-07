@@ -66,14 +66,13 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-zlib
 
-      - name: Build ffmpeg and run bindings tests (Unix)
+      - name: Run ffmpeg bindings tests (Unix)
         if: runner.os != 'Windows'
         shell: bash
-        # libraw is required too: reader -> metadata -> pkg/raw (blank
-        # import) -> sys/libraw. writer and frame don't need it.
-        run: make ffmpeg libraw test-ffmpeg
+        # test-ffmpeg now declares its own build prerequisites (ffmpeg, libraw)
+        run: make test-ffmpeg
 
-      - name: Build ffmpeg and run bindings tests (Windows)
+      - name: Run ffmpeg bindings tests (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: make ffmpeg libraw test-ffmpeg
+        run: make test-ffmpeg

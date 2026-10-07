@@ -326,31 +326,38 @@ ts: npm-dep mkdir
 test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
 
 .PHONY: test-chromaprint
-test-chromaprint:
+# pkg/chromaprint -> pkg/ffmpeg -> sys/ffmpeg80, so chromaprint (which itself
+# depends on ffmpeg via chromaprint-configure) covers both.
+test-chromaprint: chromaprint
 	@echo ... test pkg/segmenter pkg/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
 .PHONY: test-exif
-test-exif:
+# pkg/exif imports sys/libheif directly, not just sys/libexif.
+test-exif: libexif libheif
 	@echo ... test sys/libexif pkg/exif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/exif
 
 .PHONY: test-raw
-test-raw:
+test-raw: libraw
 	@echo ... test sys/libraw pkg/raw
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
 .PHONY: test-heif
-test-heif:
+# pkg/heif imports pkg/exif, which needs libexif as well as libheif.
+test-heif: libheif libexif
 	@echo ... test sys/libheif pkg/heif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
 
 .PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy
+# reader -> metadata -> pkg/raw (blank import, for MIME type registration)
+# -> sys/libraw, so libraw is needed even though this only tests ffmpeg
+# bindings. writer and frame don't have this dependency.
+test-ffmpeg: go-dep go-tidy ffmpeg libraw
 	@echo ... test sys/${SYS_VERSION} reader writer frame
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./reader/...
@@ -358,12 +365,17 @@ test-ffmpeg: go-dep go-tidy
 	@${CGO_ENV} ${GO} test ${ARGS} ./frame/...
 
 .PHONY: test-metadata
-test-metadata: 
+# metadata/image imports pkg/exif, pkg/heif and pkg/raw; metadata/audio and
+# metadata/video import sys/ffmpeg80 directly.
+test-metadata: ffmpeg libexif libheif libraw
 	@echo ... test metadata
 	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
 
 .PHONY: test-gomedia
-test-gomedia: 
+# task blank-imports all metadata/* subpackages (-> ffmpeg, libexif, libheif,
+# libraw); gomedia imports pkg/chromaprint (-> chromaprint); profile only
+# needs ffmpeg, already covered.
+test-gomedia: ffmpeg libexif libheif libraw chromaprint
 	@echo ... test task profile gomedia
 	@${CGO_ENV} ${GO} test ${ARGS} ./task/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./profile/...
