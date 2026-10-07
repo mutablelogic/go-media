@@ -26,7 +26,7 @@ LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
-OS ?= $(shell uname | tr A-Z a-z)
+OS ?= $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
 DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 

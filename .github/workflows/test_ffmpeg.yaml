@@ -1,0 +1,65 @@
+name: "Test ffmpeg bindings (WIP)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-ffmpeg:
+    name: Test ffmpeg (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Report results for every platform, even if one fails
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt -y update && sudo apt -y install nasm
+
+      - name: Install build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install pkg-config nasm
+
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          # 'inherit' keeps the Go toolchain (installed above by actions/setup-go,
+          # outside MSYS2) visible inside the msys2 shell alongside gcc/make/pkg-config
+          path-type: inherit
+          install: >-
+            base-devel
+            make
+            curl
+            diffutils
+            nasm
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+
+      - name: Build ffmpeg and run bindings tests (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: make ffmpeg test-ffmpeg
+
+      - name: Build ffmpeg and run bindings tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: make ffmpeg test-ffmpeg
