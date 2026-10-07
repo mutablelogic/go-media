@@ -2,7 +2,6 @@ package ffmpeg
 
 import (
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -116,96 +115,76 @@ func TestAVError_Error_AllConstants(t *testing.T) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TEST AVError.IsErrno()
+// TEST AVError.IsEAGAIN / IsEINVAL / IsENOSYS
+//
+// Constructed from testErrnoEAGAIN/testErrnoEINVAL/testErrnoENOSYS (the C
+// compiler's own <errno.h> values, exposed by avutil_error.go), not
+// syscall.EAGAIN etc - on Windows those are synthetic Go-invented values
+// with no relation to the real errno.h constants mingw-compiled FFmpeg
+// actually returns, so comparing against them would be tautological and
+// never catch a real mismatch between the two.
 
-func TestAVError_IsErrno_EPERM(t *testing.T) {
-	// Create an AVERROR from EPERM (Operation not permitted)
-	// Note: FFmpeg errors from errno are typically negative values
-	err := AVError(-int(syscall.EPERM))
+func TestAVError_IsEAGAIN(t *testing.T) {
+	err := AVError(-testErrnoEAGAIN)
 
-	if !err.IsErrno(syscall.EPERM) {
-		t.Errorf("Expected IsErrno(EPERM) to return true for error code %d", int(err))
+	if !err.IsEAGAIN() {
+		t.Errorf("Expected IsEAGAIN() to return true for error code %d", int(err))
+	}
+	if err.IsEINVAL() {
+		t.Error("Expected IsEINVAL() to return false for an EAGAIN error")
+	}
+	if err.IsENOSYS() {
+		t.Error("Expected IsENOSYS() to return false for an EAGAIN error")
 	}
 }
 
-func TestAVError_IsErrno_ENOENT(t *testing.T) {
-	// Create an AVERROR from ENOENT (No such file or directory)
-	err := AVError(-int(syscall.ENOENT))
+func TestAVError_IsEINVAL(t *testing.T) {
+	err := AVError(-testErrnoEINVAL)
 
-	if !err.IsErrno(syscall.ENOENT) {
-		t.Errorf("Expected IsErrno(ENOENT) to return true for error code %d", int(err))
+	if !err.IsEINVAL() {
+		t.Errorf("Expected IsEINVAL() to return true for error code %d", int(err))
 	}
-
-	// Should not match other errors
-	if err.IsErrno(syscall.EPERM) {
-		t.Error("Expected IsErrno(EPERM) to return false for ENOENT error")
+	if err.IsEAGAIN() {
+		t.Error("Expected IsEAGAIN() to return false for an EINVAL error")
 	}
 }
 
-func TestAVError_IsErrno_EINVAL(t *testing.T) {
-	// Create an AVERROR from EINVAL (Invalid argument)
-	err := AVError(-int(syscall.EINVAL))
+func TestAVError_IsENOSYS(t *testing.T) {
+	err := AVError(-testErrnoENOSYS)
 
-	if !err.IsErrno(syscall.EINVAL) {
-		t.Errorf("Expected IsErrno(EINVAL) to return true for error code %d", int(err))
+	if !err.IsENOSYS() {
+		t.Errorf("Expected IsENOSYS() to return true for error code %d", int(err))
+	}
+	if err.IsEAGAIN() {
+		t.Error("Expected IsEAGAIN() to return false for an ENOSYS error")
 	}
 }
 
-func TestAVError_IsErrno_Zero(t *testing.T) {
+func TestAVError_IsEAGAIN_Zero(t *testing.T) {
 	var err AVError
 
-	// Zero error should not match any errno
-	if err.IsErrno(syscall.EPERM) {
-		t.Error("Expected zero error not to match EPERM")
+	if err.IsEAGAIN() {
+		t.Error("Expected zero error not to match EAGAIN")
 	}
-	if err.IsErrno(syscall.ENOENT) {
-		t.Error("Expected zero error not to match ENOENT")
+	if err.IsEINVAL() {
+		t.Error("Expected zero error not to match EINVAL")
+	}
+	if err.IsENOSYS() {
+		t.Error("Expected zero error not to match ENOSYS")
 	}
 }
 
-func TestAVError_IsErrno_NonErrnoError(t *testing.T) {
-	// Test with FFmpeg-specific errors that are not errno-based
+func TestAVError_IsEAGAIN_NonErrnoError(t *testing.T) {
+	// Test with an FFmpeg-specific error that is not errno-based
 	err := AVError(AVERROR_EOF)
 
-	// Should not match system errno values
-	if err.IsErrno(syscall.EPERM) {
-		t.Error("Expected AVERROR_EOF not to match EPERM")
+	if err.IsEAGAIN() {
+		t.Error("Expected AVERROR_EOF not to match EAGAIN")
 	}
-	if err.IsErrno(syscall.ENOENT) {
-		t.Error("Expected AVERROR_EOF not to match ENOENT")
+	if err.IsEINVAL() {
+		t.Error("Expected AVERROR_EOF not to match EINVAL")
 	}
-}
-
-func TestAVError_IsErrno_MultipleErrno(t *testing.T) {
-	testCases := []struct {
-		name  string
-		errno syscall.Errno
-	}{
-		{"EPERM", syscall.EPERM},
-		{"ENOENT", syscall.ENOENT},
-		{"EINTR", syscall.EINTR},
-		{"EIO", syscall.EIO},
-		{"ENOMEM", syscall.ENOMEM},
-		{"EACCES", syscall.EACCES},
-		{"EINVAL", syscall.EINVAL},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := AVError(-int(tc.errno))
-
-			if !err.IsErrno(tc.errno) {
-				t.Errorf("Expected IsErrno(%s) to return true for error code %d", tc.name, int(err))
-			}
-
-			// Test that it doesn't match other errno values
-			for _, other := range testCases {
-				if other.errno != tc.errno {
-					if err.IsErrno(other.errno) {
-						t.Errorf("Expected IsErrno(%s) to return false for %s error", other.name, tc.name)
-					}
-				}
-			}
-		})
+	if err.IsENOSYS() {
+		t.Error("Expected AVERROR_EOF not to match ENOSYS")
 	}
 }

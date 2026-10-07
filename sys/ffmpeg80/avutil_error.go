@@ -3,7 +3,6 @@ package ffmpeg
 import (
 	"bytes"
 	"fmt"
-	"syscall"
 	"unsafe"
 )
 
@@ -12,9 +11,20 @@ import (
 
 /*
 #cgo pkg-config: libavutil
+#include <errno.h>
 #include <libavutil/error.h>
 
-static int av_error_matches(int av,int en) {
+// Takes the errno value as a C int, resolved by cgo from <errno.h> at
+// compile time (C.EAGAIN etc, see IsEAGAIN/IsEINVAL/IsENOSYS below) - NOT
+// a numeric value computed on the Go side. On Windows, Go's syscall.EAGAIN
+// etc are synthetic values with no relation to the real errno.h EAGAIN that
+// mingw-compiled FFmpeg actually returns (Go deliberately places them in
+// the unused APPLICATION_ERROR bit-flag range so they can't collide with
+// real Windows error codes), so comparing a C-returned AVERROR(EAGAIN)
+// against AVERROR(<Go's EAGAIN value>) silently never matches there. Using
+// the same compiler's own errno.h macro on both sides is correct by
+// construction regardless of platform.
+static int av_error_is(int av, int en) {
 	return av == AVERROR(en);
 }
 */
@@ -32,6 +42,16 @@ type (
 
 const (
 	errBufferSize = C.AV_ERROR_MAX_STRING_SIZE
+)
+
+// Exposed for tests to construct representative AVError values (e.g.
+// AVError(-testErrnoEAGAIN)) without a tautological comparison against
+// syscall.EAGAIN - and without a cgo import of their own, since a package
+// can't split cgo compilation between its regular files and test files.
+const (
+	testErrnoEAGAIN = C.EAGAIN
+	testErrnoEINVAL = C.EINVAL
+	testErrnoENOSYS = C.ENOSYS
 )
 
 const (
@@ -85,7 +105,17 @@ func (err AVError) Error() string {
 	}
 }
 
-func (err AVError) IsErrno(v syscall.Errno) bool {
-	c := int(C.av_error_matches(C.int(err), C.int(v)))
-	return c == 1
+// IsEAGAIN reports whether err represents EAGAIN/EWOULDBLOCK.
+func (err AVError) IsEAGAIN() bool {
+	return C.av_error_is(C.int(err), C.EAGAIN) == 1
+}
+
+// IsEINVAL reports whether err represents EINVAL.
+func (err AVError) IsEINVAL() bool {
+	return C.av_error_is(C.int(err), C.EINVAL) == 1
+}
+
+// IsENOSYS reports whether err represents ENOSYS.
+func (err AVError) IsENOSYS() bool {
+	return C.av_error_is(C.int(err), C.ENOSYS) == 1
 }
