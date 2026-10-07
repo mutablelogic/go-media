@@ -35,7 +35,13 @@ jobs:
 
       - name: Install build tools (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt -y update && sudo apt -y install nasm
+        # libxml2-dev is already present on ubuntu-latest, which is enough for
+        # the Makefile's own (non-static) pkg-config check to enable
+        # --enable-libxml2. But ffmpeg's ./configure runs every pkg-config
+        # check with --static, which also needs libxml2.pc's Requires.private
+        # (liblzma) to resolve - hence liblzma-dev below even though nothing
+        # directly asks for it.
+        run: sudo apt -y update && sudo apt -y install nasm libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
 
       - name: Install build tools (macOS)
         if: runner.os == 'macOS'
