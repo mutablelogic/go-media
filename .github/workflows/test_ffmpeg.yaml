@@ -2,6 +2,11 @@ name: "Test ffmpeg bindings (WIP)"
 
 on:
   workflow_dispatch:
+  push:
+    # workflow_dispatch can't target a non-default branch until the workflow
+    # file exists on the default branch, so trigger on push to this branch
+    # while it's still WIP. Remove once merged.
+    branches: [djt/1007/windows]
 
 permissions:
   contents: read
