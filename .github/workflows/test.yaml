@@ -87,6 +87,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not become ready' }
           Add-Content -Path $env:GITHUB_ENV -Value 'GOMEDIA_TEST_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/postgres?sslmode=disable'
 
+      - name: Cache build directory
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-build-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2

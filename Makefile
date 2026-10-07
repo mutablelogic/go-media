@@ -26,7 +26,19 @@ LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
+# Windows always pre-sets an OS=Windows_NT environment variable (a classic
+# DOS/Windows convention), which make's ?= would otherwise respect as an
+# "already set" value - silently skipping the uname-based detection below
+# and breaking every ifeq/filter against $(OS) further down. That's not a
+# value anyone would intentionally pass to this Makefile, so compute OS
+# directly in that case (note: OS := here, not OS ?= - a variable assigned
+# to empty is still "already defined" as far as a later ?= is concerned, so
+# clearing it first and relying on ?= afterwards would leave it empty).
+ifeq ($(OS),Windows_NT)
+OS := $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
+else
 OS ?= $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
+endif
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
 DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
