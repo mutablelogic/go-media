@@ -76,8 +76,20 @@ func Create(url *url.URL, output *profile.Output, opts ...Opt) (*Writer, error) 
 		return nil, gomedia.ErrBadParameter.Withf("at least one stream must be provided")
 	}
 
-	// Allocate the output media context
-	ctx, err := ff.AVFormat_create_file(url.String(), output.Context())
+	// Allocate the output media context. For a local file path (no scheme,
+	// or an explicit "file" scheme), use url.Path directly rather than
+	// url.String(): a Windows path's drive letter ("C:\...") is itself
+	// ambiguous with a URI scheme, so net/url's String() both prepends "./"
+	// to disambiguate it and percent-escapes every backslash (`C:%5CUsers...`)
+	// - neither of which FFmpeg's file-writing backend interprets as the
+	// intended path, so the write silently goes to the wrong place. A real
+	// network URL (http://, rtmp://, srt://, ...) still needs the full
+	// String() form, since the scheme/host carry meaning there.
+	filename := url.String()
+	if url.Scheme == "" || url.Scheme == "file" {
+		filename = url.Path
+	}
+	ctx, err := ff.AVFormat_create_file(filename, output.Context())
 	if err != nil {
 		return nil, err
 	} else {
