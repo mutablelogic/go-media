@@ -79,7 +79,7 @@ cmd: ffmpeg chromaprint libexif libraw libheif $(CMD_DIR)
 
 $(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
 	@echo Build cmd $(notdir $@)
-	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@)$(if $(filter windows,$(OS)),.exe) ./$@
 
 ###############################################################################
 # FFMPEG
