@@ -40,6 +40,7 @@ ifeq ($(OS),darwin)
 # each keg's own dir, not the general Homebrew prefix, which can hold a
 # Homebrew-installed ffmpeg that would be used instead of this one.
 BREW ?= $(shell command -v brew 2>/dev/null)
+BREW_PREFIX = $(if $(BREW),$(shell $(BREW) --prefix 2>/dev/null))
 brew_dirs = $(if $(BREW),$(wildcard $(foreach f,$(1),$(shell $(BREW) --prefix $(f) 2>/dev/null)/$(2))))
 EXTRA_LIB_DIRS=$(call brew_dirs,gettext libpng lame,lib)
 EXTRA_INCLUDE_DIRS=$(call brew_dirs,lame librsvg,include)
@@ -396,8 +397,8 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vulkan && echo "--enable-vulkan"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists zvbi-0.2 && echo "--enable-libzvbi"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists soxr && echo "--enable-libsoxr"))
-# Not on macOS, where Homebrew's openjpeg fails to link statically
-	$(if $(filter darwin,$(OS)),,$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libopenjp2 && echo "--enable-libopenjpeg")))
+# Not with Homebrew's openjpeg, which fails to link statically
+	$(if $(and $(BREW_PREFIX),$(filter $(BREW_PREFIX)/%,$(shell ${PKG_CONFIG} --variable=libdir libopenjp2 2>/dev/null))),,$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libopenjp2 && echo "--enable-libopenjpeg")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists rav1e && echo "--enable-librav1e"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists SvtAv1Enc && echo "--enable-libsvtav1"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists srt && echo "--enable-libsrt"))
