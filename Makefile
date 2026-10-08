@@ -1,6 +1,5 @@
 # Paths to packages
 GO=$(shell which go)
-DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
 CURL=$(shell which curl)
 NPM ?= $(shell which npm 2>/dev/null)
@@ -40,7 +39,6 @@ else
 OS ?= $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
 endif
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
-DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
@@ -69,12 +67,6 @@ VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
 BUILD_LD_FLAGS += -X $(VERSION_PKG).GitTag=$(shell git describe --tags --always)
 BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-only --always)
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
-
-# Docker
-DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
-DOCKER_SOURCE ?= $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-DOCKER_TAG = ${DOCKER_REPO}:${VERSION}-${OS}-${ARCH}
-
 
 ###############################################################################
 # TARGETS
@@ -313,33 +305,6 @@ libheif: libheif-build
 	fi
 
 ###############################################################################
-# DOCKER
-
-# Build the docker image
-.PHONY: docker
-docker: docker-dep
-	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
-	@${DOCKER} build \
-		--tag ${DOCKER_TAG} \
-		--provenance=false \
-		--build-arg ARCH=${ARCH} \
-		--build-arg OS=${OS} \
-		--build-arg SOURCE=${DOCKER_SOURCE} \
-		--build-arg VERSION=${VERSION} \
-		-f etc/docker/Dockerfile.linux .
-
-# Push docker container
-.PHONY: docker-push
-docker-push: docker-dep 
-	@echo push docker image: ${DOCKER_TAG}
-	@${DOCKER} push ${DOCKER_TAG}
-
-# Print out the version
-.PHONY: docker-version
-docker-version: docker-dep
-	@echo "tag=${VERSION}"
-
-###############################################################################
 # TYPESCRIPT
 
 TS_DIR := ts
@@ -417,10 +382,6 @@ test-gomedia: ffmpeg libexif libheif libraw chromaprint
 .PHONY: go-dep
 go-dep:
 	@test -f "$(GO)" && test -x "$(GO)"  || (echo "Missing go binary" && exit 1)
-
-.PHONY: docker-dep
-docker-dep:
-	@test -f "$(DOCKER)" && test -x "$(DOCKER)"  || (echo "Missing docker binary" && exit 1)
 
 .PHONY: pkconfig-dep
 pkconfig-dep:
