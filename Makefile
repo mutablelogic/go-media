@@ -25,14 +25,8 @@ LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
-# Windows always pre-sets an OS=Windows_NT environment variable (a classic
-# DOS/Windows convention), which make's ?= would otherwise respect as an
-# "already set" value - silently skipping the uname-based detection below
-# and breaking every ifeq/filter against $(OS) further down. That's not a
-# value anyone would intentionally pass to this Makefile, so compute OS
-# directly in that case (note: OS := here, not OS ?= - a variable assigned
-# to empty is still "already defined" as far as a later ?= is concerned, so
-# clearing it first and relying on ?= afterwards would leave it empty).
+# Windows sets OS=Windows_NT in the environment, which ?= would keep, so
+# replace it
 ifeq ($(OS),Windows_NT)
 OS := $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
 else
@@ -42,20 +36,16 @@ VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
-# zvbi's .pc file links -lintl/-lpng (from its gettext/libpng dependencies)
-# by name only, assuming they're on the default linker search path - which
-# Homebrew's own lib dirs aren't on macOS. Point at each dependency's own
-# keg-only lib dir specifically, NOT the general "brew --prefix"/lib: that
-# directory is also where a separately Homebrew-installed ffmpeg (if
-# present) puts its own libavcodec etc, and empirically that DOES win over
-# this project's own -lavcodec (verified via AVCodec_configuration() showing
-# the wrong build's --prefix when this was tried), silently linking a build
-# with none of this project's codec/license flags. Extend this list if a
-# future dependency's .pc file needs another keg-only lib resolved the same
-# way.
-EXTRA_LIB_DIRS=$(shell brew --prefix gettext 2>/dev/null)/lib $(shell brew --prefix libpng 2>/dev/null)/lib
+# Homebrew dependencies whose lib or include dirs aren't found otherwise. Use
+# each keg's own dir, not the general Homebrew prefix, which can hold a
+# Homebrew-installed ffmpeg that would be used instead of this one.
+BREW ?= $(shell command -v brew 2>/dev/null)
+BREW_PREFIX = $(if $(BREW),$(shell $(BREW) --prefix 2>/dev/null))
+brew_dirs = $(if $(BREW),$(wildcard $(foreach f,$(1),$(shell $(BREW) --prefix $(f) 2>/dev/null)/$(2))))
+EXTRA_LIB_DIRS=$(call brew_dirs,gettext libpng lame,lib)
+EXTRA_INCLUDE_DIRS=$(call brew_dirs,lame librsvg,include)
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++ -Wl,-no_warn_duplicate_libraries $(foreach d,${EXTRA_LIB_DIRS},-L${d})"
-FFMPEG_EXTRA_LDFLAGS=--extra-ldflags="$(foreach d,${EXTRA_LIB_DIRS},-L${d})"
+FFMPEG_EXTRA_LDFLAGS=--extra-ldflags="$(foreach d,${EXTRA_LIB_DIRS},-L${d})" --extra-cflags="$(foreach d,${EXTRA_INCLUDE_DIRS},-I${d})"
 else
 CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
 FFMPEG_EXTRA_LDFLAGS=
@@ -128,9 +118,8 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
 	fi
 
-# Configure chromaprint
-# Note: FFmpeg 8.0 removed avfft API, so we use vDSP on macOS or kissfft on other platforms
-# kissfft is bundled with chromaprint and requires no external dependencies
+# Configure chromaprint. FFmpeg 8.0 removed avfft, so use vDSP on macOS, and
+# chromaprint's bundled kissfft elsewhere
 ifeq ($(shell uname -s),Darwin)
     FFT_LIB := vdsp
 else
@@ -155,17 +144,14 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
 		-B ${BUILD_DIR}
 
-# Build chromaprint
-# cmake --build is generator-agnostic: a bare `make` here would fail whenever
-# cmake picks Ninja instead of Unix Makefiles (e.g. MSYS2, where ninja is on
-# PATH alongside the mingw-w64 toolchain), since no Makefile gets generated.
+# Build chromaprint, with cmake --build as cmake may generate Ninja files
+# rather than a Makefile (eg. MSYS2)
 .PHONY: chromaprint-build
 chromaprint-build: chromaprint-configure
 	@echo "Building ${CHROMAPRINT_VERSION} with ${JOBS} jobs"
 	@cmake --build ${BUILD_DIR} -j$(JOBS)
 
-# Install chromaprint
-# Create a modified pkg-config file that ensures correct linking order for C++
+# Install chromaprint, adding C++ and libavutil to its pkg-config libs
 .PHONY: chromaprint
 chromaprint: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
@@ -200,15 +186,8 @@ libraw-build: libraw-configure
 	@echo "Building libraw-${LIBRAW_VERSION} with ${JOBS} jobs"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make -j$(JOBS) lib/libraw.la lib/libraw_r.la
 
-# Install libraw
-# Patch pkg-config to add -lz (required for DNG deflate support) and -lm (math
-# functions). On Windows, htonl/ntohl (used for byte-swapping in RAW parsing)
-# live in Winsock rather than libc, so -lws2_32 is needed too - appended here,
-# rather than relying on link-line order, since a static lib can only resolve
-# symbols from libraries listed after it. Appended to the end of the Libs:
-# line (rather than matched/inserted after "-lraw -lstdc++") since libraw's
-# own ./configure doesn't generate that substring consistently across
-# platforms - e.g. not on Windows, where this previously silently no-op'd.
+# Install libraw, appending -lz (DNG deflate) and -lm to its pkg-config libs,
+# and -lws2_32 on Windows (for htonl/ntohl)
 .PHONY: libraw
 libraw: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
@@ -231,14 +210,8 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 	fi
 
 .PHONY: libexif-configure
-# --disable-nls: go-media reads EXIF tags as structured data, not translated
-# human-readable strings, so there's no need for libexif's gettext-based
-# National Language Support. Without this, configure enables it whenever it
-# finds gettext/libintl available (as MSYS2 does), requiring -lintl at link
-# time, which nothing here provides - undefined reference to libintl_*.
-# Doesn't affect Linux (glibc has gettext built in, no separate libintl) or
-# macOS (Homebrew's gettext is keg-only, off configure's default search
-# path, so it was already silently detected as absent there).
+# --disable-nls: translated strings aren't needed, and would require -lintl
+# where gettext is found (eg. MSYS2)
 libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 	@echo "Configuring libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
@@ -321,15 +294,14 @@ ts: npm-dep mkdir
 test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
 
 .PHONY: test-chromaprint
-# pkg/chromaprint -> pkg/ffmpeg -> sys/ffmpeg80, so chromaprint (which itself
-# depends on ffmpeg via chromaprint-configure) covers both.
+# chromaprint depends on ffmpeg, so covers both
 test-chromaprint: chromaprint
 	@echo ... test pkg/segmenter pkg/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
 .PHONY: test-exif
-# pkg/exif imports sys/libheif directly, not just sys/libexif.
+# pkg/exif also imports sys/libheif
 test-exif: libexif libheif
 	@echo ... test sys/libexif pkg/exif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
@@ -342,16 +314,14 @@ test-raw: libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
 .PHONY: test-heif
-# pkg/heif imports pkg/exif, which needs libexif as well as libheif.
+# pkg/heif imports pkg/exif
 test-heif: libheif libexif
 	@echo ... test sys/libheif pkg/heif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
 
 .PHONY: test-ffmpeg
-# reader -> metadata -> pkg/raw (blank import, for MIME type registration)
-# -> sys/libraw, so libraw is needed even though this only tests ffmpeg
-# bindings. writer and frame don't have this dependency.
+# reader imports pkg/raw (through metadata), so needs libraw
 test-ffmpeg: go-dep go-tidy ffmpeg libraw
 	@echo ... test sys/${SYS_VERSION} reader writer frame
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
@@ -360,16 +330,13 @@ test-ffmpeg: go-dep go-tidy ffmpeg libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./frame/...
 
 .PHONY: test-metadata
-# metadata/image imports pkg/exif, pkg/heif and pkg/raw; metadata/audio and
-# metadata/video import sys/ffmpeg80 directly.
+# metadata imports ffmpeg, exif, heif and raw packages
 test-metadata: ffmpeg libexif libheif libraw
 	@echo ... test metadata
 	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
 
 .PHONY: test-gomedia
-# task blank-imports all metadata/* subpackages (-> ffmpeg, libexif, libheif,
-# libraw); gomedia imports pkg/chromaprint (-> chromaprint); profile only
-# needs ffmpeg, already covered.
+# task imports metadata, and gomedia imports pkg/chromaprint
 test-gomedia: ffmpeg libexif libheif libraw chromaprint
 	@echo ... test task profile gomedia
 	@${CGO_ENV} ${GO} test ${ARGS} ./task/...
@@ -430,7 +397,8 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vulkan && echo "--enable-vulkan"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists zvbi-0.2 && echo "--enable-libzvbi"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists soxr && echo "--enable-libsoxr"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libopenjp2 && echo "--enable-libopenjpeg"))
+# Not with Homebrew's openjpeg, which fails to link statically
+	$(if $(and $(BREW_PREFIX),$(filter $(BREW_PREFIX)/%,$(shell ${PKG_CONFIG} --variable=libdir libopenjp2 2>/dev/null))),,$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libopenjp2 && echo "--enable-libopenjpeg")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists rav1e && echo "--enable-librav1e"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists SvtAv1Enc && echo "--enable-libsvtav1"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists srt && echo "--enable-libsrt"))
