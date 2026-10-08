@@ -23,13 +23,18 @@ func sampleFilePath(t *testing.T, name string) string {
 	return filepath.Join("..", "..", "etc", "test", name)
 }
 
-// fileURL turns an absolute filesystem path into a "file://" URL string.
-// fmt.Sprintf("file://%s", path) breaks on Windows: a path like
-// `D:\foo\bar` isn't slash-separated, and its drive-letter colon parses as
-// a host:port separator ("invalid port \"\\foo\\bar\" after host"). A
-// leading "/" is also required - without one, "file://D:/foo/bar" still
-// parses "D" as the host for the same reason; "file:///D:/foo/bar" (note
-// the third slash) is the standard form for a Windows path as a file URL.
+// fileURL turns an absolute filesystem path into a standard (RFC 8089)
+// "file://" URL string, e.g. "file:///tmp/foo" or "file:///D:/foo" for a
+// Windows path - ProbeSourceTask normalizes this into whatever raw path
+// FFmpeg's own file protocol actually needs (see fileProtocolPath in
+// gomedia/task/probe.go) before opening it.
+//
+// fmt.Sprintf("file://%s", path) (the original form here) breaks on
+// Windows: a path like `D:\foo\bar` isn't slash-separated, and its
+// drive-letter colon parses as a host:port separator ("invalid port
+// \"\\foo\\bar\" after host"). A leading "/" is also required - without
+// one, "file://D:/foo/bar" still parses "D" as the host for the same
+// reason.
 func fileURL(path string) string {
 	p := filepath.ToSlash(path)
 	if !strings.HasPrefix(p, "/") {

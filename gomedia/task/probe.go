@@ -179,6 +179,8 @@ func (task *ProbeSourceTask) Run(ctx Context) (err error) {
 		if inputFormat == "" || address == "" {
 			return gomedia.ErrBadParameter.Withf("invalid device URL %q, expected \"device://<format>/<address>\"", u.String())
 		}
+	} else if u.Scheme == "file" {
+		address = "file:" + fileProtocolPath(u)
 	} else if !slices.Contains(reader.Protocols(), u.Scheme) {
 		return gomedia.ErrBadParameter.Withf("unsupported URL scheme %q", u.Scheme)
 	}
@@ -211,4 +213,32 @@ func (task *ProbeSourceTask) Run(ctx Context) (err error) {
 
 	// Return success
 	return nil
+}
+
+// fileProtocolPath returns the raw filesystem path to hand to FFmpeg's file
+// protocol, from a parsed "file" scheme URL. FFmpeg's file protocol only
+// strips the literal "file:" prefix (libavformat/file.c: av_strstart(url,
+// "file:", &url)) - it does no further URI parsing, so whatever follows the
+// colon must already be a usable OS path. RFC 8089's standard form for a
+// Windows path, file:///C:/dir/file (an empty authority, then a path that
+// still carries the leading "/" before the drive letter), parses in Go to
+// Path="/C:/dir/file" - passed through as-is, that leading slash makes it
+// an invalid Windows path ("No such file or directory"), so it's stripped
+// here when present. A POSIX path (file:///tmp/file, Path="/tmp/file")
+// needs no such adjustment. The opaque form some callers may already send
+// (file:C:/dir/file, no "//") bypasses this entirely: u.Opaque already
+// holds exactly the right string.
+func fileProtocolPath(u *url.URL) string {
+	if u.Opaque != "" {
+		return u.Opaque
+	}
+	p := u.Path
+	if len(p) >= 3 && p[0] == '/' && p[2] == ':' && isASCIILetter(p[1]) {
+		p = p[1:]
+	}
+	return p
+}
+
+func isASCIILetter(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
