@@ -1,6 +1,5 @@
 # Paths to packages
 GO=$(shell which go)
-DOCKER=$(shell which docker)
 PKG_CONFIG=$(shell which pkg-config)
 CURL=$(shell which curl)
 NPM ?= $(shell which npm 2>/dev/null)
@@ -26,9 +25,20 @@ LIBHEIF_VERSION ?= 1.23.1
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
-OS ?= $(shell uname | tr A-Z a-z)
+# Windows always pre-sets an OS=Windows_NT environment variable (a classic
+# DOS/Windows convention), which make's ?= would otherwise respect as an
+# "already set" value - silently skipping the uname-based detection below
+# and breaking every ifeq/filter against $(OS) further down. That's not a
+# value anyone would intentionally pass to this Makefile, so compute OS
+# directly in that case (note: OS := here, not OS ?= - a variable assigned
+# to empty is still "already defined" as far as a later ?= is concerned, so
+# clearing it first and relying on ?= afterwards would leave it empty).
+ifeq ($(OS),Windows_NT)
+OS := $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
+else
+OS ?= $(shell uname | tr A-Z a-z | sed -E 's/^(msys|mingw|cygwin).*/windows/')
+endif
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
-DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # CGO configuration - set CGO vars for C++ libraries
 ifeq ($(OS),darwin)
@@ -57,12 +67,6 @@ VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
 BUILD_LD_FLAGS += -X $(VERSION_PKG).GitTag=$(shell git describe --tags --always)
 BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-only --always)
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
-
-# Docker
-DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
-DOCKER_SOURCE ?= $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-DOCKER_TAG = ${DOCKER_REPO}:${VERSION}-${OS}-${ARCH}
-
 
 ###############################################################################
 # TARGETS
@@ -152,17 +156,20 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 		-B ${BUILD_DIR}
 
 # Build chromaprint
+# cmake --build is generator-agnostic: a bare `make` here would fail whenever
+# cmake picks Ninja instead of Unix Makefiles (e.g. MSYS2, where ninja is on
+# PATH alongside the mingw-w64 toolchain), since no Makefile gets generated.
 .PHONY: chromaprint-build
 chromaprint-build: chromaprint-configure
 	@echo "Building ${CHROMAPRINT_VERSION} with ${JOBS} jobs"
-	@cd $(BUILD_DIR) && make -j$(JOBS)
+	@cmake --build ${BUILD_DIR} -j$(JOBS)
 
 # Install chromaprint
 # Create a modified pkg-config file that ensures correct linking order for C++
 .PHONY: chromaprint
 chromaprint: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
-	@cd $(BUILD_DIR) && make install
+	@cmake --install ${BUILD_DIR}
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
@@ -194,12 +201,19 @@ libraw-build: libraw-configure
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make -j$(JOBS) lib/libraw.la lib/libraw_r.la
 
 # Install libraw
-# Patch pkg-config to add -lz (required for DNG deflate support) and -lm (math functions)
+# Patch pkg-config to add -lz (required for DNG deflate support) and -lm (math
+# functions). On Windows, htonl/ntohl (used for byte-swapping in RAW parsing)
+# live in Winsock rather than libc, so -lws2_32 is needed too - appended here,
+# rather than relying on link-line order, since a static lib can only resolve
+# symbols from libraries listed after it. Appended to the end of the Libs:
+# line (rather than matched/inserted after "-lraw -lstdc++") since libraw's
+# own ./configure doesn't generate that substring consistently across
+# platforms - e.g. not on Windows, where this previously silently no-op'd.
 .PHONY: libraw
 libraw: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
-	@sed -i.bak 's|-lraw -lstdc++|-lraw -lstdc++ -lz -lm|' "${PREFIX}/lib/pkgconfig/libraw.pc"
+	@sed -i.bak '/^Libs:/ s/$$/ -lz -lm$(if $(filter windows,${OS}), -lws2_32)/' "${PREFIX}/lib/pkgconfig/libraw.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
 	@${GO} clean -cache
 
@@ -217,10 +231,18 @@ ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}:
 	fi
 
 .PHONY: libexif-configure
+# --disable-nls: go-media reads EXIF tags as structured data, not translated
+# human-readable strings, so there's no need for libexif's gettext-based
+# National Language Support. Without this, configure enables it whenever it
+# finds gettext/libintl available (as MSYS2 does), requiring -lintl at link
+# time, which nothing here provides - undefined reference to libintl_*.
+# Doesn't affect Linux (glibc has gettext built in, no separate libintl) or
+# macOS (Homebrew's gettext is keg-only, off configure's default search
+# path, so it was already silently detected as absent there).
 libexif-configure: mkdir ${BUILD_DIR}/libexif-${LIBEXIF_VERSION}
 	@echo "Configuring libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd ${BUILD_DIR}/libexif-${LIBEXIF_VERSION} && ./configure \
-		--disable-docs --enable-year2038  \
+		--disable-docs --disable-nls --enable-year2038  \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --disable-shared
 
@@ -283,33 +305,6 @@ libheif: libheif-build
 	fi
 
 ###############################################################################
-# DOCKER
-
-# Build the docker image
-.PHONY: docker
-docker: docker-dep
-	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
-	@${DOCKER} build \
-		--tag ${DOCKER_TAG} \
-		--provenance=false \
-		--build-arg ARCH=${ARCH} \
-		--build-arg OS=${OS} \
-		--build-arg SOURCE=${DOCKER_SOURCE} \
-		--build-arg VERSION=${VERSION} \
-		-f etc/docker/Dockerfile .
-
-# Push docker container
-.PHONY: docker-push
-docker-push: docker-dep 
-	@echo push docker image: ${DOCKER_TAG}
-	@${DOCKER} push ${DOCKER_TAG}
-
-# Print out the version
-.PHONY: docker-version
-docker-version: docker-dep
-	@echo "tag=${VERSION}"
-
-###############################################################################
 # TYPESCRIPT
 
 TS_DIR := ts
@@ -326,31 +321,38 @@ ts: npm-dep mkdir
 test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
 
 .PHONY: test-chromaprint
-test-chromaprint:
+# pkg/chromaprint -> pkg/ffmpeg -> sys/ffmpeg80, so chromaprint (which itself
+# depends on ffmpeg via chromaprint-configure) covers both.
+test-chromaprint: chromaprint
 	@echo ... test pkg/segmenter pkg/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
 
 .PHONY: test-exif
-test-exif:
+# pkg/exif imports sys/libheif directly, not just sys/libexif.
+test-exif: libexif libheif
 	@echo ... test sys/libexif pkg/exif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/exif
 
 .PHONY: test-raw
-test-raw:
+test-raw: libraw
 	@echo ... test sys/libraw pkg/raw
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
 .PHONY: test-heif
-test-heif:
+# pkg/heif imports pkg/exif, which needs libexif as well as libheif.
+test-heif: libheif libexif
 	@echo ... test sys/libheif pkg/heif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
 
 .PHONY: test-ffmpeg
-test-ffmpeg: go-dep go-tidy
+# reader -> metadata -> pkg/raw (blank import, for MIME type registration)
+# -> sys/libraw, so libraw is needed even though this only tests ffmpeg
+# bindings. writer and frame don't have this dependency.
+test-ffmpeg: go-dep go-tidy ffmpeg libraw
 	@echo ... test sys/${SYS_VERSION} reader writer frame
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./reader/...
@@ -358,12 +360,17 @@ test-ffmpeg: go-dep go-tidy
 	@${CGO_ENV} ${GO} test ${ARGS} ./frame/...
 
 .PHONY: test-metadata
-test-metadata: 
+# metadata/image imports pkg/exif, pkg/heif and pkg/raw; metadata/audio and
+# metadata/video import sys/ffmpeg80 directly.
+test-metadata: ffmpeg libexif libheif libraw
 	@echo ... test metadata
 	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
 
 .PHONY: test-gomedia
-test-gomedia: 
+# task blank-imports all metadata/* subpackages (-> ffmpeg, libexif, libheif,
+# libraw); gomedia imports pkg/chromaprint (-> chromaprint); profile only
+# needs ffmpeg, already covered.
+test-gomedia: ffmpeg libexif libheif libraw chromaprint
 	@echo ... test task profile gomedia
 	@${CGO_ENV} ${GO} test ${ARGS} ./task/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./profile/...
@@ -375,10 +382,6 @@ test-gomedia:
 .PHONY: go-dep
 go-dep:
 	@test -f "$(GO)" && test -x "$(GO)"  || (echo "Missing go binary" && exit 1)
-
-.PHONY: docker-dep
-docker-dep:
-	@test -f "$(DOCKER)" && test -x "$(DOCKER)"  || (echo "Missing docker binary" && exit 1)
 
 .PHONY: pkconfig-dep
 pkconfig-dep:

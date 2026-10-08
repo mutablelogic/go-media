@@ -136,6 +136,11 @@ func TestManager_StartCompletes(t *testing.T) {
 	require.NoError(err)
 	require.NoError(mgr.Start(ctx, id))
 
+	// fakeTask.Run does almost no work before blocking on done, so without
+	// this, Started and Finished can end up reading the exact same
+	// timestamp on a fast/virtualized runner (observed on Windows CI),
+	// making the Duration() assertion below flaky rather than meaningful.
+	time.Sleep(time.Millisecond)
 	close(ft.done)
 
 	status, err := mgr.Wait(ctx, id)

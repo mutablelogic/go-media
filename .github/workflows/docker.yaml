@@ -1,0 +1,185 @@
+name: Docker
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  linux:
+    name: Build Linux ${{ matrix.arch }} image
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags and labels
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gomedia
+          tags: |
+            type=ref,event=branch,suffix=-linux-${{ matrix.arch }}
+            type=ref,event=tag,suffix=-linux-${{ matrix.arch }}
+
+      - name: Build and publish Linux image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: etc/docker/Dockerfile.linux
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            OS=linux
+            ARCH=${{ matrix.arch }}
+            SOURCE=${{ github.server_url }}/${{ github.repository }}
+
+  windows:
+    name: Build Windows image
+    runs-on: windows-2022
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+
+      - name: Cache build directory
+        uses: actions/cache@v6
+        with:
+          path: build
+          key: Windows-docker-build-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            Windows-docker-build-
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          # 'inherit' keeps the Go toolchain (installed above by
+          # actions/setup-go, outside MSYS2) visible inside the msys2 shell
+          # alongside gcc/make/pkg-config - see test.yaml for the same setup.
+          path-type: inherit
+          install: >-
+            base-devel
+            make
+            curl
+            diffutils
+            nasm
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libde265
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
+
+      - name: Build gomedia.exe
+        shell: msys2 {0}
+        # The cmd target doesn't itself depend on the library-build targets
+        # (it only checks for them via pkg-config to set feature tags), so
+        # they're built explicitly first - see the same note on test.yaml.
+        # gomedia.exe links libstdc++/libgcc/libwinpthread dynamically (this
+        # project's own libraries are static, but MinGW's own C++/threading
+        # runtime isn't), so those three DLLs are copied alongside it for
+        # Dockerfile.windows to package together.
+        run: |
+          make ffmpeg chromaprint libexif libraw libheif
+          make cmd
+          cp "$MINGW_PREFIX"/bin/libstdc++-6.dll "$MINGW_PREFIX"/bin/libgcc_s_seh-1.dll "$MINGW_PREFIX"/bin/libwinpthread-1.dll build/
+
+      - name: Verify Windows container engine
+        shell: pwsh
+        run: |
+          $containerOS = docker info --format '{{.OSType}}'
+          if ($containerOS -ne 'windows') {
+            throw "Expected a Windows container engine, got '$containerOS'."
+          }
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Windows image
+        shell: pwsh
+        run: |
+          $repository = "ghcr.io/$($env:GITHUB_REPOSITORY_OWNER)/gomedia".ToLowerInvariant()
+          $source = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+          $refTag = $env:GITHUB_REF_NAME -replace '[^A-Za-z0-9_.-]', '-'
+          $imageTag = "${repository}:${refTag}-windows-ltsc2022"
+
+          $buildArgs = @('build', '--file', 'etc/docker/Dockerfile.windows', '--build-arg', "SOURCE=$source")
+          $buildArgs += @('--tag', $imageTag)
+          $buildArgs += '.'
+          docker @buildArgs
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          docker push $imageTag
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+  manifest:
+    name: Publish multi-platform latest tag
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release and latest manifests
+        shell: bash
+        env:
+          IMAGE_OWNER: ${{ github.repository_owner }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          image="ghcr.io/${IMAGE_OWNER,,}/gomedia"
+          ref_tag="${REF_NAME//[^A-Za-z0-9_.-]/-}"
+          docker buildx imagetools create \
+            --tag "$image:latest" \
+            --tag "$image:$ref_tag" \
+            "$image:$ref_tag-linux-amd64" \
+            "$image:$ref_tag-linux-arm64" \
+            "$image:$ref_tag-windows-ltsc2022"

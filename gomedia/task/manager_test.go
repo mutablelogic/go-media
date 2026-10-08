@@ -108,6 +108,10 @@ func TestManager_RunCompletes(t *testing.T) {
 		t.Fatalf("result = %v, want %q", status.Result, "fake result")
 	}
 
+	// Guarantee real elapsed time before the task completes, so the
+	// Duration() assertion below is meaningful rather than flaky - same
+	// fix, same reason, as task/manager's TestManager_StartCompletes.
+	time.Sleep(time.Millisecond)
 	close(ft.done)
 
 	waitFor(t, func() bool {

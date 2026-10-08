@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 	"testing"
 
@@ -14,6 +15,14 @@ import (
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
+
+const (
+	// Set to connect to an already-running Postgres instead of starting a
+	// Docker testcontainer - for CI on platforms without a fast Docker
+	// daemon (macOS, Windows), mirroring how other mutablelogic projects
+	// provision a native Postgres for tests on those runners.
+	envTestDatabaseURL = "GOMEDIA_TEST_DATABASE_URL"
+)
 
 var (
 	shared  *manager.Profile
@@ -53,10 +62,11 @@ func (r *cancelRegistry) LoadAndDelete(t *testing.T) (context.CancelFunc, bool) 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Main is the test main function for tests. It starts up a container and runs the tests,
-// providing a manager instance to each test.
+// Main is the test main function for tests. It starts up a container (or
+// connects to an existing database, if GOMEDIA_TEST_DATABASE_URL is set)
+// and runs the tests, providing a manager instance to each test.
 func Main(m *testing.M, setup func(*manager.Profile) (func(), error), opts ...manager.Opt) {
-	test.Main(m, func(pool pg.PoolConn) (func(), error) {
+	run := func(pool pg.PoolConn) (func(), error) {
 		profile, err := manager.New(context.Background(), pool, opts...)
 		if err != nil {
 			return nil, err
@@ -85,7 +95,42 @@ func Main(m *testing.M, setup func(*manager.Profile) (func(), error), opts ...ma
 			shared = nil
 			teardown()
 		}, nil
-	})
+	}
+
+	if url := os.Getenv(envTestDatabaseURL); url != "" {
+		os.Exit(mainWithURL(url, m, run))
+		return
+	}
+
+	test.Main(m, run)
+}
+
+// mainWithURL connects to an already-running Postgres instead of starting a
+// testcontainer, and otherwise follows the same setup/run/teardown sequence
+// as go-pg/pkg/test.Main.
+func mainWithURL(url string, m *testing.M, setup func(pg.PoolConn) (func(), error)) int {
+	ctx := context.Background()
+	pool, err := pg.NewPool(ctx, pg.WithURL(url))
+	if err != nil {
+		panic(err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		panic(err)
+	}
+
+	cleanup := func() {}
+	if setup != nil {
+		cleanup_, err := setup(pool)
+		if err != nil {
+			panic(err)
+		} else if cleanup_ != nil {
+			cleanup = cleanup_
+		}
+	}
+	defer cleanup()
+
+	return m.Run()
 }
 
 // Begin returns the shared test manager and a per-test context.

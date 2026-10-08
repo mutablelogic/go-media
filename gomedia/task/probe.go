@@ -179,6 +179,8 @@ func (task *ProbeSourceTask) Run(ctx Context) (err error) {
 		if inputFormat == "" || address == "" {
 			return gomedia.ErrBadParameter.Withf("invalid device URL %q, expected \"device://<format>/<address>\"", u.String())
 		}
+	} else if u.Scheme == "file" {
+		address = "file:" + gomedia.FileProtocolPath(u)
 	} else if !slices.Contains(reader.Protocols(), u.Scheme) {
 		return gomedia.ErrBadParameter.Withf("unsupported URL scheme %q", u.Scheme)
 	}
@@ -212,3 +214,4 @@ func (task *ProbeSourceTask) Run(ctx Context) (err error) {
 	// Return success
 	return nil
 }
+

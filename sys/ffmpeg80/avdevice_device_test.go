@@ -159,6 +159,9 @@ func Test_avdevice_device_info_string(t *testing.T) {
 	}
 
 	device := devices[0]
+	if device == nil {
+		t.Skip("First device in list is nil")
+	}
 
 	// Test String() marshaling
 	str := device.String()

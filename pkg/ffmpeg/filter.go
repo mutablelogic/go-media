@@ -3,7 +3,6 @@ package ffmpeg
 import (
 	"errors"
 	"fmt"
-	"syscall"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
@@ -273,7 +272,7 @@ func (f *audioFilter) process(src *Frame, fn func(*Frame) error) error {
 		if err != nil {
 			ff.AVUtil_frame_free(frame)
 			avErr, ok := err.(ff.AVError)
-			if ok && (avErr == ff.AVERROR_EOF || avErr.IsErrno(syscall.EAGAIN)) {
+			if ok && (avErr == ff.AVERROR_EOF || avErr.IsEAGAIN()) {
 				// No more frames available
 				return nil
 			}
@@ -447,7 +446,7 @@ func (f *videoFilter) process(src *Frame, fn func(*Frame) error) error {
 		if err != nil {
 			ff.AVUtil_frame_free(frame)
 			avErr, ok := err.(ff.AVError)
-			if ok && (avErr == ff.AVERROR_EOF || avErr.IsErrno(syscall.EAGAIN)) {
+			if ok && (avErr == ff.AVERROR_EOF || avErr.IsEAGAIN()) {
 				// No more frames available
 				return nil
 			}

@@ -11,8 +11,28 @@ import (
 
 /*
 #cgo pkg-config: libchromaprint libavcodec
-#cgo LDFLAGS: -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
+// Group-wrap, rather than relying on -lstdc++ landing after -lchromaprint
+// in the final link line: once many packages needing libstdc++ combine
+// into one binary (e.g. gomedia/httpclient, which pulls in ffmpeg+
+// chromaprint+libexif+libraw+libheif together), each package's cgo
+// flags are concatenated in whatever order Go's tooling assembles them,
+// which this package doesn't control and isn't reliably predictable -
+// confirmed by watching it change across attempts. --start-group/
+// --end-group makes the linker re-scan until everything inside resolves,
+// regardless of position. GNU ld only (Linux and, via MSYS2/mingw,
+// Windows) - Apple's ld64 doesn't support these flags, but doesn't need
+// them either (its symbol resolution isn't single-pass like GNU ld's).
+#cgo linux LDFLAGS: -Wl,--start-group -lchromaprint -lstdc++ -Wl,--end-group
+#cgo windows LDFLAGS: -Wl,--start-group -lchromaprint -lstdc++ -Wl,--end-group
+// Without this, chromaprint.h unconditionally decorates every function with
+// __declspec(dllimport) on Windows, which only makes sense when linking
+// against a DLL's import library. We build and link chromaprint statically
+// there (see the Makefile's chromaprint target), so the linker looks for
+// __imp_-prefixed symbols that don't exist in a plain static archive -
+// undefined reference at link time. Harmless to define on every platform:
+// chromaprint.h only consults this macro in its Windows branch.
+#define CHROMAPRINT_NODLL
 #include <chromaprint.h>
 */
 import "C"

@@ -26,13 +26,21 @@ type NamedStream interface {
 type extensionRule struct {
 	ContentType string
 	Preferred   bool
+	// Authoritative means byte-sniffing gets this extension wrong or
+	// leaves it ambiguous (e.g. .m4a sniffs as video/mp4), so the
+	// extension itself is trusted immediately, without reading the stream
+	// at all. Preferred alone (the common case) only affects
+	// ExtensionByType's reverse mapping and must NOT skip sniffing - a
+	// .jpg's actual byte signature is reliable, so there's no reason to
+	// trust a mislabeled or corrupted file over actually checking it.
+	Authoritative bool
 }
 
 // extensionContentTypes stores extension -> media type mappings and whether
 // this extension should be preferred when a type has multiple aliases.
 // It is used both for content type detection and extension selection.
 var extensionContentTypes = map[string]extensionRule{
-	".m4a":  {ContentType: "audio/mp4", Preferred: true},
+	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
 }
@@ -52,6 +60,15 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 	if named, ok := r.(NamedStream); ok {
 		ext := strings.ToLower(filepath.Ext(named.Name()))
 		if forced, ok := extensionContentTypes[ext]; ok {
+			if forced.Authoritative {
+				return mime.ParseMediaType(forced.ContentType)
+			}
+			// Preferred without Authoritative (e.g. .jpg/.jpeg): use this as
+			// the extension-based fallback below, but still sniff first -
+			// unlike .m4a, there's no reason not to. Extensions not in this
+			// map at all (e.g. .ts, which is either TypeScript source or an
+			// MPEG transport stream) go through mime.TypeByExtension the
+			// same way.
 			extType = forced.ContentType
 		} else if ext != "" {
 			extType = mime.TypeByExtension(ext)
@@ -65,13 +82,6 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
 	if mediaType := http.DetectContentType(buf[:n]); mediaType != types.ContentTypeBinary {
-		// Extension-based override for known cases like .m4a, where MP4 byte
-		// signatures are otherwise reported as video/mp4.
-		if extType != "" {
-			if mediaType == "video/mp4" || mediaType == "application/mp4" {
-				return mime.ParseMediaType(extType)
-			}
-		}
 		return mime.ParseMediaType(mediaType)
 	}
 

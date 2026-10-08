@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # Go modules, checked monthly. OpenTelemetry and gRPC both release updates
+  # across many modules at once, so each is grouped into a single pull request.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      opentelemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+      grpc:
+        patterns:
+          - "google.golang.org/grpc*"
+          - "github.com/grpc-ecosystem/*"
+
+  # Actions used by the workflows, checked monthly in a single pull request
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

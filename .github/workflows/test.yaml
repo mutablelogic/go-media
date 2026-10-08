@@ -1,0 +1,138 @@
+name: "Test"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel a still-running run for the same branch/PR when a new commit
+# supersedes it, rather than letting both run to completion - besides the
+# wasted CI time, two concurrent runs can race to save the build-directory
+# cache under the same key (it's keyed on the Makefile's contents, so two
+# runs for commits that didn't touch the Makefile collide) and the loser's
+# save just silently fails ("another job may be creating this cache").
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Report results for every platform, even if one fails
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt -y update && sudo apt -y install nasm cmake libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev
+
+      - name: Install build tools (macOS)
+        if: runner.os == 'macOS'
+        # libde265/aom/dav1d give libheif an actual decoder to test against -
+        # without one, every heif test fails with "Decoder plugin generated
+        # an error: Unspecified". Mirrors the Linux apt list.
+        run: brew install pkg-config nasm cmake libde265 aom dav1d
+
+      - name: Start PostgreSQL (macOS)
+        # profile/manager's tests default to a Docker testcontainer, which
+        # ubuntu-latest's built-in daemon handles fine, but installing a
+        # working Docker daemon on macOS/Windows runners (e.g. via
+        # docker/setup-docker-action) took 7+ minutes. A native Postgres,
+        # pointed at via GOMEDIA_TEST_DATABASE_URL (see profile/test/test.go),
+        # is far faster - same approach as go-omodie's test.yml.
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install postgresql@17
+          pgdata="$(brew --prefix)/var/postgresql@17"
+          if [[ ! -f "$pgdata/PG_VERSION" ]]; then
+            "$(brew --prefix postgresql@17)/bin/initdb" -D "$pgdata" --username "$(id -un)" --auth-local=trust --auth-host=scram-sha-256
+          fi
+          brew services start postgresql@17
+          pg_bin="$(brew --prefix postgresql@17)/bin"
+          echo "$pg_bin" >> "$GITHUB_PATH"
+          export PATH="$pg_bin:$PATH"
+          for attempt in {1..60}; do
+            if pg_isready -h 127.0.0.1 -p 5432; then
+              break
+            fi
+            sleep 1
+          done
+          psql -d postgres -c "ALTER USER \"$(id -un)\" WITH PASSWORD 'runner'"
+          echo "GOMEDIA_TEST_DATABASE_URL=postgres://$(id -un):runner@127.0.0.1:5432/postgres?sslmode=disable" >> "$GITHUB_ENV"
+
+      - name: Start PostgreSQL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-Service -Name postgresql-x64-17 -StartupType Manual
+          Start-Service -Name postgresql-x64-17
+          $pgIsReady = 'C:\Program Files\PostgreSQL\17\bin\pg_isready.exe'
+          for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            & $pgIsReady -h 127.0.0.1 -p 5432 -U postgres
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 1
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not become ready' }
+          Add-Content -Path $env:GITHUB_ENV -Value 'GOMEDIA_TEST_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/postgres?sslmode=disable'
+
+      - name: Cache build directory
+        uses: actions/cache@v6
+        with:
+          path: build
+          key: ${{ runner.os }}-build-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          # 'inherit' keeps the Go toolchain (installed above by actions/setup-go,
+          # outside MSYS2) visible inside the msys2 shell alongside gcc/make/pkg-config
+          path-type: inherit
+          install: >-
+            base-devel
+            make
+            curl
+            diffutils
+            nasm
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libde265
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
+
+      - name: Run tests (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: make test
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: make test

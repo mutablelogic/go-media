@@ -82,3 +82,44 @@ func Test_mime_003_extensionByType(t *testing.T) {
 		t.Fatalf("ExtensionByType(unknown) = %q, want empty", got)
 	}
 }
+
+// unreadableReader fails the test if Read is ever called on it.
+type unreadableReader struct {
+	t    *testing.T
+	name string
+}
+
+func (r unreadableReader) Name() string { return r.name }
+
+func (r unreadableReader) Read([]byte) (int, error) {
+	r.t.Fatal("Read was called; curated extensions should return without reading the stream")
+	return 0, nil
+}
+
+func Test_mime_004_curated_extension_skips_read(t *testing.T) {
+	r := unreadableReader{t: t, name: "audio.m4a"}
+
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "audio/mp4" {
+		t.Fatalf("expected audio/mp4, got %q", contentType)
+	}
+}
+
+func Test_mime_005_jpg_extension_is_not_authoritative(t *testing.T) {
+	// PNG signature in a file misleadingly named .jpg - sniffing must win,
+	// proving .jpg (Preferred for ExtensionByType, but not Authoritative)
+	// doesn't skip reading the stream the way .m4a deliberately does.
+	data := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	r := namedReader{Reader: bytes.NewReader(data), name: "mislabeled.jpg"}
+
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "image/png" {
+		t.Fatalf("expected image/png (from sniffing, not the .jpg extension), got %q", contentType)
+	}
+}

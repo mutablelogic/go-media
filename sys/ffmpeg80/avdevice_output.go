@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"syscall"
 	"unsafe"
 )
 
@@ -55,7 +54,7 @@ func AVDevice_list_output_sinks(device *AVOutputFormat, device_name string, devi
 	// Get list
 	var list *C.struct_AVDeviceInfoList
 	if ret := int(C.avdevice_list_output_sinks((*C.struct_AVOutputFormat)(device), cName, dict, &list)); ret < 0 {
-		if err := AVError(ret); err.IsErrno(syscall.ENOSYS) {
+		if err := AVError(ret); err.IsENOSYS() {
 			// Not supported by this device's get_device_list callback - some
 			// platform/device combinations (e.g. audiotoolbox on darwin) have
 			// a platform-specific fallback instead.

@@ -100,7 +100,13 @@ func NewReader(r io.Reader, opt ...Opt) (*Reader, error) {
 func (r *Reader) open() (*Reader, error) {
 	// Find stream information
 	if err := ff.AVFormat_find_stream_info(r.input, nil); err != nil {
-		ff.AVFormat_free_context(r.input)
+		// AVFormat_close_input, not AVFormat_free_context: it's the correct
+		// counterpart to avformat_open_input/AVFormat_open_url/
+		// AVFormat_open_reader, closing the underlying file or protocol that
+		// opened internally - AVFormat_free_context only frees the struct,
+		// leaking that handle (invisible on POSIX, where a still-open file
+		// can be deleted/renamed freely, but not on Windows).
+		ff.AVFormat_close_input(r.input)
 		r.input = nil
 		if r.avio != nil {
 			ff.AVFormat_avio_context_free(r.avio)
@@ -121,9 +127,10 @@ func (r *Reader) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	// Free resources
+	// Free resources. See the comment in open() on why this is
+	// AVFormat_close_input rather than AVFormat_free_context.
 	if r.input != nil {
-		ff.AVFormat_free_context(r.input)
+		ff.AVFormat_close_input(r.input)
 		r.input = nil
 	}
 	if r.avio != nil {

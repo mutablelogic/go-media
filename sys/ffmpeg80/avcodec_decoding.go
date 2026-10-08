@@ -26,9 +26,9 @@ func AVCodec_receive_frame(ctx *AVCodecContext, frame *AVFrame) error {
 	if err := AVError(C.avcodec_receive_frame((*C.AVCodecContext)(ctx), (*C.AVFrame)(frame))); err != 0 {
 		if err == AVERROR_EOF {
 			return io.EOF
-		} else if err.IsErrno(syscall.EAGAIN) {
+		} else if err.IsEAGAIN() {
 			return syscall.EAGAIN
-		} else if err.IsErrno(syscall.EINVAL) {
+		} else if err.IsEINVAL() {
 			return syscall.EINVAL
 		} else {
 			return err
@@ -45,9 +45,9 @@ func AVCodec_send_packet(ctx *AVCodecContext, pkt *AVPacket) error {
 	if err := AVError(C.avcodec_send_packet((*C.AVCodecContext)(ctx), (*C.AVPacket)(pkt))); err != 0 {
 		if err == AVERROR_EOF {
 			return io.EOF
-		} else if err.IsErrno(syscall.EAGAIN) {
+		} else if err.IsEAGAIN() {
 			return syscall.EAGAIN
-		} else if err.IsErrno(syscall.EINVAL) {
+		} else if err.IsEINVAL() {
 			return syscall.EINVAL
 		} else {
 			return err

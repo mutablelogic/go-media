@@ -247,13 +247,40 @@ func (e *Encoder) contextFor(streamID int) (*ff.AVCodecContext, error) {
 }
 
 func (e *Encoder) encode(ctx *ff.AVCodecContext, streamID int, frame *ff.AVFrame) error {
-	// Send the frame to the encoder (nil frame flushes)
-	if err := ff.AVCodec_send_frame(ctx, frame); err != nil {
-		return err
+	// Send the frame to the encoder (nil frame flushes). EAGAIN means the
+	// encoder's internal queue is full - per FFmpeg's documented send/receive
+	// API, drain pending packets and retry, rather than treating it as a
+	// hard failure.
+	for {
+		err := ff.AVCodec_send_frame(ctx, frame)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, syscall.EAGAIN) {
+			return err
+		}
+		if err := e.drainPackets(ctx, streamID); err != nil {
+			return err
+		}
 	}
 
 	// Write out the packets
-	var result error
+	result := e.drainPackets(ctx, streamID)
+
+	// Signal end of packet batch
+	if result == nil {
+		result = e.fn(nil)
+	}
+
+	return result
+}
+
+// drainPackets repeatedly calls avcodec_receive_packet and passes each
+// packet to the Encoder's callback, until the encoder has no more packets
+// ready (EAGAIN) or is fully flushed (EOF). Returns io.EOF if the callback
+// requested an early stop, or any other error from receiving a packet or
+// from the callback.
+func (e *Encoder) drainPackets(ctx *ff.AVCodecContext, streamID int) error {
 	for {
 		// Allocate a new packet for each iteration to avoid race conditions
 		// if the callback queues the packet pointer
@@ -264,7 +291,7 @@ func (e *Encoder) encode(ctx *ff.AVCodecContext, streamID int, frame *ff.AVFrame
 
 		if err := ff.AVCodec_receive_packet(ctx, packet); errors.Is(err, syscall.EAGAIN) || errors.Is(err, io.EOF) {
 			ff.AVCodec_packet_free(packet)
-			break
+			return nil
 		} else if err != nil {
 			ff.AVCodec_packet_free(packet)
 			return err
@@ -276,19 +303,11 @@ func (e *Encoder) encode(ctx *ff.AVCodecContext, streamID int, frame *ff.AVFrame
 		ff.AVCodec_packet_free(packet)
 
 		if errors.Is(err, io.EOF) {
-			result = io.EOF
-			break
+			return io.EOF
 		} else if err != nil {
 			return err
 		}
 	}
-
-	// Signal end of packet batch
-	if result == nil {
-		result = e.fn(nil)
-	}
-
-	return result
 }
 
 // encodeSubtitle encodes sub using FFmpeg's legacy, non-streaming subtitle

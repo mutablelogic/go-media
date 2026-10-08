@@ -269,7 +269,12 @@ func Test_AVFormatContext_pb_001(t *testing.T) {
 	if !assert.NoError(err) {
 		t.SkipNow()
 	}
-	defer AVFormat_free_context(input)
+	// AVFormat_close_input, not AVFormat_free_context: only closing properly
+	// frees the file/protocol handle opened internally, not just the struct.
+	// Safe alongside AVFormat_avio_context_free(ioCtx) above, since
+	// AVFormat_open_reader sets AVFMT_FLAG_CUSTOM_IO - close_input leaves a
+	// custom pb alone rather than double-freeing it.
+	defer AVFormat_close_input(input)
 
 	assert.NoError(AVFormat_find_stream_info(input, nil))
 

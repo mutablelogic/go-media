@@ -140,11 +140,14 @@ func openStreams(t *testing.T, path string) ([]*ff.AVStream, func()) {
 		t.Fatalf("AVFormat_open_url: %v", err)
 	}
 	if err := ff.AVFormat_find_stream_info(input, nil); err != nil {
-		ff.AVFormat_free_context(input)
+		// AVFormat_close_input, not AVFormat_free_context: see the same fix
+		// in reader.Reader - only free_context leaks the underlying file
+		// handle, invisible on POSIX but not on Windows.
+		ff.AVFormat_close_input(input)
 		t.Fatalf("AVFormat_find_stream_info: %v", err)
 	}
 
-	return input.Streams(), func() { ff.AVFormat_free_context(input) }
+	return input.Streams(), func() { ff.AVFormat_close_input(input) }
 }
 
 //////////////////////////////////////////////////////////////////////////////
