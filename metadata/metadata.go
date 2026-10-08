@@ -10,11 +10,10 @@ import (
 	"sync"
 
 	// Packages
-
-	"github.com/mutablelogic/go-client/pkg/otel"
+	otel "github.com/mutablelogic/go-client/pkg/otel"
 	gomedia "github.com/mutablelogic/go-media"
 	types "github.com/mutablelogic/go-server/pkg/types"
-	"go.opentelemetry.io/otel/attribute"
+	attribute "go.opentelemetry.io/otel/attribute"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
