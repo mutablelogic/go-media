@@ -326,7 +326,7 @@ docker: docker-dep
 		--build-arg OS=${OS} \
 		--build-arg SOURCE=${DOCKER_SOURCE} \
 		--build-arg VERSION=${VERSION} \
-		-f etc/docker/Dockerfile .
+		-f etc/docker/Dockerfile.linux .
 
 # Push docker container
 .PHONY: docker-push

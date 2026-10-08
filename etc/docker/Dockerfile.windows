@@ -1,0 +1,20 @@
+# gomedia.exe and its MinGW runtime DLLs are built natively on the runner
+# (see docker.yaml's windows job) - this Dockerfile only packages the
+# already-built output into a container image, the same split go-omodie's
+# Dockerfile.windows uses for its own (much simpler, CGO_ENABLED=0) binary.
+#
+# servercore, not nanoserver: nanoserver's stripped-down API surface is
+# fine for a trivial pure-Go binary, but this one links OpenSSL, zlib, and
+# several C/C++ codec libraries via cgo - a much larger and less certain
+# compatibility surface to risk on a first attempt.
+ARG SOURCE
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+ARG SOURCE
+LABEL org.opencontainers.image.source=${SOURCE}
+
+WORKDIR C:/gomedia
+COPY build/gomedia.exe build/*.dll C:/gomedia/
+
+WORKDIR C:/data
+ENTRYPOINT ["C:/gomedia/gomedia.exe"]
