@@ -7,6 +7,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel a still-running run for the same branch/PR when a new commit
+# supersedes it, rather than letting both run to completion - besides the
+# wasted CI time, two concurrent runs can race to save the build-directory
+# cache under the same key (it's keyed on the Makefile's contents, so two
+# runs for commits that didn't touch the Makefile collide) and the loser's
+# save just silently fails ("another job may be creating this cache").
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

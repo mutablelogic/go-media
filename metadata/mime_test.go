@@ -107,3 +107,19 @@ func Test_mime_004_curated_extension_skips_read(t *testing.T) {
 		t.Fatalf("expected audio/mp4, got %q", contentType)
 	}
 }
+
+func Test_mime_005_jpg_extension_is_not_authoritative(t *testing.T) {
+	// PNG signature in a file misleadingly named .jpg - sniffing must win,
+	// proving .jpg (Preferred for ExtensionByType, but not Authoritative)
+	// doesn't skip reading the stream the way .m4a deliberately does.
+	data := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	r := namedReader{Reader: bytes.NewReader(data), name: "mislabeled.jpg"}
+
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "image/png" {
+		t.Fatalf("expected image/png (from sniffing, not the .jpg extension), got %q", contentType)
+	}
+}
