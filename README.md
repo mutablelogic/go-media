@@ -1,6 +1,6 @@
 # go-media
 
-[![Test](https://github.com/mutablelogic/go-media/actions/workflows/on_pull_request_merge.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/on_pull_request_merge.yaml)
+[![Test](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
 `gomedia` is a CLI, client and server tool for managing media files - audio, video and image - extracting metadata, artwork and thumbnails, identifying music, and remultiplexing and transcoding audio and video.
