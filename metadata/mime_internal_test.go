@@ -10,7 +10,13 @@ func Test_mime_refines(t *testing.T) {
 		// Plain text is refined by a more specific text type
 		{"text/plain", "text/markdown", true},
 		{"text/plain", "text/plain", false},
-		{"text/plain", "application/json", false},
+		{"text/plain", "application/json", true},
+		{"text/plain", "application/vnd.google-apps.document", true},
+		{"text/plain", "application/octet-stream", false},
+		{"text/plain", "application/zip", false},
+		{"text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", false},
+		{"text/plain", "image/png", false},
+		{"text/plain", "audio/mpeg", false},
 
 		// A zip archive is refined by a document which is a zip archive
 		{"application/zip", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true},

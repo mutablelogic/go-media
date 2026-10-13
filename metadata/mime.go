@@ -43,21 +43,6 @@ var extensionContentTypes = map[string]extensionRule{
 	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
-	// Markdown sniffs as text/plain, so its extension refines it (see
-	// ContentType), but isn't Authoritative, so binary content named .md
-	// is still detected from its bytes
-	".md":       {ContentType: "text/markdown", Preferred: true},
-	".markdown": {ContentType: "text/markdown"},
-	// Documents which are zip archives sniff as application/zip, so their
-	// extensions refine it (see ContentType), and they're listed here as
-	// the system's types often don't include them
-	".docx": {ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Preferred: true},
-	".xlsx": {ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Preferred: true},
-	".pptx": {ContentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", Preferred: true},
-	".odt":  {ContentType: "application/vnd.oasis.opendocument.text", Preferred: true},
-	".ods":  {ContentType: "application/vnd.oasis.opendocument.spreadsheet", Preferred: true},
-	".odp":  {ContentType: "application/vnd.oasis.opendocument.presentation", Preferred: true},
-	".epub": {ContentType: "application/epub+zip", Preferred: true},
 }
 
 // zipTypes are the prefixes and suffixes of the content types of documents
@@ -110,10 +95,10 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		if err != nil {
 			return "", nil, err
 		}
-		// Plain text is refined by an extension with a more specific text
-		// type, such as text/markdown for .md, keeping the sniffed
-		// parameters, such as its charset, and a zip archive by an extension
-		// of a document which is a zip archive, such as .docx
+		// Plain text, or a zip archive, is refined by the type of its
+		// extension, when that's more specific (see refines), such as
+		// text/markdown for .md, keeping the sniffed parameters, such as its
+		// charset. Extensions are registered with mime.AddExtensionType.
 		if extType != "" {
 			if extContentType, _, err := mime.ParseMediaType(extType); err == nil && refines(contentType, extContentType) {
 				return extContentType, params, nil
@@ -149,28 +134,45 @@ func ExtensionByType(contentType string) string {
 }
 
 // refines returns true when the content type of an extension is a more
-// specific type of the sniffed content type: a text type for plain text, or a
-// document which is a zip archive, and not a flat XML document, for a zip
-// archive
+// specific type of the sniffed content type. Plain text is refined by a
+// text type, such as text/markdown, or an application type which is text,
+// such as application/json, but not a binary type, such as an image or a
+// zip archive, as sniffing would have detected it. A zip archive is refined
+// by a document which is a zip archive, such as a Word document, but not a
+// flat XML document.
 func refines(sniffed, ext string) bool {
 	switch sniffed {
 	case "text/plain":
-		return strings.HasPrefix(ext, "text/") && ext != sniffed
+		switch {
+		case ext == sniffed:
+			return false
+		case strings.HasPrefix(ext, "text/"):
+			return true
+		case strings.HasPrefix(ext, "application/"):
+			return ext != types.ContentTypeBinary && ext != "application/zip" && !isZipType(ext)
+		}
 	case "application/zip":
-		for _, suffix := range zipTypeExcluding {
-			if strings.HasSuffix(ext, suffix) {
-				return false
-			}
+		return isZipType(ext)
+	}
+	return false
+}
+
+// isZipType returns true when the content type is of a document which is a
+// zip archive, but not a flat XML document
+func isZipType(contentType string) bool {
+	for _, suffix := range zipTypeExcluding {
+		if strings.HasSuffix(contentType, suffix) {
+			return false
 		}
-		for _, prefix := range zipTypePrefixes {
-			if strings.HasPrefix(ext, prefix) {
-				return true
-			}
+	}
+	for _, prefix := range zipTypePrefixes {
+		if strings.HasPrefix(contentType, prefix) {
+			return true
 		}
-		for _, suffix := range zipTypeSuffixes {
-			if strings.HasSuffix(ext, suffix) {
-				return true
-			}
+	}
+	for _, suffix := range zipTypeSuffixes {
+		if strings.HasSuffix(contentType, suffix) {
+			return true
 		}
 	}
 	return false
