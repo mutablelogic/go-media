@@ -51,6 +51,14 @@ CGO_ENV=PKG_CONFIG_PATH="$(shell realpath ${PREFIX})/lib/pkgconfig" CGO_LDFLAGS_
 FFMPEG_EXTRA_LDFLAGS=
 endif
 
+# On Windows, the Video for Windows capture device (vfwcap) isn't built, as it
+# links avicap32.dll and msvfw32.dll, which Windows Server Core doesn't have,
+# so an executable linked with ffmpeg can't start in a Server Core container.
+# The DirectShow (dshow) and screen (gdigrab) capture devices are still built.
+ifeq ($(OS),windows)
+FFMPEG_PLATFORM_CONFIG=--disable-indev=vfwcap
+endif
+
 
 # Set build flags
 VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
@@ -91,7 +99,7 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" ${FFMPEG_EXTRA_LDFLAGS} \
-		--enable-gpl --enable-nonfree ${FFMPEG_CONFIG}
+		--enable-gpl --enable-nonfree ${FFMPEG_PLATFORM_CONFIG} ${FFMPEG_CONFIG}
 
 # Build ffmpeg
 .PHONY: ffmpeg-build
