@@ -43,7 +43,29 @@ var extensionContentTypes = map[string]extensionRule{
 	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
+	// Markdown sniffs as text/plain, so its extension refines it (see
+	// ContentType), but isn't Authoritative, so binary content named .md
+	// is still detected from its bytes
+	".md":       {ContentType: "text/markdown", Preferred: true},
+	".markdown": {ContentType: "text/markdown"},
+	// Documents which are zip archives sniff as application/zip, so their
+	// extensions refine it (see ContentType), and they're listed here as
+	// the system's types often don't include them
+	".docx": {ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Preferred: true},
+	".xlsx": {ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Preferred: true},
+	".pptx": {ContentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", Preferred: true},
+	".odt":  {ContentType: "application/vnd.oasis.opendocument.text", Preferred: true},
+	".ods":  {ContentType: "application/vnd.oasis.opendocument.spreadsheet", Preferred: true},
+	".odp":  {ContentType: "application/vnd.oasis.opendocument.presentation", Preferred: true},
+	".epub": {ContentType: "application/epub+zip", Preferred: true},
 }
+
+// zipTypes are the prefixes and suffixes of the content types of documents
+// which are zip archives
+var (
+	zipTypePrefixes = []string{"application/vnd.openxmlformats-officedocument.", "application/vnd.oasis.opendocument."}
+	zipTypeSuffixes = []string{"+zip"}
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -82,7 +104,20 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
 	if mediaType := http.DetectContentType(buf[:n]); mediaType != types.ContentTypeBinary {
-		return mime.ParseMediaType(mediaType)
+		contentType, params, err := mime.ParseMediaType(mediaType)
+		if err != nil {
+			return "", nil, err
+		}
+		// Plain text is refined by an extension with a more specific text
+		// type, such as text/markdown for .md, keeping the sniffed
+		// parameters, such as its charset, and a zip archive by an extension
+		// of a document which is a zip archive, such as .docx
+		if extType != "" {
+			if extContentType, _, err := mime.ParseMediaType(extType); err == nil && refines(contentType, extContentType) {
+				return extContentType, params, nil
+			}
+		}
+		return contentType, params, nil
 	}
 
 	// By extension second
@@ -109,4 +144,26 @@ func ExtensionByType(contentType string) string {
 	}
 
 	return exts[0]
+}
+
+// refines returns true when the content type of an extension is a more
+// specific type of the sniffed content type: a text type for plain text, or a
+// document which is a zip archive for a zip archive
+func refines(sniffed, ext string) bool {
+	switch sniffed {
+	case "text/plain":
+		return strings.HasPrefix(ext, "text/") && ext != sniffed
+	case "application/zip":
+		for _, prefix := range zipTypePrefixes {
+			if strings.HasPrefix(ext, prefix) {
+				return true
+			}
+		}
+		for _, suffix := range zipTypeSuffixes {
+			if strings.HasSuffix(ext, suffix) {
+				return true
+			}
+		}
+	}
+	return false
 }
