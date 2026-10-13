@@ -61,10 +61,12 @@ var extensionContentTypes = map[string]extensionRule{
 }
 
 // zipTypes are the prefixes and suffixes of the content types of documents
-// which are zip archives
+// which are zip archives, except the content types with the excluded
+// suffixes, such as OpenDocument's flat XML documents (.fodt), which are XML
 var (
-	zipTypePrefixes = []string{"application/vnd.openxmlformats-officedocument.", "application/vnd.oasis.opendocument."}
-	zipTypeSuffixes = []string{"+zip"}
+	zipTypePrefixes  = []string{"application/vnd.openxmlformats-officedocument.", "application/vnd.oasis.opendocument."}
+	zipTypeSuffixes  = []string{"+zip"}
+	zipTypeExcluding = []string{"-flat-xml"}
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,12 +150,18 @@ func ExtensionByType(contentType string) string {
 
 // refines returns true when the content type of an extension is a more
 // specific type of the sniffed content type: a text type for plain text, or a
-// document which is a zip archive for a zip archive
+// document which is a zip archive, and not a flat XML document, for a zip
+// archive
 func refines(sniffed, ext string) bool {
 	switch sniffed {
 	case "text/plain":
 		return strings.HasPrefix(ext, "text/") && ext != sniffed
 	case "application/zip":
+		for _, suffix := range zipTypeExcluding {
+			if strings.HasSuffix(ext, suffix) {
+				return false
+			}
+		}
 		for _, prefix := range zipTypePrefixes {
 			if strings.HasPrefix(ext, prefix) {
 				return true
