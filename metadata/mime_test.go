@@ -2,6 +2,7 @@ package metadata_test
 
 import (
 	"bytes"
+	"mime"
 	"os"
 	"path/filepath"
 	"testing"
@@ -121,5 +122,111 @@ func Test_mime_005_jpg_extension_is_not_authoritative(t *testing.T) {
 	}
 	if contentType != "image/png" {
 		t.Fatalf("expected image/png (from sniffing, not the .jpg extension), got %q", contentType)
+	}
+}
+
+// The extensions which are refined are registered by the caller, rather
+// than being known to the package
+func init() {
+	for ext, contentType := range map[string]string{
+		".md":       "text/markdown",
+		".markdown": "text/markdown",
+		".docx":     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		".xlsx":     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		".pptx":     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		".odt":      "application/vnd.oasis.opendocument.text",
+		".epub":     "application/epub+zip",
+		".gdoc":     "application/vnd.google-apps.document",
+	} {
+		if err := mime.AddExtensionType(ext, contentType); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Test_mime_006_text_refined_by_extension(t *testing.T) {
+	// Markdown sniffs as text/plain, and its extension refines it, keeping
+	// the sniffed charset
+	for _, name := range []string{"README.md", "notes.MD", "doc.markdown"} {
+		r := namedReader{Reader: bytes.NewReader([]byte("# Title\n\nSome text\n")), name: name}
+		contentType, params, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != "text/markdown" {
+			t.Fatalf("%s: expected text/markdown, got %q", name, contentType)
+		}
+		if params["charset"] != "utf-8" {
+			t.Fatalf("%s: expected charset utf-8, got %v", name, params)
+		}
+	}
+}
+
+func Test_mime_007_text_extension_is_not_authoritative(t *testing.T) {
+	// Binary content named .md is detected from its bytes
+	data := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	r := namedReader{Reader: bytes.NewReader(data), name: "image.md"}
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "image/png" {
+		t.Fatalf("expected image/png, got %q", contentType)
+	}
+
+	// Plain text without a more specific extension is text/plain
+	r = namedReader{Reader: bytes.NewReader([]byte("hello")), name: "notes.txt"}
+	if contentType, _, err := ContentType(r); err != nil {
+		t.Fatal(err)
+	} else if contentType != "text/plain" {
+		t.Fatalf("expected text/plain, got %q", contentType)
+	}
+}
+
+func Test_mime_008_zip_refined_by_extension(t *testing.T) {
+	// A document which is a zip archive sniffs as application/zip, and its
+	// extension refines it
+	zip := []byte("PK\x03\x04\x14\x00\x00\x00\x08\x00")
+	for name, want := range map[string]string{
+		"report.docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"sheet.XLSX":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"deck.pptx":   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"letter.odt":  "application/vnd.oasis.opendocument.text",
+		"book.epub":   "application/epub+zip",
+		"archive.zip": "application/zip",
+		"image.jpg":   "application/zip",
+	} {
+		r := namedReader{Reader: bytes.NewReader(zip), name: name}
+		contentType, _, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != want {
+			t.Fatalf("%s: expected %q, got %q", name, want, contentType)
+		}
+	}
+}
+
+func Test_mime_009_text_refined_by_application_type(t *testing.T) {
+	// Plain text is refined by an application type which is text, such as a
+	// registered type, but not by a binary type
+	for name, want := range map[string]string{
+		"Bader Pass.gdoc": "application/vnd.google-apps.document",
+		"data.json":       "application/json",
+		"image.png":       "text/plain",
+		"report.docx":     "text/plain",
+		"notes.txt":       "text/plain",
+	} {
+		r := namedReader{Reader: bytes.NewReader([]byte(`{"doc_id":"abc"}`)), name: name}
+		contentType, params, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != want {
+			t.Fatalf("%s: expected %q, got %q", name, want, contentType)
+		}
+		if params["charset"] != "utf-8" {
+			t.Fatalf("%s: expected charset utf-8, got %v", name, params)
+		}
 	}
 }

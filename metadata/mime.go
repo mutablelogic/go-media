@@ -45,6 +45,15 @@ var extensionContentTypes = map[string]extensionRule{
 	".jpeg": {ContentType: "image/jpeg"},
 }
 
+// zipTypes are the prefixes and suffixes of the content types of documents
+// which are zip archives, except the content types with the excluded
+// suffixes, such as OpenDocument's flat XML documents (.fodt), which are XML
+var (
+	zipTypePrefixes  = []string{"application/vnd.openxmlformats-officedocument.", "application/vnd.oasis.opendocument."}
+	zipTypeSuffixes  = []string{"+zip"}
+	zipTypeExcluding = []string{"-flat-xml"}
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -82,7 +91,20 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrInternalError.With(err.Error())
 	}
 	if mediaType := http.DetectContentType(buf[:n]); mediaType != types.ContentTypeBinary {
-		return mime.ParseMediaType(mediaType)
+		contentType, params, err := mime.ParseMediaType(mediaType)
+		if err != nil {
+			return "", nil, err
+		}
+		// Plain text, or a zip archive, is refined by the type of its
+		// extension, when that's more specific (see refines), such as
+		// text/markdown for .md, keeping the sniffed parameters, such as its
+		// charset. Extensions are registered with mime.AddExtensionType.
+		if extType != "" {
+			if extContentType, _, err := mime.ParseMediaType(extType); err == nil && refines(contentType, extContentType) {
+				return extContentType, params, nil
+			}
+		}
+		return contentType, params, nil
 	}
 
 	// By extension second
@@ -109,4 +131,49 @@ func ExtensionByType(contentType string) string {
 	}
 
 	return exts[0]
+}
+
+// refines returns true when the content type of an extension is a more
+// specific type of the sniffed content type. Plain text is refined by a
+// text type, such as text/markdown, or an application type which is text,
+// such as application/json, but not a binary type, such as an image or a
+// zip archive, as sniffing would have detected it. A zip archive is refined
+// by a document which is a zip archive, such as a Word document, but not a
+// flat XML document.
+func refines(sniffed, ext string) bool {
+	switch sniffed {
+	case "text/plain":
+		switch {
+		case ext == sniffed:
+			return false
+		case strings.HasPrefix(ext, "text/"):
+			return true
+		case strings.HasPrefix(ext, "application/"):
+			return ext != types.ContentTypeBinary && ext != "application/zip" && !isZipType(ext)
+		}
+	case "application/zip":
+		return isZipType(ext)
+	}
+	return false
+}
+
+// isZipType returns true when the content type is of a document which is a
+// zip archive, but not a flat XML document
+func isZipType(contentType string) bool {
+	for _, suffix := range zipTypeExcluding {
+		if strings.HasSuffix(contentType, suffix) {
+			return false
+		}
+	}
+	for _, prefix := range zipTypePrefixes {
+		if strings.HasPrefix(contentType, prefix) {
+			return true
+		}
+	}
+	for _, suffix := range zipTypeSuffixes {
+		if strings.HasSuffix(contentType, suffix) {
+			return true
+		}
+	}
+	return false
 }
