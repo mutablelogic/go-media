@@ -36,11 +36,11 @@ type entry struct {
 	handler    HandlerFunc
 }
 
-// namedReader wraps a *bytes.Reader with a Name(), so a handler can recover
-// the original input's filename (via gomedia.NamedReader) after GetMetadata
-// has buffered it into a fresh reader for each handler.
+// namedReader wraps a handler's reader of the input with a Name(), so a
+// handler can recover the original input's filename (via
+// gomedia.NamedReader) from the fresh reader GetMetadata gives each handler.
 type namedReader struct {
-	*bytes.Reader
+	*io.SectionReader
 	name string
 }
 
@@ -141,22 +141,21 @@ func GetMetadata(parent context.Context, r io.Reader, contentType string, opts .
 		return nil, nil
 	}
 
-	// Tee the reader into a buffer once, so every handler can read the
-	// data independently and concurrently. If r carries a name (see
-	// gomedia.NamedReader), preserve it on each handler's copy, since a
-	// handler may need the filename itself (e.g. to look up TMDB metadata)
+	// Give every handler its own reader of the data, so they can read it
+	// independently and concurrently, and seek in it. If r carries a name
+	// (see gomedia.NamedReader), preserve it on each handler's reader, since
+	// a handler may need the filename itself (e.g. to look up TMDB metadata)
 	// rather than the file's contents.
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
+	section, err := sectionReader(r)
+	if err != nil {
 		return nil, err
 	}
 	source, _ := r.(gomedia.NamedReader)
 	newReader := func() io.Reader {
-		br := bytes.NewReader(buf.Bytes())
 		if source == nil {
-			return br
+			return section()
 		}
-		return namedReader{br, source.Name()}
+		return namedReader{section(), source.Name()}
 	}
 
 	var (
@@ -255,4 +254,50 @@ func containsFold(namespaces []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// sectionReader returns a function which returns a new reader of the rest of
+// r, from its current position. When r can be read at an offset and seeked,
+// as a file can, each reader reads r itself, so a large file isn't read into
+// memory, and only the parts a handler needs are read. Otherwise r is read
+// into memory once, and each reader reads that.
+func sectionReader(r io.Reader) (func() *io.SectionReader, error) {
+	if ra, ok := r.(interface {
+		io.ReaderAt
+		io.Seeker
+	}); ok {
+		if start, size, err := remaining(ra); err == nil {
+			return func() *io.SectionReader {
+				return io.NewSectionReader(ra, start, size)
+			}, nil
+		}
+	}
+
+	// Read r into memory, when it can't be read at an offset, or seeked,
+	// such as a pipe
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	br := bytes.NewReader(data)
+	return func() *io.SectionReader {
+		return io.NewSectionReader(br, 0, int64(len(data)))
+	}, nil
+}
+
+// remaining returns the current position of r, and the number of bytes from
+// there to its end, leaving it at its current position
+func remaining(r io.Seeker) (int64, int64, error) {
+	start, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, 0, err
+	}
+	end, err := r.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, 0, err
+	}
+	if _, err := r.Seek(start, io.SeekStart); err != nil {
+		return 0, 0, err
+	}
+	return start, end - start, nil
 }

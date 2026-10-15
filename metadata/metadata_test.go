@@ -5,6 +5,8 @@ import (
 	"errors"
 	"image"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -298,5 +300,92 @@ func Test_metadata_013(t *testing.T) {
 	}
 	if !ran {
 		t.Fatal("expected GetMetadata to wait for the handler to finish despite mid-flight cancellation")
+	}
+}
+
+// A file is read by each handler where it is, from its current position,
+// rather than being read into memory, and each handler can seek in it
+func Test_metadata_014(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(path, []byte("skip:data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.Seek(5, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	var got []string
+	handler := func(_ context.Context, r io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
+		seeker, ok := r.(io.ReadSeeker)
+		if !ok {
+			return nil, errors.New("expected an io.ReadSeeker")
+		}
+		if _, err := seeker.Seek(1, io.SeekStart); err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(seeker)
+		if err != nil {
+			return nil, err
+		}
+		name := ""
+		if named, ok := r.(gomedia.NamedReader); ok {
+			name = named.Name()
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		got = append(got, string(data)+"@"+name)
+		return nil, nil
+	}
+	AddHandler(regexp.MustCompile("^x-test/014$"), "a", handler, "a")
+	AddHandler(regexp.MustCompile("^x-test/014$"), "b", handler, "b")
+
+	if _, err := GetMetadata(context.Background(), f, "x-test/014"); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range got {
+		if g != "ata@"+path {
+			t.Errorf("expected each handler to read the file from its position, got %q", g)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected two handlers to run, got %d", len(got))
+	}
+
+	// The file isn't read, so it's where it was
+	if pos, err := f.Seek(0, io.SeekCurrent); err != nil {
+		t.Fatal(err)
+	} else if pos != 5 {
+		t.Fatalf("expected the file to be at 5, got %d", pos)
+	}
+}
+
+// A reader which can't be read at an offset is read into memory, and each
+// handler can still seek in it
+func Test_metadata_015(t *testing.T) {
+	var got string
+	AddHandler(regexp.MustCompile("^x-test/015$"), "x", func(_ context.Context, r io.Reader, _ *Opts) ([]gomedia.Metadata, error) {
+		seeker, ok := r.(io.ReadSeeker)
+		if !ok {
+			return nil, errors.New("expected an io.ReadSeeker")
+		}
+		if _, err := seeker.Seek(2, io.SeekStart); err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(seeker)
+		got = string(data)
+		return nil, err
+	}, "x")
+
+	if _, err := GetMetadata(context.Background(), io.MultiReader(strings.NewReader("da"), strings.NewReader("ta")), "x-test/015"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "ta" {
+		t.Fatalf("expected the handler to read the rest of the data, got %q", got)
 	}
 }
