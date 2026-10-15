@@ -69,8 +69,9 @@ func (m *imageMetadata) Any() any {
 func init() {
 	// Add metadata handler for image files in general
 	metadata.AddHandler(regexp.MustCompile("^image/.*$"), "image", func(_ context.Context, r io.Reader, _ *metadata.Opts) ([]gomedia.Metadata, error) {
-		// Decode the image
-		img, format, err := image.Decode(r)
+		// Decode the image's format and size, from its header, rather than
+		// decoding the image, which can be large
+		config, format, err := image.DecodeConfig(r)
 		if err != nil {
 			return nil, err
 		}
@@ -78,8 +79,8 @@ func init() {
 		// Return metadata
 		return []gomedia.Metadata{
 			types.Ptr(imageMetadata{"image:format", format}),
-			types.Ptr(imageMetadata{"image:width", img.Bounds().Dx()}),
-			types.Ptr(imageMetadata{"image:height", img.Bounds().Dy()}),
+			types.Ptr(imageMetadata{"image:width", config.Width}),
+			types.Ptr(imageMetadata{"image:height", config.Height}),
 		}, nil
 	}, "image")
 }
