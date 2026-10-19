@@ -195,6 +195,21 @@ func Test_tmdb_tv(t *testing.T) {
 		}
 	})
 
+	t.Run("NoDurationOtherShow", func(t *testing.T) {
+		// Without the duration, a show without the name isn't matched, when
+		// the shows with the name don't have the episode
+		stub := theOffice()
+		delete(stub.shows[0].runtimes, "2/1")
+		delete(stub.shows[1].runtimes, "2/1")
+		meta, err := tvMatch(t, stub, "The.Office.S02E01.mkv", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(meta) != 0 {
+			t.Errorf("matched %v, want nothing", meta["tmdb:showid"])
+		}
+	})
+
 	t.Run("Fail", func(t *testing.T) {
 		// An error getting an episode, other than it not being found, is
 		// returned

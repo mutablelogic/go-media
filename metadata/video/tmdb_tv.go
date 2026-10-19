@@ -74,8 +74,8 @@ func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Quer
 
 // matchEpisode returns the show of the results, whose name is the name, and
 // its episode, and the episode's runtime, as movies are matched: without the
-// stream's duration, it's the first show with the episode, preferring a show
-// with the name. With it, it's the first of the results whose name is the
+// stream's duration, it's the first show with the name and the episode, or
+// nil when none has it. With it, it's the first of the results whose name is the
 // name, and whose episode's runtime is within 5% of the duration, or else the
 // first of the top results whose episode is within 10% of it, or nil when
 // none is. A show which doesn't have the episode isn't a match. An
@@ -149,8 +149,10 @@ func matchEpisode(ctx context.Context, client *tmdbclient.Client, name string, s
 		return nil, nil, 0, nil
 	}
 
-	// A show with the name, within 5%, and then any show, within 10%
-	if show, episode, runtime, err := match(true, 5); err != nil || show != nil {
+	// A show with the name, within 5%, and then any show, within 10%. Without
+	// the duration, only a show with the name, as any show with the episode
+	// would otherwise match, such as another show whose name contains it.
+	if show, episode, runtime, err := match(true, 5); err != nil || show != nil || duration <= 0 {
 		return show, episode, runtime, err
 	}
 	return match(false, 10)
