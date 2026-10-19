@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"math"
+	"strings"
 
 	media "github.com/mutablelogic/go-media"
 	libexif "github.com/mutablelogic/go-media/sys/libexif"
@@ -151,11 +152,9 @@ func (t *Tag) Any() any {
 
 	switch t.format {
 	case libexif.EXIF_FORMAT_ASCII:
-		// Strip trailing null bytes
-		s := string(t.data)
-		if l := len(s); l > 0 && s[l-1] == 0 {
-			s = s[:l-1]
-		}
+		// The string ends at the first null byte. Cameras often pad a
+		// fixed-size field with null bytes after it.
+		s, _, _ := strings.Cut(string(t.data), "\x00")
 		return s
 	case libexif.EXIF_FORMAT_UNDEFINED:
 		return append([]byte(nil), t.data...)
