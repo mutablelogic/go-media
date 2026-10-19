@@ -42,6 +42,7 @@ type extensionRule struct {
 // It is used both for content type detection and extension selection.
 var extensionContentTypes = map[string]extensionRule{
 	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
+	".m4p":  {ContentType: "audio/mp4", Authoritative: true}, // iTunes and Apple Music protected audio
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
 	".tga":  {ContentType: "image/x-tga", Preferred: true},

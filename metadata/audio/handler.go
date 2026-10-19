@@ -81,6 +81,7 @@ func init() {
 			}
 			entries[key] = meta{key: key, value: tag.Value()}
 		}
+		fillFromSortTags(entries)
 
 		return metadata.FilterMetadata(entries, o), nil
 	}, "dc", "audio")
@@ -88,6 +89,28 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// sortTags are the keys which a sort tag fills in, when they're missing
+var sortTags = []struct{ key, sort string }{
+	{"dc:title", "audio:sort-name"},
+	{"dc:creator", "audio:sort-artist"},
+	{"dc:creator", "audio:sort-album-artist"},
+	{"audio:Album", "audio:sort-album"},
+}
+
+// fillFromSortTags fills in the title, artist and album from the tags which
+// are for sorting, such as sort_name, when the file doesn't have them. Music
+// downloaded from Apple Music only has the sort tags.
+func fillFromSortTags(entries map[string]gomedia.Metadata) {
+	for _, tag := range sortTags {
+		if _, exists := entries[tag.key]; exists {
+			continue
+		}
+		if sorted, exists := entries[tag.sort]; exists && strings.TrimSpace(sorted.Value()) != "" {
+			entries[tag.key] = meta{key: tag.key, value: sorted.Value()}
+		}
+	}
+}
 
 // sanitizeKey normalizes a raw ffmpeg/format tag key into a
 // "namespace:name" metadata key, mapping common variant spellings onto a
