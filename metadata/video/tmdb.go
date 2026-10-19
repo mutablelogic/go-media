@@ -119,8 +119,8 @@ func matchMovie(ctx context.Context, client *tmdbclient.Client, results []tmdbsc
 	return nil, nil, nil
 }
 
-// runtimeMatches returns true when the runtime is known, and the duration is
-// within 10% of it
+// runtimeMatches returns true when the runtime is known, and within 10% of
+// the stream's duration
 func runtimeMatches(runtime, duration time.Duration) bool {
 	if runtime <= 0 {
 		return false
@@ -129,5 +129,5 @@ func runtimeMatches(runtime, duration time.Duration) bool {
 	if diff < 0 {
 		diff = -diff
 	}
-	return diff*10 <= runtime
+	return diff*10 <= duration
 }

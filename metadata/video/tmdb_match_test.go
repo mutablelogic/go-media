@@ -110,22 +110,32 @@ func Test_tmdb_runtime(t *testing.T) {
 	})
 
 	t.Run("Boundary", func(t *testing.T) {
-		// Within 10% of the runtime matches, either side, and more doesn't
-		for duration, want := range map[time.Duration]bool{
-			110 * time.Minute:                true,
-			90 * time.Minute:                 true,
-			110*time.Minute + time.Second:    false,
-			90*time.Minute - time.Second:     false,
-			100*time.Minute + 30*time.Second: true,
+		// A runtime within 10% of the duration matches, either side, and
+		// further doesn't
+		for runtime, want := range map[uint64]bool{
+			90:  true,
+			110: true,
+			89:  false,
+			111: false,
+			100: true,
 		} {
-			stub := &tmdbStub{order: []uint64{1}, runtimes: map[uint64]uint64{1: 100}}
-			meta, err := tmdbMatch(t, stub, duration)
+			stub := &tmdbStub{order: []uint64{1}, runtimes: map[uint64]uint64{1: runtime}}
+			meta, err := tmdbMatch(t, stub, 100*time.Minute)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got := meta["tmdb:id"] == "1"; got != want {
-				t.Errorf("duration %v: matched = %v, want %v", duration, got, want)
+				t.Errorf("runtime %d minutes: matched = %v, want %v", runtime, got, want)
 			}
+		}
+
+		// The duration is the baseline: a 90 minute stream doesn't match a
+		// 100 minute movie, which is 11% longer
+		stub := &tmdbStub{order: []uint64{1}, runtimes: map[uint64]uint64{1: 100}}
+		if meta, err := tmdbMatch(t, stub, 90*time.Minute); err != nil {
+			t.Fatal(err)
+		} else if meta["tmdb:id"] == "1" {
+			t.Error("a 90 minute stream matched a 100 minute movie")
 		}
 	})
 
