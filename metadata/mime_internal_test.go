@@ -36,6 +36,17 @@ func Test_mime_refines(t *testing.T) {
 		{"text/xml", "text/markdown", false},
 		{"text/html", "text/plain", false},
 
+		// Plain text is refined by a playlist, which is text
+		{"text/plain", "audio/x-mpegurl", true},
+		{"text/plain", "audio/x-scpls", true},
+		{"text/plain", "audio/mpeg", false},
+
+		// An icon is refined by another image type
+		{"image/x-icon", "image/x-tga", true},
+		{"image/x-icon", "image/x-icon", false},
+		{"image/x-icon", "text/plain", false},
+		{"image/x-icon", "application/pdf", false},
+
 		// Other sniffed types aren't refined
 		{"image/png", "image/jpeg", false},
 		{"image/png", "image/svg+xml", false},

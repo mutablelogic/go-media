@@ -259,3 +259,58 @@ func Test_mime_010_svg_refined_by_extension(t *testing.T) {
 		t.Fatalf("expected image/png, got %q", contentType)
 	}
 }
+
+func Test_mime_011_tga_refined_by_extension(t *testing.T) {
+	// An uncompressed TGA image starts with the same four bytes as an icon,
+	// so its extension refines it, but an icon's doesn't
+	tga := []byte{0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x20, 0x08}
+	for name, want := range map[string]string{
+		"steam_quad.tga": "image/x-tga",
+		"STEAM_QUAD.TGA": "image/x-tga",
+		"favicon.ico":    "image/x-icon",
+		"notes.txt":      "image/x-icon",
+	} {
+		r := namedReader{Reader: bytes.NewReader(tga), name: name}
+		contentType, _, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != want {
+			t.Fatalf("%s: expected %q, got %q", name, want, contentType)
+		}
+	}
+}
+
+func Test_mime_012_playlist_refined_by_extension(t *testing.T) {
+	// A playlist sniffs as plain text, and its extension refines it, with
+	// the same type on every platform
+	m3u := []byte("#EXTM3U\n#EXTINF:123,Artist - Title\nmusic/track01.mp3\n")
+	for name, want := range map[string]string{
+		"mix.m3u":   "audio/x-mpegurl",
+		"MIX.M3U":   "audio/x-mpegurl",
+		"live.m3u8": "application/vnd.apple.mpegurl",
+		"radio.pls": "audio/x-scpls",
+		"notes.txt": "text/plain",
+	} {
+		r := namedReader{Reader: bytes.NewReader(m3u), name: name}
+		contentType, params, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != want {
+			t.Fatalf("%s: expected %q, got %q", name, want, contentType)
+		}
+		if params["charset"] != "utf-8" {
+			t.Fatalf("%s: expected charset utf-8, got %v", name, params)
+		}
+	}
+
+	// A binary file named .m3u is detected from its bytes
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	r := namedReader{Reader: bytes.NewReader(png), name: "mix.m3u"}
+	if contentType, _, err := ContentType(r); err != nil {
+		t.Fatal(err)
+	} else if contentType != "image/png" {
+		t.Fatalf("expected image/png, got %q", contentType)
+	}
+}

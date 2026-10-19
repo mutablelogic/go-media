@@ -54,6 +54,11 @@ func init() {
 
 	// Add metadata handler for video files
 	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "ffmpeg", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		// A playlist, which is text, isn't read by ffmpeg
+		if o.IsText() {
+			return nil, nil
+		}
+
 		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err

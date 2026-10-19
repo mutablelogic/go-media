@@ -6,6 +6,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	// Packages
@@ -43,7 +44,17 @@ var extensionContentTypes = map[string]extensionRule{
 	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
+	".tga":  {ContentType: "image/x-tga"},
+
+	// Playlists, which are text, have different types on each platform
+	".m3u":  {ContentType: "audio/x-mpegurl", Preferred: true},
+	".m3u8": {ContentType: "application/vnd.apple.mpegurl", Preferred: true},
+	".pls":  {ContentType: "audio/x-scpls", Preferred: true},
 }
+
+// textTypes are the content types of text documents which aren't text or
+// application types, such as playlists, so they refine plain text
+var textTypes = []string{"audio/x-mpegurl", "audio/mpegurl", "audio/x-scpls"}
 
 // zipTypes are the prefixes and suffixes of the content types of documents
 // which are zip archives, except the content types with the excluded
@@ -139,10 +150,12 @@ func ExtensionByType(contentType string) string {
 // such as application/json, but not a binary type, such as an image or a
 // zip archive, as sniffing would have detected it. A zip archive is refined
 // by a document which is a zip archive, such as a Word document, but not a
-// flat XML document. Text which is plain, XML or HTML is refined by an XML
+// flat XML document. Plain text is also refined by a text type which isn't a
+// text or application type, such as a playlist. Text which is plain, XML or HTML is refined by an XML
 // type, such as image/svg+xml, as XML is sniffed only by how it starts: an
 // SVG image sniffs as XML with a declaration, as HTML with a comment, and as
-// plain text otherwise.
+// plain text otherwise. An icon is refined by another image type, as it's
+// sniffed by only four bytes, which an uncompressed TGA image starts with too.
 func refines(sniffed, ext string) bool {
 	switch sniffed {
 	case "text/plain", "text/xml", "text/html":
@@ -155,13 +168,15 @@ func refines(sniffed, ext string) bool {
 		switch {
 		case ext == sniffed:
 			return false
-		case strings.HasPrefix(ext, "text/"):
+		case strings.HasPrefix(ext, "text/"), slices.Contains(textTypes, ext):
 			return true
 		case strings.HasPrefix(ext, "application/"):
 			return ext != types.ContentTypeBinary && ext != "application/zip" && !isZipType(ext)
 		}
 	case "application/zip":
 		return isZipType(ext)
+	case "image/x-icon":
+		return ext != sniffed && strings.HasPrefix(ext, "image/")
 	}
 	return false
 }
