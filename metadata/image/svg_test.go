@@ -124,3 +124,42 @@ func Test_svg_002(t *testing.T) {
 		}
 	})
 }
+
+// Test_svg_003 checks the cases from review: Dublin Core read before a
+// drawing which is cut off, dates which are or aren't parsed, text which is
+// split into pieces or elements, and a size which isn't a number
+func Test_svg_003(t *testing.T) {
+	const dc = `xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#"`
+
+	t.Run("TruncatedDrawing", func(t *testing.T) {
+		meta := svgMetadata(t, `<svg `+dc+`><metadata><dc:title>Kept</dc:title><dc:creator>Someone</dc:creator></metadata><g><rect`)
+		if meta["dc:title"] != "Kept" || meta["dc:creator"] != "Someone" {
+			t.Errorf("meta = %v", meta)
+		}
+	})
+
+	t.Run("Dates", func(t *testing.T) {
+		meta := svgMetadata(t, `<svg `+dc+`><metadata><dc:date>2021-06-14T12:30Z</dc:date></metadata></svg>`)
+		if got, ok := meta["dc:date"].(time.Time); !ok || !got.Equal(time.Date(2021, 6, 14, 12, 30, 0, 0, time.UTC)) {
+			t.Errorf("dc:date = %#v", meta["dc:date"])
+		}
+		meta = svgMetadata(t, `<svg `+dc+`><metadata><dc:date>2019/2021</dc:date></metadata></svg>`)
+		if meta["dc:date"] != "2019/2021" {
+			t.Errorf("dc:date = %#v", meta["dc:date"])
+		}
+	})
+
+	t.Run("TextPieces", func(t *testing.T) {
+		meta := svgMetadata(t, `<svg `+dc+`><title>Har<![CDATA[bour]]></title><metadata><dc:creator><cc:Agent><dc:title>Ann</dc:title></cc:Agent><cc:Agent><dc:title>Bo</dc:title></cc:Agent></dc:creator></metadata></svg>`)
+		if meta["dc:title"] != "Harbour" || meta["dc:creator"] != "Ann Bo" {
+			t.Errorf("meta = %v", meta)
+		}
+	})
+
+	t.Run("NaN", func(t *testing.T) {
+		meta := svgMetadata(t, `<svg xmlns="http://www.w3.org/2000/svg" width="NaN" height="10" viewBox="0 0 30 20"/>`)
+		if meta["image:width"] != 30 || meta["image:height"] != 20 {
+			t.Errorf("size = %v x %v", meta["image:width"], meta["image:height"])
+		}
+	})
+}

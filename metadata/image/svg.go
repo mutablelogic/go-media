@@ -31,7 +31,7 @@ const (
 const maxSVGSize = 16 << 20
 
 // svgDateLayouts are the layouts of a dc:date, which is a W3C date and time
-var svgDateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04", "2006-01-02", "2006-01", "2006"}
+var svgDateLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00", "2006-01-02T15:04", "2006-01-02", "2006-01", "2006"}
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -81,13 +81,12 @@ func svgMetadata(r io.Reader) (map[string]gomedia.Metadata, error) {
 	var order []string
 
 	depth := 0
+read:
 	for {
 		token, err := d.Token()
-		if err != nil {
-			var syntaxErr *xml.SyntaxError
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &syntaxErr) {
-				break
-			}
+		if svgEnd(err) {
+			break
+		} else if err != nil {
 			return nil, err
 		}
 		switch t := token.(type) {
@@ -127,9 +126,12 @@ func svgMetadata(r io.Reader) (map[string]gomedia.Metadata, error) {
 				}
 				depth--
 			case depth == 2 && !isSVG(t.Name, "metadata"):
-				// Skip the drawing, which has no metadata
-				if err := d.Skip(); err != nil {
-					return entries, nil
+				// Skip the drawing, which has no metadata. When it's cut off,
+				// the metadata read before it is still returned.
+				if err := d.Skip(); svgEnd(err) {
+					break read
+				} else if err != nil {
+					return nil, err
 				}
 				depth--
 			}
@@ -150,8 +152,12 @@ func svgMetadata(r io.Reader) (map[string]gomedia.Metadata, error) {
 		case "dc:subject":
 			set(key, values)
 		case "dc:date":
+			// A date which can't be parsed, such as a range, is kept as
+			// its text
 			if date, ok := svgDate(values[0]); ok {
 				entries[key] = timeMetadata{key: key, t: date}
+			} else {
+				set(key, values[0])
 			}
 		default:
 			if len(values) == 1 {
@@ -163,6 +169,13 @@ func svgMetadata(r io.Reader) (map[string]gomedia.Metadata, error) {
 	}
 
 	return entries, nil
+}
+
+// svgEnd returns true when an error is the end of what can be read: the end
+// of the image, the most which is read, or where it isn't well-formed
+func svgEnd(err error) bool {
+	var syntaxErr *xml.SyntaxError
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &syntaxErr)
 }
 
 // isSVG returns true when the name is the local name in the SVG namespace,
@@ -180,14 +193,17 @@ func svgText(d *xml.Decoder) string {
 		if err != nil {
 			break
 		}
+		// Elements separate words, but pieces of text in an element, such
+		// as before and in a CDATA section, don't
 		switch t := token.(type) {
 		case xml.StartElement:
 			depth++
+			b.WriteByte(' ')
 		case xml.EndElement:
 			depth--
+			b.WriteByte(' ')
 		case xml.CharData:
 			b.Write(t)
-			b.WriteByte(' ')
 		}
 	}
 	return strings.Join(strings.Fields(b.String()), " ")
@@ -213,12 +229,13 @@ func svgValues(d *xml.Decoder) []string {
 				}
 			} else {
 				depth++
+				b.WriteByte(' ')
 			}
 		case xml.EndElement:
 			depth--
+			b.WriteByte(' ')
 		case xml.CharData:
 			b.Write(t)
-			b.WriteByte(' ')
 		}
 	}
 	if len(values) > 0 {
@@ -274,7 +291,7 @@ func svgSize(attrs []xml.Attr) (int, int, bool) {
 func svgPixels(length string) (int, bool) {
 	length = strings.TrimSuffix(strings.TrimSpace(length), "px")
 	value, err := strconv.ParseFloat(length, 64)
-	if err != nil || value <= 0 || math.IsInf(value, 0) || value > math.MaxInt32 {
+	if err != nil || math.IsNaN(value) || value <= 0 || math.IsInf(value, 0) || value > math.MaxInt32 {
 		return 0, false
 	}
 	return int(math.Round(value)), true
