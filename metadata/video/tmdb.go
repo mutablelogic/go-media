@@ -130,7 +130,8 @@ func searchMovie(ctx context.Context, client *tmdbclient.Client, name string, se
 // With the year, it's the first of the results whose title is the name, and
 // which was released in the year, whatever its runtime, as a version of a
 // film, such as a different cut, can have a different runtime. Otherwise,
-// without the stream's duration, it's the top result, without its details.
+// without the stream's duration, it's the first of the results whose title
+// is the name, without its details, or nil when none is.
 // With it, it's the first of the results whose title is the name, and whose
 // runtime is within 5% of the duration, or else the first of the top results
 // whose runtime is within 10% of it, or nil when none is, including when
@@ -153,8 +154,15 @@ func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, yea
 			}
 		}
 	}
+	// Without the duration, the first film with the name, as any film would
+	// otherwise match, such as another whose title contains the name
 	if duration <= 0 {
-		return &results[0], nil, nil
+		for i, result := range results {
+			if titleMatches(name, result) {
+				return &results[i], nil, nil
+			}
+		}
+		return nil, nil, nil
 	}
 
 	// The details of each result, which are got once
@@ -205,11 +213,18 @@ func titleMatches(name string, movie tmdbschema.Movie) bool {
 var apostrophes = strings.NewReplacer("'", "", "\u2019", "", "\u2018", "", "\u02bc", "")
 
 // normalizeTitle returns the words of a title, in lowercase, separated by a
-// space, without apostrophes or other punctuation
+// space, without apostrophes or other punctuation, or a leading "the", which
+// a file's name often leaves out, so The Hunt for Red October is Hunt for Red
+// October. Other articles aren't removed, as they're part of other titles,
+// such as A Beautiful Mind.
 func normalizeTitle(title string) string {
-	return strings.Join(strings.FieldsFunc(apostrophes.Replace(strings.ToLower(title)), func(r rune) bool {
+	words := strings.FieldsFunc(apostrophes.Replace(strings.ToLower(title)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	}), " ")
+	})
+	if len(words) > 1 && words[0] == "the" {
+		words = words[1:]
+	}
+	return strings.Join(words, " ")
 }
 
 // runtimeMatches returns true when the runtime is known, and within the

@@ -190,15 +190,15 @@ func Test_tmdb_runtime(t *testing.T) {
 	})
 
 	t.Run("NoDuration", func(t *testing.T) {
-		// Without the duration, the top result is taken, as before, without
-		// its details
-		stub := &tmdbStub{order: []uint64{1, 2}, runtimes: map[uint64]uint64{1: 30}}
-		meta, err := tmdbMatch(t, stub, 0)
+		// Without the duration, the first film with the title is taken,
+		// rather than the top result, without its details
+		stub := &tmdbStub{order: []uint64{1, 2, 3}, titles: map[uint64]string{2: "The Hunt for Red October", 3: "The Hunt for Red October"}, runtimes: map[uint64]uint64{1: 30}}
+		meta, err := tmdbMatchFile(t, stub, "The Hunt for Red October.mp4", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if meta["tmdb:id"] != "1" {
-			t.Errorf("matched %v, want movie 1", meta)
+		if meta["tmdb:id"] != "2" {
+			t.Errorf("matched %v, want movie 2", meta)
 		}
 		for _, key := range []string{"tmdb:runtime", "tmdb:imdbid"} {
 			if _, exists := meta[key]; exists {
@@ -207,6 +207,14 @@ func Test_tmdb_runtime(t *testing.T) {
 		}
 		if len(stub.details) != 0 {
 			t.Errorf("unexpected details of %v", stub.details)
+		}
+
+		// Without a film with the title, nothing, rather than the top result
+		stub = &tmdbStub{order: []uint64{1, 2}}
+		if meta, err := tmdbMatchFile(t, stub, "The Hunt for Red October.mp4", 0); err != nil {
+			t.Fatal(err)
+		} else if len(meta) != 0 {
+			t.Errorf("matched %v, want nothing", meta["tmdb:id"])
 		}
 	})
 
@@ -268,6 +276,29 @@ func Test_tmdb_title(t *testing.T) {
 		}
 		if meta["tmdb:id"] != "1" {
 			t.Errorf("matched %v, want 1", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("LeadingThe", func(t *testing.T) {
+		// A leading "The" is left out, which a file's name often is, but
+		// other articles aren't
+		for _, tc := range []struct {
+			file, title string
+			match       bool
+		}{
+			{"Hunt for Red October.mp4", "The Hunt for Red October", true},
+			{"The Hunt for Red October.mp4", "Hunt for Red October", true},
+			{"Beautiful Mind.mp4", "A Beautiful Mind", false},
+			{"The.mp4", "The", true},
+		} {
+			stub := &tmdbStub{order: []uint64{1}, titles: map[uint64]string{1: tc.title}}
+			meta, err := tmdbMatchFile(t, stub, tc.file, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := meta["tmdb:id"] == "1"; got != tc.match {
+				t.Errorf("%s and %q: matched = %v, want %v", tc.file, tc.title, got, tc.match)
+			}
 		}
 	})
 
