@@ -21,16 +21,20 @@ import (
 // GLOBALS
 
 // tmdbCandidates is how many of the search's results are checked for a
-// runtime which matches the stream's duration
+// runtime which matches the stream's duration, when their titles aren't
+// the stream's. Every result on the search's first page whose title is the
+// stream's is checked, as a common title, such as Ambition, can be shared by
+// many films, and the film can be far down the results.
 const tmdbCandidates = 5
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func init() {
-	// Add metadata handler for video files: looks up the movie named by the
-	// input's filename (see gomedia.NamedReader) on TMDB. Requires a TMDB
-	// client (see WithTMDB); does nothing without one.
+	// Add metadata handler for video files: looks up the movie, or the
+	// episode of a TV show, named by the input's filename (see
+	// gomedia.NamedReader) on TMDB. Requires a TMDB client (see WithTMDB);
+	// does nothing without one.
 	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "tmdb", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		client := o.TMDB()
 		if client == nil {
@@ -43,29 +47,34 @@ func init() {
 		}
 
 		q := tmdbclient.ExtractQuery(named.Name())
-		if q.Name == "" || q.Episode != 0 {
-			// No usable title, or this looks like a TV episode: TMDB
-			// search only covers movies for now.
+		if q.Name == "" {
 			return nil, nil
 		}
 
-		req := tmdbschema.MovieSearchRequest{Term: q.Name}
-		if q.Year > 0 {
-			req.PrimaryReleaseYear = types.Ptr(strconv.Itoa(q.Year))
+		// A file with a season and an episode, such as S01E02, is an episode
+		// of a TV show
+		if q.Episode != 0 {
+			entries, err := tvEntries(ctx, client, q, o.Duration())
+			if err != nil || entries == nil {
+				return nil, err
+			}
+			return metadata.FilterMetadata(entries, o), nil
 		}
 
-		resp, err := client.SearchMovies(ctx, req)
-		if err != nil {
-			return nil, err
+		// Search for the movie, with the year in the stream's name. When
+		// nothing matches, and the year is known otherwise, such as from the
+		// stream's own metadata, search again in that year, as a common
+		// title's film can be beyond the first page of results without it.
+		// The year isn't used in the first search, as it can be the year a
+		// file was made, rather than the film's.
+		year := q.Year
+		if year == 0 {
+			year = o.Year()
 		}
-		if resp == nil || len(resp.Results) == 0 {
-			return nil, nil
+		movie, details, err := searchMovie(ctx, client, q.Name, q.Year, year, o.Duration())
+		if err == nil && movie == nil && q.Year == 0 && o.Year() > 0 {
+			movie, details, err = searchMovie(ctx, client, q.Name, o.Year(), o.Year(), o.Duration())
 		}
-
-		// TMDB's search endpoint returns results ranked by relevance. When
-		// the stream's duration is known, take the first whose runtime
-		// matches it, or else nothing. Otherwise, take the top match.
-		movie, details, err := matchMovie(ctx, client, q.Name, resp.Results, o.Duration())
 		if err != nil {
 			return nil, err
 		} else if movie == nil {
@@ -98,21 +107,63 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// searchMovie searches for the movie with the name, released in the year
+// searched, which is zero for any year, and returns the movie of the results
+// which the stream, whose year is the year, which is zero when it isn't
+// known, is, as matchMovie does
+func searchMovie(ctx context.Context, client *tmdbclient.Client, name string, searched, year int, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
+	req := tmdbschema.MovieSearchRequest{Term: name}
+	if searched > 0 {
+		req.PrimaryReleaseYear = types.Ptr(strconv.Itoa(searched))
+	}
+	resp, err := client.SearchMovies(ctx, req)
+	if err != nil || resp == nil {
+		return nil, nil, err
+	}
+	return matchMovie(ctx, client, name, year, resp.Results, duration)
+}
+
 // matchMovie returns the movie of the results which the stream, whose title
-// is the name, is. Without the stream's duration, it's the top result,
-// without its details. With it, it's the first of the top results whose
-// title is the name, and whose runtime is within 5% of the duration, or
-// else the first whose runtime is within 10% of it, with its details, such
-// as its runtime and IMDb identifier, or nil when none is, including when
+// is the name, and whose year is the year, which is zero when it isn't
+// known, is, with its details, such as its runtime and IMDb identifier.
+//
+// With the year, it's the first of the results whose title is the name, and
+// which was released in the year, whatever its runtime, as a version of a
+// film, such as a different cut, can have a different runtime. Otherwise,
+// without the stream's duration, it's the first of the results whose title
+// is the name, without its details, or nil when none is.
+// With it, it's the first of the results whose title is the name, and whose
+// runtime is within 5% of the duration, or else the first of the top results
+// whose runtime is within 10% of it, or nil when none is, including when
 // their runtimes aren't known. A search's top results can be films whose
 // titles only contain the name, such as recent ones, before the film itself.
-func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
+func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, year int, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
 	if len(results) == 0 {
 		return nil, nil, nil
-	} else if duration <= 0 {
-		return &results[0], nil, nil
 	}
-	results = results[:min(len(results), tmdbCandidates)]
+
+	// A film with the name, released in the year
+	if year > 0 {
+		for i, result := range results {
+			if titleMatches(name, result) && strings.HasPrefix(result.ReleaseDate, strconv.Itoa(year)) {
+				details, err := client.GetMovie(ctx, result.ID)
+				if err != nil {
+					return nil, nil, err
+				}
+				return &results[i], details, nil
+			}
+		}
+	}
+	// Without the duration, the first film with the name, as any film would
+	// otherwise match, such as another whose title contains the name
+	if duration <= 0 {
+		for i, result := range results {
+			if titleMatches(name, result) {
+				return &results[i], nil, nil
+			}
+		}
+		return nil, nil, nil
+	}
 
 	// The details of each result, which are got once
 	details := make(map[uint64]*tmdbschema.MovieDetails, len(results))
@@ -138,8 +189,8 @@ func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, res
 		}
 	}
 
-	// Any film, within 10%
-	for i, result := range results {
+	// Any of the top films, within 10%
+	for i, result := range results[:min(len(results), tmdbCandidates)] {
 		if r, err := runtime(result); err != nil {
 			return nil, nil, err
 		} else if runtimeMatches(r, duration, 10) {
@@ -162,11 +213,18 @@ func titleMatches(name string, movie tmdbschema.Movie) bool {
 var apostrophes = strings.NewReplacer("'", "", "\u2019", "", "\u2018", "", "\u02bc", "")
 
 // normalizeTitle returns the words of a title, in lowercase, separated by a
-// space, without apostrophes or other punctuation
+// space, without apostrophes or other punctuation, or a leading "the", which
+// a file's name often leaves out, so The Hunt for Red October is Hunt for Red
+// October. Other articles aren't removed, as they're part of other titles,
+// such as A Beautiful Mind.
 func normalizeTitle(title string) string {
-	return strings.Join(strings.FieldsFunc(apostrophes.Replace(strings.ToLower(title)), func(r rune) bool {
+	words := strings.FieldsFunc(apostrophes.Replace(strings.ToLower(title)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	}), " ")
+	})
+	if len(words) > 1 && words[0] == "the" {
+		words = words[1:]
+	}
+	return strings.Join(words, " ")
 }
 
 // runtimeMatches returns true when the runtime is known, and within the
