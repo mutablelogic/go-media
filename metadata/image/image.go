@@ -2,10 +2,12 @@ package image
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"io"
 	"regexp"
+	"strings"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -41,6 +43,8 @@ func (m *imageMetadata) Value() string {
 		return v
 	case int:
 		return fmt.Sprint(v)
+	case []string:
+		return strings.Join(v, ", ")
 	default:
 		return ""
 	}
@@ -72,7 +76,11 @@ func init() {
 		// Decode the image's format and size, from its header, rather than
 		// decoding the image, which can be large
 		config, format, err := image.DecodeConfig(r)
-		if err != nil {
+		if errors.Is(err, image.ErrFormat) {
+			// There's no decoder for the format, such as an SVG image,
+			// which isn't an error, as other handlers may read it
+			return nil, nil
+		} else if err != nil {
 			return nil, err
 		}
 
