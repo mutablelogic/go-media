@@ -26,6 +26,10 @@ type playlist struct {
 	format  string
 	title   string
 	entries []playlistEntry
+
+	// The playlist is longer than the most which is read, so its entries
+	// can't all be counted
+	truncated bool
 }
 
 // playlistEntry is an entry in a playlist, with its location, and its title
@@ -57,11 +61,23 @@ func init() {
 	// Add metadata handler for playlists, which are text, so ffmpeg doesn't
 	// read them
 	metadata.AddHandler(playlistTypes, "playlist", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
-		data, err := io.ReadAll(io.LimitReader(r, maxPlaylistSize))
+		// Read one more byte than the most which is read, to know whether
+		// the playlist is longer
+		data, err := io.ReadAll(io.LimitReader(r, maxPlaylistSize+1))
 		if err != nil {
 			return nil, err
 		}
-		return metadata.FilterMetadata(parsePlaylist(data).metadata(), o), nil
+		truncated := len(data) > maxPlaylistSize
+		if truncated {
+			// Drop the line which is cut off
+			data = data[:maxPlaylistSize]
+			if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
+				data = data[:i+1]
+			}
+		}
+		p := parsePlaylist(data)
+		p.truncated = truncated
+		return metadata.FilterMetadata(p.metadata(), o), nil
 	}, "playlist", "dc")
 }
 
@@ -208,11 +224,15 @@ func playlistDuration(value string) (time.Duration, bool) {
 
 // metadata returns the metadata of a playlist: its format, title, number of
 // entries, and total duration when every entry has one, and for a playlist
-// of tracks, the titles and locations of the first entries
+// of tracks, the titles and locations of the first entries. The number of
+// entries and total duration of a playlist which is too long to read aren't
+// known.
 func (p *playlist) metadata() map[string]gomedia.Metadata {
 	entries := map[string]gomedia.Metadata{
 		"playlist:format": meta{"playlist:format", p.format},
-		"playlist:count":  meta{"playlist:count", len(p.entries)},
+	}
+	if !p.truncated {
+		entries["playlist:count"] = meta{"playlist:count", len(p.entries)}
 	}
 	if p.title != "" {
 		entries["dc:title"] = meta{"dc:title", p.title}
@@ -220,7 +240,7 @@ func (p *playlist) metadata() map[string]gomedia.Metadata {
 
 	// The total duration, when every entry has a duration
 	var total time.Duration
-	timed := len(p.entries) > 0
+	timed := !p.truncated && len(p.entries) > 0
 	for _, entry := range p.entries {
 		timed = timed && entry.timed
 		total += entry.duration

@@ -137,6 +137,9 @@ func init() {
 		".odt":      "application/vnd.oasis.opendocument.text",
 		".epub":     "application/epub+zip",
 		".gdoc":     "application/vnd.google-apps.document",
+
+		// As on Linux, where an icon's extension is the other type of icon
+		".ico": "image/vnd.microsoft.icon",
 	} {
 		if err := mime.AddExtensionType(ext, contentType); err != nil {
 			panic(err)
@@ -312,5 +315,12 @@ func Test_mime_012_playlist_refined_by_extension(t *testing.T) {
 		t.Fatal(err)
 	} else if contentType != "image/png" {
 		t.Fatalf("expected image/png, got %q", contentType)
+	}
+}
+
+func Test_mime_013_tga_extension_by_type(t *testing.T) {
+	// The extension of a TGA image is known on every platform
+	if ext := ExtensionByType("image/x-tga"); ext != ".tga" {
+		t.Fatalf("expected .tga, got %q", ext)
 	}
 }

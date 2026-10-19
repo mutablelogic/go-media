@@ -44,7 +44,7 @@ var extensionContentTypes = map[string]extensionRule{
 	".m4a":  {ContentType: "audio/mp4", Preferred: true, Authoritative: true},
 	".jpg":  {ContentType: "image/jpeg", Preferred: true},
 	".jpeg": {ContentType: "image/jpeg"},
-	".tga":  {ContentType: "image/x-tga"},
+	".tga":  {ContentType: "image/x-tga", Preferred: true},
 
 	// Playlists, which are text, have different types on each platform
 	".m3u":  {ContentType: "audio/x-mpegurl", Preferred: true},

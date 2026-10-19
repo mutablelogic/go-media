@@ -89,6 +89,29 @@ func Test_playlist_m3u(t *testing.T) {
 	})
 }
 
+func Test_playlist_truncated(t *testing.T) {
+	// A playlist longer than the most which is read has no count or
+	// duration, and the entry which is cut off isn't returned
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n")
+	for i := 0; b.Len() <= maxPlaylistSize; i++ {
+		fmt.Fprintf(&b, "#EXTINF:1,Track %d\n%s/track%d.mp3\n", i, strings.Repeat("d", 200), i)
+	}
+	meta := playlistMetadata(t, "audio/x-mpegurl", b.String())
+	assertNo(t, meta, "playlist:count", "playlist:duration")
+	assertPlaylist(t, meta, map[string]any{"playlist:format": "m3u"})
+	entries, _ := meta["playlist:entries"].([]string)
+	if len(entries) != maxPlaylistEntries {
+		t.Fatalf("entries = %d, want %d", len(entries), maxPlaylistEntries)
+	}
+
+	// A playlist of exactly the most which is read is complete
+	data := "#EXTINF:1,Track\ntrack.mp3\n"
+	data += strings.Repeat("#", maxPlaylistSize-len(data)-1) + "\n"
+	meta = playlistMetadata(t, "audio/x-mpegurl", data)
+	assertPlaylist(t, meta, map[string]any{"playlist:count": 1, "playlist:duration": time.Second})
+}
+
 func Test_playlist_hls(t *testing.T) {
 	t.Run("Media", func(t *testing.T) {
 		// Segments, which have a duration, but aren't listed
