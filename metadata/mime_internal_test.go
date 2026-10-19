@@ -44,6 +44,7 @@ func Test_mime_refines(t *testing.T) {
 		// An icon is refined by another image type
 		{"image/x-icon", "image/x-tga", true},
 		{"image/x-icon", "image/x-icon", false},
+		{"image/x-icon", "image/vnd.microsoft.icon", false},
 		{"image/x-icon", "text/plain", false},
 		{"image/x-icon", "application/pdf", false},
 

@@ -52,6 +52,10 @@ var extensionContentTypes = map[string]extensionRule{
 	".pls":  {ContentType: "audio/x-scpls", Preferred: true},
 }
 
+// iconTypes are the content types of an icon, which differ on each platform,
+// so an icon isn't refined by another type of icon
+var iconTypes = []string{"image/x-icon", "image/vnd.microsoft.icon"}
+
 // textTypes are the content types of text documents which aren't text or
 // application types, such as playlists, so they refine plain text
 var textTypes = []string{"audio/x-mpegurl", "audio/mpegurl", "audio/x-scpls"}
@@ -176,7 +180,7 @@ func refines(sniffed, ext string) bool {
 	case "application/zip":
 		return isZipType(ext)
 	case "image/x-icon":
-		return ext != sniffed && strings.HasPrefix(ext, "image/")
+		return strings.HasPrefix(ext, "image/") && !slices.Contains(iconTypes, ext)
 	}
 	return false
 }
