@@ -28,8 +28,17 @@ func Test_mime_refines(t *testing.T) {
 		{"application/zip", "application/vnd.oasis.opendocument.text-flat-xml", false},
 		{"application/zip", "application/vnd.oasis.opendocument.spreadsheet-flat-xml", false},
 
+		// Text which is plain, XML or HTML is refined by an XML type
+		{"text/plain", "image/svg+xml", true},
+		{"text/xml", "image/svg+xml", true},
+		{"text/html", "image/svg+xml", true},
+		{"text/xml", "application/atom+xml", true},
+		{"text/xml", "text/markdown", false},
+		{"text/html", "text/plain", false},
+
 		// Other sniffed types aren't refined
 		{"image/png", "image/jpeg", false},
+		{"image/png", "image/svg+xml", false},
 	} {
 		if got := refines(tc.sniffed, tc.ext); got != tc.want {
 			t.Errorf("refines(%q, %q) = %v, want %v", tc.sniffed, tc.ext, got, tc.want)

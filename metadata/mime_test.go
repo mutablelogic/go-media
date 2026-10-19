@@ -230,3 +230,32 @@ func Test_mime_009_text_refined_by_application_type(t *testing.T) {
 		}
 	}
 }
+
+func Test_mime_010_svg_refined_by_extension(t *testing.T) {
+	// An SVG image sniffs as XML with a declaration, as HTML with a comment,
+	// and as plain text otherwise, and its extension refines it
+	for _, data := range []string{
+		`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<svg xmlns="http://www.w3.org/2000/svg"/>`,
+		`<?xml version="1.0"?>` + "\n" + `<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">` + "\n" + `<svg xmlns="http://www.w3.org/2000/svg"/>`,
+		`<!-- Generator: Adobe Illustrator -->` + "\n" + `<svg xmlns="http://www.w3.org/2000/svg"/>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"/>`,
+	} {
+		r := namedReader{Reader: bytes.NewReader([]byte(data)), name: "logo.svg"}
+		contentType, _, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != "image/svg+xml" {
+			t.Fatalf("%q: expected image/svg+xml, got %q", data, contentType)
+		}
+	}
+
+	// A PNG image named .svg is detected from its bytes
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	r := namedReader{Reader: bytes.NewReader(png), name: "logo.svg"}
+	if contentType, _, err := ContentType(r); err != nil {
+		t.Fatal(err)
+	} else if contentType != "image/png" {
+		t.Fatalf("expected image/png, got %q", contentType)
+	}
+}

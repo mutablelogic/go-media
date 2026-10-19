@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	// Packages
@@ -61,5 +62,18 @@ func Test_image_metadata_000(t *testing.T) {
 				t.Errorf("image:height = %q, want %q", got["image:height"], want)
 			}
 		})
+	}
+}
+
+// Test_image_metadata_001 checks that an image which there's no decoder for,
+// such as an icon, has no image metadata, rather than an error
+func Test_image_metadata_001(t *testing.T) {
+	icon := strings.NewReader("\x00\x00\x01\x00\x01\x00\x10\x10")
+	meta, err := metadata.GetMetadata(context.Background(), icon, "image/x-icon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(meta) != 0 {
+		t.Fatalf("expected no metadata, got %v", meta)
 	}
 }

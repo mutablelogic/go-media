@@ -139,8 +139,17 @@ func ExtensionByType(contentType string) string {
 // such as application/json, but not a binary type, such as an image or a
 // zip archive, as sniffing would have detected it. A zip archive is refined
 // by a document which is a zip archive, such as a Word document, but not a
-// flat XML document.
+// flat XML document. Text which is plain, XML or HTML is refined by an XML
+// type, such as image/svg+xml, as XML is sniffed only by how it starts: an
+// SVG image sniffs as XML with a declaration, as HTML with a comment, and as
+// plain text otherwise.
 func refines(sniffed, ext string) bool {
+	switch sniffed {
+	case "text/plain", "text/xml", "text/html":
+		if isXMLType(ext) {
+			return true
+		}
+	}
 	switch sniffed {
 	case "text/plain":
 		switch {
@@ -155,6 +164,12 @@ func refines(sniffed, ext string) bool {
 		return isZipType(ext)
 	}
 	return false
+}
+
+// isXMLType returns true when the content type is of an XML document with a
+// more specific type, such as image/svg+xml
+func isXMLType(contentType string) bool {
+	return strings.HasSuffix(contentType, "+xml")
 }
 
 // isZipType returns true when the content type is of a document which is a
