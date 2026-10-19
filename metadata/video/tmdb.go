@@ -61,23 +61,20 @@ func init() {
 			return metadata.FilterMetadata(entries, o), nil
 		}
 
-		req := tmdbschema.MovieSearchRequest{Term: q.Name}
-		if q.Year > 0 {
-			req.PrimaryReleaseYear = types.Ptr(strconv.Itoa(q.Year))
+		// Search for the movie, with the year in the stream's name. When
+		// nothing matches, and the year is known otherwise, such as from the
+		// stream's own metadata, search again in that year, as a common
+		// title's film can be beyond the first page of results without it.
+		// The year isn't used in the first search, as it can be the year a
+		// file was made, rather than the film's.
+		year := q.Year
+		if year == 0 {
+			year = o.Year()
 		}
-
-		resp, err := client.SearchMovies(ctx, req)
-		if err != nil {
-			return nil, err
+		movie, details, err := searchMovie(ctx, client, q.Name, q.Year, year, o.Duration())
+		if err == nil && movie == nil && q.Year == 0 && o.Year() > 0 {
+			movie, details, err = searchMovie(ctx, client, q.Name, o.Year(), o.Year(), o.Duration())
 		}
-		if resp == nil || len(resp.Results) == 0 {
-			return nil, nil
-		}
-
-		// TMDB's search endpoint returns results ranked by relevance. When
-		// the stream's duration is known, take the first whose runtime
-		// matches it, or else nothing. Otherwise, take the top match.
-		movie, details, err := matchMovie(ctx, client, q.Name, resp.Results, o.Duration())
 		if err != nil {
 			return nil, err
 		} else if movie == nil {
@@ -110,19 +107,53 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// searchMovie searches for the movie with the name, released in the year
+// searched, which is zero for any year, and returns the movie of the results
+// which the stream, whose year is the year, which is zero when it isn't
+// known, is, as matchMovie does
+func searchMovie(ctx context.Context, client *tmdbclient.Client, name string, searched, year int, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
+	req := tmdbschema.MovieSearchRequest{Term: name}
+	if searched > 0 {
+		req.PrimaryReleaseYear = types.Ptr(strconv.Itoa(searched))
+	}
+	resp, err := client.SearchMovies(ctx, req)
+	if err != nil || resp == nil {
+		return nil, nil, err
+	}
+	return matchMovie(ctx, client, name, year, resp.Results, duration)
+}
+
 // matchMovie returns the movie of the results which the stream, whose title
-// is the name, is. Without the stream's duration, it's the top result,
-// without its details. With it, it's the first of the results whose title is
-// the name, and whose runtime is within 5% of the duration, or else the
-// first of the top results whose runtime is within 10% of it, with its
-// details, such as its runtime and IMDb identifier, or nil when none is,
-// including when their runtimes aren't known. A search's top results can be
-// films whose titles only contain the name, such as recent ones, before the
-// film itself.
-func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
+// is the name, and whose year is the year, which is zero when it isn't
+// known, is, with its details, such as its runtime and IMDb identifier.
+//
+// With the year, it's the first of the results whose title is the name, and
+// which was released in the year, whatever its runtime, as a version of a
+// film, such as a different cut, can have a different runtime. Otherwise,
+// without the stream's duration, it's the top result, without its details.
+// With it, it's the first of the results whose title is the name, and whose
+// runtime is within 5% of the duration, or else the first of the top results
+// whose runtime is within 10% of it, or nil when none is, including when
+// their runtimes aren't known. A search's top results can be films whose
+// titles only contain the name, such as recent ones, before the film itself.
+func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, year int, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
 	if len(results) == 0 {
 		return nil, nil, nil
-	} else if duration <= 0 {
+	}
+
+	// A film with the name, released in the year
+	if year > 0 {
+		for i, result := range results {
+			if titleMatches(name, result) && strings.HasPrefix(result.ReleaseDate, strconv.Itoa(year)) {
+				details, err := client.GetMovie(ctx, result.ID)
+				if err != nil {
+					return nil, nil, err
+				}
+				return &results[i], details, nil
+			}
+		}
+	}
+	if duration <= 0 {
 		return &results[0], nil, nil
 	}
 

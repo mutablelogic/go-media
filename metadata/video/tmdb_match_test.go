@@ -20,8 +20,11 @@ import (
 type tmdbStub struct {
 	runtimes map[uint64]uint64
 	order    []uint64
-	titles   map[uint64]string // the title of a movie, or Movie and its id
-	original map[uint64]string // the original title of a movie, or its title
+	titles   map[uint64]string   // the title of a movie, or Movie and its id
+	original map[uint64]string   // the original title of a movie, or its title
+	dates    map[uint64]string   // the release date of a movie, or 1990-03-02
+	years    map[string][]uint64 // the movies of a search in a year, rather than order
+	searches []string            // the years of the searches, which are empty for any year
 	details  []string
 	fail     bool
 }
@@ -38,13 +41,23 @@ func (s *tmdbStub) RoundTrip(req *http.Request) (*http.Response, error) {
 	status, body := http.StatusOK, ""
 	switch {
 	case req.URL.Path == "/3/search/movie":
+		year := req.URL.Query().Get("primary_release_year")
+		s.searches = append(s.searches, year)
+		order := s.order
+		if ids, exists := s.years[year]; exists {
+			order = ids
+		}
 		var results []string
-		for _, id := range s.order {
+		for _, id := range order {
 			original, exists := s.original[id]
 			if !exists {
 				original = s.title(id)
 			}
-			results = append(results, fmt.Sprintf(`{"id":%d,"title":%q,"original_title":%q,"release_date":"1990-03-02","overview":"Overview %d"}`, id, s.title(id), original, id))
+			date, exists := s.dates[id]
+			if !exists {
+				date = "1990-03-02"
+			}
+			results = append(results, fmt.Sprintf(`{"id":%d,"title":%q,"original_title":%q,"release_date":%q,"overview":"Overview %d"}`, id, s.title(id), original, date, id))
 		}
 		body = `{"page":1,"results":[` + strings.Join(results, ",") + `],"total_results":1,"total_pages":1}`
 	case strings.HasPrefix(req.URL.Path, "/3/movie/"):
@@ -76,8 +89,8 @@ func tmdbMatch(t *testing.T, stub *tmdbStub, duration time.Duration) (map[string
 }
 
 // tmdbMatchFile returns the TMDB metadata of a video with the file name and
-// duration
-func tmdbMatchFile(t *testing.T, stub *tmdbStub, name string, duration time.Duration) (map[string]any, error) {
+// duration, and other options
+func tmdbMatchFile(t *testing.T, stub *tmdbStub, name string, duration time.Duration, other ...metadata.Option) (map[string]any, error) {
 	t.Helper()
 	opts := []metadata.Option{
 		metadata.WithTMDB("token", client.OptTransport(func(http.RoundTripper) http.RoundTripper { return stub })),
@@ -86,6 +99,7 @@ func tmdbMatchFile(t *testing.T, stub *tmdbStub, name string, duration time.Dura
 	if duration > 0 {
 		opts = append(opts, metadata.WithDuration(duration))
 	}
+	opts = append(opts, other...)
 	r := namedReader{Reader: strings.NewReader(""), name: name}
 	meta, err := metadata.GetMetadata(context.Background(), r, "video/mp4", opts...)
 	result := make(map[string]any, len(meta))
@@ -352,6 +366,160 @@ func Test_tmdb_title(t *testing.T) {
 		}
 		if got := strings.Join(stub.details, ","); got != "3,5,1,2,4" {
 			t.Errorf("details of %s, want 3,5,1,2,4", got)
+		}
+	})
+}
+
+func Test_tmdb_year(t *testing.T) {
+	// Italian for Beginners (2000), which TMDB has as 118 minutes, but the
+	// file is 94, and is the only result
+	italian := func() *tmdbStub {
+		return &tmdbStub{
+			order:    []uint64{112},
+			titles:   map[uint64]string{112: "Italian for Beginners"},
+			original: map[uint64]string{112: "Italiensk for begyndere"},
+			dates:    map[uint64]string{112: "2000-12-07"},
+			runtimes: map[uint64]uint64{112: 118},
+		}
+	}
+	const file = "/Movies/Italian For Beginners/Italian For Beginners.m4v"
+
+	t.Run("Year", func(t *testing.T) {
+		// A film with the title, released in the year, whatever its runtime
+		meta, err := tmdbMatchFile(t, italian(), file, 94*time.Minute, metadata.WithYear(2000))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "112" || meta["tmdb:runtime"] != 118*time.Minute || meta["tmdb:imdbid"] != "tt0000112" {
+			t.Errorf("meta = %v", meta)
+		}
+	})
+
+	t.Run("NoYear", func(t *testing.T) {
+		// Without the year, the runtime is checked
+		meta, err := tmdbMatchFile(t, italian(), file, 94*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(meta) != 0 {
+			t.Errorf("matched %v, want nothing", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("OtherYear", func(t *testing.T) {
+		// A film released in another year isn't matched by the year
+		meta, err := tmdbMatchFile(t, italian(), file, 94*time.Minute, metadata.WithYear(1999))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(meta) != 0 {
+			t.Errorf("matched %v, want nothing", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("NameYear", func(t *testing.T) {
+		// A year in the file's name is used rather than the option
+		stub := italian()
+		meta, err := tmdbMatchFile(t, stub, "/Movies/Italian For Beginners (2000).m4v", 94*time.Minute, metadata.WithYear(1999))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "112" {
+			t.Errorf("matched %v, want 112", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("YearFirst", func(t *testing.T) {
+		// The film released in the year, before one within 5%
+		stub := &tmdbStub{
+			order:    []uint64{1, 2},
+			titles:   map[uint64]string{1: "Life", 2: "Life"},
+			dates:    map[uint64]string{1: "1999-04-16", 2: "2017-03-22"},
+			runtimes: map[uint64]uint64{1: 108, 2: 104},
+		}
+		meta, err := tmdbMatchFile(t, stub, "Life.mp4", 108*time.Minute, metadata.WithYear(2017))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "2" {
+			t.Errorf("matched %v, want 2", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("NoDuration", func(t *testing.T) {
+		// Without the duration, the film released in the year, rather than
+		// the top result
+		stub := &tmdbStub{
+			order:    []uint64{1, 2},
+			titles:   map[uint64]string{1: "Love of Your Life", 2: "Life"},
+			dates:    map[uint64]string{1: "2026-10-07", 2: "2017-03-22"},
+			runtimes: map[uint64]uint64{1: 109, 2: 104},
+		}
+		meta, err := tmdbMatchFile(t, stub, "Life.mp4", 0, metadata.WithYear(2017))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "2" {
+			t.Errorf("matched %v, want 2", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("SearchAgain", func(t *testing.T) {
+		// When nothing matches, a search in the year from the option, as for
+		// Boy (2010), which isn't on the first page of a search for Boy
+		boy := func() *tmdbStub {
+			return &tmdbStub{
+				order:    []uint64{1, 2},
+				years:    map[string][]uint64{"2010": {3}},
+				titles:   map[uint64]string{1: "Boy Erased", 2: "The Boy", 3: "Boy"},
+				dates:    map[uint64]string{1: "2018-11-02", 2: "2016-01-22", 3: "2010-03-25"},
+				runtimes: map[uint64]uint64{1: 115, 2: 97, 3: 88},
+			}
+		}
+		stub := boy()
+		meta, err := tmdbMatchFile(t, stub, "/Movies/Boy/Boy.m4v", 84*time.Minute, metadata.WithYear(2010))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "3" {
+			t.Errorf("matched %v, want 3", meta["tmdb:id"])
+		}
+		if got := strings.Join(stub.searches, ","); got != ",2010" {
+			t.Errorf("searches = %q, want any year, then 2010", got)
+		}
+
+		// Without the option, or with a year in the name, there's one search
+		for _, tc := range []struct {
+			name string
+			opts []metadata.Option
+			want string
+		}{
+			{"/Movies/Boy/Boy.m4v", nil, ""},
+			{"/Movies/Boy (2010).m4v", []metadata.Option{metadata.WithYear(2009)}, "2010"},
+		} {
+			stub := boy()
+			if _, err := tmdbMatchFile(t, stub, tc.name, 84*time.Minute, tc.opts...); err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(stub.searches, ","); got != tc.want {
+				t.Errorf("%s: searches = %q, want %q", tc.name, got, tc.want)
+			}
+		}
+
+		// A film which matches in the first search isn't searched again
+		stub = boy()
+		stub.order = []uint64{3}
+		if _, err := tmdbMatchFile(t, stub, "/Movies/Boy/Boy.m4v", 84*time.Minute, metadata.WithYear(2010)); err != nil {
+			t.Fatal(err)
+		}
+		if len(stub.searches) != 1 {
+			t.Errorf("searches = %q, want one", stub.searches)
+		}
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		if _, err := metadata.GetMetadata(context.Background(), strings.NewReader(""), "video/mp4", metadata.WithYear(-1)); err == nil {
+			t.Error("expected an error for a negative year")
 		}
 	})
 }

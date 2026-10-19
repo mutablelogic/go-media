@@ -30,6 +30,10 @@ type Opts struct {
 
 	// The duration of the stream, when the caller knows it
 	duration time.Duration
+
+	// The year of the stream, such as its release year, when the caller
+	// knows it, or zero
+	year int
 }
 
 type Option func(*Opts) error
@@ -57,6 +61,12 @@ func (o *Opts) IsText() bool {
 // when it isn't known
 func (o *Opts) Duration() time.Duration {
 	return o.duration
+}
+
+// Year returns the year of the stream set via WithYear, or zero when it
+// isn't known
+func (o *Opts) Year() int {
+	return o.year
 }
 
 // TMDB returns the TMDB client set via WithTMDB, or nil if none was set.
@@ -124,6 +134,21 @@ func WithDuration(d time.Duration) Option {
 			return gomedia.ErrBadParameter.Withf("invalid duration %v", d)
 		}
 		o.duration = d
+		return nil
+	}
+}
+
+// WithYear sets the year of the stream, such as its release year, when the
+// caller knows it, such as from the stream's own metadata. The TMDB handler
+// then matches a movie whose title is the stream's, and whose release year
+// is the year, whatever its runtime. A year in the stream's name is used
+// rather than it. Zero is no year.
+func WithYear(year int) Option {
+	return func(o *Opts) error {
+		if year < 0 || year > 9999 {
+			return gomedia.ErrBadParameter.Withf("invalid year %d", year)
+		}
+		o.year = year
 		return nil
 	}
 }
