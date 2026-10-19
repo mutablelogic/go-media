@@ -273,6 +273,25 @@ func Test_tmdb_title(t *testing.T) {
 		}
 	})
 
+	t.Run("Apostrophes", func(t *testing.T) {
+		// A title with an apostrophe, straight or curly, is the name without
+		// it, before an earlier film within 10% whose title only contains it
+		for _, title := range []string{"Schindler's List", "Schindler\u2019s List"} {
+			stub := &tmdbStub{
+				order:    []uint64{1, 2},
+				titles:   map[uint64]string{1: "Schindlers List: The Making Of", 2: title},
+				runtimes: map[uint64]uint64{1: 190, 2: 195},
+			}
+			meta, err := tmdbMatchFile(t, stub, "Schindlers List.mp4", 195*time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta["tmdb:id"] != "2" {
+				t.Errorf("%q: matched %v, want 2", title, meta["tmdb:id"])
+			}
+		}
+	})
+
 	t.Run("OriginalTitle", func(t *testing.T) {
 		// A film's original title is its title too
 		stub := &tmdbStub{

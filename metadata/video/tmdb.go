@@ -157,10 +157,14 @@ func titleMatches(name string, movie tmdbschema.Movie) bool {
 	return name != "" && (normalizeTitle(movie.Title) == name || normalizeTitle(movie.OriginalTitle) == name)
 }
 
+// apostrophes are removed from a title, rather than separating words, so
+// Schindler's List is Schindlers List, as a file name often has it
+var apostrophes = strings.NewReplacer("'", "", "\u2019", "", "\u2018", "", "\u02bc", "")
+
 // normalizeTitle returns the words of a title, in lowercase, separated by a
-// space, without punctuation
+// space, without apostrophes or other punctuation
 func normalizeTitle(title string) string {
-	return strings.Join(strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
+	return strings.Join(strings.FieldsFunc(apostrophes.Replace(strings.ToLower(title)), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	}), " ")
 }
