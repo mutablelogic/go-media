@@ -20,8 +20,18 @@ import (
 type tmdbStub struct {
 	runtimes map[uint64]uint64
 	order    []uint64
+	titles   map[uint64]string // the title of a movie, or Movie and its id
+	original map[uint64]string // the original title of a movie, or its title
 	details  []string
 	fail     bool
+}
+
+// title returns the title of a movie
+func (s *tmdbStub) title(id uint64) string {
+	if title, exists := s.titles[id]; exists {
+		return title
+	}
+	return fmt.Sprintf("Movie %d", id)
 }
 
 func (s *tmdbStub) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -30,7 +40,11 @@ func (s *tmdbStub) RoundTrip(req *http.Request) (*http.Response, error) {
 	case req.URL.Path == "/3/search/movie":
 		var results []string
 		for _, id := range s.order {
-			results = append(results, fmt.Sprintf(`{"id":%d,"title":"Movie %d","release_date":"1990-03-02","overview":"Overview %d"}`, id, id, id))
+			original, exists := s.original[id]
+			if !exists {
+				original = s.title(id)
+			}
+			results = append(results, fmt.Sprintf(`{"id":%d,"title":%q,"original_title":%q,"release_date":"1990-03-02","overview":"Overview %d"}`, id, s.title(id), original, id))
 		}
 		body = `{"page":1,"results":[` + strings.Join(results, ",") + `],"total_results":1,"total_pages":1}`
 	case strings.HasPrefix(req.URL.Path, "/3/movie/"):
@@ -58,6 +72,13 @@ func (s *tmdbStub) RoundTrip(req *http.Request) (*http.Response, error) {
 // zero when it isn't known
 func tmdbMatch(t *testing.T, stub *tmdbStub, duration time.Duration) (map[string]any, error) {
 	t.Helper()
+	return tmdbMatchFile(t, stub, "The Hunt for Red October (1990).mp4", duration)
+}
+
+// tmdbMatchFile returns the TMDB metadata of a video with the file name and
+// duration
+func tmdbMatchFile(t *testing.T, stub *tmdbStub, name string, duration time.Duration) (map[string]any, error) {
+	t.Helper()
 	opts := []metadata.Option{
 		metadata.WithTMDB("token", client.OptTransport(func(http.RoundTripper) http.RoundTripper { return stub })),
 		metadata.WithNamespace("tmdb"),
@@ -65,7 +86,7 @@ func tmdbMatch(t *testing.T, stub *tmdbStub, duration time.Duration) (map[string
 	if duration > 0 {
 		opts = append(opts, metadata.WithDuration(duration))
 	}
-	r := namedReader{Reader: strings.NewReader(""), name: "The Hunt for Red October (1990).mp4"}
+	r := namedReader{Reader: strings.NewReader(""), name: name}
 	meta, err := metadata.GetMetadata(context.Background(), r, "video/mp4", opts...)
 	result := make(map[string]any, len(meta))
 	for _, m := range meta {
@@ -188,4 +209,114 @@ func Test_tmdb_with_duration(t *testing.T) {
 	if _, err := metadata.GetMetadata(context.Background(), strings.NewReader(""), "video/mp4", metadata.WithDuration(-time.Second)); err == nil {
 		t.Error("expected an error for a negative duration")
 	}
+}
+
+func Test_tmdb_title(t *testing.T) {
+	// The search for "Life" without a year, whose top results are two recent
+	// films whose titles contain it, before Life (2017), and Life (1999)
+	life := func() *tmdbStub {
+		return &tmdbStub{
+			order:    []uint64{1, 2, 3, 4, 5},
+			titles:   map[uint64]string{1: "Love of Your Life", 2: "Doing Life", 3: "Life", 4: "The Life List", 5: "Life"},
+			runtimes: map[uint64]uint64{1: 109, 2: 112, 3: 104, 4: 123, 5: 108},
+		}
+	}
+
+	t.Run("ExactWithin5", func(t *testing.T) {
+		// A film with the title, within 5%, before films within 10%
+		meta, err := tmdbMatchFile(t, life(), "Life.mp4", 104*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "3" {
+			t.Errorf("matched %v, want Life (2017), which is 3", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("ExactInOrder", func(t *testing.T) {
+		// Of two films with the title within 5%, the first
+		meta, err := tmdbMatchFile(t, life(), "Life.mp4", 106*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "3" {
+			t.Errorf("matched %v, want 3", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("ExactOutside5", func(t *testing.T) {
+		// When no film with the title is within 5%, the first within 10%
+		stub := life()
+		stub.runtimes = map[uint64]uint64{1: 109, 2: 112, 3: 92, 4: 123, 5: 93}
+		meta, err := tmdbMatchFile(t, stub, "Life.mp4", 100*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "1" {
+			t.Errorf("matched %v, want 1", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("Punctuation", func(t *testing.T) {
+		// A title matches in any case, without punctuation
+		stub := &tmdbStub{
+			order:    []uint64{1, 2},
+			titles:   map[uint64]string{1: "Mission: Impossible - Fallout", 2: "Mission: Impossible"},
+			runtimes: map[uint64]uint64{1: 110, 2: 110},
+		}
+		meta, err := tmdbMatchFile(t, stub, "mission impossible (1996).mp4", 110*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "2" {
+			t.Errorf("matched %v, want 2", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("Apostrophes", func(t *testing.T) {
+		// A title with an apostrophe, straight or curly, is the name without
+		// it, before an earlier film within 10% whose title only contains it
+		for _, title := range []string{"Schindler's List", "Schindler\u2019s List"} {
+			stub := &tmdbStub{
+				order:    []uint64{1, 2},
+				titles:   map[uint64]string{1: "Schindlers List: The Making Of", 2: title},
+				runtimes: map[uint64]uint64{1: 190, 2: 195},
+			}
+			meta, err := tmdbMatchFile(t, stub, "Schindlers List.mp4", 195*time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta["tmdb:id"] != "2" {
+				t.Errorf("%q: matched %v, want 2", title, meta["tmdb:id"])
+			}
+		}
+	})
+
+	t.Run("OriginalTitle", func(t *testing.T) {
+		// A film's original title is its title too
+		stub := &tmdbStub{
+			order:    []uint64{1, 2},
+			titles:   map[uint64]string{1: "Amelie From Montmartre", 2: "Amélie"},
+			original: map[uint64]string{2: "Le Fabuleux Destin d'Amélie Poulain"},
+			runtimes: map[uint64]uint64{1: 120, 2: 122},
+		}
+		meta, err := tmdbMatchFile(t, stub, "Le Fabuleux Destin d'Amélie Poulain.mkv", 122*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "2" {
+			t.Errorf("matched %v, want 2", meta["tmdb:id"])
+		}
+	})
+
+	t.Run("DetailsOnce", func(t *testing.T) {
+		// Each film's details are got once, over both passes
+		stub := life()
+		if _, err := tmdbMatchFile(t, stub, "Life.mp4", 45*time.Minute); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(stub.details, ","); got != "3,5,1,2,4" {
+			t.Errorf("details of %s, want 3,5,1,2,4", got)
+		}
+	})
 }
