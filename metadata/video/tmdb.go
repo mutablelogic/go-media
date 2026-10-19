@@ -5,7 +5,9 @@ import (
 	"io"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -63,7 +65,7 @@ func init() {
 		// TMDB's search endpoint returns results ranked by relevance. When
 		// the stream's duration is known, take the first whose runtime
 		// matches it, or else nothing. Otherwise, take the top match.
-		movie, details, err := matchMovie(ctx, client, resp.Results, o.Duration())
+		movie, details, err := matchMovie(ctx, client, q.Name, resp.Results, o.Duration())
 		if err != nil {
 			return nil, err
 		} else if movie == nil {
@@ -96,32 +98,76 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// matchMovie returns the movie of the results which the stream is. Without
-// the stream's duration, it's the top result, without its details. With it,
-// it's the first of the top results whose runtime is within 10% of the
-// duration, with its details, such as its runtime and IMDb identifier, or
-// nil when none is, including when their runtimes aren't known.
-func matchMovie(ctx context.Context, client *tmdbclient.Client, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
+// matchMovie returns the movie of the results which the stream, whose title
+// is the name, is. Without the stream's duration, it's the top result,
+// without its details. With it, it's the first of the top results whose
+// title is the name, and whose runtime is within 5% of the duration, or
+// else the first whose runtime is within 10% of it, with its details, such
+// as its runtime and IMDb identifier, or nil when none is, including when
+// their runtimes aren't known. A search's top results can be films whose
+// titles only contain the name, such as recent ones, before the film itself.
+func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
 	if len(results) == 0 {
 		return nil, nil, nil
 	} else if duration <= 0 {
 		return &results[0], nil, nil
 	}
-	for _, result := range results[:min(len(results), tmdbCandidates)] {
-		details, err := client.GetMovie(ctx, result.ID)
-		if err != nil {
-			return nil, nil, err
+	results = results[:min(len(results), tmdbCandidates)]
+
+	// The details of each result, which are got once
+	details := make(map[uint64]*tmdbschema.MovieDetails, len(results))
+	runtime := func(movie tmdbschema.Movie) (time.Duration, error) {
+		if _, exists := details[movie.ID]; !exists {
+			d, err := client.GetMovie(ctx, movie.ID)
+			if err != nil {
+				return 0, err
+			}
+			details[movie.ID] = d
 		}
-		if runtimeMatches(time.Duration(details.Runtime)*time.Minute, duration) {
-			return &result, details, nil
+		return time.Duration(details[movie.ID].Runtime) * time.Minute, nil
+	}
+
+	// A film with the name, within 5%
+	for i, result := range results {
+		if !titleMatches(name, result) {
+			continue
+		} else if r, err := runtime(result); err != nil {
+			return nil, nil, err
+		} else if runtimeMatches(r, duration, 5) {
+			return &results[i], details[result.ID], nil
+		}
+	}
+
+	// Any film, within 10%
+	for i, result := range results {
+		if r, err := runtime(result); err != nil {
+			return nil, nil, err
+		} else if runtimeMatches(r, duration, 10) {
+			return &results[i], details[result.ID], nil
 		}
 	}
 	return nil, nil, nil
 }
 
-// runtimeMatches returns true when the runtime is known, and within 10% of
-// the stream's duration
-func runtimeMatches(runtime, duration time.Duration) bool {
+// titleMatches returns true when the movie's title, or its original title,
+// is the name, in any case, and ignoring punctuation and spaces between
+// words, so Mission Impossible is Mission: Impossible
+func titleMatches(name string, movie tmdbschema.Movie) bool {
+	name = normalizeTitle(name)
+	return name != "" && (normalizeTitle(movie.Title) == name || normalizeTitle(movie.OriginalTitle) == name)
+}
+
+// normalizeTitle returns the words of a title, in lowercase, separated by a
+// space, without punctuation
+func normalizeTitle(title string) string {
+	return strings.Join(strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}), " ")
+}
+
+// runtimeMatches returns true when the runtime is known, and within the
+// percent of the stream's duration
+func runtimeMatches(runtime, duration time.Duration, percent int64) bool {
 	if runtime <= 0 {
 		return false
 	}
@@ -129,5 +175,5 @@ func runtimeMatches(runtime, duration time.Duration) bool {
 	if diff < 0 {
 		diff = -diff
 	}
-	return diff*10 <= duration
+	return int64(diff)*100 <= int64(duration)*percent
 }
