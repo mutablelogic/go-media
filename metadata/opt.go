@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"slices"
+	"time"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -26,6 +27,9 @@ type Opts struct {
 
 	// The content type of the stream, which GetMetadata sets
 	contentType string
+
+	// The duration of the stream, when the caller knows it
+	duration time.Duration
 }
 
 type Option func(*Opts) error
@@ -47,6 +51,12 @@ func (o *Opts) HasNamespace(ns string) bool {
 // such as ffmpeg's, don't read it, as it isn't media.
 func (o *Opts) IsText() bool {
 	return slices.Contains(textTypes, o.contentType)
+}
+
+// Duration returns the duration of the stream set via WithDuration, or zero
+// when it isn't known
+func (o *Opts) Duration() time.Duration {
+	return o.duration
 }
 
 // TMDB returns the TMDB client set via WithTMDB, or nil if none was set.
@@ -101,6 +111,19 @@ func WithTMDB(token string, clientopts ...client.ClientOpt) Option {
 		} else {
 			o.tmdb = client
 		}
+		return nil
+	}
+}
+
+// WithDuration sets the duration of the stream, when the caller knows it,
+// such as from the stream's own metadata. The TMDB handler then only matches
+// a movie whose runtime is within 10% of it.
+func WithDuration(d time.Duration) Option {
+	return func(o *Opts) error {
+		if d < 0 {
+			return gomedia.ErrBadParameter.Withf("invalid duration %v", d)
+		}
+		o.duration = d
 		return nil
 	}
 }
