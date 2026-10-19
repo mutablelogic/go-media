@@ -324,3 +324,24 @@ func Test_mime_013_tga_extension_by_type(t *testing.T) {
 		t.Fatalf("expected .tga, got %q", ext)
 	}
 }
+
+func Test_mime_014_m4p_override(t *testing.T) {
+	// Protected audio from iTunes or Apple Music is an MP4 file, which sniffs
+	// as video/mp4, so its extension decides, as with .m4a
+	data := []byte{0x00, 0x00, 0x00, 0x20, 'f', 't', 'y', 'p', 'M', '4', 'A', ' ', 0x00, 0x00, 0x00, 0x00, 'M', '4', 'A', ' ', 'm', 'p', '4', '2', 'i', 's', 'o', 'm'}
+	for _, name := range []string{"04 Jungle Love.m4p", "JUMP.M4P"} {
+		r := namedReader{Reader: bytes.NewReader(data), name: name}
+		contentType, _, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != "audio/mp4" {
+			t.Fatalf("%s: expected audio/mp4, got %q", name, contentType)
+		}
+	}
+
+	// audio/mp4's preferred extension is still .m4a
+	if ext := ExtensionByType("audio/mp4"); ext != ".m4a" {
+		t.Fatalf("expected .m4a, got %q", ext)
+	}
+}
