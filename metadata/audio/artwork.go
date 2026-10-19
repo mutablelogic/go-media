@@ -19,8 +19,9 @@ import (
 func init() {
 	// Add metadata handler for embedded cover art in audio files
 	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), "artwork", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
-		// Reject unless the "artwork" namespace was requested
-		if !o.HasNamespace("artwork") {
+		// Reject unless the "artwork" namespace was requested, and for a
+		// playlist, which is text
+		if !o.HasNamespace("artwork") || o.IsText() {
 			return nil, nil
 		}
 

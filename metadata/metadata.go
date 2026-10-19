@@ -101,6 +101,8 @@ func GetMetadata(parent context.Context, r io.Reader, contentType string, opts .
 	o, err := applyOptions(opts...)
 	if err != nil {
 		return nil, err
+	} else {
+		o.contentType = contentType
 	}
 
 	// Start the span

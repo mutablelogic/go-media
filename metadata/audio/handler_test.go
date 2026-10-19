@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,21 @@ func Test_sanitizeKey_001(t *testing.T) {
 	for _, key := range noise {
 		if got := sanitizeKey(key); got != "" {
 			t.Errorf("sanitizeKey(%q) = %q, want \"\" (dropped)", key, got)
+		}
+	}
+}
+
+// Test_handler_playlist checks that a playlist, which has an audio type but
+// is text, isn't read by ffmpeg, so has no metadata, rather than an error
+func Test_handler_playlist(t *testing.T) {
+	for _, contentType := range []string{"audio/x-mpegurl", "audio/mpegurl", "audio/x-scpls"} {
+		m3u := strings.NewReader("#EXTM3U\n#EXTINF:123,Artist - Title\nmusic/track01.mp3\n")
+		meta, err := metadata.GetMetadata(context.Background(), m3u, contentType, metadata.WithNamespace("audio", "artwork"))
+		if err != nil {
+			t.Fatalf("%s: %v", contentType, err)
+		}
+		if len(meta) != 0 {
+			t.Fatalf("%s: expected no metadata, got %v", contentType, meta)
 		}
 	}
 }

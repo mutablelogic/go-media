@@ -40,6 +40,8 @@ func (m meta) Value() string {
 		return strconv.FormatFloat(v.Seconds(), 'f', -1, 64)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
+	case []string:
+		return strings.Join(v, ", ")
 	default:
 		return fmt.Sprint(v)
 	}
@@ -54,6 +56,11 @@ func init() {
 
 	// Add metadata handler for audio files
 	metadata.AddHandler(regexp.MustCompile(`^audio/.*$`), "ffmpeg", func(_ context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		// A playlist, which is text, isn't read by ffmpeg
+		if o.IsText() {
+			return nil, nil
+		}
+
 		rd, err := reader.NewReader(r)
 		if err != nil {
 			return nil, err

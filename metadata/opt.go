@@ -1,6 +1,8 @@
 package metadata
 
 import (
+	"slices"
+
 	// Packages
 	client "github.com/mutablelogic/go-client"
 	gomedia "github.com/mutablelogic/go-media"
@@ -21,6 +23,9 @@ type Opts struct {
 
 	// When non-nil, this is the TMDB client used to fetch metadata from TMDB.
 	tmdb *tmdb.Client
+
+	// The content type of the stream, which GetMetadata sets
+	contentType string
 }
 
 type Option func(*Opts) error
@@ -35,6 +40,13 @@ type Option func(*Opts) error
 // filter was given at all.
 func (o *Opts) HasNamespace(ns string) bool {
 	return containsFold(o.namespaces, ns)
+}
+
+// IsText reports whether the stream is a text document with a type which
+// isn't a text type, such as a playlist with an audio type. Media handlers,
+// such as ffmpeg's, don't read it, as it isn't media.
+func (o *Opts) IsText() bool {
+	return slices.Contains(textTypes, o.contentType)
 }
 
 // TMDB returns the TMDB client set via WithTMDB, or nil if none was set.
