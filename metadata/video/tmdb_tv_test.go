@@ -205,6 +205,22 @@ func Test_tmdb_tv(t *testing.T) {
 		}
 	})
 
+	t.Run("ExactBeyondTop", func(t *testing.T) {
+		// A show with the name is checked anywhere on the search's first page
+		stub := &tvStub{}
+		for id := uint64(1); id <= 8; id++ {
+			stub.shows = append(stub.shows, tvShow{id: id, name: fmt.Sprintf("The Office Show %d", id), runtimes: map[string]uint64{"2/1": 50}})
+		}
+		stub.shows[7] = tvShow{id: 8, name: "The Office", runtimes: map[string]uint64{"2/1": 22}}
+		meta, err := tvMatch(t, stub, "The.Office.S02E01.mkv", 22*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:showid"] != "8" {
+			t.Errorf("matched %v, want 8", meta["tmdb:showid"])
+		}
+	})
+
 	t.Run("EpisodesOnce", func(t *testing.T) {
 		// Each show's episode is got once, over both passes
 		stub := theOffice()

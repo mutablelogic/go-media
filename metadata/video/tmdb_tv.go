@@ -74,15 +74,13 @@ func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Quer
 
 // matchEpisode returns the show of the results, whose name is the name, and
 // its episode, and the episode's runtime, as movies are matched: without the
-// stream's duration, it's the first of the top results with the episode,
-// preferring a show with the name. With it, it's the first of the top
-// results whose name is the name, and whose episode's runtime is within 5% of
-// the duration, or else the first whose episode is within 10% of it, or nil
-// when none is. A show which doesn't have the episode isn't a match. An
+// stream's duration, it's the first show with the episode, preferring a show
+// with the name. With it, it's the first of the results whose name is the
+// name, and whose episode's runtime is within 5% of the duration, or else the
+// first of the top results whose episode is within 10% of it, or nil when
+// none is. A show which doesn't have the episode isn't a match. An
 // episode's runtime is the show's typical one when it isn't known.
 func matchEpisode(ctx context.Context, client *tmdbclient.Client, name string, season, number uint64, results []tmdbschema.TVShow, duration time.Duration) (*tmdbschema.TVShow, *tmdbschema.TVEpisode, time.Duration, error) {
-	results = results[:min(len(results), tmdbCandidates)]
-
 	// The episode of each show, which is got once, and is nil when the show
 	// doesn't have it
 	episodes := make(map[uint64]*tmdbschema.TVEpisode, len(results))
@@ -122,10 +120,15 @@ func matchEpisode(ctx context.Context, client *tmdbclient.Client, name string, s
 	}
 
 	// match returns the first show with the episode, whose name is the name
-	// when exact is set, and whose runtime is within the percent of the
-	// duration, unless the duration isn't known
+	// when exact is set, of all the results, or else of the top results,
+	// and whose runtime is within the percent of the duration, unless the
+	// duration isn't known
 	match := func(exact bool, percent int64) (*tmdbschema.TVShow, *tmdbschema.TVEpisode, time.Duration, error) {
-		for i, show := range results {
+		candidates := results
+		if !exact {
+			candidates = results[:min(len(results), tmdbCandidates)]
+		}
+		for i, show := range candidates {
 			if exact && !showMatches(name, show) {
 				continue
 			}

@@ -309,6 +309,41 @@ func Test_tmdb_title(t *testing.T) {
 		}
 	})
 
+	t.Run("ExactBeyondTop", func(t *testing.T) {
+		// A film with the title is checked anywhere on the search's first
+		// page, as many films share a common title, such as Ambition (1992),
+		// which is 13th in its search, but only the top films are checked
+		// when their titles aren't the name
+		stub := &tmdbStub{titles: map[uint64]string{}, runtimes: map[uint64]uint64{}}
+		for id := uint64(1); id <= 20; id++ {
+			stub.order = append(stub.order, id)
+			stub.titles[id] = fmt.Sprintf("Blonde Ambition %d", id)
+			stub.runtimes[id] = 100
+		}
+		for id, runtime := range map[uint64]uint64{3: 23, 5: 87, 6: 3, 7: 73, 8: 6, 13: 9} {
+			stub.titles[id], stub.runtimes[id] = "Ambition", runtime
+		}
+		stub.runtimes[10] = 9 // a title which isn't the name, beyond the top
+		meta, err := tmdbMatchFile(t, stub, "/Movies/Ambition/Ambition.m4v", 535*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "13" {
+			t.Errorf("matched %v, want 13", meta["tmdb:id"])
+		}
+
+		// Without the film with the title, a film beyond the top isn't
+		// checked for 10%
+		stub.titles[13] = "Ambition Rising"
+		meta, err = tmdbMatchFile(t, stub, "/Movies/Ambition/Ambition.m4v", 535*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(meta) != 0 {
+			t.Errorf("matched %v, want nothing", meta["tmdb:id"])
+		}
+	})
+
 	t.Run("DetailsOnce", func(t *testing.T) {
 		// Each film's details are got once, over both passes
 		stub := life()

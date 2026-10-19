@@ -21,7 +21,10 @@ import (
 // GLOBALS
 
 // tmdbCandidates is how many of the search's results are checked for a
-// runtime which matches the stream's duration
+// runtime which matches the stream's duration, when their titles aren't
+// the stream's. Every result on the search's first page whose title is the
+// stream's is checked, as a common title, such as Ambition, can be shared by
+// many films, and the film can be far down the results.
 const tmdbCandidates = 5
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,19 +112,19 @@ func init() {
 
 // matchMovie returns the movie of the results which the stream, whose title
 // is the name, is. Without the stream's duration, it's the top result,
-// without its details. With it, it's the first of the top results whose
-// title is the name, and whose runtime is within 5% of the duration, or
-// else the first whose runtime is within 10% of it, with its details, such
-// as its runtime and IMDb identifier, or nil when none is, including when
-// their runtimes aren't known. A search's top results can be films whose
-// titles only contain the name, such as recent ones, before the film itself.
+// without its details. With it, it's the first of the results whose title is
+// the name, and whose runtime is within 5% of the duration, or else the
+// first of the top results whose runtime is within 10% of it, with its
+// details, such as its runtime and IMDb identifier, or nil when none is,
+// including when their runtimes aren't known. A search's top results can be
+// films whose titles only contain the name, such as recent ones, before the
+// film itself.
 func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
 	if len(results) == 0 {
 		return nil, nil, nil
 	} else if duration <= 0 {
 		return &results[0], nil, nil
 	}
-	results = results[:min(len(results), tmdbCandidates)]
 
 	// The details of each result, which are got once
 	details := make(map[uint64]*tmdbschema.MovieDetails, len(results))
@@ -147,8 +150,8 @@ func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, res
 		}
 	}
 
-	// Any film, within 10%
-	for i, result := range results {
+	// Any of the top films, within 10%
+	for i, result := range results[:min(len(results), tmdbCandidates)] {
 		if r, err := runtime(result); err != nil {
 			return nil, nil, err
 		} else if runtimeMatches(r, duration, 10) {
