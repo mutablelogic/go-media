@@ -28,9 +28,10 @@ const tmdbCandidates = 5
 // LIFECYCLE
 
 func init() {
-	// Add metadata handler for video files: looks up the movie named by the
-	// input's filename (see gomedia.NamedReader) on TMDB. Requires a TMDB
-	// client (see WithTMDB); does nothing without one.
+	// Add metadata handler for video files: looks up the movie, or the
+	// episode of a TV show, named by the input's filename (see
+	// gomedia.NamedReader) on TMDB. Requires a TMDB client (see WithTMDB);
+	// does nothing without one.
 	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "tmdb", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		client := o.TMDB()
 		if client == nil {
@@ -43,10 +44,18 @@ func init() {
 		}
 
 		q := tmdbclient.ExtractQuery(named.Name())
-		if q.Name == "" || q.Episode != 0 {
-			// No usable title, or this looks like a TV episode: TMDB
-			// search only covers movies for now.
+		if q.Name == "" {
 			return nil, nil
+		}
+
+		// A file with a season and an episode, such as S01E02, is an episode
+		// of a TV show
+		if q.Episode != 0 {
+			entries, err := tvEntries(ctx, client, q, o.Duration())
+			if err != nil || entries == nil {
+				return nil, err
+			}
+			return metadata.FilterMetadata(entries, o), nil
 		}
 
 		req := tmdbschema.MovieSearchRequest{Term: q.Name}
