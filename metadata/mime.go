@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
@@ -53,6 +54,16 @@ var extensionContentTypes = map[string]extensionRule{
 	".pls":  {ContentType: "audio/x-scpls", Preferred: true},
 }
 
+// textExtensionTypes are the types of text, by extension, which only refine
+// content sniffed as plain text, and are never the type of content by its
+// extension alone, as content of another type has the extension too, such
+// as .ts, which is TypeScript, or an MPEG transport stream
+// (see AddTextExtensionType)
+var (
+	textExtensionTypes   = map[string]string{}
+	textExtensionTypesMu sync.RWMutex
+)
+
 // iconTypes are the content types of an icon, which differ on each platform,
 // so an icon isn't refined by another type of icon
 var iconTypes = []string{"image/x-icon", "image/vnd.microsoft.icon"}
@@ -81,9 +92,10 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		return "", nil, gomedia.ErrBadParameter.With("nil reader")
 	}
 
-	var extType string
+	var extType, textType string
 	if named, ok := r.(NamedStream); ok {
 		ext := strings.ToLower(filepath.Ext(named.Name()))
+		textType = textExtensionType(ext)
 		if forced, ok := extensionContentTypes[ext]; ok {
 			if forced.Authoritative {
 				return mime.ParseMediaType(forced.ContentType)
@@ -111,6 +123,11 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 		if err != nil {
 			return "", nil, err
 		}
+		// Plain text is refined by the type of text of its extension first,
+		// such as text/x-typescript for .ts, which is otherwise a video
+		if contentType == "text/plain" && textType != "" {
+			return textType, params, nil
+		}
 		// Plain text, or a zip archive, is refined by the type of its
 		// extension, when that's more specific (see refines), such as
 		// text/markdown for .md, keeping the sniffed parameters, such as its
@@ -132,8 +149,29 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 	return types.ContentTypeBinary, nil, nil
 }
 
+// AddTextExtensionType registers the type of text with the extension, such
+// as text/x-typescript for .ts, which refines content sniffed as plain text,
+// as mime.AddExtensionType's does, but is never the type of content by its
+// extension alone, so content which isn't text, such as an MPEG transport
+// stream, has the type it otherwise has. The extension starts with a dot,
+// and is matched without case.
+func AddTextExtensionType(ext, contentType string) error {
+	if !strings.HasPrefix(ext, ".") || len(ext) < 2 {
+		return gomedia.ErrBadParameter.Withf("invalid extension %q", ext)
+	} else if mediatype, _, err := mime.ParseMediaType(contentType); err != nil {
+		return gomedia.ErrBadParameter.Withf("invalid content type %q: %v", contentType, err)
+	} else {
+		contentType = mediatype
+	}
+	textExtensionTypesMu.Lock()
+	defer textExtensionTypesMu.Unlock()
+	textExtensionTypes[strings.ToLower(ext)] = contentType
+	return nil
+}
+
 // ExtensionByType returns the preferred extension for contentType, falling
-// back to the first registered extension if no preferred extension matches.
+// back to the first registered extension if no preferred extension matches,
+// or else the first extension of the type of text (see AddTextExtensionType).
 func ExtensionByType(contentType string) string {
 	for ext, rule := range extensionContentTypes {
 		if rule.ContentType == contentType && rule.Preferred {
@@ -143,7 +181,7 @@ func ExtensionByType(contentType string) string {
 
 	exts, err := mime.ExtensionsByType(contentType)
 	if err != nil || len(exts) == 0 {
-		return ""
+		return textExtension(contentType)
 	}
 
 	return exts[0]
@@ -184,6 +222,32 @@ func refines(sniffed, ext string) bool {
 		return strings.HasPrefix(ext, "image/") && !slices.Contains(iconTypes, ext)
 	}
 	return false
+}
+
+// textExtensionType returns the type of text registered with the extension,
+// or an empty string
+func textExtensionType(ext string) string {
+	textExtensionTypesMu.RLock()
+	defer textExtensionTypesMu.RUnlock()
+	return textExtensionTypes[ext]
+}
+
+// textExtension returns the first extension, in order, registered with the
+// type of text, or an empty string
+func textExtension(contentType string) string {
+	textExtensionTypesMu.RLock()
+	defer textExtensionTypesMu.RUnlock()
+	var exts []string
+	for ext, textType := range textExtensionTypes {
+		if textType == contentType {
+			exts = append(exts, ext)
+		}
+	}
+	slices.Sort(exts)
+	if len(exts) == 0 {
+		return ""
+	}
+	return exts[0]
 }
 
 // isXMLType returns true when the content type is of an XML document with a
