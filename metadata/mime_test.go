@@ -345,3 +345,66 @@ func Test_mime_014_m4p_override(t *testing.T) {
 		t.Fatalf("expected .m4a, got %q", ext)
 	}
 }
+
+func Test_mime_015_text_extension_type(t *testing.T) {
+	// The extension is an MPEG transport stream's, whatever the host's MIME
+	// types are, and TypeScript's when it's text
+	if err := mime.AddExtensionType(".ts", "video/mp2t"); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddTextExtensionType(".ts", "text/x-typescript; charset=utf-8"); err != nil {
+		t.Fatal(err)
+	}
+
+	// TypeScript sniffs as plain text, and is refined by the extension's
+	// type of text, keeping its charset, whatever the case of its extension
+	for _, name := range []string{"index.ts", "INDEX.TS"} {
+		r := namedReader{Reader: bytes.NewReader([]byte("export const answer: number = 42;\n")), name: name}
+		contentType, params, err := ContentType(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentType != "text/x-typescript" {
+			t.Fatalf("%s: expected text/x-typescript, got %q", name, contentType)
+		}
+		if params["charset"] != "utf-8" {
+			t.Fatalf("%s: expected charset utf-8, got %v", name, params)
+		}
+	}
+
+	// An MPEG transport stream, which isn't text, has the type it otherwise
+	// has, which is its extension's, rather than the type of text
+	packet := make([]byte, 188*3)
+	for i := 0; i < len(packet); i += 188 {
+		packet[i] = 0x47
+		packet[i+1] = 0x40
+	}
+	r := namedReader{Reader: bytes.NewReader(packet), name: "recording.ts"}
+	contentType, _, err := ContentType(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "video/mp2t" {
+		t.Fatalf("expected video/mp2t, got %q", contentType)
+	}
+
+	// The extension of the type of text is its registered extension, without
+	// the type's parameters or case
+	for _, contentType := range []string{"text/x-typescript", "text/x-typescript; charset=utf-8", "Text/X-TypeScript"} {
+		if ext := ExtensionByType(contentType); ext != ".ts" {
+			t.Fatalf("%q: expected .ts, got %q", contentType, ext)
+		}
+	}
+}
+
+func Test_mime_016_text_extension_type_invalid(t *testing.T) {
+	for _, tt := range []struct{ ext, contentType string }{
+		{"ts", "text/x-typescript"},
+		{".", "text/x-typescript"},
+		{".ts", "not a type"},
+	} {
+		if err := AddTextExtensionType(tt.ext, tt.contentType); err == nil {
+			t.Fatalf("%q, %q: expected an error", tt.ext, tt.contentType)
+		}
+	}
+}
