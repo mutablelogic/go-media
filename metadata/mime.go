@@ -233,8 +233,12 @@ func textExtensionType(ext string) string {
 }
 
 // textExtension returns the first extension, in order, registered with the
-// type of text, or an empty string
+// type of text, without its parameters or case, or an empty string
 func textExtension(contentType string) string {
+	contentType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return ""
+	}
 	textExtensionTypesMu.RLock()
 	defer textExtensionTypesMu.RUnlock()
 	var exts []string

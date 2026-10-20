@@ -347,6 +347,11 @@ func Test_mime_014_m4p_override(t *testing.T) {
 }
 
 func Test_mime_015_text_extension_type(t *testing.T) {
+	// The extension is an MPEG transport stream's, whatever the host's MIME
+	// types are, and TypeScript's when it's text
+	if err := mime.AddExtensionType(".ts", "video/mp2t"); err != nil {
+		t.Fatal(err)
+	}
 	if err := AddTextExtensionType(".ts", "text/x-typescript; charset=utf-8"); err != nil {
 		t.Fatal(err)
 	}
@@ -379,13 +384,16 @@ func Test_mime_015_text_extension_type(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want, _, _ := mime.ParseMediaType(mime.TypeByExtension(".ts")); contentType != want || contentType == "text/x-typescript" {
-		t.Fatalf("expected %q, got %q", want, contentType)
+	if contentType != "video/mp2t" {
+		t.Fatalf("expected video/mp2t, got %q", contentType)
 	}
 
-	// The extension of the type of text is its registered extension
-	if ext := ExtensionByType("text/x-typescript"); ext != ".ts" {
-		t.Fatalf("expected .ts, got %q", ext)
+	// The extension of the type of text is its registered extension, without
+	// the type's parameters or case
+	for _, contentType := range []string{"text/x-typescript", "text/x-typescript; charset=utf-8", "Text/X-TypeScript"} {
+		if ext := ExtensionByType(contentType); ext != ".ts" {
+			t.Fatalf("%q: expected .ts, got %q", contentType, ext)
+		}
 	}
 }
 
