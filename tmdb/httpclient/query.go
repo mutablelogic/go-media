@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,10 +88,19 @@ func parseName(name string) Query {
 		name = name[:m[0]]
 	}
 
-	// Check for year
-	if m := yearRe.FindStringSubmatchIndex(name); m != nil {
-		q.Year, _ = strconv.Atoi(name[m[2]:m[3]])
-		name = name[:m[0]]
+	// Check for a release year, which is the last year in the name which
+	// isn't later than next year, as a later one is part of the title, such
+	// as Blade Runner 2049, and a release year comes after the title, which
+	// can have a year in it, such as Summer of 1942 (1971)
+	latest := time.Now().Year() + 1
+	matches := yearRe.FindAllStringSubmatchIndex(name, -1)
+	for i := len(matches) - 1; i >= 0; i-- {
+		m := matches[i]
+		if year, _ := strconv.Atoi(name[m[2]:m[3]]); year <= latest {
+			q.Year = year
+			name = name[:m[0]]
+			break
+		}
 	}
 
 	// Cleanup
