@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,5 +160,111 @@ func Test_buildVideoEntries_003(t *testing.T) {
 	})
 	if _, ok := entries["dc:date"]; ok {
 		t.Error("did not expect dc:date for an unparseable creation_time")
+	}
+}
+
+// Test_buildVideoEntries_quicktime checks that Apple's QuickTime tags are in
+// the quicktime namespace, that its creation date, in its own time zone, is
+// dc:date rather than creation_time, and that its location is parsed
+func Test_buildVideoEntries_quicktime(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "creation_time", value: "2023-03-16T06:23:27.000000Z"},
+		meta{key: "com.apple.quicktime.location.accuracy.horizontal", value: "9.424789"},
+		meta{key: "com.apple.quicktime.location.ISO6709", value: "+52.4158+013.5896+035.667/"},
+		meta{key: "com.apple.quicktime.make", value: "Apple"},
+		meta{key: "com.apple.quicktime.model", value: "iPhone 12 mini"},
+		meta{key: "com.apple.quicktime.software", value: "16.1.1"},
+		meta{key: "com.apple.quicktime.creationdate", value: "2023-03-16T07:23:27+0100"},
+	})
+	for key, want := range map[string]any{
+		"quicktime:make":                         "Apple",
+		"quicktime:model":                        "iPhone 12 mini",
+		"quicktime:software":                     "16.1.1",
+		"quicktime:creationdate":                 "2023-03-16T07:23:27+0100",
+		"quicktime:location-iso6709":             "+52.4158+013.5896+035.667/",
+		"quicktime:location-accuracy-horizontal": "9.424789",
+		"quicktime:latitude":                     52.4158,
+		"quicktime:longitude":                    13.5896,
+		"quicktime:altitude":                     35.667,
+		"dc:date":                                "2023-03-16T07:23:27+01:00",
+	} {
+		if got, ok := entries[key]; !ok || got.Any() != want {
+			t.Errorf("%s = %v, want %v", key, got, want)
+		}
+	}
+	for key := range entries {
+		if strings.HasPrefix(key, "video:com-apple") {
+			t.Errorf("unexpected %s", key)
+		}
+	}
+}
+
+// Test_buildVideoEntries_quicktimeDate checks that a QuickTime creation date
+// with any ISO 8601 offset is dc:date, rather than a different creation_time,
+// and is without it
+func Test_buildVideoEntries_quicktimeDate(t *testing.T) {
+	for value, want := range map[string]string{
+		"2023-03-16T07:23:27+0100":     "2023-03-16T07:23:27+01:00",
+		"2023-03-16T07:23:27+01:00":    "2023-03-16T07:23:27+01:00",
+		"2023-03-16T06:23:27Z":         "2023-03-16T06:23:27Z",
+		"2023-03-16T07:23:27.5+01:00":  "2023-03-16T07:23:27+01:00",
+		"2023-03-16T07:23:27.250+0100": "2023-03-16T07:23:27+01:00",
+	} {
+		for _, creationTime := range []string{"", "2024-01-01T00:00:00.000000Z"} {
+			tags := []gomedia.Metadata{meta{key: "com.apple.quicktime.creationdate", value: value}}
+			if creationTime != "" {
+				tags = append(tags, meta{key: "creation_time", value: creationTime})
+			}
+			if got, ok := buildVideoEntries(tags)["dc:date"]; !ok || got.Value() != want {
+				t.Errorf("%q with creation_time %q: dc:date = %v, want %q", value, creationTime, got, want)
+			}
+		}
+	}
+
+	// A creation date which isn't one falls back to creation_time
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "com.apple.quicktime.creationdate", value: "yesterday"},
+		meta{key: "creation_time", value: "2024-01-01T00:00:00.000000Z"},
+	})
+	if got, ok := entries["dc:date"]; !ok || got.Value() != "2024-01-01T00:00:00Z" {
+		t.Errorf("dc:date = %v, want creation_time", got)
+	}
+}
+
+// Test_buildVideoEntries_language checks that a tag which ffmpeg repeats
+// with its language, such as model-nob, is dropped when its value is the
+// same, but kept when it isn't
+func Test_buildVideoEntries_language(t *testing.T) {
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "model", value: "iPad 2"},
+		meta{key: "model-nob", value: "iPad 2"},
+		meta{key: "date", value: "2013-03-19T13:46:11+0100"},
+		meta{key: "date-nob", value: "2013-03-19T13:46:11+0100"},
+		meta{key: "title", value: "Holiday"},
+		meta{key: "title-deu", value: "Urlaub"},
+	})
+	for _, key := range []string{"video:model-nob", "video:date-nob"} {
+		if _, ok := entries[key]; ok {
+			t.Errorf("did not expect %s", key)
+		}
+	}
+	if got, ok := entries["video:title-deu"]; !ok || got.Value() != "Urlaub" {
+		t.Errorf("video:title-deu = %v, want Urlaub", got)
+	}
+}
+
+// Test_parseISO6709 checks locations in ISO 6709, with and without an
+// altitude, and values which aren't locations
+func Test_parseISO6709(t *testing.T) {
+	if lat, lon, alt, ok := parseISO6709("+51.3218+021.9446+125.949/"); !ok || lat != 51.3218 || lon != 21.9446 || alt == nil || *alt != 125.949 {
+		t.Errorf("got %v %v %v %v", lat, lon, alt, ok)
+	}
+	if lat, lon, alt, ok := parseISO6709("-33.8688+151.2093/"); !ok || lat != -33.8688 || lon != 151.2093 || alt != nil {
+		t.Errorf("got %v %v %v %v", lat, lon, alt, ok)
+	}
+	for _, value := range []string{"", "nowhere", "+95.0+010.0/", "+10.0+190.0/"} {
+		if _, _, _, ok := parseISO6709(value); ok {
+			t.Errorf("%q parsed", value)
+		}
 	}
 }

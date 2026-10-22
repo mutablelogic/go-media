@@ -83,8 +83,18 @@ func init() {
 		}
 		fillFromSortTags(entries)
 
+		// The recording's MusicBrainz identifier, which an MP3 has in its ID3
+		// tag's UFID frame, rather than a tag ffmpeg returns
+		if _, exists := entries["musicbrainz:recording-id"]; !exists {
+			if ra, ok := r.(io.ReaderAt); ok {
+				if id := ufidRecordingID(ra); id != "" {
+					entries["musicbrainz:recording-id"] = meta{key: "musicbrainz:recording-id", value: id}
+				}
+			}
+		}
+
 		return metadata.FilterMetadata(entries, o), nil
-	}, "dc", "audio")
+	}, "dc", "audio", "musicbrainz")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +105,7 @@ var sortTags = []struct{ key, sort string }{
 	{"dc:title", "audio:sort-name"},
 	{"dc:creator", "audio:sort-artist"},
 	{"dc:creator", "audio:sort-album-artist"},
-	{"audio:Album", "audio:sort-album"},
+	{"audio:album", "audio:sort-album"},
 }
 
 // fillFromSortTags fills in the title, artist and album from the tags which
@@ -138,14 +148,65 @@ func sanitizeKey(key string) string {
 	case "artists", "artist", "album-artist":
 		return "dc:creator"
 	case "album", "albumtitle":
-		return "audio:Album"
+		return "audio:album"
 	case "genre", "music-genre":
-		return "audio:Genre"
+		return "audio:genre"
 	case "originalyear", "year", "date", "originaldate", "tdor":
 		return "audio:year"
 	case "itunes-cddb-tracknumber", "track", "tracknumber":
-		return "audio:Track"
+		return "audio:track"
 	}
 
+	// MusicBrainz's identifiers, and the details of the release
+	if key, found := musicbrainzKey(key); found {
+		return key
+	}
 	return "audio:" + key
+}
+
+// musicbrainzTags are the keys of MusicBrainz's tags, by their names without
+// separators, which are named for MusicBrainz's entities: an album is a
+// release, and a track is a recording, and a release's track is a track.
+// Tags are spelled differently in each container, such as
+// MUSICBRAINZ_ALBUMID in a FLAC file, and MusicBrainz Album Id in an MP3 or
+// MP4 file, and the details of a release don't have the prefix in a FLAC
+// file, such as RELEASETYPE for MusicBrainz Album Type.
+var musicbrainzTags = map[string]string{
+	"albumid":             "musicbrainz:release-id",
+	"releasegroupid":      "musicbrainz:release-group-id",
+	"trackid":             "musicbrainz:recording-id",
+	"releasetrackid":      "musicbrainz:track-id",
+	"artistid":            "musicbrainz:artist-id",
+	"albumartistid":       "musicbrainz:album-artist-id",
+	"workid":              "musicbrainz:work-id",
+	"discid":              "musicbrainz:disc-id",
+	"originalalbumid":     "musicbrainz:original-release-id",
+	"originalartistid":    "musicbrainz:original-artist-id",
+	"albumtype":           "musicbrainz:release-type",
+	"albumstatus":         "musicbrainz:release-status",
+	"albumreleasecountry": "musicbrainz:release-country",
+}
+
+// musicbrainzDetails are the details of a release in a FLAC file, which
+// don't have MusicBrainz's prefix, by their names
+var musicbrainzDetails = map[string]string{
+	"releasetype":    "musicbrainz:release-type",
+	"releasestatus":  "musicbrainz:release-status",
+	"releasecountry": "musicbrainz:release-country",
+}
+
+// musicbrainzKey returns the key of a MusicBrainz tag, whose key is
+// normalized, or false when it isn't one. A tag with MusicBrainz's prefix
+// which isn't known keeps its name.
+func musicbrainzKey(key string) (string, bool) {
+	if key, found := musicbrainzDetails[key]; found {
+		return key, true
+	}
+	name, found := strings.CutPrefix(key, "musicbrainz-")
+	if !found || name == "" {
+		return "", false
+	} else if key, found := musicbrainzTags[strings.ReplaceAll(name, "-", "")]; found {
+		return key, true
+	}
+	return "musicbrainz:" + name, true
 }

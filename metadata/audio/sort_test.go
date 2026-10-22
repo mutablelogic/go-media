@@ -25,7 +25,7 @@ func Test_fillFromSortTags(t *testing.T) {
 			"audio:sort-album":  "Ice Cream Castle",
 		})
 		fillFromSortTags(got)
-		for key, want := range map[string]string{"dc:title": "Jungle Love", "dc:creator": "Time", "audio:Album": "Ice Cream Castle", "audio:sort-name": "Jungle Love"} {
+		for key, want := range map[string]string{"dc:title": "Jungle Love", "dc:creator": "Time", "audio:album": "Ice Cream Castle", "audio:sort-name": "Jungle Love"} {
 			if got[key] == nil || got[key].Value() != want {
 				t.Errorf("%s = %v, want %q", key, got[key], want)
 			}
@@ -37,13 +37,13 @@ func Test_fillFromSortTags(t *testing.T) {
 		got := entries(map[string]string{
 			"dc:title":          "The Jungle Love",
 			"dc:creator":        "The Time",
-			"audio:Album":       "Ice Cream Castle (Remastered)",
+			"audio:album":       "Ice Cream Castle (Remastered)",
 			"audio:sort-name":   "Jungle Love",
 			"audio:sort-artist": "Time",
 			"audio:sort-album":  "Ice Cream Castle",
 		})
 		fillFromSortTags(got)
-		for key, want := range map[string]string{"dc:title": "The Jungle Love", "dc:creator": "The Time", "audio:Album": "Ice Cream Castle (Remastered)"} {
+		for key, want := range map[string]string{"dc:title": "The Jungle Love", "dc:creator": "The Time", "audio:album": "Ice Cream Castle (Remastered)"} {
 			if got[key].Value() != want {
 				t.Errorf("%s = %q, want %q", key, got[key].Value(), want)
 			}
