@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"regexp"
 	"strings"
 	"testing"
@@ -163,5 +164,12 @@ func Test_markdown_004(t *testing.T) {
 	// A limit holds a whole character
 	if _, _, _, err := markdownPart(t, markdownDocument, WithRange(0, utf8.UTFMax-1)); !errors.Is(err, gomedia.ErrBadParameter) {
 		t.Errorf("got %v", err)
+	}
+
+	// The largest limits are all of the Markdown
+	for _, limit := range []uint64{math.MaxInt64, math.MaxUint64} {
+		if body, _, next, err := markdownPart(t, markdownDocument, WithRange(0, limit)); err != nil || body != markdownDocument || next != nil {
+			t.Errorf("limit %d: got %q, %v, %v", limit, body, next, err)
+		}
 	}
 }

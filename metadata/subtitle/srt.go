@@ -177,13 +177,19 @@ func timestamp(d time.Duration) string {
 }
 
 // utf16Reader returns a reader of the text as UTF-8, when it's UTF-16, which
-// it is when it starts with UTF-16's byte order mark, or otherwise the text
+// it is when it starts with UTF-16's byte order mark, in the byte order the
+// mark is in, or otherwise the text
 func utf16Reader(r io.Reader) io.Reader {
 	buffered := bufio.NewReader(r)
-	if bom, _ := buffered.Peek(2); len(bom) == 2 && (bom[0] == 0xFF && bom[1] == 0xFE || bom[0] == 0xFE && bom[1] == 0xFF) {
+	bom, _ := buffered.Peek(2)
+	switch {
+	case len(bom) == 2 && bom[0] == 0xFF && bom[1] == 0xFE:
 		return transform.NewReader(buffered, unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM).NewDecoder())
+	case len(bom) == 2 && bom[0] == 0xFE && bom[1] == 0xFF:
+		return transform.NewReader(buffered, unicode.UTF16(unicode.BigEndian, unicode.ExpectBOM).NewDecoder())
+	default:
+		return buffered
 	}
-	return buffered
 }
 
 // decode returns the line as UTF-8: as it is, when it's UTF-8, or otherwise

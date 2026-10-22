@@ -68,9 +68,10 @@ func (w *MarkdownWriter) Write(data []byte) (int, error) {
 		data, n = data[skip:], skip
 	}
 
-	// Keep the data up to the limit, and one more byte, so there's more
-	if w.limit > 0 && uint64(len(w.buf)+len(data)) > w.limit {
-		keep := int(w.limit+1) - len(w.buf)
+	// Keep the data up to the limit, and one more byte, so there's more.
+	// What's kept is at most the data, as the buffer is within the limit.
+	if w.limit > 0 && uint64(len(w.buf))+uint64(len(data)) > w.limit {
+		keep := int(min(w.limit-uint64(len(w.buf))+1, uint64(len(data))))
 		w.buf = append(w.buf, data[:keep]...)
 		w.pos += uint64(keep)
 		w.more = true
