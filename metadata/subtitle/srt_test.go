@@ -27,9 +27,9 @@ const srt = "\uFEFF1\r\n00:00:01,000 --> 00:00:03,500\r\n<i>Hello</i> there.\r\n
 	"4\r\n01:02:03,000 --> 01:02:05,000\r\nCaf\xe9 au lait\r\n\r\n" +
 	"5\r\n01:02:06,000 --> 01:02:07,000\r\n<font color=\"#fff\"></font>\r\n"
 
-const srtMarkdown = "**1 · 00:00:01** Hello there.\nGeneral Kenobi!\n\n" +
-	"**3 · 00:01:02** \\*Not\\* bold, \\[not\\] a link\n\n" +
-	"**4 · 01:02:03** Café au lait\n"
+const srtMarkdown = "**1 · 00:00:01 → 00:00:03** Hello there.\nGeneral Kenobi!\n\n" +
+	"**3 · 00:01:02 → 00:01:04** \\*Not\\* bold, \\[not\\] a link\n\n" +
+	"**4 · 01:02:03 → 01:02:05** Café au lait\n"
 
 // markdown returns the body and next of the subtitles' Markdown
 func markdown(t *testing.T, opts ...metadata.Option) (string, string) {
@@ -68,8 +68,8 @@ func Test_srt_000(t *testing.T) {
 
 func Test_srt_001(t *testing.T) {
 	// A part of the Markdown, and the next
-	body, next := markdown(t, metadata.WithRange(0, 12))
-	if body != srtMarkdown[:12] || next != "12" {
+	body, next := markdown(t, metadata.WithRange(0, 16))
+	if body != srtMarkdown[:16] || next != "16" {
 		t.Errorf("got %q, next %q", body, next)
 	}
 }
@@ -89,7 +89,7 @@ func Test_srt_003(t *testing.T) {
 			}
 		}
 		meta, err := metadata.GetMetadata(context.Background(), strings.NewReader(string(data)), "application/x-subrip", metadata.WithNamespace(gomedia.MetaMarkdown))
-		if err != nil || len(meta) != 1 || meta[0].Value() != "**1 · 00:00:01** Café\n" {
+		if err != nil || len(meta) != 1 || meta[0].Value() != "**1 · 00:00:01 → 00:00:02** Café\n" {
 			t.Errorf("big endian %v: got %v, %v", bigEndian, meta, err)
 		}
 	}
@@ -97,10 +97,10 @@ func Test_srt_003(t *testing.T) {
 
 func Test_srt_004(t *testing.T) {
 	// A cue without a number is the previous cue's and one, and the first
-	// is one
-	const unnumbered = "00:00:01,000 --> 00:00:02,000\nOne\n\n00:00:03,000 --> 00:00:04,000\nTwo\n\n7\n00:00:05,000 --> 00:00:06,000\nSeven\n\n00:00:07,000 --> 00:00:08,000\nEight\n"
+	// is one, and a cue whose end can't be read has its start
+	const unnumbered = "00:00:01,000 --> 00:00:02,000\nOne\n\n00:00:03,000 --> 00:00:04,000\nTwo\n\n7\n00:00:05,000 --> 00:00:06,000\nSeven\n\n00:00:07,000 -->\nEight\n"
 	meta, err := metadata.GetMetadata(context.Background(), strings.NewReader(unnumbered), "application/x-subrip", metadata.WithNamespace(gomedia.MetaMarkdown))
-	want := "**1 · 00:00:01** One\n\n**2 · 00:00:03** Two\n\n**7 · 00:00:05** Seven\n\n**8 · 00:00:07** Eight\n"
+	want := "**1 · 00:00:01 → 00:00:02** One\n\n**2 · 00:00:03 → 00:00:04** Two\n\n**7 · 00:00:05 → 00:00:06** Seven\n\n**8 · 00:00:07** Eight\n"
 	if err != nil || len(meta) != 1 || meta[0].Value() != want {
 		t.Errorf("got %v, %v", meta, err)
 	}
