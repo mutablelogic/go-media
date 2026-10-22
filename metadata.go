@@ -16,6 +16,12 @@ const (
 	// order - the same way multiple attached-pic streams yield multiple
 	// MetaArtwork entries. Each entry's Any() returns a Chapter.
 	MetaChapter = "chapter"
+
+	// MetaMarkdown is the namespace of a document's content as Markdown,
+	// which handlers only return when it's requested, as converting a
+	// document can be expensive. Its keys are body, offset and next (see
+	// metadata.WithRange).
+	MetaMarkdown = "markdown"
 )
 
 // Chapter describes a single chapter marker: its position in the container

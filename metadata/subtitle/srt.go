@@ -1,0 +1,199 @@
+package subtitle
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	// Packages
+	gomedia "github.com/mutablelogic/go-media"
+	metadata "github.com/mutablelogic/go-media/metadata"
+	charmap "golang.org/x/text/encoding/charmap"
+	unicode "golang.org/x/text/encoding/unicode"
+	transform "golang.org/x/text/transform"
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// cue is a subtitle shown from its start, with its lines of text
+type cue struct {
+	start time.Duration
+	lines []string
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+// srtTiming matches the timing of a cue, such as 00:01:02,500 --> 00:01:04,000,
+// whose start is its hours, minutes, seconds and milliseconds. A period is
+// accepted for the comma, as some files have one.
+var srtTiming = regexp.MustCompile(`^\s*(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->`)
+
+// srtIndex matches the number of a cue, on the line before its timing
+var srtIndex = regexp.MustCompile(`^\s*\d+\s*$`)
+
+// srtTags matches the styling of a cue's text: HTML tags, such as <i> and
+// <font color="...">, and ASS override tags, such as {\an8}
+var srtTags = regexp.MustCompile(`<[^>]*>|\{\\[^}]*\}`)
+
+// markdownEscapes escapes the characters of a cue's text which are
+// Markdown's
+var markdownEscapes = strings.NewReplacer(
+	`\`, `\\`, "*", `\*`, "_", `\_`, "`", "\\`", "[", `\[`, "]", `\]`, "<", `\<`, ">", `\>`, "#", `\#`,
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func init() {
+	// SubRip subtitles are text, so .srt refines content sniffed as text
+	if err := metadata.AddTextExtensionType(".srt", "application/x-subrip"); err != nil {
+		panic(err)
+	}
+
+	// Add metadata handler for SubRip subtitles, which returns their cues as
+	// Markdown, when the markdown namespace is requested
+	metadata.AddHandler(regexp.MustCompile(`^application/x-subrip$`), "srt", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
+		if !o.HasNamespace(gomedia.MetaMarkdown) {
+			return nil, nil
+		}
+		w := metadata.NewMarkdownWriter(o)
+		return w.Metadata(writeSRT(ctx, r, w))
+	}, gomedia.MetaMarkdown)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// writeSRT writes the cues of the SubRip subtitles as Markdown, a paragraph
+// for each, which starts with its time, without their styling. A cue whose
+// text is the previous cue's isn't written again. Stops with the writer's
+// error, once it has its part.
+func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
+	scanner := bufio.NewScanner(utf16Reader(r))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var current *cue
+	var previous string
+	first := true
+	flush := func() error {
+		if current == nil {
+			return nil
+		}
+		c := current
+		current = nil
+		text := c.text()
+		if text == "" || text == previous {
+			return nil
+		}
+		previous = text
+		paragraph := "**" + timestamp(c.start) + "** " + text + "\n"
+		if !first {
+			paragraph = "\n" + paragraph
+		}
+		first = false
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		_, err := w.WriteString(paragraph)
+		return err
+	}
+
+	for line := 0; scanner.Scan(); line++ {
+		text := decode(scanner.Bytes())
+		if line == 0 {
+			text = strings.TrimPrefix(text, "\uFEFF")
+		}
+		text = strings.TrimRight(text, " \t\r")
+		if start, ok := parseTiming(text); ok {
+			// A cue's number is on the line before its timing, which is the
+			// last line of the previous cue, when there's no blank line
+			if current != nil && len(current.lines) > 0 && srtIndex.MatchString(current.lines[len(current.lines)-1]) {
+				current.lines = current.lines[:len(current.lines)-1]
+			}
+			if err := flush(); err != nil {
+				return err
+			}
+			current = &cue{start: start}
+		} else if strings.TrimSpace(text) == "" {
+			if err := flush(); err != nil {
+				return err
+			}
+		} else if current != nil {
+			current.lines = append(current.lines, text)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return flush()
+}
+
+// text returns the cue's lines without their styling, escaped as Markdown,
+// a line each, without lines which are empty
+func (c *cue) text() string {
+	lines := make([]string, 0, len(c.lines))
+	for _, line := range c.lines {
+		line = strings.TrimSpace(srtTags.ReplaceAllString(line, ""))
+		if line != "" {
+			lines = append(lines, markdownEscapes.Replace(line))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// parseTiming returns the start of a cue, from its timing
+func parseTiming(line string) (time.Duration, bool) {
+	match := srtTiming.FindStringSubmatch(line)
+	if match == nil {
+		return 0, false
+	}
+	var parts [4]int
+	for i := range parts {
+		value, err := strconv.Atoi(match[i+1])
+		if err != nil {
+			return 0, false
+		}
+		parts[i] = value
+	}
+	ms := parts[3]
+	for n := len(match[4]); n < 3; n++ {
+		ms *= 10
+	}
+	return time.Duration(parts[0])*time.Hour + time.Duration(parts[1])*time.Minute + time.Duration(parts[2])*time.Second + time.Duration(ms)*time.Millisecond, true
+}
+
+// timestamp returns the time as hours, minutes and seconds, such as 01:02:03
+func timestamp(d time.Duration) string {
+	seconds := int64(d / time.Second)
+	return fmt.Sprintf("%02d:%02d:%02d", seconds/3600, seconds/60%60, seconds%60)
+}
+
+// utf16Reader returns a reader of the text as UTF-8, when it's UTF-16, which
+// it is when it starts with UTF-16's byte order mark, or otherwise the text
+func utf16Reader(r io.Reader) io.Reader {
+	buffered := bufio.NewReader(r)
+	if bom, _ := buffered.Peek(2); len(bom) == 2 && (bom[0] == 0xFF && bom[1] == 0xFE || bom[0] == 0xFE && bom[1] == 0xFF) {
+		return transform.NewReader(buffered, unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM).NewDecoder())
+	}
+	return buffered
+}
+
+// decode returns the line as UTF-8: as it is, when it's UTF-8, or otherwise
+// from Windows-1252, which older subtitles are often in
+func decode(line []byte) string {
+	if utf8.Valid(line) {
+		return string(line)
+	}
+	if decoded, err := charmap.Windows1252.NewDecoder().Bytes(line); err == nil {
+		return string(decoded)
+	}
+	return strings.ToValidUTF8(string(line), "�")
+}

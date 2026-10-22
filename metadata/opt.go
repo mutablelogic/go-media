@@ -3,6 +3,7 @@ package metadata
 import (
 	"slices"
 	"time"
+	"unicode/utf8"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -39,6 +40,11 @@ type Opts struct {
 	// caller knows them, such as from an earlier match, or zero
 	tmdbMovie                         uint64
 	tmdbShow, tmdbSeason, tmdbEpisode uint64
+
+	// The part of the Markdown which a handler of the markdown namespace
+	// returns: from the byte offset, and at most limit bytes, or all of it
+	// when the limit is zero
+	offset, limit uint64
 }
 
 type Option func(*Opts) error
@@ -183,6 +189,21 @@ func WithTMDBEpisode(show, season, episode uint64) Option {
 		}
 		o.tmdbShow, o.tmdbSeason, o.tmdbEpisode = show, season, episode
 		o.tmdbMovie = 0
+		return nil
+	}
+}
+
+// WithRange sets the part of a document's Markdown which a handler of the
+// markdown namespace returns: from the byte offset, and at most limit bytes,
+// so a long document is read a part at a time. A limit of zero is all of it
+// from the offset, and otherwise holds a whole character. See
+// MarkdownWriter.
+func WithRange(offset, limit uint64) Option {
+	return func(o *Opts) error {
+		if limit > 0 && limit < utf8.UTFMax {
+			return gomedia.ErrBadParameter.Withf("invalid limit %d, which must be at least %d", limit, utf8.UTFMax)
+		}
+		o.offset, o.limit = offset, limit
 		return nil
 	}
 }

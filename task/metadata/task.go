@@ -11,12 +11,13 @@ import (
 	metadata "github.com/mutablelogic/go-media/metadata"
 	profile "github.com/mutablelogic/go-media/profile/schema"
 	schema "github.com/mutablelogic/go-media/task/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Register metadata handlers
 	_ "github.com/mutablelogic/go-media/metadata/application"
 	_ "github.com/mutablelogic/go-media/metadata/audio"
 	_ "github.com/mutablelogic/go-media/metadata/image"
+	_ "github.com/mutablelogic/go-media/metadata/subtitle"
 	_ "github.com/mutablelogic/go-media/metadata/video"
 )
 
