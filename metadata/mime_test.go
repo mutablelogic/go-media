@@ -397,6 +397,34 @@ func Test_mime_015_text_extension_type(t *testing.T) {
 	}
 }
 
+func Test_mime_015_text_extension_type_html(t *testing.T) {
+	// A Vue or Svelte component, which starts with a <script> tag or a
+	// comment, sniffs as HTML, and is refined by its extension's type of
+	// text, while HTML is HTML
+	if err := AddTextExtensionType(".vue", "text/x-vue"); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddTextExtensionType(".svelte", "text/x-svelte"); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]string{
+		"App.vue":       "text/x-vue",
+		"Button.svelte": "text/x-svelte",
+		"index.html":    "text/html",
+	} {
+		for _, content := range []string{"<script setup>\nconst a = 1\n</script>\n", "<!-- A component -->\n<template><p>Hi</p></template>\n"} {
+			r := namedReader{Reader: bytes.NewReader([]byte(content)), name: name}
+			contentType, params, err := ContentType(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if contentType != want || params["charset"] != "utf-8" {
+				t.Errorf("%s %q: got %q %v, want %q", name, content, contentType, params, want)
+			}
+		}
+	}
+}
+
 func Test_mime_016_text_extension_type_invalid(t *testing.T) {
 	for _, tt := range []struct{ ext, contentType string }{
 		{"ts", "text/x-typescript"},

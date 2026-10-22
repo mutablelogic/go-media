@@ -124,8 +124,10 @@ func ContentType(r io.Reader) (string, map[string]string, error) {
 			return "", nil, err
 		}
 		// Plain text is refined by the type of text of its extension first,
-		// such as text/x-typescript for .ts, which is otherwise a video
-		if contentType == "text/plain" && textType != "" {
+		// such as text/x-typescript for .ts, which is otherwise a video, as
+		// is text sniffed as HTML, such as a Vue component, which starts
+		// with a <script> tag or a comment
+		if (contentType == "text/plain" || contentType == "text/html") && textType != "" {
 			return textType, params, nil
 		}
 		// Plain text, or a zip archive, is refined by the type of its
