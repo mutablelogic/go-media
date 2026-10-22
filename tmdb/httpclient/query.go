@@ -26,7 +26,7 @@ type Query struct {
 
 var (
 	episodeRe     = regexp.MustCompile(`(?i)[\s._-]s(\d{1,2})e(\d{1,3})\b`)
-	yearRe        = regexp.MustCompile(`[\s._(\[](19\d{2}|20\d{2})[\s._)\]-]?`)
+	yearRe        = regexp.MustCompile(`[\s._(\[](19\d{2}|20\d{2})`)
 	noiseRe       = regexp.MustCompile(`(?i)[\s._-](2160p|1080p|720p|480p|blu-?ray|bdrip|brrip|webrip|web-?dl|hdtv|dvdrip|remux|hdr10?|dolby.?vision|atmos|x264|x265|h\.?264|h\.?265|hevc|avc|xvid|divx|aac\d?|ac3|dts(-hd)?|truehd|\d\.\d(ch)?|extended|unrated|director.?s.?cut|theatrical|proper|repack|limited|internal|multi|dual.?audio)\b.*$`)
 	sepRe         = regexp.MustCompile(`[._]+`)
 	spaceRe       = regexp.MustCompile(`\s{2,}`)
@@ -88,15 +88,23 @@ func parseName(name string) Query {
 		name = name[:m[0]]
 	}
 
+	// Remove the release tags, and what follows them, which can have a year,
+	// such as the year of a release
+	name = noiseRe.ReplaceAllString(name, "")
+
 	// Check for a release year, which is the last year in the name which
 	// isn't later than next year, as a later one is part of the title, such
 	// as Blade Runner 2049, and a release year comes after the title, which
-	// can have a year in it, such as Summer of 1942 (1971)
+	// can have a year in it, such as Summer of 1942 (1971). A year isn't
+	// followed by another digit, and its separators aren't part of it, so a
+	// year after another, such as 1942.1971, is found.
 	latest := time.Now().Year() + 1
 	matches := yearRe.FindAllStringSubmatchIndex(name, -1)
 	for i := len(matches) - 1; i >= 0; i-- {
 		m := matches[i]
-		if year, _ := strconv.Atoi(name[m[2]:m[3]]); year <= latest {
+		if m[3] < len(name) && name[m[3]] >= '0' && name[m[3]] <= '9' {
+			continue
+		} else if year, _ := strconv.Atoi(name[m[2]:m[3]]); year <= latest {
 			q.Year = year
 			name = name[:m[0]]
 			break
@@ -104,7 +112,6 @@ func parseName(name string) Query {
 	}
 
 	// Cleanup
-	name = noiseRe.ReplaceAllString(name, "")
 	name = sepRe.ReplaceAllString(name, " ")
 	name = spaceRe.ReplaceAllString(name, " ")
 	q.Name = strings.TrimSpace(name)
