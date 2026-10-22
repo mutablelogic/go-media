@@ -74,16 +74,16 @@ jobs:
         with:
           go-version: "1.26.x"
 
-      - name: Cache build directory
+      # The installed libraries, with their stamps, with the same key as
+      # test.yaml's Windows job, as both build the same libraries from the
+      # same Makefile, so this reuses what test.yaml built. There's no
+      # fallback to an older Makefile's libraries, whose versions or
+      # configuration may differ, so a release is never built with them.
+      - name: Cache libraries
         uses: actions/cache@v6
         with:
-          path: build
-          # Same key as test.yaml's Windows job - both build the identical
-          # library set from the same Makefile, so this reuses whatever
-          # test.yaml already populated instead of rebuilding from scratch.
-          key: ${{ runner.os }}-build-${{ hashFiles('Makefile') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+          path: build/install
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2

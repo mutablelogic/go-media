@@ -23,6 +23,25 @@ LIBEXIF_VERSION ?= 0.6.26
 LIBRAW_VERSION ?= 0.22.1
 LIBHEIF_VERSION ?= 1.23.1
 
+# A library is built once for each version: installing it writes its stamp
+# in the installation, and removes the stamps of its other versions, so it
+# isn't configured or built again while the stamp exists, such as when the
+# installation is restored from a cache. Remove the stamp, or the
+# installation, to build it again.
+STAMP = ${PREFIX}/.stamp
+FFMPEG_STAMP = ${STAMP}-ffmpeg-$(FFMPEG_VERSION:ffmpeg-%=%)
+CHROMAPRINT_STAMP = ${STAMP}-chromaprint-$(CHROMAPRINT_VERSION:chromaprint-%=%)
+LIBRAW_STAMP = ${STAMP}-libraw-${LIBRAW_VERSION}
+LIBEXIF_STAMP = ${STAMP}-libexif-${LIBEXIF_VERSION}
+LIBHEIF_STAMP = ${STAMP}-libheif-${LIBHEIF_VERSION}
+
+# stamp writes the stamp of the library which is installed, and removes the
+# stamps of its other versions
+define stamp
+	@rm -f ${STAMP}-$(1)-*
+	@touch $@
+endef
+
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
 # Windows sets OS=Windows_NT in the environment, which ?= would keep, so
@@ -108,10 +127,17 @@ ffmpeg-build: ffmpeg-configure
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make -j$(JOBS)
 
 # Install ffmpeg
-.PHONY: ffmpeg
-ffmpeg: ffmpeg-build
+.PHONY: ffmpeg-install
+ffmpeg-install: ffmpeg-build
 	@echo "Installing ${FFMPEG_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/$(FFMPEG_VERSION) && make install
+
+# Install ffmpeg, unless it's installed already
+.PHONY: ffmpeg
+ffmpeg: ${FFMPEG_STAMP}
+${FFMPEG_STAMP}:
+	@$(MAKE) --no-print-directory ffmpeg-install
+	$(call stamp,ffmpeg)
 
 ###############################################################################
 # CHROMAPRINT
@@ -160,12 +186,20 @@ chromaprint-build: chromaprint-configure
 	@cmake --build ${BUILD_DIR} -j$(JOBS)
 
 # Install chromaprint, adding C++ and libavutil to its pkg-config libs
-.PHONY: chromaprint
-chromaprint: chromaprint-build
+.PHONY: chromaprint-install
+chromaprint-install: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
 	@cmake --install ${BUILD_DIR}
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
+
+# Install chromaprint, unless it's installed already, and again when ffmpeg,
+# which it's built with, is installed after it
+.PHONY: chromaprint
+chromaprint: ${CHROMAPRINT_STAMP}
+${CHROMAPRINT_STAMP}: ${FFMPEG_STAMP}
+	@$(MAKE) --no-print-directory chromaprint-install
+	$(call stamp,chromaprint)
 
 ###############################################################################
 # LIBRAW
@@ -196,13 +230,20 @@ libraw-build: libraw-configure
 
 # Install libraw, appending -lz (DNG deflate) and -lm to its pkg-config libs,
 # and -lws2_32 on Windows (for htonl/ntohl)
-.PHONY: libraw
-libraw: libraw-build
+.PHONY: libraw-install
+libraw-install: libraw-build
 	@echo "Installing ${LIBRAW_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libraw-$(LIBRAW_VERSION) && make install
 	@sed -i.bak '/^Libs:/ s/$$/ -lz -lm$(if $(filter windows,${OS}), -lws2_32)/' "${PREFIX}/lib/pkgconfig/libraw.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libraw.pc.bak"
 	@${GO} clean -cache
+
+# Install libraw, unless it's installed already
+.PHONY: libraw
+libraw: ${LIBRAW_STAMP}
+${LIBRAW_STAMP}:
+	@$(MAKE) --no-print-directory libraw-install
+	$(call stamp,libraw)
 
 ###############################################################################
 # LIBEXIF
@@ -234,12 +275,19 @@ libexif-build: libexif-configure
 	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make -j$(JOBS)
 
 # Install libexif
-.PHONY: libexif
-libexif: libexif-build
+.PHONY: libexif-install
+libexif-install: libexif-build
 	@echo "Installing libexif-${LIBEXIF_VERSION} => ${PREFIX}"
 	@cd $(BUILD_DIR)/libexif-$(LIBEXIF_VERSION) && make install
 	@sed -i.bak 's|-lexif$$|-lexif -lm|' "${PREFIX}/lib/pkgconfig/libexif.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libexif.pc.bak"
+
+# Install libexif, unless it's installed already
+.PHONY: libexif
+libexif: ${LIBEXIF_STAMP}
+${LIBEXIF_STAMP}:
+	@$(MAKE) --no-print-directory libexif-install
+	$(call stamp,libexif)
 
 ###############################################################################
 # LIBHEIF
@@ -276,14 +324,22 @@ libheif-build: libheif-configure
 	@cmake --build ${BUILD_DIR}/libheif-${LIBHEIF_VERSION} -j$(JOBS)
 
 # Install libheif
-.PHONY: libheif
-libheif: libheif-build
+.PHONY: libheif-install
+libheif-install: libheif-build
 	@echo "Installing libheif-${LIBHEIF_VERSION} => ${PREFIX}"
 	@cmake --install ${BUILD_DIR}/libheif-${LIBHEIF_VERSION}
 	@if ! grep -q 'libavcodec' "${PREFIX}/lib/pkgconfig/libheif.pc"; then \
 		sed -i.bak 's/^Requires.private:[[:space:]]*/Requires.private: libavcodec libavformat libavutil /' "${PREFIX}/lib/pkgconfig/libheif.pc"; \
 		rm -f "${PREFIX}/lib/pkgconfig/libheif.pc.bak"; \
 	fi
+
+# Install libheif, unless it's installed already, and again when ffmpeg,
+# which it's built with, is installed after it
+.PHONY: libheif
+libheif: ${LIBHEIF_STAMP}
+${LIBHEIF_STAMP}: ${FFMPEG_STAMP}
+	@$(MAKE) --no-print-directory libheif-install
+	$(call stamp,libheif)
 
 ###############################################################################
 # TYPESCRIPT

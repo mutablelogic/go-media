@@ -9,10 +9,10 @@ on:
 
 # Cancel a still-running run for the same branch/PR when a new commit
 # supersedes it, rather than letting both run to completion - besides the
-# wasted CI time, two concurrent runs can race to save the build-directory
-# cache under the same key (it's keyed on the Makefile's contents, so two
-# runs for commits that didn't touch the Makefile collide) and the loser's
-# save just silently fails ("another job may be creating this cache").
+# wasted CI time, two concurrent runs can race to save the libraries' cache
+# under the same key (it's keyed on the Makefile's contents, so two runs for
+# commits that didn't touch the Makefile collide) and the loser's save just
+# silently fails ("another job may be creating this cache").
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -96,13 +96,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not become ready' }
           Add-Content -Path $env:GITHUB_ENV -Value 'GOMEDIA_TEST_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/postgres?sslmode=disable'
 
-      - name: Cache build directory
+      # The installed libraries, with their stamps, which are all the tests
+      # need, so a restored cache isn't configured or built again (see STAMP
+      # in the Makefile). There's no fallback to an older Makefile's
+      # libraries, as their versions or configuration may differ: a change to
+      # the Makefile builds them once, and saves them. docker.yaml's Windows
+      # build uses the same cache.
+      - name: Cache libraries
         uses: actions/cache@v6
         with:
-          path: build
-          key: ${{ runner.os }}-build-${{ hashFiles('Makefile') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+          path: build/install
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
