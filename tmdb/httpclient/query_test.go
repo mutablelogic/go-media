@@ -36,6 +36,23 @@ func Test_query_000(t *testing.T) {
 		// isn't mistaken for a release year.
 		{"2001 A Space Odyssey (1968).mp4", tmdb.Query{Name: "2001 A Space Odyssey", Year: 1968}},
 
+		// A year after next year is part of the title, not a release year.
+		{"/movies/Blade Runner 2049/Blade Runner 2049.mp4", tmdb.Query{Name: "Blade Runner 2049"}},
+		{"Blade Runner 2049 (2017).mkv", tmdb.Query{Name: "Blade Runner 2049", Year: 2017}},
+
+		// The release year is the last year, after a title with a year in it.
+		{"Summer of 1942 (1971).mp4", tmdb.Query{Name: "Summer of 1942", Year: 1971}},
+
+		// Years separated by dots, which are both found.
+		{"Summer.of.1942.1971.mp4", tmdb.Query{Name: "Summer of 1942", Year: 1971}},
+		{"Blade.Runner.2049.2017.mkv", tmdb.Query{Name: "Blade Runner 2049", Year: 2017}},
+
+		// A year in the release tags isn't the release year.
+		{"The.Matrix.1999.1080p.BluRay.x264.2020-GROUP.mkv", tmdb.Query{Name: "The Matrix", Year: 1999}},
+
+		// A longer number isn't a year.
+		{"Area 19999.mp4", tmdb.Query{Name: "Area 19999"}},
+
 		// A hyphenated title isn't mistaken for a trailing release group.
 		{"Spider-Man.mkv", tmdb.Query{Name: "Spider-Man"}},
 
