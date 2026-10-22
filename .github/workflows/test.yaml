@@ -96,17 +96,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL did not become ready' }
           Add-Content -Path $env:GITHUB_ENV -Value 'GOMEDIA_TEST_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/postgres?sslmode=disable'
 
-      # The installed libraries, and their stamps, which are all the tests
+      # The installed libraries, with their stamps, which are all the tests
       # need, so a restored cache isn't configured or built again (see STAMP
       # in the Makefile). There's no fallback to an older Makefile's
       # libraries, as their versions or configuration may differ: a change to
-      # the Makefile builds them once, and saves them.
+      # the Makefile builds them once, and saves them. docker.yaml's Windows
+      # build uses the same cache.
       - name: Cache libraries
         uses: actions/cache@v6
         with:
-          path: |
-            build/install
-            build/.stamp-*
+          path: build/install
           key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}
 
       - name: Setup MSYS2 (Windows)

@@ -23,16 +23,24 @@ LIBEXIF_VERSION ?= 0.6.26
 LIBRAW_VERSION ?= 0.22.1
 LIBHEIF_VERSION ?= 1.23.1
 
-# A library is built once for each version: installing it writes its stamp,
-# so it isn't configured or built again while the stamp exists, such as when
-# the build directory is restored from a cache. Remove the stamp, or the
-# build directory, to build it again.
-STAMP = ${BUILD_DIR}/.stamp
-FFMPEG_STAMP = ${STAMP}-${FFMPEG_VERSION}
-CHROMAPRINT_STAMP = ${STAMP}-${CHROMAPRINT_VERSION}
+# A library is built once for each version: installing it writes its stamp
+# in the installation, and removes the stamps of its other versions, so it
+# isn't configured or built again while the stamp exists, such as when the
+# installation is restored from a cache. Remove the stamp, or the
+# installation, to build it again.
+STAMP = ${PREFIX}/.stamp
+FFMPEG_STAMP = ${STAMP}-ffmpeg-$(FFMPEG_VERSION:ffmpeg-%=%)
+CHROMAPRINT_STAMP = ${STAMP}-chromaprint-$(CHROMAPRINT_VERSION:chromaprint-%=%)
 LIBRAW_STAMP = ${STAMP}-libraw-${LIBRAW_VERSION}
 LIBEXIF_STAMP = ${STAMP}-libexif-${LIBEXIF_VERSION}
 LIBHEIF_STAMP = ${STAMP}-libheif-${LIBHEIF_VERSION}
+
+# stamp writes the stamp of the library which is installed, and removes the
+# stamps of its other versions
+define stamp
+	@rm -f ${STAMP}-$(1)-*
+	@touch $@
+endef
 
 # Set OS and Architecture (must be before CGO configuration)
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -129,7 +137,7 @@ ffmpeg-install: ffmpeg-build
 ffmpeg: ${FFMPEG_STAMP}
 ${FFMPEG_STAMP}:
 	@$(MAKE) --no-print-directory ffmpeg-install
-	@touch $@
+	$(call stamp,ffmpeg)
 
 ###############################################################################
 # CHROMAPRINT
@@ -185,12 +193,13 @@ chromaprint-install: chromaprint-build
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
-# Install chromaprint, unless it's installed already
+# Install chromaprint, unless it's installed already, and again when ffmpeg,
+# which it's built with, is installed after it
 .PHONY: chromaprint
 chromaprint: ${CHROMAPRINT_STAMP}
-${CHROMAPRINT_STAMP}:
+${CHROMAPRINT_STAMP}: ${FFMPEG_STAMP}
 	@$(MAKE) --no-print-directory chromaprint-install
-	@touch $@
+	$(call stamp,chromaprint)
 
 ###############################################################################
 # LIBRAW
@@ -234,7 +243,7 @@ libraw-install: libraw-build
 libraw: ${LIBRAW_STAMP}
 ${LIBRAW_STAMP}:
 	@$(MAKE) --no-print-directory libraw-install
-	@touch $@
+	$(call stamp,libraw)
 
 ###############################################################################
 # LIBEXIF
@@ -278,7 +287,7 @@ libexif-install: libexif-build
 libexif: ${LIBEXIF_STAMP}
 ${LIBEXIF_STAMP}:
 	@$(MAKE) --no-print-directory libexif-install
-	@touch $@
+	$(call stamp,libexif)
 
 ###############################################################################
 # LIBHEIF
@@ -324,12 +333,13 @@ libheif-install: libheif-build
 		rm -f "${PREFIX}/lib/pkgconfig/libheif.pc.bak"; \
 	fi
 
-# Install libheif, unless it's installed already
+# Install libheif, unless it's installed already, and again when ffmpeg,
+# which it's built with, is installed after it
 .PHONY: libheif
 libheif: ${LIBHEIF_STAMP}
-${LIBHEIF_STAMP}:
+${LIBHEIF_STAMP}: ${FFMPEG_STAMP}
 	@$(MAKE) --no-print-directory libheif-install
-	@touch $@
+	$(call stamp,libheif)
 
 ###############################################################################
 # TYPESCRIPT
