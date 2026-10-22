@@ -24,8 +24,9 @@ import (
 
 // cue is a subtitle shown from its start, with its lines of text
 type cue struct {
-	start time.Duration
-	lines []string
+	number uint64
+	start  time.Duration
+	lines  []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +74,9 @@ func init() {
 // PRIVATE METHODS
 
 // writeSRT writes the cues of the SubRip subtitles as Markdown, a paragraph
-// for each, which starts with its time, without their styling. A cue whose
+// for each, which starts with its number and time, such as
+// **1 · 00:01:41**, without their styling. A cue's number is the file's, or
+// the previous cue's and one, when the file doesn't number it. A cue whose
 // text is the previous cue's isn't written again. Stops with the writer's
 // error, once it has its part.
 func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
@@ -81,7 +84,8 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	var current *cue
-	var previous string
+	var previous, index string
+	var number uint64
 	first := true
 	flush := func() error {
 		if current == nil {
@@ -94,7 +98,7 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 			return nil
 		}
 		previous = text
-		paragraph := "**" + timestamp(c.start) + "** " + text + "\n"
+		paragraph := "**" + strconv.FormatUint(c.number, 10) + " · " + timestamp(c.start) + "** " + text + "\n"
 		if !first {
 			paragraph = "\n" + paragraph
 		}
@@ -116,18 +120,27 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 			// A cue's number is on the line before its timing, which is the
 			// last line of the previous cue, when there's no blank line
 			if current != nil && len(current.lines) > 0 && srtIndex.MatchString(current.lines[len(current.lines)-1]) {
+				index = current.lines[len(current.lines)-1]
 				current.lines = current.lines[:len(current.lines)-1]
 			}
 			if err := flush(); err != nil {
 				return err
 			}
-			current = &cue{start: start}
+			if n, err := strconv.ParseUint(strings.TrimSpace(index), 10, 64); err == nil && srtIndex.MatchString(index) {
+				number = n
+			} else {
+				number++
+			}
+			current, index = &cue{number: number, start: start}, ""
 		} else if strings.TrimSpace(text) == "" {
 			if err := flush(); err != nil {
 				return err
 			}
+			index = ""
 		} else if current != nil {
 			current.lines = append(current.lines, text)
+		} else {
+			index = text
 		}
 	}
 	if err := scanner.Err(); err != nil {
