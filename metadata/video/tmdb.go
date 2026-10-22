@@ -31,8 +31,10 @@ const tmdbCandidates = 5
 func init() {
 	// Add metadata handler for video files: looks up the episode of a TV
 	// show, or the movie, named by the input's filename (see
-	// gomedia.NamedReader) on TMDB. Requires a TMDB client (see WithTMDB);
-	// does nothing without one. When the "artwork" namespace is requested,
+	// gomedia.NamedReader) on TMDB, or gets it by its identifier, when it's
+	// known (see WithTMDBMovie and WithTMDBEpisode). Requires a TMDB client
+	// (see WithTMDB); does nothing without one. When the "artwork" namespace
+	// is requested,
 	// the movie's or show's poster and backdrop, and an episode's still, are
 	// downloaded too.
 	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "tmdb", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
@@ -41,26 +43,33 @@ func init() {
 			return nil, nil
 		}
 
-		named, ok := r.(gomedia.NamedReader)
-		if !ok || named.Name() == "" {
-			return nil, nil
-		}
-
-		q := tmdbclient.ExtractQuery(named.Name())
-		if q.Name == "" {
-			return nil, nil
-		}
-
-		// A file with a season and an episode, such as S01E02, is an episode
-		// of a TV show, and otherwise it's a movie
+		// The movie or episode, by its identifier when it's known, or
+		// otherwise by the name
 		var entries map[string]gomedia.Metadata
 		var images []tmdbImage
 		var err error
-		switch {
-		case q.Episode != 0:
-			entries, images, err = tvEntries(ctx, client, q, o.Duration())
-		default:
-			entries, images, err = movieEntries(ctx, client, q, o.Duration(), o.Year())
+		if id := o.TMDBMovie(); id != 0 {
+			entries, images, err = movieByID(ctx, client, id)
+		} else if show, season, episode := o.TMDBEpisode(); show != 0 {
+			entries, images, err = episodeByID(ctx, client, show, season, episode)
+		} else {
+			named, ok := r.(gomedia.NamedReader)
+			if !ok || named.Name() == "" {
+				return nil, nil
+			}
+			q := tmdbclient.ExtractQuery(named.Name())
+			if q.Name == "" {
+				return nil, nil
+			}
+
+			// A file with a season and an episode, such as S01E02, is an
+			// episode of a TV show, and otherwise it's a movie
+			switch {
+			case q.Episode != 0:
+				entries, images, err = tvEntries(ctx, client, q, o.Duration())
+			default:
+				entries, images, err = movieEntries(ctx, client, q, o.Duration(), o.Year())
+			}
 		}
 		if err != nil || entries == nil {
 			return nil, err

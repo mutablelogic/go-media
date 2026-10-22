@@ -38,6 +38,39 @@ func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Quer
 	if err != nil || show == nil {
 		return nil, nil, err
 	}
+	entries, images := episodeMetadata(show, episode, runtime)
+	return entries, images, nil
+}
+
+// episodeByID returns the metadata of the episode of the show with the
+// identifier, as TMDB has it, and the episode's still, and the show's poster
+// and backdrop, or nil when TMDB doesn't have it. The episode's runtime is
+// the show's typical one when it isn't known.
+func episodeByID(ctx context.Context, client *tmdbclient.Client, id, season, number uint64) (map[string]gomedia.Metadata, []tmdbImage, error) {
+	show, err := client.GetTVShow(ctx, id)
+	if errors.Is(err, httpresponse.ErrNotFound) {
+		return nil, nil, nil
+	} else if err != nil {
+		return nil, nil, err
+	}
+	episode, err := client.GetTVEpisode(ctx, id, season, number)
+	if errors.Is(err, httpresponse.ErrNotFound) {
+		return nil, nil, nil
+	} else if err != nil {
+		return nil, nil, err
+	}
+	runtime := time.Duration(episode.Runtime) * time.Minute
+	if runtime == 0 && len(show.EpisodeRunTime) > 0 {
+		runtime = time.Duration(show.EpisodeRunTime[0]) * time.Minute
+	}
+	entries, images := episodeMetadata(&show.TVShow, episode, runtime)
+	return entries, images, nil
+}
+
+// episodeMetadata returns the metadata of the show's episode, whose runtime
+// is zero when it isn't known, and the episode's still, and the show's
+// poster and backdrop
+func episodeMetadata(show *tmdbschema.TVShow, episode *tmdbschema.TVEpisode, runtime time.Duration) (map[string]gomedia.Metadata, []tmdbImage) {
 
 	// The title is the show's, with the season and episode, and the
 	// episode's name, such as Breaking Bad – S01E02 – Cat's in the Bag...
@@ -74,7 +107,7 @@ func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Quer
 		{"artwork:still", tmdbclient.SizeStill, episode.StillPath},
 		{"artwork:poster", tmdbclient.SizePoster, show.PosterPath},
 		{"artwork:backdrop", tmdbclient.SizeBackdrop, show.BackdropPath},
-	}, nil
+	}
 }
 
 // matchEpisode returns the show of the results, whose name is the name, and

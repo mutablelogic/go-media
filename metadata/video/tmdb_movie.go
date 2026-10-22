@@ -2,6 +2,7 @@ package video
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	gomedia "github.com/mutablelogic/go-media"
 	tmdbclient "github.com/mutablelogic/go-media/tmdb/httpclient"
 	tmdbschema "github.com/mutablelogic/go-media/tmdb/schema"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -36,7 +38,26 @@ func movieEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Q
 	if err != nil || movie == nil {
 		return nil, nil, err
 	}
+	entries, images := movieMetadata(movie, details)
+	return entries, images, nil
+}
 
+// movieByID returns the metadata of the movie with the identifier, as TMDB
+// has it, and its poster and backdrop, or nil when TMDB doesn't have it
+func movieByID(ctx context.Context, client *tmdbclient.Client, id uint64) (map[string]gomedia.Metadata, []tmdbImage, error) {
+	details, err := client.GetMovie(ctx, id)
+	if errors.Is(err, httpresponse.ErrNotFound) {
+		return nil, nil, nil
+	} else if err != nil {
+		return nil, nil, err
+	}
+	entries, images := movieMetadata(&details.Movie, details)
+	return entries, images, nil
+}
+
+// movieMetadata returns the metadata of the movie, with its details, which
+// are nil when they aren't known, and its poster and backdrop
+func movieMetadata(movie *tmdbschema.Movie, details *tmdbschema.MovieDetails) (map[string]gomedia.Metadata, []tmdbImage) {
 	entries := map[string]gomedia.Metadata{
 		"tmdb:id":    meta{key: "tmdb:id", value: strconv.FormatUint(movie.ID, 10)},
 		"tmdb:title": meta{key: "tmdb:title", value: movie.Title},
@@ -59,7 +80,7 @@ func movieEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Q
 	return entries, []tmdbImage{
 		{"artwork:poster", tmdbclient.SizePoster, movie.PosterPath},
 		{"artwork:backdrop", tmdbclient.SizeBackdrop, movie.BackdropPath},
-	}, nil
+	}
 }
 
 // findMovie returns the movie with the name, and its details, or nil when
