@@ -83,6 +83,16 @@ func init() {
 		}
 		fillFromSortTags(entries)
 
+		// The recording's MusicBrainz identifier, which an MP3 has in its ID3
+		// tag's UFID frame, rather than a tag ffmpeg returns
+		if _, exists := entries["musicbrainz:recording-id"]; !exists {
+			if ra, ok := r.(io.ReaderAt); ok {
+				if id := ufidRecordingID(ra); id != "" {
+					entries["musicbrainz:recording-id"] = meta{key: "musicbrainz:recording-id", value: id}
+				}
+			}
+		}
+
 		return metadata.FilterMetadata(entries, o), nil
 	}, "dc", "audio", "musicbrainz")
 }

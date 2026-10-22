@@ -209,7 +209,7 @@ handler is registered under `"musicbrainz"` too. Real values from a FLAC file:
 | --- | --- | --- |
 | `musicbrainz:release-id` | `e1262988-757c-4861-9778-65e7d4ef5c55` | Album Id |
 | `musicbrainz:release-group-id` | `c7d1950a-5bda-4d8f-a939-7db8bca44647` | Release Group Id |
-| `musicbrainz:recording-id` | `53bb54ac-1020-4cd4-83ce-362a58e1ec17` | Track Id (not in MP3, where it's a UFID frame) |
+| `musicbrainz:recording-id` | `53bb54ac-1020-4cd4-83ce-362a58e1ec17` | Track Id, or in an MP3, its ID3 tag's `UFID` frame owned by `http://musicbrainz.org`, which ffmpeg doesn't return as a tag |
 | `musicbrainz:track-id` | `2797c3c5-021c-329b-8885-4f10ed37260a` | Release Track Id |
 | `musicbrainz:artist-id` | `9fadfba9-ecae-4383-a4d8-47b043cea19a` | Artist Id |
 | `musicbrainz:album-artist-id` | `885f90ef-6bd9-409a-b2df-e165e553c68e` | Album Artist Id |
