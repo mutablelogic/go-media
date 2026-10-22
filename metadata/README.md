@@ -5,9 +5,10 @@ content-type regular expression and one or more namespaces (see `AddHandler`), a
 `GetMetadata` runs the handlers that match a given content type, optionally narrowed to
 specific namespaces via `WithNamespace`.
 
-This document covers six namespaces specifically: `dc` (Dublin Core), `exif` (and its `tiff`
-sibling), `image`, `video`, `audio`, and `tmdb` - metadata looked up from
-[The Movie Database](https://www.themoviedb.org/) for video files.
+This document covers seven namespaces specifically: `dc` (Dublin Core), `exif` (and its `tiff`
+sibling), `image`, `video`, `audio`, `tmdb` - metadata looked up from
+[The Movie Database](https://www.themoviedb.org/) for video files - and `markdown`, a
+document's content.
 
 ## `dc` (Dublin Core) namespace
 
@@ -211,3 +212,32 @@ returns no metadata and no error - a missing TMDB match isn't treated as a failu
 
 TMDB's search endpoint returns results ranked by relevance; the handler takes the top match
 without further disambiguation (e.g. by release year proximity).
+
+## `markdown` namespace
+
+A document's content as Markdown, which a handler returns only when the namespace is
+requested with `WithNamespace`, as converting a document can be expensive. In go-media,
+`metadata/subtitle` returns SubRip (`.srt`) subtitles as a paragraph for each cue, which starts
+with its time, such as `**00:01:02** Hello there.`, without the cues' styling or repeated cues.
+Applications can register handlers for their own formats.
+
+| Key | Value | Present |
+| --- | --- | --- |
+| `markdown:body` | The Markdown, or the part of it in the range, as a `string` | Always |
+| `markdown:offset` | The byte the part starts at, as a `uint64` | When the range has an offset |
+| `markdown:next` | The offset of the next part, as a `uint64` | When there's more |
+
+`WithRange(offset, limit)` sets the part to return, so a long document is read a part at a
+time, from each `markdown:next`. A handler writes the Markdown to a `MarkdownWriter`, which
+keeps the part, in whole characters, and returns an error from a write once it has it, so the
+handler stops rather than converting the rest. The handler returns `w.Metadata(err)`:
+
+```go
+w := metadata.NewMarkdownWriter(o)
+for _, paragraph := range paragraphs {
+    if _, err = w.WriteString(paragraph); err != nil {
+        break
+    }
+}
+return w.Metadata(err)
+```
