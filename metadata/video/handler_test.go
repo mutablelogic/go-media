@@ -199,6 +199,38 @@ func Test_buildVideoEntries_quicktime(t *testing.T) {
 	}
 }
 
+// Test_buildVideoEntries_quicktimeDate checks that a QuickTime creation date
+// with any ISO 8601 offset is dc:date, rather than a different creation_time,
+// and is without it
+func Test_buildVideoEntries_quicktimeDate(t *testing.T) {
+	for value, want := range map[string]string{
+		"2023-03-16T07:23:27+0100":     "2023-03-16T07:23:27+01:00",
+		"2023-03-16T07:23:27+01:00":    "2023-03-16T07:23:27+01:00",
+		"2023-03-16T06:23:27Z":         "2023-03-16T06:23:27Z",
+		"2023-03-16T07:23:27.5+01:00":  "2023-03-16T07:23:27+01:00",
+		"2023-03-16T07:23:27.250+0100": "2023-03-16T07:23:27+01:00",
+	} {
+		for _, creationTime := range []string{"", "2024-01-01T00:00:00.000000Z"} {
+			tags := []gomedia.Metadata{meta{key: "com.apple.quicktime.creationdate", value: value}}
+			if creationTime != "" {
+				tags = append(tags, meta{key: "creation_time", value: creationTime})
+			}
+			if got, ok := buildVideoEntries(tags)["dc:date"]; !ok || got.Value() != want {
+				t.Errorf("%q with creation_time %q: dc:date = %v, want %q", value, creationTime, got, want)
+			}
+		}
+	}
+
+	// A creation date which isn't one falls back to creation_time
+	entries := buildVideoEntries([]gomedia.Metadata{
+		meta{key: "com.apple.quicktime.creationdate", value: "yesterday"},
+		meta{key: "creation_time", value: "2024-01-01T00:00:00.000000Z"},
+	})
+	if got, ok := entries["dc:date"]; !ok || got.Value() != "2024-01-01T00:00:00Z" {
+		t.Errorf("dc:date = %v, want creation_time", got)
+	}
+}
+
 // Test_buildVideoEntries_language checks that a tag which ffmpeg repeats
 // with its language, such as model-nob, is dropped when its value is the
 // same, but kept when it isn't

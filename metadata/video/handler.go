@@ -130,7 +130,7 @@ func buildVideoEntries(tags []gomedia.Metadata) map[string]gomedia.Metadata {
 	if _, ok := entries["dc:description"]; !ok && synopsis != "" {
 		entries["dc:description"] = meta{key: "dc:description", value: synopsis}
 	}
-	if t, err := time.Parse(quicktimeDate, creationDate); err == nil {
+	if t, ok := parseQuicktimeDate(creationDate); ok {
 		entries["dc:date"] = meta{key: "dc:date", value: t.Format(time.RFC3339)}
 	} else if t, err := time.Parse(time.RFC3339Nano, creationTime); err == nil {
 		entries["dc:date"] = meta{key: "dc:date", value: t.Format(time.RFC3339)}
@@ -150,9 +150,22 @@ func buildVideoEntries(tags []gomedia.Metadata) map[string]gomedia.Metadata {
 // model-eng, which ffmpeg adds to a tag with a language
 var languageSuffix = regexp.MustCompile(`^(.+)-[a-z]{3}$`)
 
-// quicktimeDate is the layout of a QuickTime creation date, such as
-// 2023-03-16T07:23:27+0100
-const quicktimeDate = "2006-01-02T15:04:05-0700"
+// quicktimeDates are the layouts of a QuickTime creation date, which is ISO
+// 8601, such as 2023-03-16T07:23:27+0100, as Apple writes it, or
+// 2023-03-16T07:23:27+01:00 or 2023-03-16T06:23:27Z. Fractions of a second
+// are accepted by either.
+var quicktimeDates = []string{"2006-01-02T15:04:05Z0700", time.RFC3339Nano}
+
+// parseQuicktimeDate returns the time of a QuickTime creation date, or false
+// when it isn't one
+func parseQuicktimeDate(value string) (time.Time, bool) {
+	for _, layout := range quicktimeDates {
+		if t, err := time.Parse(layout, strings.TrimSpace(value)); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
 
 // iso6709 matches a location in ISO 6709, in decimal degrees, such as
 // +52.4158+013.5896+035.667/, whose altitude, in metres, is optional
