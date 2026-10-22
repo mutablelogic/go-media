@@ -20,22 +20,23 @@ import (
 
 // tvEntries returns the metadata of the episode of a TV show, whose name,
 // season and episode are the query's, as TMDB has it, or nil when no show
-// has the episode, or none matches the stream's duration
-func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Query, duration time.Duration) (map[string]gomedia.Metadata, error) {
+// has the episode, or none matches the stream's duration, and the episode's
+// still, and the show's poster and backdrop
+func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Query, duration time.Duration) (map[string]gomedia.Metadata, []tmdbImage, error) {
 	req := tmdbschema.TVSearchRequest{Term: q.Name}
 	if q.Year > 0 {
 		req.FirstAirDateYear = types.Ptr(strconv.Itoa(q.Year))
 	}
 	resp, err := client.SearchTVShows(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if resp == nil || len(resp.Results) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	show, episode, runtime, err := matchEpisode(ctx, client, q.Name, uint64(q.Season), uint64(q.Episode), resp.Results, duration)
 	if err != nil || show == nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// The title is the show's, with the season and episode, and the
@@ -69,7 +70,11 @@ func tvEntries(ctx context.Context, client *tmdbclient.Client, q tmdbclient.Quer
 	if episode.ExternalIDs != nil && episode.ExternalIDs.IMDbID != "" {
 		entries["tmdb:imdbid"] = meta{key: "tmdb:imdbid", value: episode.ExternalIDs.IMDbID}
 	}
-	return entries, nil
+	return entries, []tmdbImage{
+		{"artwork:still", tmdbclient.SizeStill, episode.StillPath},
+		{"artwork:poster", tmdbclient.SizePoster, show.PosterPath},
+		{"artwork:backdrop", tmdbclient.SizeBackdrop, show.BackdropPath},
+	}, nil
 }
 
 // matchEpisode returns the show of the results, whose name is the name, and

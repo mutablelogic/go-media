@@ -24,7 +24,9 @@ type tmdbStub struct {
 	original map[uint64]string   // the original title of a movie, or its title
 	dates    map[uint64]string   // the release date of a movie, or 1990-03-02
 	years    map[string][]uint64 // the movies of a search in a year, rather than order
+	terms    map[string][]uint64 // the movies of a search for a term, rather than order
 	searches []string            // the years of the searches, which are empty for any year
+	queries  []string            // the terms of the searches
 	details  []string
 	fail     bool
 }
@@ -41,10 +43,13 @@ func (s *tmdbStub) RoundTrip(req *http.Request) (*http.Response, error) {
 	status, body := http.StatusOK, ""
 	switch {
 	case req.URL.Path == "/3/search/movie":
-		year := req.URL.Query().Get("primary_release_year")
+		year, term := req.URL.Query().Get("primary_release_year"), req.URL.Query().Get("query")
 		s.searches = append(s.searches, year)
+		s.queries = append(s.queries, term)
 		order := s.order
-		if ids, exists := s.years[year]; exists {
+		if ids, exists := s.terms[term]; exists {
+			order = ids
+		} else if ids, exists := s.years[year]; exists {
 			order = ids
 		}
 		var results []string
@@ -548,9 +553,81 @@ func Test_tmdb_year(t *testing.T) {
 		}
 	})
 
+	t.Run("SearchAnyYear", func(t *testing.T) {
+		// When nothing matches in the year in the name, a search in any
+		// year, as the year can be the film's premiere, a year before its
+		// release on TMDB, as for A Room with a View (1985), released in 1986
+		stub := &tmdbStub{
+			order:    []uint64{1, 2},
+			years:    map[string][]uint64{"1985": nil},
+			titles:   map[uint64]string{1: "A Room with a View", 2: "A Room with a View"},
+			dates:    map[uint64]string{1: "1986-03-07", 2: "2007-11-04"},
+			runtimes: map[uint64]uint64{1: 117, 2: 93},
+		}
+		meta, err := tmdbMatchFile(t, stub, "/Movies/A Room With A View (1985)/A Room With A View.mp4", 117*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "1" {
+			t.Errorf("matched %v, want 1", meta["tmdb:id"])
+		}
+		if got := strings.Join(stub.searches, ","); got != "1985," {
+			t.Errorf("searches = %q, want 1985, then any year", got)
+		}
+	})
+
+	t.Run("AmericanSpelling", func(t *testing.T) {
+		// A name with a British spelling, which TMDB's search doesn't find,
+		// is searched for again with its American spelling, and matches the
+		// title, as for Judgement at Nuremberg
+		stub := &tmdbStub{
+			terms:    map[string][]uint64{"Judgement at Nuremberg": nil, "Judgment at Nuremberg": {821}},
+			titles:   map[uint64]string{821: "Judgment at Nuremberg"},
+			dates:    map[uint64]string{821: "1961-12-18"},
+			runtimes: map[uint64]uint64{821: 191},
+		}
+		meta, err := tmdbMatchFile(t, stub, "/Movies/Judgement at Nuremberg/Judgement at Nuremberg.mkv", 186*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta["tmdb:id"] != "821" {
+			t.Errorf("matched %v, want 821", meta["tmdb:id"])
+		}
+		if got := strings.Join(stub.queries, ","); got != "Judgement at Nuremberg,Judgment at Nuremberg" {
+			t.Errorf("queries = %q", got)
+		}
+
+		// A name without a British spelling is searched for once
+		stub = &tmdbStub{terms: map[string][]uint64{"Nuremberg": nil}}
+		if _, err := tmdbMatchFile(t, stub, "/Movies/Nuremberg/Nuremberg.mkv", 186*time.Minute); err != nil {
+			t.Fatal(err)
+		}
+		if len(stub.queries) != 1 {
+			t.Errorf("queries = %q, want one", stub.queries)
+		}
+	})
+
 	t.Run("Invalid", func(t *testing.T) {
 		if _, err := metadata.GetMetadata(context.Background(), strings.NewReader(""), "video/mp4", metadata.WithYear(-1)); err == nil {
 			t.Error("expected an error for a negative year")
 		}
 	})
+}
+
+func Test_tmdb_spellings(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want []string
+	}{
+		{"Judgement at Nuremberg", []string{"Judgement at Nuremberg", "Judgment at Nuremberg"}},
+		{"the colour of pomegranates", []string{"the colour of pomegranates", "the color of pomegranates"}},
+		{"Four Weddings and a Funeral", []string{"Four Weddings and a Funeral"}},
+	} {
+		if got := spellings(tc.name); strings.Join(got, "|") != strings.Join(tc.want, "|") {
+			t.Errorf("spellings(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	if normalizeTitle("Judgement at Nuremberg") != normalizeTitle("Judgment at Nuremberg") {
+		t.Error("the spellings of a title aren't the same title")
+	}
 }

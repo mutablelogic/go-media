@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -12,9 +11,8 @@ import (
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
 	metadata "github.com/mutablelogic/go-media/metadata"
+	imageutil "github.com/mutablelogic/go-media/metadata/image"
 	tmdbclient "github.com/mutablelogic/go-media/tmdb/httpclient"
-	tmdbschema "github.com/mutablelogic/go-media/tmdb/schema"
-	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,10 +29,12 @@ const tmdbCandidates = 5
 // LIFECYCLE
 
 func init() {
-	// Add metadata handler for video files: looks up the movie, or the
-	// episode of a TV show, named by the input's filename (see
+	// Add metadata handler for video files: looks up the episode of a TV
+	// show, or the movie, named by the input's filename (see
 	// gomedia.NamedReader) on TMDB. Requires a TMDB client (see WithTMDB);
-	// does nothing without one.
+	// does nothing without one. When the "artwork" namespace is requested,
+	// the movie's or show's poster and backdrop, and an episode's still, are
+	// downloaded too.
 	metadata.AddHandler(regexp.MustCompile(`^video/.*$`), "tmdb", func(ctx context.Context, r io.Reader, o *metadata.Opts) ([]gomedia.Metadata, error) {
 		client := o.TMDB()
 		if client == nil {
@@ -52,161 +52,41 @@ func init() {
 		}
 
 		// A file with a season and an episode, such as S01E02, is an episode
-		// of a TV show
-		if q.Episode != 0 {
-			entries, err := tvEntries(ctx, client, q, o.Duration())
-			if err != nil || entries == nil {
+		// of a TV show, and otherwise it's a movie
+		var entries map[string]gomedia.Metadata
+		var images []tmdbImage
+		var err error
+		switch {
+		case q.Episode != 0:
+			entries, images, err = tvEntries(ctx, client, q, o.Duration())
+		default:
+			entries, images, err = movieEntries(ctx, client, q, o.Duration(), o.Year())
+		}
+		if err != nil || entries == nil {
+			return nil, err
+		}
+
+		// Download its images, when artwork is requested
+		if o.HasNamespace("artwork") {
+			if err := addArtwork(ctx, client, entries, images...); err != nil {
 				return nil, err
 			}
-			return metadata.FilterMetadata(entries, o), nil
 		}
-
-		// Search for the movie, with the year in the stream's name. When
-		// nothing matches, and the year is known otherwise, such as from the
-		// stream's own metadata, search again in that year, as a common
-		// title's film can be beyond the first page of results without it.
-		// The year isn't used in the first search, as it can be the year a
-		// file was made, rather than the film's.
-		year := q.Year
-		if year == 0 {
-			year = o.Year()
-		}
-		movie, details, err := searchMovie(ctx, client, q.Name, q.Year, year, o.Duration())
-		if err == nil && movie == nil && q.Year == 0 && o.Year() > 0 {
-			movie, details, err = searchMovie(ctx, client, q.Name, o.Year(), o.Year(), o.Duration())
-		}
-		if err != nil {
-			return nil, err
-		} else if movie == nil {
-			return nil, nil
-		}
-		entries := map[string]gomedia.Metadata{
-			"tmdb:id":    meta{key: "tmdb:id", value: strconv.FormatUint(movie.ID, 10)},
-			"tmdb:title": meta{key: "tmdb:title", value: movie.Title},
-			"dc:title":   meta{key: "dc:title", value: movie.Title},
-		}
-		if movie.ReleaseDate != "" {
-			entries["tmdb:releasedate"] = meta{key: "tmdb:releasedate", value: movie.ReleaseDate}
-			entries["dc:date"] = meta{key: "dc:date", value: movie.ReleaseDate}
-		}
-		if movie.Overview != "" {
-			entries["tmdb:overview"] = meta{key: "tmdb:overview", value: movie.Overview}
-			entries["dc:description"] = meta{key: "dc:description", value: movie.Overview}
-		}
-		if details != nil {
-			entries["tmdb:runtime"] = meta{key: "tmdb:runtime", value: time.Duration(details.Runtime) * time.Minute}
-			if details.IMDbID != "" {
-				entries["tmdb:imdbid"] = meta{key: "tmdb:imdbid", value: details.IMDbID}
-			}
-		}
-
 		return metadata.FilterMetadata(entries, o), nil
-	}, "tmdb", "dc")
+	}, "tmdb", "dc", "artwork")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// tmdbImage is an image on TMDB, with the key of its artwork, its size, and
+// its path, which is empty when there's none
+type tmdbImage struct {
+	key, size, path string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-// searchMovie searches for the movie with the name, released in the year
-// searched, which is zero for any year, and returns the movie of the results
-// which the stream, whose year is the year, which is zero when it isn't
-// known, is, as matchMovie does
-func searchMovie(ctx context.Context, client *tmdbclient.Client, name string, searched, year int, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
-	req := tmdbschema.MovieSearchRequest{Term: name}
-	if searched > 0 {
-		req.PrimaryReleaseYear = types.Ptr(strconv.Itoa(searched))
-	}
-	resp, err := client.SearchMovies(ctx, req)
-	if err != nil || resp == nil {
-		return nil, nil, err
-	}
-	return matchMovie(ctx, client, name, year, resp.Results, duration)
-}
-
-// matchMovie returns the movie of the results which the stream, whose title
-// is the name, and whose year is the year, which is zero when it isn't
-// known, is, with its details, such as its runtime and IMDb identifier.
-//
-// With the year, it's the first of the results whose title is the name, and
-// which was released in the year, whatever its runtime, as a version of a
-// film, such as a different cut, can have a different runtime. Otherwise,
-// without the stream's duration, it's the first of the results whose title
-// is the name, without its details, or nil when none is.
-// With it, it's the first of the results whose title is the name, and whose
-// runtime is within 5% of the duration, or else the first of the top results
-// whose runtime is within 10% of it, or nil when none is, including when
-// their runtimes aren't known. A search's top results can be films whose
-// titles only contain the name, such as recent ones, before the film itself.
-func matchMovie(ctx context.Context, client *tmdbclient.Client, name string, year int, results []tmdbschema.Movie, duration time.Duration) (*tmdbschema.Movie, *tmdbschema.MovieDetails, error) {
-	if len(results) == 0 {
-		return nil, nil, nil
-	}
-
-	// A film with the name, released in the year
-	if year > 0 {
-		for i, result := range results {
-			if titleMatches(name, result) && strings.HasPrefix(result.ReleaseDate, strconv.Itoa(year)) {
-				details, err := client.GetMovie(ctx, result.ID)
-				if err != nil {
-					return nil, nil, err
-				}
-				return &results[i], details, nil
-			}
-		}
-	}
-	// Without the duration, the first film with the name, as any film would
-	// otherwise match, such as another whose title contains the name
-	if duration <= 0 {
-		for i, result := range results {
-			if titleMatches(name, result) {
-				return &results[i], nil, nil
-			}
-		}
-		return nil, nil, nil
-	}
-
-	// The details of each result, which are got once
-	details := make(map[uint64]*tmdbschema.MovieDetails, len(results))
-	runtime := func(movie tmdbschema.Movie) (time.Duration, error) {
-		if _, exists := details[movie.ID]; !exists {
-			d, err := client.GetMovie(ctx, movie.ID)
-			if err != nil {
-				return 0, err
-			}
-			details[movie.ID] = d
-		}
-		return time.Duration(details[movie.ID].Runtime) * time.Minute, nil
-	}
-
-	// A film with the name, within 5%
-	for i, result := range results {
-		if !titleMatches(name, result) {
-			continue
-		} else if r, err := runtime(result); err != nil {
-			return nil, nil, err
-		} else if runtimeMatches(r, duration, 5) {
-			return &results[i], details[result.ID], nil
-		}
-	}
-
-	// Any of the top films, within 10%
-	for i, result := range results[:min(len(results), tmdbCandidates)] {
-		if r, err := runtime(result); err != nil {
-			return nil, nil, err
-		} else if runtimeMatches(r, duration, 10) {
-			return &results[i], details[result.ID], nil
-		}
-	}
-	return nil, nil, nil
-}
-
-// titleMatches returns true when the movie's title, or its original title,
-// is the name, in any case, and ignoring punctuation and spaces between
-// words, so Mission Impossible is Mission: Impossible
-func titleMatches(name string, movie tmdbschema.Movie) bool {
-	name = normalizeTitle(name)
-	return name != "" && (normalizeTitle(movie.Title) == name || normalizeTitle(movie.OriginalTitle) == name)
-}
 
 // apostrophes are removed from a title, rather than separating words, so
 // Schindler's List is Schindlers List, as a file name often has it
@@ -224,7 +104,94 @@ func normalizeTitle(title string) string {
 	if len(words) > 1 && words[0] == "the" {
 		words = words[1:]
 	}
+	for i, word := range words {
+		if american, exists := americanSpellings[word]; exists {
+			words[i] = american
+		}
+	}
 	return strings.Join(words, " ")
+}
+
+// americanSpellings are the American spellings of words, by their British
+// spellings, as TMDB has titles in American spelling, and its search doesn't
+// find other spellings. They're whole words, as a rule, such as -our to -or,
+// would change others, such as four, and words with another meaning in
+// American English, such as cheque, aren't included, nor -ise, which British
+// English spells -ize too.
+var americanSpellings = map[string]string{
+	"aeroplane": "airplane", "aeroplanes": "airplanes", "ageing": "aging",
+	"aluminium": "aluminum", "analogue": "analog", "ardour": "ardor",
+	"armour": "armor", "behaviour": "behavior", "behaviours": "behaviors",
+	"calibre": "caliber", "cancelled": "canceled", "candour": "candor",
+	"catalogue": "catalog", "centre": "center", "centres": "centers",
+	"clamour": "clamor", "colour": "color", "coloured": "colored",
+	"colourful": "colorful", "colours": "colors", "defence": "defense",
+	"endeavour": "endeavor", "favour": "favor", "favourite": "favorite",
+	"favourites": "favorites", "fervour": "fervor", "fibre": "fiber",
+	"flavour": "flavor", "flavours": "flavors", "grey": "gray",
+	"greys": "grays", "harbour": "harbor", "harbours": "harbors",
+	"honour": "honor", "honourable": "honorable", "honours": "honors",
+	"humour": "humor", "jewellery": "jewelry", "judgement": "judgment",
+	"labour": "labor", "licence": "license", "litre": "liter",
+	"lustre": "luster", "manoeuvre": "maneuver", "manoeuvres": "maneuvers",
+	"marvellous": "marvelous", "meagre": "meager", "metre": "meter",
+	"metres": "meters", "modelling": "modeling", "mould": "mold",
+	"moustache": "mustache", "neighbour": "neighbor",
+	"neighbourhood": "neighborhood", "neighbours": "neighbors", "odour": "odor",
+	"offence": "offense", "parlour": "parlor", "plough": "plow",
+	"pretence": "pretense", "programme": "program", "pyjamas": "pajamas",
+	"rancour": "rancor", "rigour": "rigor", "rumour": "rumor",
+	"rumours": "rumors", "sabre": "saber", "saviour": "savior",
+	"savour": "savor", "sceptic": "skeptic", "sceptical": "skeptical",
+	"sombre": "somber", "spectre": "specter", "splendour": "splendor",
+	"theatre": "theater", "theatres": "theaters", "travelled": "traveled",
+	"traveller": "traveler", "travellers": "travelers",
+	"travelling": "traveling", "valour": "valor", "vapour": "vapor",
+	"vigour": "vigor",
+}
+
+// wordRe matches the words of a name
+var wordRe = regexp.MustCompile(`\p{L}+`)
+
+// spellings returns the name, and then its American spelling, when it has a
+// British spelling, keeping the case of the first letter of each word
+func spellings(name string) []string {
+	american := wordRe.ReplaceAllStringFunc(name, func(word string) string {
+		replacement, exists := americanSpellings[strings.ToLower(word)]
+		if !exists {
+			return word
+		} else if r := []rune(word); unicode.IsUpper(r[0]) {
+			return strings.ToUpper(replacement[:1]) + replacement[1:]
+		}
+		return replacement
+	})
+	if american == name {
+		return []string{name}
+	}
+	return []string{name, american}
+}
+
+// addArtwork adds the images, which are downloaded from TMDB, to the entries
+// as artwork, resized as embedded artwork is. An image without a path isn't
+// added, nor is one which can't be downloaded or decoded, unless the context
+// is done.
+func addArtwork(ctx context.Context, client *tmdbclient.Client, entries map[string]gomedia.Metadata, images ...tmdbImage) error {
+	for _, image := range images {
+		if image.path == "" {
+			continue
+		}
+		data, err := client.Image(ctx, image.size, image.path)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			continue
+		}
+		if m, err := imageutil.ExtractArtwork(data, image.key); err == nil {
+			entries[image.key] = m
+		}
+	}
+	return nil
 }
 
 // runtimeMatches returns true when the runtime is known, and within the
