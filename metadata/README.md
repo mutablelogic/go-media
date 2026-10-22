@@ -183,10 +183,17 @@ no-op unless both of the following are true:
 - A TMDB client was configured via `metadata.WithTMDB(token)` - without one, no lookup is
   attempted and no `tmdb:` entries are returned.
 - The input reader implements `gomedia.NamedReader` (i.e. it has a filename) and that
-  filename parses to a non-empty title.
+  filename parses to a non-empty title, or the movie or episode is given by its identifier
+  (see below).
 
-Only movies are searched. If the filename looks like a TV episode (an `S01E01`-style marker
-was found), the handler returns no metadata, since TMDB's TV search isn't wired up yet.
+A filename with an `S01E01`-style marker is an episode of a TV show, whose show is searched
+for, and otherwise it's a movie.
+
+When the caller already knows the match, such as from an earlier lookup, it can give it by
+its identifier: `metadata.WithTMDBMovie(id)` for a movie, or
+`metadata.WithTMDBEpisode(show, season, episode)` for an episode. The handler then gets it
+directly, without searching or matching, which is fewer requests and always the same match,
+whatever the filename. A movie or episode which TMDB doesn't have returns no metadata.
 
 | Key | Value | Always present? |
 | --- | --- | --- |

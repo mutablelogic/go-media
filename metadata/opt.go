@@ -34,6 +34,11 @@ type Opts struct {
 	// The year of the stream, such as its release year, when the caller
 	// knows it, or zero
 	year int
+
+	// The stream's movie on TMDB, or its show, season and episode, when the
+	// caller knows them, such as from an earlier match, or zero
+	tmdbMovie                         uint64
+	tmdbShow, tmdbSeason, tmdbEpisode uint64
 }
 
 type Option func(*Opts) error
@@ -67,6 +72,18 @@ func (o *Opts) Duration() time.Duration {
 // isn't known
 func (o *Opts) Year() int {
 	return o.year
+}
+
+// TMDBMovie returns the TMDB identifier of the stream's movie set via
+// WithTMDBMovie, or zero
+func (o *Opts) TMDBMovie() uint64 {
+	return o.tmdbMovie
+}
+
+// TMDBEpisode returns the TMDB identifier of the stream's show, and its
+// season and episode, set via WithTMDBEpisode, or zeros
+func (o *Opts) TMDBEpisode() (show, season, episode uint64) {
+	return o.tmdbShow, o.tmdbSeason, o.tmdbEpisode
 }
 
 // TMDB returns the TMDB client set via WithTMDB, or nil if none was set.
@@ -134,6 +151,38 @@ func WithDuration(d time.Duration) Option {
 			return gomedia.ErrBadParameter.Withf("invalid duration %v", d)
 		}
 		o.duration = d
+		return nil
+	}
+}
+
+// WithTMDBMovie sets the TMDB identifier of the stream's movie, when the
+// caller knows it, such as from an earlier match. The TMDB handler then gets
+// the movie by it, rather than searching for the stream's name and matching
+// the results, which is fewer requests, and is sure to be the same movie.
+// It replaces an episode set via WithTMDBEpisode.
+func WithTMDBMovie(id uint64) Option {
+	return func(o *Opts) error {
+		if id == 0 {
+			return gomedia.ErrBadParameter.With("invalid TMDB movie identifier 0")
+		}
+		o.tmdbMovie = id
+		o.tmdbShow, o.tmdbSeason, o.tmdbEpisode = 0, 0, 0
+		return nil
+	}
+}
+
+// WithTMDBEpisode sets the TMDB identifier of the stream's show, and its
+// season and episode, when the caller knows them, such as from an earlier
+// match. The TMDB handler then gets the episode by them, rather than
+// searching for the show and matching the results. Season zero is a show's
+// specials. It replaces a movie set via WithTMDBMovie.
+func WithTMDBEpisode(show, season, episode uint64) Option {
+	return func(o *Opts) error {
+		if show == 0 || episode == 0 {
+			return gomedia.ErrBadParameter.Withf("invalid TMDB episode %d of season %d of show %d", episode, season, show)
+		}
+		o.tmdbShow, o.tmdbSeason, o.tmdbEpisode = show, season, episode
+		o.tmdbMovie = 0
 		return nil
 	}
 }
