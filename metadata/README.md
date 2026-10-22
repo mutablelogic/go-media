@@ -218,7 +218,8 @@ without further disambiguation (e.g. by release year proximity).
 A document's content as Markdown, which a handler returns only when the namespace is
 requested with `WithNamespace`, as converting a document can be expensive. In go-media,
 `metadata/subtitle` returns SubRip (`.srt`) subtitles as a paragraph for each cue, which starts
-with its time, such as `**00:01:02** Hello there.`, without the cues' styling or repeated cues.
+with its number, and its start and end times, such as `**1 · 00:01:02 → 00:01:04** Hello there.`,
+without the cues' styling or repeated cues. A cue without a number has the previous cue's and one.
 Applications can register handlers for their own formats.
 
 | Key | Value | Present |

@@ -24,17 +24,19 @@ import (
 
 // cue is a subtitle shown from its start, with its lines of text
 type cue struct {
-	start time.Duration
-	lines []string
+	number     uint64
+	start, end time.Duration
+	lines      []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 // srtTiming matches the timing of a cue, such as 00:01:02,500 --> 00:01:04,000,
-// whose start is its hours, minutes, seconds and milliseconds. A period is
-// accepted for the comma, as some files have one.
-var srtTiming = regexp.MustCompile(`^\s*(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->`)
+// whose start and end are their hours, minutes, seconds and milliseconds. A
+// period is accepted for the comma, as some files have one, and a cue whose
+// end can't be read has its start.
+var srtTiming = regexp.MustCompile(`^\s*(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->\s*(?:(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3}))?`)
 
 // srtIndex matches the number of a cue, on the line before its timing
 var srtIndex = regexp.MustCompile(`^\s*\d+\s*$`)
@@ -73,7 +75,9 @@ func init() {
 // PRIVATE METHODS
 
 // writeSRT writes the cues of the SubRip subtitles as Markdown, a paragraph
-// for each, which starts with its time, without their styling. A cue whose
+// for each, which starts with its number, and its start and end times, such
+// as **1 · 00:01:41 → 00:01:44**, without their styling. A cue's number is the file's, or
+// the previous cue's and one, when the file doesn't number it. A cue whose
 // text is the previous cue's isn't written again. Stops with the writer's
 // error, once it has its part.
 func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
@@ -81,7 +85,8 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	var current *cue
-	var previous string
+	var previous, index string
+	var number uint64
 	first := true
 	flush := func() error {
 		if current == nil {
@@ -94,7 +99,11 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 			return nil
 		}
 		previous = text
-		paragraph := "**" + timestamp(c.start) + "** " + text + "\n"
+		times := timestamp(c.start)
+		if c.end > 0 {
+			times += " → " + timestamp(c.end)
+		}
+		paragraph := "**" + strconv.FormatUint(c.number, 10) + " · " + times + "** " + text + "\n"
 		if !first {
 			paragraph = "\n" + paragraph
 		}
@@ -112,22 +121,31 @@ func writeSRT(ctx context.Context, r io.Reader, w io.StringWriter) error {
 			text = strings.TrimPrefix(text, "\uFEFF")
 		}
 		text = strings.TrimRight(text, " \t\r")
-		if start, ok := parseTiming(text); ok {
+		if start, end, ok := parseTiming(text); ok {
 			// A cue's number is on the line before its timing, which is the
 			// last line of the previous cue, when there's no blank line
 			if current != nil && len(current.lines) > 0 && srtIndex.MatchString(current.lines[len(current.lines)-1]) {
+				index = current.lines[len(current.lines)-1]
 				current.lines = current.lines[:len(current.lines)-1]
 			}
 			if err := flush(); err != nil {
 				return err
 			}
-			current = &cue{start: start}
+			if n, err := strconv.ParseUint(strings.TrimSpace(index), 10, 64); err == nil && srtIndex.MatchString(index) {
+				number = n
+			} else {
+				number++
+			}
+			current, index = &cue{number: number, start: start, end: end}, ""
 		} else if strings.TrimSpace(text) == "" {
 			if err := flush(); err != nil {
 				return err
 			}
+			index = ""
 		} else if current != nil {
 			current.lines = append(current.lines, text)
+		} else {
+			index = text
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -150,24 +168,38 @@ func (c *cue) text() string {
 }
 
 // parseTiming returns the start of a cue, from its timing
-func parseTiming(line string) (time.Duration, bool) {
+func parseTiming(line string) (time.Duration, time.Duration, bool) {
 	match := srtTiming.FindStringSubmatch(line)
 	if match == nil {
-		return 0, false
+		return 0, 0, false
 	}
-	var parts [4]int
-	for i := range parts {
-		value, err := strconv.Atoi(match[i+1])
+	start, ok := parseTime(match[1:5])
+	if !ok {
+		return 0, 0, false
+	}
+	end, ok := parseTime(match[5:9])
+	if !ok || end < start {
+		end = 0
+	}
+	return start, end, true
+}
+
+// parseTime returns the time of its hours, minutes, seconds and
+// milliseconds, or false when there's none
+func parseTime(parts []string) (time.Duration, bool) {
+	var values [4]int
+	for i, part := range parts {
+		value, err := strconv.Atoi(part)
 		if err != nil {
 			return 0, false
 		}
-		parts[i] = value
+		values[i] = value
 	}
-	ms := parts[3]
-	for n := len(match[4]); n < 3; n++ {
+	ms := values[3]
+	for n := len(parts[3]); n < 3; n++ {
 		ms *= 10
 	}
-	return time.Duration(parts[0])*time.Hour + time.Duration(parts[1])*time.Minute + time.Duration(parts[2])*time.Second + time.Duration(ms)*time.Millisecond, true
+	return time.Duration(values[0])*time.Hour + time.Duration(values[1])*time.Minute + time.Duration(values[2])*time.Second + time.Duration(ms)*time.Millisecond, true
 }
 
 // timestamp returns the time as hours, minutes and seconds, such as 01:02:03
