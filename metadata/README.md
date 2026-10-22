@@ -142,14 +142,38 @@ Real values from `etc/test/sample.mp4`:
 | `video:year` | - | `date`/`year` tag |
 | `video:encoder` | `Lavf53.24.2` | Any other tag, sanitized and passed through |
 | `video:creation-time` | `1970-01-01T00:00:00.000000Z` | Any other tag, sanitized and passed through |
-| `dc:date` | `1970-01-01T00:00:00Z` | Mirrors `video:creation-time`, reformatted as RFC 3339, when it parses as a timestamp |
+| `dc:date` | `1970-01-01T00:00:00Z` | Mirrors `quicktime:creationdate` (see below), or else `video:creation-time`, reformatted as RFC 3339, when it parses as a timestamp |
 
 `synopsis` is never surfaced as its own `video:synopsis` key: it only becomes `dc:description`,
 and only when there's no dedicated `description` tag to prefer instead (`buildVideoEntries` in
 `metadata/video/handler.go`).
 
 Dropped entirely (noisy/uninteresting): `compatible-brands`, `major-brand`, `minor-version`,
-`comment`, `itunes-cddb-1`, `itunmovi`, `gapless-playback`, `itunextc`.
+`comment`, `itunes-cddb-1`, `itunmovi`, `gapless-playback`, `itunextc`. A tag which ffmpeg
+repeats with its language, such as `model-eng` for `model`, is dropped when its value is the
+same.
+
+### `quicktime:` (`metadata/video/handler.go`)
+
+Apple's QuickTime tags, `com.apple.quicktime.<name>`, written by iPhones, iPads and Macs, are in
+their own namespace as `quicktime:<name>`, sanitized as other tags are. The video handler is
+registered under `"quicktime"` too. Real values from an iPhone's video:
+
+| Key | Value |
+| --- | --- |
+| `quicktime:make` | `Apple` |
+| `quicktime:model` | `iPhone 12 mini` |
+| `quicktime:software` | `16.1.1` |
+| `quicktime:creationdate` | `2023-03-16T07:23:27+0100` |
+| `quicktime:location-iso6709` | `+52.4158+013.5896+035.667/` |
+| `quicktime:location-accuracy-horizontal` | `9.424789` (metres) |
+| `quicktime:latitude` | `52.4158`, a `float64`, parsed from the ISO 6709 location |
+| `quicktime:longitude` | `13.5896`, a `float64` |
+| `quicktime:altitude` | `35.667` (metres), a `float64`, when the location has one |
+
+`quicktime:creationdate` is when the video was recorded, in its own time zone, so it's mirrored
+as `dc:date`, as RFC 3339, rather than `creation-time`, which is in UTC and can be when the file
+was written.
 
 ### `audio:` (`metadata/audio/handler.go`)
 
@@ -161,10 +185,10 @@ Real values from `etc/test/sample.mp3` (an untagged file, hence just `Duration`)
 | `audio:duration` | `20.734717` (seconds) | Always present |
 | `dc:title` | - | `title`/`tracktitle` tag |
 | `dc:creator` | - | `artist`/`artists`/`album-artist` tag |
-| `audio:Album` | - | `album`/`albumtitle` tag |
-| `audio:Genre` | - | `genre`/`music-genre` tag |
+| `audio:album` | - | `album`/`albumtitle` tag |
+| `audio:genre` | - | `genre`/`music-genre` tag |
 | `audio:year` | - | `originalyear`/`year`/`date`/`originaldate`/`tdor` tag |
-| `audio:Track` | - | `track`/`tracknumber`/`itunes-cddb-tracknumber` tag |
+| `audio:track` | - | `track`/`tracknumber`/`itunes-cddb-tracknumber` tag |
 | `audio:encoder` | `Lavf62.12.102` | Any other tag, sanitized and passed through |
 
 Dropped entirely (mostly ID3/iTunes-specific noise): `comment`, `itunnorm`, `itunsmpb`,
@@ -172,6 +196,29 @@ Dropped entirely (mostly ID3/iTunes-specific noise): `comment`, `itunnorm`, `itu
 `id3v1-comment`, `id3v2-priv-averagelevel`, `id3v2-priv-google-originalclientid`,
 `id3v2-priv-www-amazon-com`, `itunes-cddb-1`, `itunes-cddb-ids`, `account-id`,
 `compatible-brands`, `major-brand`, `minor-version`, `eitunnorm`.
+
+### `musicbrainz:` (`metadata/audio/handler.go`)
+
+MusicBrainz's tags, as MusicBrainz Picard writes them, are in their own namespace, named for
+MusicBrainz's entities, so an identifier can be looked up with MusicBrainz's API. Each is spelled
+differently in each container, such as `MUSICBRAINZ_ALBUMID` in a FLAC file and
+`MusicBrainz Album Id` in an MP3 or MP4 file, and all spellings have the same key. The audio
+handler is registered under `"musicbrainz"` too. Real values from a FLAC file:
+
+| Key | Value | Tag |
+| --- | --- | --- |
+| `musicbrainz:release-id` | `e1262988-757c-4861-9778-65e7d4ef5c55` | Album Id |
+| `musicbrainz:release-group-id` | `c7d1950a-5bda-4d8f-a939-7db8bca44647` | Release Group Id |
+| `musicbrainz:recording-id` | `53bb54ac-1020-4cd4-83ce-362a58e1ec17` | Track Id (not in MP3, where it's a UFID frame) |
+| `musicbrainz:track-id` | `2797c3c5-021c-329b-8885-4f10ed37260a` | Release Track Id |
+| `musicbrainz:artist-id` | `9fadfba9-ecae-4383-a4d8-47b043cea19a` | Artist Id |
+| `musicbrainz:album-artist-id` | `885f90ef-6bd9-409a-b2df-e165e553c68e` | Album Artist Id |
+| `musicbrainz:release-type` | `album;compilation` | Album Type, or `RELEASETYPE` in FLAC |
+| `musicbrainz:release-status` | `official` | Album Status, or `RELEASESTATUS` in FLAC |
+| `musicbrainz:release-country` | `US` | Album Release Country, or `RELEASECOUNTRY` in FLAC |
+
+`musicbrainz:work-id`, `disc-id`, `original-release-id` and `original-artist-id` are mapped
+too, and another tag with MusicBrainz's prefix keeps its name, such as `musicbrainz:<name>`.
 
 ## `tmdb` namespace
 
