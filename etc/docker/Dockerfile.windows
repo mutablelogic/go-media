@@ -12,9 +12,14 @@ ARG SOURCE
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
 ARG SOURCE
 LABEL org.opencontainers.image.source=${SOURCE}
+LABEL org.opencontainers.image.licenses="Apache-2.0 AND GPL-3.0-or-later"
 
 WORKDIR C:/gomedia
 COPY build/gomedia.exe build/*.dll C:/gomedia/
+
+# The licenses: go-media is Apache 2.0, and the FFmpeg it's built with is GPL
+# version 3 or later, so the image is too (see NOTICE)
+COPY LICENSE NOTICE etc/licenses/GPL-3.0.txt C:/gomedia/
 
 WORKDIR C:/data
 ENTRYPOINT ["C:/gomedia/gomedia.exe"]
