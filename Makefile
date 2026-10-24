@@ -2,7 +2,6 @@
 GO=$(shell which go)
 PKG_CONFIG=$(shell which pkg-config)
 CURL=$(shell which curl)
-NPM ?= $(shell which npm 2>/dev/null)
 
 # Curl retry policy for flaky downloads
 CURL_RETRY_FLAGS = --fail --location --retry 5 --retry-delay 10 --retry-all-errors
@@ -342,16 +341,6 @@ ${LIBHEIF_STAMP}: ${FFMPEG_STAMP}
 	$(call stamp,libheif)
 
 ###############################################################################
-# TYPESCRIPT
-
-TS_DIR := ts
-
-.PHONY: ts
-ts: npm-dep mkdir
-	@echo Build TypeScript
-	@${NPM} install --silent && node $(TS_DIR)/build.js
-
-###############################################################################
 # TESTS
 
 .PHONY: test
@@ -417,10 +406,6 @@ go-dep:
 .PHONY: pkconfig-dep
 pkconfig-dep:
 	@test -f "$(PKG_CONFIG)" && test -x "$(PKG_CONFIG)"  || (echo "Missing pkg-config binary" && exit 1)
-
-.PHONY: npm-dep
-npm-dep:
-	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary" && exit 1)
 
 
 .PHONY: mkdir
