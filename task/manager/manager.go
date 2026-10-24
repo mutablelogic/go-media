@@ -11,7 +11,6 @@ import (
 	uuid "github.com/google/uuid"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
 	gomedia "github.com/mutablelogic/go-media"
-	metadata "github.com/mutablelogic/go-media/metadata"
 	schema "github.com/mutablelogic/go-media/task/schema"
 	attribute "go.opentelemetry.io/otel/attribute"
 	trace "go.opentelemetry.io/otel/trace"
@@ -258,9 +257,6 @@ func (m *Manager) Start(ctx context.Context, id uuid.UUID) (err error) {
 				status := e.status
 				e.Unlock()
 				m.events.emit(schema.EventResult, status)
-			},
-			MetaOpts: func() []metadata.Option {
-				return m.metaopts
 			},
 		})
 		endRunSpan(runErr)

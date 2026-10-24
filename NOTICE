@@ -1,13 +1,34 @@
 go-media
-Copyright (c) 2021-2026 David Thorpe
+Copyright (c) 2021-2026 The go-media authors
 
 This product includes software developed at <https://github.com/mutablelogic/go-media>
 
 --------------------------------------------------------------------------------
 
-This software statically links to FFmpeg libraries (<http://ffmpeg.org/>), which
-are licensed under the GNU Lesser General Public License (LGPL) version 2.1 or
-later.
+This software statically links to FFmpeg libraries (<http://ffmpeg.org/>).
+FFmpeg is licensed under the GNU Lesser General Public License (LGPL) version
+2.1 or later by default, but the license of a build depends on how it's
+configured:
+
+- With --enable-gpl, and GPL components such as x264 or x265, it's licensed
+  under the GNU General Public License (GPL), and so is a binary which
+  includes it.
+- With --enable-nonfree, and nonfree components such as fdk-aac, FFmpeg's
+  configure reports its license as "nonfree and unredistributable", and a
+  binary which includes it can't be redistributed.
+
+The Makefile configures FFmpeg with --enable-gpl and --enable-version3, for
+x264, x265 and OpenSSL 3, which FFmpeg's configure reports as "GPL version 3 or
+later", so a binary built with it is licensed under the GNU General Public
+License (GPL) version 3, and distributing it means providing its complete
+source code under the GPL version 3. The GPL version 3 is available at:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+
+With FFMPEG_NONFREE=1, the Makefile also configures FFmpeg with
+--enable-nonfree, and links fdk-aac and libtls when they're found, which
+FFmpeg reports as "nonfree and unredistributable", so a binary built with it
+is for your own use, and can't be redistributed. The license of a build is
+FFMPEG_LICENSE in build/ffmpeg-<version>/config.h.
 
 FFmpeg Copyright Notice:
   FFmpeg is a trademark of Fabrice Bellard
@@ -29,23 +50,174 @@ Under the LGPL, users have the right to:
 
 --------------------------------------------------------------------------------
 
+This software also links to libexif (<https://libexif.github.io/>), which is
+licensed under the GNU Lesser General Public License (LGPL) version 2.1 or
+later.
+
+libexif Copyright Notice:
+  Copyright (c) 2001 Lutz Mueller <lutz@users.sourceforge.net>, and the
+  libexif authors
+
+The complete libexif source code is available at:
+
+- <https://github.com/libexif/libexif/releases/tag/v0.6.26>
+- Or in the build/libexif-0.6.26/ directory after running `make`
+
+The LGPL license for libexif is available at:
+  <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
+
+--------------------------------------------------------------------------------
+
+This software also links to libheif (<https://github.com/strukturag/libheif>),
+which is licensed under the GNU Lesser General Public License (LGPL) version 3.
+
+libheif Copyright Notice:
+  Copyright (c) 2017-2020 Struktur AG
+  Copyright (c) 2017-2026 Dirk Farin
+
+The complete libheif source code is available at:
+
+- <https://github.com/strukturag/libheif/releases/tag/v1.23.1>
+- Or in the build/libheif-1.23.1/ directory after running `make`
+
+The LGPL license for libheif is available at:
+  <https://www.gnu.org/licenses/lgpl-3.0.html>
+
+The LGPL version 3 is a set of additional permissions to the GNU General
+Public License (GPL) version 3, so a binary which includes libheif must be
+accompanied by a copy of both. The GPL version 3 is available at:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+
+--------------------------------------------------------------------------------
+
+This software also links to LibRaw (<https://www.libraw.org/>), which is
+licensed, at your option, under the GNU Lesser General Public License (LGPL)
+version 2.1, or the Common Development and Distribution License (CDDL) version
+1.0.
+
+LibRaw Copyright Notice:
+  Copyright (C) 2008-2025 LibRaw LLC
+  Copyright 1997-2018 by Dave Coffin
+
+The complete LibRaw source code is available at:
+
+- <https://github.com/LibRaw/LibRaw/releases/tag/0.22.1>
+- Or in the build/libraw-0.22.1/ directory after running `make`
+
+The LGPL license for LibRaw is available at:
+  <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
+
+LibRaw includes code from other projects, whose notices are below, as LibRaw's
+COPYRIGHT file lists them:
+
+  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
+  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
+  LibRaw do not use RESTRICTED code from dcraw.c
+
+  LibRaw uses DCB demosaic and FBDD denoise licensed under BSD-like 3-clause
+  license. DCB and FBDD are Copyright (C) 2010, Jacek Gozdz
+  (cuniek@kft.umcs.lublin.pl)
+
+  LibRaw uses X3F library to unpack Foveon Files, licensed BSD-style license
+  Copyright (c) 2010, Roland Karlsson (roland@proxel.se)
+
+  LibRaw uses pieces of code from Adobe DNG SDK 1.4,
+  Copyright (c) 2005 Adobe Systems Incorporated, licensed under MIT license.
+  The terms of the MIT License are those of Chromaprint's notice below.
+
+DCB demosaic and FBDD denoise (src/demosaic/dcb_demosaic.cpp):
+
+  Copyright (C) 2010,  Jacek Gozdz (cuniek@kft.umcs.lublin.pl)
+
+  This code is licensed under a (3-clause) BSD license as follows :
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following
+  conditions are met:
+
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution.
+  * Neither the name of the author nor the names of its
+    contributors may be used to endorse or promote products
+    derived from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+  FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+  THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+  OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+  OF SUCH DAMAGE.
+
+X3F library (src/x3f/):
+
+  Copyright (c) 2010, Roland Karlsson (roland@proxel.se)
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+      * Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+      * Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+      * Neither the name of the organization nor the
+        names of its contributors may be used to endorse or promote products
+        derived from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY ROLAND KARLSSON ''AS IS'' AND ANY
+  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL ROLAND KARLSSON BE LIABLE FOR ANY
+  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
 This software also links to Chromaprint (<https://acoustid.org/chromaprint>),
-which is licensed under the MIT License:
+which is licensed under the GNU Lesser General Public License (LGPL) version
+2.1, as a whole. Its own source code is licensed under the MIT License, but it
+includes parts of FFmpeg, which are licensed under the LGPL 2.1.
 
 Chromaprint Copyright Notice:
   Copyright (C) 2010-2016 Lukas Lalinsky
-  
+
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
   in the Software without restriction, including without limitation the rights
   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-  
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
 
 The complete Chromaprint source code is available at:
 
 - <https://github.com/acoustid/chromaprint/releases/tag/v1.5.1>
 - Or in the build/chromaprint-1.5.1/ directory after running `make`
+
+The LGPL license for Chromaprint is available at:
+  <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>

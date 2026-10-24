@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"net/http"
 
 	// Packages
 	media "github.com/mutablelogic/go-media"
-	metadata "github.com/mutablelogic/go-media/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,12 +83,7 @@ func (m *Metadata) Value() string {
 	case string:
 		return v
 	case []byte:
-		mimetype, _, err := metadata.ContentType(bytes.NewReader(v))
-		if err == nil {
-			return mimetype
-		} else {
-			return ""
-		}
+		return http.DetectContentType(v)
 	default:
 		return fmt.Sprint(v)
 	}

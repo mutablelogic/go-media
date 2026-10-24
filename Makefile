@@ -3,6 +3,12 @@ GO=$(shell which go)
 PKG_CONFIG=$(shell which pkg-config)
 CURL=$(shell which curl)
 
+# Build with the modules go.mod requires, rather than a go.work workspace's,
+# so go mod tidy doesn't change go.mod to match local checkouts. Set
+# GOWORK to a go.work file to use a workspace
+GOWORK ?= off
+export GOWORK
+
 # Curl retry policy for flaky downloads
 CURL_RETRY_FLAGS = --fail --location --retry 5 --retry-delay 10 --retry-all-errors
 
@@ -77,6 +83,14 @@ ifeq ($(OS),windows)
 FFMPEG_PLATFORM_CONFIG=--disable-indev=vfwcap
 endif
 
+# FFmpeg is a GPL version 3 build, which can be redistributed under the GPL:
+# GPL, for x264 and x265, and version 3, for OpenSSL 3 and the codecs which
+# are version 3. FFMPEG_NONFREE=1 adds the nonfree components, fdk-aac and
+# libtls, which makes a build which FFmpeg reports as "nonfree and
+# unredistributable", so is only for your own use.
+FFMPEG_NONFREE ?=
+FFMPEG_LICENSE_CONFIG := --enable-gpl --enable-version3 $(if $(FFMPEG_NONFREE),--enable-nonfree)
+
 
 # Set build flags
 VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
@@ -117,7 +131,7 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" ${FFMPEG_EXTRA_LDFLAGS} \
-		--enable-gpl --enable-nonfree ${FFMPEG_PLATFORM_CONFIG} ${FFMPEG_CONFIG}
+		${FFMPEG_LICENSE_CONFIG} ${FFMPEG_PLATFORM_CONFIG} ${FFMPEG_CONFIG}
 
 # Build ffmpeg
 .PHONY: ffmpeg-build
@@ -344,53 +358,40 @@ ${LIBHEIF_STAMP}: ${FFMPEG_STAMP}
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-metadata test-gomedia
+test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-gomedia
 
 .PHONY: test-chromaprint
 # chromaprint depends on ffmpeg, so covers both
 test-chromaprint: chromaprint
-	@echo ... test pkg/segmenter pkg/chromaprint
+	@echo ... test pkg/segmenter sys/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
-	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/chromaprint
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/chromaprint
 
 .PHONY: test-exif
-# pkg/exif also imports sys/libheif
-test-exif: libexif libheif
-	@echo ... test sys/libexif pkg/exif
+test-exif: libexif
+	@echo ... test sys/libexif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libexif
-	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/exif
 
 .PHONY: test-raw
 test-raw: libraw
-	@echo ... test sys/libraw pkg/raw
+	@echo ... test sys/libraw
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libraw
-	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/raw
 
 .PHONY: test-heif
-# pkg/heif imports pkg/exif
-test-heif: libheif libexif
-	@echo ... test sys/libheif pkg/heif
+test-heif: libheif
+	@echo ... test sys/libheif
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libheif
-	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/heif
 
 .PHONY: test-ffmpeg
-# reader imports pkg/raw (through metadata), so needs libraw
-test-ffmpeg: go-dep go-tidy ffmpeg libraw
+test-ffmpeg: go-dep go-tidy ffmpeg
 	@echo ... test sys/${SYS_VERSION} reader writer frame
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/${SYS_VERSION}
 	@${CGO_ENV} ${GO} test ${ARGS} ./reader/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./writer/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./frame/...
 
-.PHONY: test-metadata
-# metadata imports ffmpeg, exif, heif and raw packages
-test-metadata: ffmpeg libexif libheif libraw
-	@echo ... test metadata
-	@${CGO_ENV} ${GO} test ${ARGS} ./metadata/...
-
 .PHONY: test-gomedia
-# task imports metadata, and gomedia imports pkg/chromaprint
-test-gomedia: ffmpeg libexif libheif libraw chromaprint
+test-gomedia: ffmpeg
 	@echo ... test task profile gomedia
 	@${CGO_ENV} ${GO} test ${ARGS} ./task/...
 	@${CGO_ENV} ${GO} test ${ARGS} ./profile/...
@@ -430,7 +431,7 @@ clean: go-tidy
 .PHONY: ffmpeg-dep
 ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libass && echo "--enable-libass"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fdk-aac && echo "--enable-libfdk-aac"))
+	$(if $(FFMPEG_NONFREE),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fdk-aac && echo "--enable-libfdk-aac")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lame && echo "--enable-libmp3lame"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists freetype2 && echo "--enable-libfreetype"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vorbis && echo "--enable-libvorbis"))
@@ -496,7 +497,7 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libplacebo && echo "--enable-libplacebo"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openssl && echo "--enable-openssl"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists mbedtls && echo "--enable-mbedtls"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls"))
+	$(if $(FFMPEG_NONFREE),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librtmp && echo "--enable-librtmp"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libssh && echo "--enable-libssh"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librist && echo "--enable-librist"))

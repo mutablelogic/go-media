@@ -3,14 +3,17 @@
 [![Test](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
-`gomedia` is a CLI, client and server tool for managing media files - audio, video and image - extracting metadata, artwork and thumbnails, identifying music, and remultiplexing and transcoding audio and video.
+Go bindings for FFmpeg, Chromaprint, libexif, libheif and LibRaw, with higher-level packages for
+reading, decoding, encoding, filtering and remultiplexing audio and video, and `gomedia`, a CLI,
+client and server for probing and encoding media files.
 
 ## Motivation
 
 The goal isn't to replace `ffmpeg`, but to provide a programmatic interface for processing
-and extracting information from audio, video and image files. `go-media` supports all the
-audio and video formats FFmpeg supports, plus HEIF/AVIF and RAW camera images, including
-extraction of embedded EXIF and XMP metadata.
+audio and video files from Go. `go-media` supports all the audio and video formats FFmpeg
+supports, and its bindings for libheif, LibRaw, libexif and Chromaprint are the basis for
+reading HEIF/AVIF and RAW camera images, EXIF metadata, and audio fingerprints in
+[go-metadata](https://github.com/mutablelogic/go-metadata).
 
 ## Current Status
 
@@ -19,12 +22,12 @@ This module is **in development** - the API may still change. Implemented so far
 - FFmpeg-backed audio/video: codecs, formats, filters, pixel/sample formats, audio channel
   layouts, demuxing/muxing/remuxing, decoding/encoding, filtering and resampling, hardware
   acceleration (transcoding via the CLI is still TBC)
-- HEIF/AVIF image decoding (`pkg/heif`), registered with Go's standard `image` package
-- RAW camera image decoding across many manufacturers (`pkg/raw`), also registered with `image`
-- EXIF (`pkg/exif`) and XMP (`pkg/xmp`) metadata reading
-- A format-agnostic metadata extraction registry (`metadata/`) spanning image, audio, video
-  and application (e.g. Photoshop) content types
-- Audio fingerprinting and identification via Chromaprint/AcoustID (`pkg/chromaprint`)
+- Low-level bindings for Chromaprint, libexif, libheif and LibRaw (`sys/`)
+- Segmenting decoded audio into fixed-size or silence-separated segments (`pkg/segmenter`)
+
+Metadata extraction, including EXIF, XMP, HEIF and RAW images, TMDB and AcoustID lookups,
+has moved to [go-metadata](https://github.com/mutablelogic/go-metadata), which uses these
+bindings.
 
 ## Requirements
 
@@ -112,12 +115,11 @@ go build -o build/gomedia ./cmd/gomedia
 make test           # Build all C deps and run the full Go test suite
 make test-sys        # sys/<ffmpeg version> bindings only
 make test-ffmpeg      # pkg/ffmpeg/...
-make test-chromaprint # pkg/segmenter, pkg/chromaprint
-make test-exif        # sys/libexif, pkg/exif
-make test-raw         # sys/libraw, pkg/raw
-make test-heif        # sys/libheif, pkg/heif
-make test-metadata    # metadata/...
-make test-gomedia     # gomedia/...
+make test-chromaprint # pkg/segmenter, sys/chromaprint
+make test-exif        # sys/libexif
+make test-raw         # sys/libraw
+make test-heif        # sys/libheif
+make test-gomedia     # task/..., profile/..., gomedia/...
 ```
 
 ## Usage
@@ -125,71 +127,32 @@ make test-gomedia     # gomedia/...
 ### Command-Line Tool
 
 ```bash
-# Extract metadata from a file (all namespaces, or one via --namespace)
-gomedia metadata <file>
-gomedia metadata --namespace exif <file>
+# Run the server
+gomedia run
 
-# Extract embedded artwork/thumbnails
-gomedia artwork <file>
+# Probe a media file, or a URL or device, for its container format, streams and metadata
+gomedia probe-media <file>
+gomedia probe-source <url>
 
-# Probe a media file's container and streams
-gomedia probe <file>
+# Encode a media file into a new format
+gomedia encode <file>
 
 # List capabilities
 gomedia codecs
-gomedia filters
 gomedia formats
-gomedia pixel-formats
-gomedia sample-formats
-gomedia audio-channels
+gomedia pixelformats
+gomedia sampleformats
+gomedia channellayouts
+gomedia devices
 
-# Segment audio (fixed-size and/or silence-based)
-gomedia audio-segment <file> --out ./segments
-
-# Audio fingerprinting and AcoustID lookup (built with the chromaprint tag; requires an API key)
-export CHROMAPRINT_KEY=<your-key>
-gomedia audio-fingerprint <file>
-gomedia audio-lookup <fingerprint> <duration>
+# Manage audio profiles, and tasks
+gomedia audio-profile-create
+gomedia tasks
+gomedia task-events
 ```
 
 Run `gomedia --help` (or `gomedia <command> --help`) for the full, current set of flags -
 this list reflects the commands defined in `gomedia/cmd` and may grow.
-
-### Go API - Metadata Extraction
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"os"
-
-	metadata "github.com/mutablelogic/go-media/metadata"
-	_ "github.com/mutablelogic/go-media/metadata/image" // registers HEIF/RAW/JPEG/... handlers
-)
-
-func main() {
-	f, err := os.Open("photo.HEIC")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	contentType, _, err := metadata.ContentType(f)
-	if err != nil {
-		panic(err)
-	}
-
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
-	if err != nil {
-		panic(err) // treat as a warning: meta may still contain results from other handlers
-	}
-	for _, m := range meta {
-		fmt.Printf("%s = %s\n", m.Key(), m.Value())
-	}
-}
-```
 
 ### Go API - Probing and Media Management
 
@@ -252,19 +215,12 @@ sys/libheif/, sys/libraw/, sys/libexif/      # Low-level CGO bindings for image 
 sys/chromaprint/, sys/dvb/                   # Other low-level bindings
 
 pkg/ffmpeg/          # High-level FFmpeg API (Reader, Decoder, Encoder, Resampler, Frame)
-pkg/heif/            # HEIF/AVIF decoding, registered with the stdlib image package
-pkg/raw/             # RAW camera image decoding, registered with the stdlib image package
-pkg/exif/            # EXIF metadata reading
-pkg/xmp/             # XMP document read/write
+pkg/segmenter/       # Segmenting decoded audio
 pkg/sdl/             # SDL2 video/audio player (library only; not wired into the gomedia CLI)
-pkg/chromaprint/     # Audio fingerprinting
-
-metadata/            # Format-agnostic metadata extraction registry
-  image/, audio/, video/, application/  # Per-kind handlers, registered via metadata.AddHandler
 
 gomedia/
   schema/            # Request/response types for the CLI/API surface
-  manager/           # Orchestrates pkg/ffmpeg, metadata/, pkg/chromaprint, pkg/xmp
+  manager/           # Orchestrates pkg/ffmpeg, profiles and tasks
   cmd/                # kong-based CLI command definitions
 
 cmd/gomedia/          # main() entrypoint, wraps gomedia/cmd via go-server's cmd.Main
@@ -288,16 +244,40 @@ This software is licensed under the **Apache License 2.0**.
 
 > **go-media**  
 > [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)  
-> Copyright (c) 2021-2026 David Thorpe, All rights reserved.
+> Copyright (c) 2021-2026 The go-media authors, All rights reserved.
 
-Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. You may statically or dynamically link to this library without affecting your own code's license. **Attribution requirement:** When redistributing this software or derivative works (in source or binary form), you must include the copyright notice above and a copy of the [LICENSE](LICENSE) file. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
+Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. You may statically or dynamically link to this library without affecting your own code's license. **Attribution requirement:** When redistributing this software or derivative works (in source or binary form), you must include the copyright notice above, and a copy of the [LICENSE](LICENSE) and [NOTICE](NOTICE) files. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
 
-**Important:** When distributing binaries that include this software, you must also comply with the licenses of the linked libraries (FFmpeg LGPL and Chromaprint MIT) as described below.
+**Important:** When distributing binaries that include this software, you must also comply with the licenses of the libraries it links to, as described below. Their copyright notices and licenses are in the [NOTICE](NOTICE) file.
 
-### FFmpeg LGPL Notice
+| Library | License |
+| --- | --- |
+| [FFmpeg](https://ffmpeg.org/legal.html) | GPL 3.0 or later, as the Makefile builds it (see below); LGPL 2.1 or later by default |
+| [libexif](https://libexif.github.io/) | LGPL 2.1 or later |
+| [libheif](https://github.com/strukturag/libheif) | LGPL 3.0 |
+| [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0, with bundled code under BSD and MIT licenses |
+| [Chromaprint](https://acoustid.org/chromaprint) | LGPL 2.1, as it includes parts of FFmpeg; its own code is MIT |
 
-This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which are licensed under the
-[GNU Lesser General Public License (LGPL) v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+### FFmpeg as built by the Makefile
+
+The Makefile configures FFmpeg with `--enable-gpl` and `--enable-version3`, for x264, x265 and
+OpenSSL 3, which FFmpeg's configure reports as **"GPL version 3 or later"** (it's
+`FFMPEG_LICENSE` in `build/ffmpeg-<version>/config.h`). A binary which includes it is licensed
+under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), so distributing it means
+providing its complete source code under the GPL v3. go-media's own Apache 2.0 code is
+compatible with that.
+
+`make FFMPEG_NONFREE=1` also enables the nonfree components, fdk-aac and libtls, when they're
+found. FFmpeg reports such a build as **"nonfree and unredistributable"**, so a binary built
+with it is for your own use only. For an LGPL build of FFmpeg, configure it without
+`--enable-gpl`, or link to a build of FFmpeg whose license suits you, such as one from your
+Linux distribution.
+
+### LGPL Notice
+
+This software also statically links to libexif, libheif, LibRaw and Chromaprint,
+which are licensed under the LGPL: [v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html), except
+libheif, which is [v3](https://www.gnu.org/licenses/lgpl-3.0.html) (LibRaw is also available under the CDDL).
 
 **LGPL Compliance:** Under the LGPL, you may:
 
@@ -307,11 +287,13 @@ This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which 
 
 **Requirements when distributing binaries:**
 
-1. Include this notice and the FFmpeg LGPL license
-2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.3/` after building - check the Makefile's `FFMPEG_VERSION` for the exact version)
-3. Allow users to relink the application with modified FFmpeg libraries
+1. Include the [NOTICE](NOTICE) file, the LGPL licenses, and a copy of the
+   [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), which LGPL v3 (libheif) requires
+   alongside it
+2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.0.3/` - check the Makefile's `*_VERSION` variables for the exact versions), and, as FFmpeg is GPL, of the whole binary
+3. Allow users to relink the application with modified versions of the libraries
 
-The FFmpeg source code is automatically downloaded during the build process. See `Makefile` for details.
+The source code of the libraries is automatically downloaded during the build process. See `Makefile` for details.
 
 ### Contributing
 

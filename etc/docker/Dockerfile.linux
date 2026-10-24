@@ -2,7 +2,7 @@ ARG OS
 ARG ARCH
 
 # Run makefile to build all the commands
-FROM --platform=${OS}/${ARCH} golang:1.26 AS builder
+FROM --platform=${OS}/${ARCH} golang:1.27 AS builder
 ARG OS
 ARG ARCH
 WORKDIR /usr/src/app
@@ -31,8 +31,13 @@ RUN set -x && apt update -y \
 
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 
+# The licenses: go-media is Apache 2.0, and the FFmpeg it's built with is GPL
+# version 3 or later, so the image is too (see NOTICE)
+COPY --from=builder /usr/src/app/LICENSE /usr/src/app/NOTICE /usr/src/app/etc/licenses/GPL-3.0.txt /usr/share/doc/gomedia/
+
 # Label the image
 LABEL org.opencontainers.image.source=${SOURCE}
+LABEL org.opencontainers.image.licenses="Apache-2.0 AND GPL-3.0-or-later"
 
 # Always run gomedia with any provided arguments
 WORKDIR /data
