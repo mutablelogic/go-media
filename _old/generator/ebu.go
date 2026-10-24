@@ -12,7 +12,7 @@ import (
 	draw2d "github.com/llgcode/draw2d"
 	draw2dimg "github.com/llgcode/draw2d/draw2dimg"
 	media "github.com/mutablelogic/go-media"
-	fonts "github.com/mutablelogic/go-media/etc/fonts"
+	fonts "github.com/mutablelogic/go-media/_old/fonts"
 	ffmpeg "github.com/mutablelogic/go-media/pkg/ffmpeg"
 )
 
