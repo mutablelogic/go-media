@@ -290,14 +290,23 @@ This software is licensed under the **Apache License 2.0**.
 > [https://github.com/mutablelogic/go-media/](https://github.com/mutablelogic/go-media/)  
 > Copyright (c) 2021-2026 David Thorpe, All rights reserved.
 
-Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. You may statically or dynamically link to this library without affecting your own code's license. **Attribution requirement:** When redistributing this software or derivative works (in source or binary form), you must include the copyright notice above and a copy of the [LICENSE](LICENSE) file. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
+Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. You may statically or dynamically link to this library without affecting your own code's license. **Attribution requirement:** When redistributing this software or derivative works (in source or binary form), you must include the copyright notice above, and a copy of the [LICENSE](LICENSE) and [NOTICE](NOTICE) files. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
 
-**Important:** When distributing binaries that include this software, you must also comply with the licenses of the linked libraries (FFmpeg LGPL and Chromaprint MIT) as described below.
+**Important:** When distributing binaries that include this software, you must also comply with the licenses of the libraries it links to, as described below. Their copyright notices and licenses are in the [NOTICE](NOTICE) file.
 
-### FFmpeg LGPL Notice
+| Library | License |
+| --- | --- |
+| [FFmpeg](https://ffmpeg.org/legal.html) | LGPL 2.1 or later |
+| [libexif](https://libexif.github.io/) | LGPL 2.1 or later |
+| [libheif](https://github.com/strukturag/libheif) | LGPL 3.0 |
+| [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0 |
+| [Chromaprint](https://acoustid.org/chromaprint) | LGPL 2.1, as it includes parts of FFmpeg; its own code is MIT |
 
-This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which are licensed under the
-[GNU Lesser General Public License (LGPL) v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+### LGPL Notice
+
+This software statically links to [FFmpeg](http://ffmpeg.org/), libexif, libheif, LibRaw and Chromaprint,
+which are licensed under the LGPL: [v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html), except
+libheif, which is [v3](https://www.gnu.org/licenses/lgpl-3.0.html) (LibRaw is also available under the CDDL).
 
 **LGPL Compliance:** Under the LGPL, you may:
 
@@ -307,11 +316,11 @@ This software statically links to [FFmpeg](http://ffmpeg.org/) libraries, which 
 
 **Requirements when distributing binaries:**
 
-1. Include this notice and the FFmpeg LGPL license
-2. Provide access to the FFmpeg source code used (available at `build/ffmpeg-8.0.3/` after building - check the Makefile's `FFMPEG_VERSION` for the exact version)
-3. Allow users to relink the application with modified FFmpeg libraries
+1. Include the [NOTICE](NOTICE) file, and the LGPL licenses
+2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.0.3/` - check the Makefile's `*_VERSION` variables for the exact versions)
+3. Allow users to relink the application with modified versions of the libraries
 
-The FFmpeg source code is automatically downloaded during the build process. See `Makefile` for details.
+The source code of the libraries is automatically downloaded during the build process. See `Makefile` for details.
 
 ### Contributing
 
