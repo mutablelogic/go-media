@@ -2,8 +2,6 @@ package manager
 
 import (
 	// Packages
-	client "github.com/mutablelogic/go-client"
-	chromaprint "github.com/mutablelogic/go-media/pkg/chromaprint"
 	profilemanager "github.com/mutablelogic/go-media/profile/manager"
 	taskmanager "github.com/mutablelogic/go-media/task/manager"
 	trace "go.opentelemetry.io/otel/trace"
@@ -17,7 +15,6 @@ type Opt func(*opt) error
 
 type opt struct {
 	tracer         trace.Tracer
-	chromaprint    *chromaprint.Client
 	profileManager *profilemanager.Profile
 	taskManager    *taskmanager.Manager
 }
@@ -48,19 +45,6 @@ func (o *opt) defaults() {}
 func WithTracer(tracer trace.Tracer) Opt {
 	return func(o *opt) error {
 		o.tracer = tracer
-		return nil
-	}
-}
-
-// WithChromaprintKey creates and stores a Chromaprint client.
-func WithChromaprintKey(key string, opts ...client.ClientOpt) Opt {
-	return func(o *opt) error {
-		c, err := chromaprint.NewClient(key, opts...)
-		if err != nil {
-			return err
-		} else {
-			o.chromaprint = c
-		}
 		return nil
 	}
 }

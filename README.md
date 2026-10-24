@@ -3,14 +3,17 @@
 [![Test](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
-`gomedia` is a CLI, client and server tool for managing media files - audio, video and image - extracting metadata, artwork and thumbnails, identifying music, and remultiplexing and transcoding audio and video.
+Go bindings for FFmpeg, Chromaprint, libexif, libheif and LibRaw, with higher-level packages for
+reading, decoding, encoding, filtering and remultiplexing audio and video, and `gomedia`, a CLI,
+client and server for probing and encoding media files.
 
 ## Motivation
 
 The goal isn't to replace `ffmpeg`, but to provide a programmatic interface for processing
-and extracting information from audio, video and image files. `go-media` supports all the
-audio and video formats FFmpeg supports, plus HEIF/AVIF and RAW camera images, including
-extraction of embedded EXIF and XMP metadata.
+audio and video files from Go. `go-media` supports all the audio and video formats FFmpeg
+supports, and its bindings for libheif, LibRaw, libexif and Chromaprint are the basis for
+reading HEIF/AVIF and RAW camera images, EXIF metadata, and audio fingerprints in
+[go-metadata](https://github.com/mutablelogic/go-metadata).
 
 ## Current Status
 
@@ -19,12 +22,12 @@ This module is **in development** - the API may still change. Implemented so far
 - FFmpeg-backed audio/video: codecs, formats, filters, pixel/sample formats, audio channel
   layouts, demuxing/muxing/remuxing, decoding/encoding, filtering and resampling, hardware
   acceleration (transcoding via the CLI is still TBC)
-- HEIF/AVIF image decoding (`pkg/heif`), registered with Go's standard `image` package
-- RAW camera image decoding across many manufacturers (`pkg/raw`), also registered with `image`
-- EXIF (`pkg/exif`) and XMP (`pkg/xmp`) metadata reading
-- A format-agnostic metadata extraction registry (`metadata/`) spanning image, audio, video
-  and application (e.g. Photoshop) content types
-- Audio fingerprinting and identification via Chromaprint/AcoustID (`pkg/chromaprint`)
+- Low-level bindings for Chromaprint, libexif, libheif and LibRaw (`sys/`)
+- Segmenting decoded audio into fixed-size or silence-separated segments (`pkg/segmenter`)
+
+Metadata extraction, including EXIF, XMP, HEIF and RAW images, TMDB and AcoustID lookups,
+has moved to [go-metadata](https://github.com/mutablelogic/go-metadata), which uses these
+bindings.
 
 ## Requirements
 
@@ -112,12 +115,11 @@ go build -o build/gomedia ./cmd/gomedia
 make test           # Build all C deps and run the full Go test suite
 make test-sys        # sys/<ffmpeg version> bindings only
 make test-ffmpeg      # pkg/ffmpeg/...
-make test-chromaprint # pkg/segmenter, pkg/chromaprint
-make test-exif        # sys/libexif, pkg/exif
-make test-raw         # sys/libraw, pkg/raw
-make test-heif        # sys/libheif, pkg/heif
-make test-metadata    # metadata/...
-make test-gomedia     # gomedia/...
+make test-chromaprint # pkg/segmenter, sys/chromaprint
+make test-exif        # sys/libexif
+make test-raw         # sys/libraw
+make test-heif        # sys/libheif
+make test-gomedia     # task/..., profile/..., gomedia/...
 ```
 
 ## Usage
@@ -125,71 +127,32 @@ make test-gomedia     # gomedia/...
 ### Command-Line Tool
 
 ```bash
-# Extract metadata from a file (all namespaces, or one via --namespace)
-gomedia metadata <file>
-gomedia metadata --namespace exif <file>
+# Run the server
+gomedia run
 
-# Extract embedded artwork/thumbnails
-gomedia artwork <file>
+# Probe a media file, or a URL or device, for its container format, streams and metadata
+gomedia probe-media <file>
+gomedia probe-source <url>
 
-# Probe a media file's container and streams
-gomedia probe <file>
+# Encode a media file into a new format
+gomedia encode <file>
 
 # List capabilities
 gomedia codecs
-gomedia filters
 gomedia formats
-gomedia pixel-formats
-gomedia sample-formats
-gomedia audio-channels
+gomedia pixelformats
+gomedia sampleformats
+gomedia channellayouts
+gomedia devices
 
-# Segment audio (fixed-size and/or silence-based)
-gomedia audio-segment <file> --out ./segments
-
-# Audio fingerprinting and AcoustID lookup (built with the chromaprint tag; requires an API key)
-export CHROMAPRINT_KEY=<your-key>
-gomedia audio-fingerprint <file>
-gomedia audio-lookup <fingerprint> <duration>
+# Manage audio profiles, and tasks
+gomedia audio-profile-create
+gomedia tasks
+gomedia task-events
 ```
 
 Run `gomedia --help` (or `gomedia <command> --help`) for the full, current set of flags -
 this list reflects the commands defined in `gomedia/cmd` and may grow.
-
-### Go API - Metadata Extraction
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"os"
-
-	metadata "github.com/mutablelogic/go-media/metadata"
-	_ "github.com/mutablelogic/go-media/metadata/image" // registers HEIF/RAW/JPEG/... handlers
-)
-
-func main() {
-	f, err := os.Open("photo.HEIC")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	contentType, _, err := metadata.ContentType(f)
-	if err != nil {
-		panic(err)
-	}
-
-	meta, err := metadata.GetMetadata(context.Background(), f, contentType, "")
-	if err != nil {
-		panic(err) // treat as a warning: meta may still contain results from other handlers
-	}
-	for _, m := range meta {
-		fmt.Printf("%s = %s\n", m.Key(), m.Value())
-	}
-}
-```
 
 ### Go API - Probing and Media Management
 
@@ -252,19 +215,12 @@ sys/libheif/, sys/libraw/, sys/libexif/      # Low-level CGO bindings for image 
 sys/chromaprint/, sys/dvb/                   # Other low-level bindings
 
 pkg/ffmpeg/          # High-level FFmpeg API (Reader, Decoder, Encoder, Resampler, Frame)
-pkg/heif/            # HEIF/AVIF decoding, registered with the stdlib image package
-pkg/raw/             # RAW camera image decoding, registered with the stdlib image package
-pkg/exif/            # EXIF metadata reading
-pkg/xmp/             # XMP document read/write
+pkg/segmenter/       # Segmenting decoded audio
 pkg/sdl/             # SDL2 video/audio player (library only; not wired into the gomedia CLI)
-pkg/chromaprint/     # Audio fingerprinting
-
-metadata/            # Format-agnostic metadata extraction registry
-  image/, audio/, video/, application/  # Per-kind handlers, registered via metadata.AddHandler
 
 gomedia/
   schema/            # Request/response types for the CLI/API surface
-  manager/           # Orchestrates pkg/ffmpeg, metadata/, pkg/chromaprint, pkg/xmp
+  manager/           # Orchestrates pkg/ffmpeg, profiles and tasks
   cmd/                # kong-based CLI command definitions
 
 cmd/gomedia/          # main() entrypoint, wraps gomedia/cmd via go-server's cmd.Main
