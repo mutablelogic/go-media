@@ -4,6 +4,12 @@ PKG_CONFIG=$(shell which pkg-config)
 CURL=$(shell which curl)
 NPM ?= $(shell which npm 2>/dev/null)
 
+# Build with the modules go.mod requires, rather than a go.work workspace's,
+# so go mod tidy doesn't change go.mod to match local checkouts. Set
+# GOWORK to a go.work file to use a workspace
+GOWORK ?= off
+export GOWORK
+
 # Curl retry policy for flaky downloads
 CURL_RETRY_FLAGS = --fail --location --retry 5 --retry-delay 10 --retry-all-errors
 
