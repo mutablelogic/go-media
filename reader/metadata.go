@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"net/http"
 
 	// Image imports for decoding
 	_ "image/gif"  // Register GIF decoder for artwork.DecodeConfig
@@ -15,7 +16,6 @@ import (
 
 	// Packages
 	gomedia "github.com/mutablelogic/go-media"
-	metadata "github.com/mutablelogic/go-media/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,12 +48,7 @@ func (m *meta) Value() string {
 	case string:
 		return v
 	case []byte:
-		mimetype, _, err := metadata.ContentType(bytes.NewReader(v))
-		if err == nil {
-			return mimetype
-		} else {
-			return ""
-		}
+		return http.DetectContentType(v)
 	case gomedia.Chapter:
 		return v.Metadata["title"]
 	default:

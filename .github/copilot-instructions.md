@@ -9,19 +9,13 @@ This Go module provides CGO bindings to several media C libraries, layered consi
    - `sys/libheif/`, `sys/libraw/`, `sys/libexif/`, `sys/chromaprint/`, `sys/dvb/`
 2. **pkg/\*** - high-level, idiomatic Go APIs per library
    - `pkg/ffmpeg/` - Reader, Decoder, Encoder, Resampler, Frame abstractions
-   - `pkg/heif/`, `pkg/raw/`, `pkg/exif/` - `Open`/`Read`/`Parse` returning a closable value; RAW and HEIF also implement `image.Image` and register with the stdlib `image` package
-   - `pkg/xmp/` - XMP document read/write, used to serialize extracted metadata
+   - `pkg/segmenter/` - segments decoded audio into fixed-size or silence-separated segments
    - `pkg/sdl/` - SDL2 video/audio player (Context, FrameLoop, Player). **Not currently wired into the `gomedia` CLI** - it's an independent, tested library; treat it as such rather than assuming there's a `play` command.
-   - `pkg/chromaprint/` - audio fingerprinting
-3. **metadata/** - format-agnostic metadata extraction, independent of `pkg/ffmpeg`
-   - `metadata/metadata.go` defines `AddHandler(re *regexp.Regexp, fn HandlerFunc, namespaces ...string)`; each format package (`metadata/image`, `metadata/audio`, `metadata/video`, `metadata/application`) registers itself in an `init()` against a content-type regex and the metadata namespaces it can produce (`tiff`, `exif`, `image`, `dc`, `artwork`, ...)
-   - `metadata.GetMetadata(ctx, r, contentType, filter)` runs every matching handler concurrently and merges results; a returned error is the *joined* errors of failing handlers and should be treated as a warning, not a reason to discard metadata that did come back
-   - `filter` follows a `namespace:name` convention, e.g. `"exif:"` (whole namespace), `"DateTimeOriginal"` (bare name, any namespace), `"exif:DateTimeOriginal"` (exact), `"artwork:thumbnail"` (embedded preview image)
-4. **gomedia/** - the application layer that the CLI/server binary is built from
+3. **gomedia/** - the application layer that the CLI/server binary is built from
    - `gomedia/schema/` - request/response types with `kong` CLI tags (the public-facing API surface; distinct from the lower-level `pkg/ffmpeg/schema/` types used internally)
-   - `gomedia/manager/` - `manager.Media` orchestrates `pkg/ffmpeg`, `metadata/`, `pkg/chromaprint`, `pkg/xmp` behind the `gomedia/schema` types (`Probe`, `GetMetadata`, `SegmentAudio`, `ListCodecs`, etc.)
+   - `gomedia/manager/` - `manager.Media` orchestrates `pkg/ffmpeg`, profiles and tasks behind the `gomedia/schema` types (probing, encoding, capabilities)
    - `gomedia/cmd/` - `kong`-based CLI command definitions (`CLICommands` embeds `MetadataCLICommands`, `CapabilitiesCLICommands`, `EncodingCLICommands`); each `Run` method calls `c.WithManager(ctx, func(m *manager.Media) error {...})`
-5. **cmd/gomedia/** - thin `main()` that wraps `gomedia/cmd.CLI{}` via `go-server`'s `cmd.Main(...)`. There is no bespoke input-format-sniffing or SDL-wiring logic here anymore - look in `gomedia/manager` and `gomedia/cmd` instead.
+4. **cmd/gomedia/** - thin `main()` that wraps `gomedia/cmd.CLI{}` via `go-server`'s `cmd.Main(...)`. There is no bespoke input-format-sniffing or SDL-wiring logic here anymore - look in `gomedia/manager` and `gomedia/cmd` instead.
 
 An older Task Manager pattern under `pkg/ffmpeg/task/` and an SDL-playback `main.go` are referenced by some stale docs/README content but no longer exist on this branch (that code now lives archived under `_old/`, if present). Don't assume `pkg/ffmpeg/task` exists - the equivalent responsibility now lives in `gomedia/manager`.
 
@@ -122,8 +116,8 @@ Player auto-converts video formats via a cached resampler: YUV420P/RGB24 go stra
 
 ### Test Fixtures
 - `etc/test/sample.mp4` - h264/aac, 1280x720, ~5.3s
-- `etc/test/photo.HEIC` - used by `pkg/heif`/`metadata/image` HEIF tests
-- RAW fixture(s) under `etc/test/` for `pkg/raw`/`metadata/image` RAW tests (e.g. an Olympus `.ORF`)
+- `etc/test/photo.HEIC` - used by the `sys/libheif` tests
+- RAW fixture(s) under `etc/test/` for the `sys/libraw` tests (e.g. an Olympus `.ORF`)
 - There are currently no MPEG-TS fixtures or `dvb_teletext` handling in this tree - don't assume that gotcha still applies.
 
 ## Common Gotchas
@@ -133,12 +127,11 @@ Player auto-converts video formats via a cached resampler: YUV420P/RGB24 go stra
 3. **AV_NOPTS_VALUE**: cast to `int64` for comparisons: `pts != int64(ff.AV_NOPTS_VALUE)`.
 4. **Texture Recreation**: SDL textures must be recreated when format/dimensions change - see `pkg/sdl/window.go`'s `ensureTexture()`.
 5. **Audio Channel Layouts**: modern FFmpeg uses the `AVChannelLayout` struct, not legacy channel-mask integers.
-6. **libraw timestamps are host-timezone-poisoned**: libraw computes `imgother.timestamp` via C's `mktime()` on the EXIF wall-clock string, which has no real offset - `mktime()` interprets it *as local time on whatever machine parsed the file*. `time.Unix(ts, 0)` (in `time.Local`) is the correct inverse and recovers the original wall-clock digits on any host, but converting to another zone (e.g. calling `.UTC()` on it) shifts those digits by the parsing host's own UTC offset - which varies by machine/CI runner and is not the photo's real capture offset. See `pkg/raw/meta.go`'s `exif:DateTimeOriginal` handling: it recovers the wall-clock fields via `time.Local` and *relabels* them as UTC (no arithmetic conversion), so results are deterministic across hosts.
+6. **libraw timestamps are host-timezone-poisoned**: libraw computes `imgother.timestamp` via C's `mktime()` on the EXIF wall-clock string, which has no real offset - `mktime()` interprets it *as local time on whatever machine parsed the file*. `time.Unix(ts, 0)` (in `time.Local`) is the correct inverse and recovers the original wall-clock digits on any host, but converting to another zone (e.g. calling `.UTC()` on it) shifts those digits by the parsing host's own UTC offset - which varies by machine/CI runner and is not the photo's real capture offset. Recover the wall-clock fields via `time.Local` and *relabel* them as UTC (no arithmetic conversion), so results are deterministic across hosts, as go-metadata's RAW handler does.
 7. **HEIF "Decoder plugin generated an error: Unspecified"**: almost always means libheif was built with a codec (e.g. `libde265` for HEVC/HEIC) compiled out because its `-dev` package wasn't present when `make libheif` ran pkg-config detection - see "libheif codec selection" above. It's not a runtime plugin-path or shared-library-resolution issue; libheif is built statically and plugin loading is disabled.
 
 ## File Conventions
 
 - `schema/` packages (both `gomedia/schema/` and `pkg/ffmpeg/schema/`) define request/response types with `kong` CLI tags
-- `metadata/<kind>/` packages register `metadata.AddHandler` in `init()` rather than exposing a public extraction API directly
 - FFmpeg C types are prefixed with `AV` (`AVCodec`, `AVFormatContext`, `AVFrame`); Go wrappers omit the prefix (`Reader`, `Decoder`, `Frame` wraps `AVFrame`)
 - Metadata keys use a `namespace:name` convention (e.g. `exif:DateTimeOriginal`, `tiff:Make`, `artwork:thumbnail`) - see `gomedia.Metadata.Key()`

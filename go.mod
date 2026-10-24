@@ -3,15 +3,12 @@ module github.com/mutablelogic/go-media
 go 1.26.0
 
 require (
-	github.com/alecthomas/kong v1.16.1
-	github.com/djthorpe/go-errors v1.0.3
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
 	github.com/llgcode/draw2d v0.0.0-20260422081035-c4331ac66734
 	github.com/mutablelogic/go-client v1.4.10
 	github.com/mutablelogic/go-pg v1.3.5
 	github.com/mutablelogic/go-server v1.7.5
-	github.com/oov/psd v0.0.0-20260818185439-a5d50ec0acac
 	github.com/stretchr/testify v1.12.1
 	github.com/veandco/go-sdl2 v0.4.40
 	go.opentelemetry.io/otel v1.47.0
@@ -19,13 +16,13 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/image v0.46.0
 	golang.org/x/sync v0.23.0
-	golang.org/x/text v0.42.0
 )
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/alecthomas/kong v1.16.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -43,7 +40,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
-	github.com/gopherjs/gopherjs v1.21.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -92,6 +88,7 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/grpc v1.84.0 // indirect

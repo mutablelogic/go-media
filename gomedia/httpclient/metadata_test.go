@@ -11,7 +11,6 @@ import (
 	// Packages
 	task "github.com/mutablelogic/go-media/gomedia/task"
 	test "github.com/mutablelogic/go-media/gomedia/test"
-	taskmetadata "github.com/mutablelogic/go-media/task/metadata"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -202,93 +201,6 @@ func TestProbeSource_UnsupportedScheme(t *testing.T) {
 
 	if _, err := c.ProbeSource(ctx, task.ProbeSourceRequest{Url: "bogus-scheme://example.com"}); err == nil {
 		t.Fatal("expected an error for an unsupported URL scheme")
-	}
-}
-
-func TestMetadata_FormData(t *testing.T) {
-	_, ctx := test.Begin(t)
-	defer test.End(t)
-	c := test.Client(t)
-
-	f, err := os.Open(sampleFilePath(t, "sample.mp3"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	var lastRead atomic.Int64
-	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: f}, types.ContentTypeFormData, func(n int64) { lastRead.Store(n) })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp == nil {
-		t.Fatal("expected a non-nil response")
-	}
-	if want := filepath.Base(f.Name()); resp.Name != want {
-		t.Fatalf("Name = %q, want %q", resp.Name, want)
-	}
-	if resp.Type == "" {
-		t.Fatal("expected a non-empty content type")
-	}
-	if got := lastRead.Load(); got <= 0 {
-		t.Fatalf("onRead final count = %d, want > 0", got)
-	}
-}
-
-func TestMetadata_RawBody(t *testing.T) {
-	_, ctx := test.Begin(t)
-	defer test.End(t)
-	c := test.Client(t)
-
-	// The raw-body path has no filename to fall back on, so content type
-	// detection relies entirely on Go's stdlib byte-sniffing (see
-	// metadata.ContentType) - unlike sample.mp3, which has no leading ID3
-	// tag and so isn't in net/http's sniff table, a JPEG's magic bytes are
-	// always recognized without needing a name.
-	f, err := os.Open(sampleFilePath(t, "sample.jpg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	var lastRead atomic.Int64
-	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: f}, "image/jpeg", func(n int64) { lastRead.Store(n) })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp == nil {
-		t.Fatal("expected a non-nil response")
-	}
-	if resp.Type != "image/jpeg" {
-		t.Fatalf("Type = %q, want %q", resp.Type, "image/jpeg")
-	}
-	if len(resp.Metadata) == 0 {
-		t.Fatal("expected at least one metadata entry")
-	}
-	if got := lastRead.Load(); got <= 0 {
-		t.Fatalf("onRead final count = %d, want > 0", got)
-	}
-}
-
-// Plain text has no registered metadata handler, so the server-side task
-// fails on its second pass - but its first pass (content type detection)
-// already succeeded, so Metadata treats that failure as a warning and still
-// returns the partial result rather than a hard error.
-func TestMetadata_InvalidData(t *testing.T) {
-	_, ctx := test.Begin(t)
-	defer test.End(t)
-	c := test.Client(t)
-
-	req := strings.NewReader("not a real media file")
-	resp, err := c.Metadata(ctx, taskmetadata.MetadataRequest{Reader: req}, "audio/mpeg", nil)
-	if err != nil {
-		t.Fatalf("expected no error (a warning, not a failure), got %v", err)
-	}
-	if resp == nil {
-		t.Fatal("expected a non-nil response")
-	}
-	if resp.Type != "text/plain" {
-		t.Fatalf("Type = %q, want %q", resp.Type, "text/plain")
 	}
 }
 
