@@ -78,6 +78,14 @@ ifeq ($(OS),windows)
 FFMPEG_PLATFORM_CONFIG=--disable-indev=vfwcap
 endif
 
+# FFmpeg is a GPL version 3 build, which can be redistributed under the GPL:
+# GPL, for x264 and x265, and version 3, for OpenSSL 3 and the codecs which
+# are version 3. FFMPEG_NONFREE=1 adds the nonfree components, fdk-aac and
+# libtls, which makes a build which FFmpeg reports as "nonfree and
+# unredistributable", so is only for your own use.
+FFMPEG_NONFREE ?=
+FFMPEG_LICENSE_CONFIG := --enable-gpl --enable-version3 $(if $(FFMPEG_NONFREE),--enable-nonfree)
+
 
 # Set build flags
 VERSION_PKG = github.com/mutablelogic/go-server/pkg/version
@@ -118,7 +126,7 @@ ffmpeg-configure: mkdir pkconfig-dep ${BUILD_DIR}/${FFMPEG_VERSION} ffmpeg-dep
 		--disable-doc --disable-programs \
 		--prefix="$(shell realpath ${PREFIX})" \
 		--enable-static --pkg-config="${PKG_CONFIG}" --pkg-config-flags="--static" --extra-libs="-lpthread" ${FFMPEG_EXTRA_LDFLAGS} \
-		--enable-gpl --enable-nonfree ${FFMPEG_PLATFORM_CONFIG} ${FFMPEG_CONFIG}
+		${FFMPEG_LICENSE_CONFIG} ${FFMPEG_PLATFORM_CONFIG} ${FFMPEG_CONFIG}
 
 # Build ffmpeg
 .PHONY: ffmpeg-build
@@ -445,7 +453,7 @@ clean: go-tidy
 .PHONY: ffmpeg-dep
 ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libass && echo "--enable-libass"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fdk-aac && echo "--enable-libfdk-aac"))
+	$(if $(FFMPEG_NONFREE),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists fdk-aac && echo "--enable-libfdk-aac")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lame && echo "--enable-libmp3lame"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists freetype2 && echo "--enable-libfreetype"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vorbis && echo "--enable-libvorbis"))
@@ -511,7 +519,7 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libplacebo && echo "--enable-libplacebo"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openssl && echo "--enable-openssl"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists mbedtls && echo "--enable-mbedtls"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls"))
+	$(if $(FFMPEG_NONFREE),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librtmp && echo "--enable-librtmp"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libssh && echo "--enable-libssh"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists librist && echo "--enable-librist"))

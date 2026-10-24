@@ -17,12 +17,18 @@ configured:
   configure reports its license as "nonfree and unredistributable", and a
   binary which includes it can't be redistributed.
 
-The Makefile configures FFmpeg with --enable-gpl and --enable-nonfree, and
-links x264, x265 and fdk-aac when they're found, so a binary built with it is
-for your own use, and can't be redistributed. The license of a build is
-FFMPEG_LICENSE in build/ffmpeg-<version>/config.h. To distribute binaries,
-configure FFmpeg without --enable-nonfree, which is a GPL build, or without
---enable-gpl too, which is an LGPL build.
+The Makefile configures FFmpeg with --enable-gpl and --enable-version3, for
+x264, x265 and OpenSSL 3, which FFmpeg's configure reports as "GPL version 3 or
+later", so a binary built with it is licensed under the GNU General Public
+License (GPL) version 3, and distributing it means providing its complete
+source code under the GPL version 3. The GPL version 3 is available at:
+  <https://www.gnu.org/licenses/gpl-3.0.html>
+
+With FFMPEG_NONFREE=1, the Makefile also configures FFmpeg with
+--enable-nonfree, and links fdk-aac and libtls when they're found, which
+FFmpeg reports as "nonfree and unredistributable", so a binary built with it
+is for your own use, and can't be redistributed. The license of a build is
+FFMPEG_LICENSE in build/ffmpeg-<version>/config.h.
 
 FFmpeg Copyright Notice:
   FFmpeg is a trademark of Fabrice Bellard

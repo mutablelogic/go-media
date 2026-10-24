@@ -296,26 +296,31 @@ Under the Apache License 2.0, you are free to use, modify, and distribute this s
 
 | Library | License |
 | --- | --- |
-| [FFmpeg](https://ffmpeg.org/legal.html) | LGPL 2.1 or later by default, but the Makefile's build is "nonfree and unredistributable" (see below) |
+| [FFmpeg](https://ffmpeg.org/legal.html) | GPL 3.0 or later, as the Makefile builds it (see below); LGPL 2.1 or later by default |
 | [libexif](https://libexif.github.io/) | LGPL 2.1 or later |
 | [libheif](https://github.com/strukturag/libheif) | LGPL 3.0 |
 | [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0, with bundled code under BSD and MIT licenses |
 | [Chromaprint](https://acoustid.org/chromaprint) | LGPL 2.1, as it includes parts of FFmpeg; its own code is MIT |
 
-### FFmpeg as built by the Makefile can't be redistributed
+### FFmpeg as built by the Makefile
 
-The Makefile configures FFmpeg with `--enable-gpl` and `--enable-nonfree`, and links x264, x265
-and fdk-aac when they're found. FFmpeg's configure reports such a build's license as
-**"nonfree and unredistributable"** (it's `FFMPEG_LICENSE` in `build/ffmpeg-<version>/config.h`),
-so a binary built with it is for your own use only. To distribute binaries, configure FFmpeg
-without `--enable-nonfree`, which is a GPL build when it includes x264 or x265, and makes the
-binary GPL, or without `--enable-gpl` too, which is an LGPL build. Or link to a build of FFmpeg
-whose license allows it, such as one from your Linux distribution.
+The Makefile configures FFmpeg with `--enable-gpl` and `--enable-version3`, for x264, x265 and
+OpenSSL 3, which FFmpeg's configure reports as **"GPL version 3 or later"** (it's
+`FFMPEG_LICENSE` in `build/ffmpeg-<version>/config.h`). A binary which includes it is licensed
+under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), so distributing it means
+providing its complete source code under the GPL v3. go-media's own Apache 2.0 code is
+compatible with that.
+
+`make FFMPEG_NONFREE=1` also enables the nonfree components, fdk-aac and libtls, when they're
+found. FFmpeg reports such a build as **"nonfree and unredistributable"**, so a binary built
+with it is for your own use only. For an LGPL build of FFmpeg, configure it without
+`--enable-gpl`, or link to a build of FFmpeg whose license suits you, such as one from your
+Linux distribution.
 
 ### LGPL Notice
 
-This software statically links to [FFmpeg](http://ffmpeg.org/), libexif, libheif, LibRaw and Chromaprint,
-which are licensed under the LGPL (FFmpeg when it's an LGPL build, see above): [v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html), except
+This software also statically links to libexif, libheif, LibRaw and Chromaprint,
+which are licensed under the LGPL: [v2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html), except
 libheif, which is [v3](https://www.gnu.org/licenses/lgpl-3.0.html) (LibRaw is also available under the CDDL).
 
 **LGPL Compliance:** Under the LGPL, you may:
@@ -329,7 +334,7 @@ libheif, which is [v3](https://www.gnu.org/licenses/lgpl-3.0.html) (LibRaw is al
 1. Include the [NOTICE](NOTICE) file, the LGPL licenses, and a copy of the
    [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), which LGPL v3 (libheif) requires
    alongside it
-2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.0.3/` - check the Makefile's `*_VERSION` variables for the exact versions)
+2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.0.3/` - check the Makefile's `*_VERSION` variables for the exact versions), and, as FFmpeg is GPL, of the whole binary
 3. Allow users to relink the application with modified versions of the libraries
 
 The source code of the libraries is automatically downloaded during the build process. See `Makefile` for details.
