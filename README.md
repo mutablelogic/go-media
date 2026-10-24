@@ -3,14 +3,17 @@
 [![Test](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
-`gomedia` is a CLI, client and server tool for managing media files - audio, video and image - extracting metadata, artwork and thumbnails, identifying music, and remultiplexing and transcoding audio and video.
+Go bindings for FFmpeg, Chromaprint, libexif, libheif and LibRaw, with higher-level packages for
+reading, decoding, encoding, filtering and remultiplexing audio and video, and `gomedia`, a CLI,
+client and server for probing and encoding media files.
 
 ## Motivation
 
 The goal isn't to replace `ffmpeg`, but to provide a programmatic interface for processing
-and extracting information from audio, video and image files. `go-media` supports all the
-audio and video formats FFmpeg supports, plus HEIF/AVIF and RAW camera images, including
-extraction of embedded EXIF and XMP metadata.
+audio and video files from Go. `go-media` supports all the audio and video formats FFmpeg
+supports, and its bindings for libheif, LibRaw, libexif and Chromaprint are the basis for
+reading HEIF/AVIF and RAW camera images, EXIF metadata, and audio fingerprints in
+[go-metadata](https://github.com/mutablelogic/go-metadata).
 
 ## Current Status
 
