@@ -193,6 +193,15 @@ func (t *Thumbnailer) Poster(ctx context.Context) (*Thumbnail, error) {
 	return &thumbnails[0], nil
 }
 
+// Frame returns the frame at a time, or the first one after it, at the
+// thumbnail size, such as the best frame of a scene.
+func (t *Thumbnailer) Frame(ctx context.Context, at time.Duration) (image.Image, error) {
+	if t.reader == nil {
+		return nil, gomedia.ErrInternalError.With("thumbnailer is closed")
+	}
+	return t.frameAt(ctx, at)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

@@ -6,8 +6,9 @@
 Go bindings for FFmpeg, Chromaprint, libexif, libheif, LibRaw and libfvad, with higher-level
 packages for reading, decoding, encoding, filtering and remultiplexing audio and video, and
 for segmenting and classifying audio. It includes `gomedia`, a CLI, client and server for
-probing and encoding media files, and `segmenter`, a CLI for cutting audio and streams into
-segments, and classifying them as speech, music, silence or other sound.
+probing and encoding media files, `segmenter`, a CLI for cutting audio and streams into
+segments, and classifying them as speech, music, silence or other sound, and `thumbnailer`,
+a CLI for the scenes and thumbnails of a video.
 
 ## Motivation
 
@@ -186,6 +187,27 @@ segmenter classify --limit 50 build/musan/speech build/musan/music build/musan/n
 The [segmenter package](segmenter/README.md) describes the options, how segments are cut
 and classified, and how accurately, and how to use it from Go.
 
+### Thumbnailer
+
+`thumbnailer` finds the scenes of a video, and representative thumbnails of it, from frames
+sampled at the video's keyframes, or by seeking. Each frame is scored on its brightness,
+contrast, sharpness and colourfulness, and thumbnails are the best frames of scenes which
+don't look alike. It writes them as JPEG files:
+
+```bash
+# Six thumbnails from different scenes, 640 pixels wide
+thumbnailer thumbs --count 6 video.mp4 thumbs
+
+# The one thumbnail which best represents the video
+thumbnailer poster --width 320 video.mp4 poster.jpg
+
+# The scenes, and the best frame of each
+thumbnailer scenes video.mp4 scenes
+```
+
+From Go, `thumbnailer.Open(path)` returns a `Thumbnailer`, whose `Analyse`, `Thumbnails`,
+`Poster` and `Frame` methods return the scenes and frames.
+
 ### Go API - Probing and Media Management
 
 ```go
@@ -248,6 +270,7 @@ sys/chromaprint/, sys/dvb/, sys/libfvad/     # Other low-level bindings
 
 reader/, writer/, frame/   # Reading and decoding, encoding and writing, and frames
 segmenter/           # Segmenting and classifying audio, using reader/ (see its README)
+thumbnailer/         # Finding the scenes and thumbnails of a video, using reader/
 
 gomedia/
   manager/           # Orchestrates reader, writer, profiles and tasks
@@ -255,6 +278,7 @@ gomedia/
 
 cmd/gomedia/          # main() entrypoint, wraps gomedia/cmd via go-server's cmd.Main
 cmd/segmenter/        # Segments and classifies audio and streams locally (segment, stream, classify)
+cmd/thumbnailer/      # Writes the thumbnails and scenes of a video as JPEG files (thumbs, poster, scenes)
 ```
 
 ## Docker
