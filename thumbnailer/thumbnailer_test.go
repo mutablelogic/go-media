@@ -266,6 +266,49 @@ func TestThumbnailer_Sample(t *testing.T) {
 	assert.Equal(t, image.Rect(0, 0, 640, 360), poster.Image.Bounds())
 }
 
+func TestThumbnailer_FrameBeforeAnalyse(t *testing.T) {
+	// Analysis is of the whole video, even after Frame has moved the reader
+	th, err := thumbnailer.Open(testVideo(t), thumbnailer.WithMode(thumbnailer.ModeKeyframes))
+	require.NoError(t, err)
+	defer th.Close()
+
+	_, err = th.Frame(context.Background(), 8*time.Second)
+	require.NoError(t, err)
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(a.Scenes))
+	assert.Less(t, a.Samples[0].Time, time.Second)
+}
+
+func TestThumbnailer_Short(t *testing.T) {
+	// A video shorter than the time between seeks has a sample
+	th, err := thumbnailer.Open(writeVideo(t, "mp4", scene{200 * time.Millisecond, textured(color.NRGBA{255, 80, 40, 255})}), thumbnailer.WithMode(thumbnailer.ModeSeek))
+	require.NoError(t, err)
+	defer th.Close()
+
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(a.Samples))
+	_, err = th.Poster(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestThumbnailer_Closed(t *testing.T) {
+	// After closing, thumbnails are an error, even once analysed
+	th, err := thumbnailer.Open(testVideo(t))
+	require.NoError(t, err)
+	_, err = th.Analyse(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, th.Close())
+
+	_, err = th.Thumbnails(context.Background(), 3)
+	assert.Error(t, err)
+	_, err = th.Poster(context.Background())
+	assert.Error(t, err)
+	_, err = th.Frame(context.Background(), time.Second)
+	assert.Error(t, err)
+}
+
 func TestThumbnailer_Invalid(t *testing.T) {
 	_, err := thumbnailer.Open(testDataPath(t, "sample.mp3"))
 	assert.Error(t, err)

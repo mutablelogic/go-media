@@ -139,6 +139,11 @@ func (t *Thumbnailer) Analyse(ctx context.Context) (*Analysis, error) {
 	}
 	result := &Analysis{Mode: t.mode, Duration: t.reader.Duration()}
 
+	// Start from the beginning, as Frame can have moved the reader
+	if err := t.seek(0); err != nil {
+		return nil, err
+	}
+
 	// Choose how to sample frames, from how often the video has keyframes
 	if result.Mode == ModeAuto {
 		mode, err := t.chooseMode(ctx, result.Duration)
@@ -202,9 +207,6 @@ func (t *Thumbnailer) Poster(ctx context.Context) (*Thumbnail, error) {
 // Frame returns the frame at a time, or the first one after it, at the
 // thumbnail size, such as the best frame of a scene.
 func (t *Thumbnailer) Frame(ctx context.Context, at time.Duration) (image.Image, error) {
-	if t.reader == nil {
-		return nil, gomedia.ErrInternalError.With("thumbnailer is closed")
-	}
 	return t.frameAt(ctx, at)
 }
 
@@ -314,9 +316,14 @@ func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([
 	// Seek to the middle of each interval, and measure the first frame at
 	// or after it. A frame already sampled, as seeking goes back to the
 	// keyframe before, is skipped, and a frame without a time is taken to be
-	// at the time sought
+	// at the time sought. A video shorter than the first interval's middle
+	// is sampled from its start
 	interval := max(minSeekInterval, duration/time.Duration(t.maxSamples))
-	for at := interval / 2; at < duration; at += interval {
+	first := interval / 2
+	if first >= duration {
+		first = 0
+	}
+	for at := first; at < duration; at += interval {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -343,6 +350,9 @@ func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([
 // it and decoding from the keyframe before it. A frame without a time is
 // taken to be at the time sought
 func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Image, error) {
+	if t.reader == nil {
+		return nil, gomedia.ErrInternalError.With("thumbnailer is closed")
+	}
 	if err := t.seek(at); err != nil {
 		return nil, err
 	}

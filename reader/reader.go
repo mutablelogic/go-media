@@ -403,9 +403,12 @@ func (r *Reader) Decode(ctx context.Context, packetfn PacketFn, decoder *Decoder
 		}
 	}
 
-	// End of stream: drain any frames buffered by the decoder
+	// End of stream: drain any frames buffered by the decoder, which can
+	// also be stopped early
 	if decoder != nil {
-		return decoder.flush()
+		if err := decoder.flush(); err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
 	}
 	return nil
 }

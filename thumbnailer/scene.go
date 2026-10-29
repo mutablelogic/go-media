@@ -60,7 +60,8 @@ const (
 // the scenes, which end at the duration of the video, or after the last
 // sample if it's unknown. A scene changes where a sample is much more
 // different from the one before than is usual for the video, unless the
-// sample after it is like the one before, which is a flash. Blank samples,
+// sample after it is like the one before, which is a flash, and the change
+// back from a flash isn't a cut either. Blank samples,
 // such as a fade through black, end a scene, and the next sample which
 // isn't blank starts the next one
 func detect(samples []Sample, duration time.Duration) []Scene {
@@ -90,16 +91,21 @@ func detect(samples []Sample, duration time.Duration) []Scene {
 	// end a scene once a sample which isn't blank has been seen, rather than
 	// at the start of the video
 	seen := !samples[0].Stats.Blank
-	faded := false
+	faded, flash := false, false
 	for i := 1; i < len(samples); i++ {
 		switch {
 		case samples[i].Stats.Blank:
 			faded = faded || seen
+			flash = false
 		case faded:
 			start(i, TransitionFade)
-			faded = false
-		case samples[i].Change >= threshold && !isFlash(samples, i):
-			start(i, TransitionCut)
+			faded, flash = false, false
+		case flash:
+			flash = false
+		case samples[i].Change >= threshold:
+			if flash = isFlash(samples, i); !flash {
+				start(i, TransitionCut)
+			}
 		}
 		seen = seen || !samples[i].Stats.Blank
 	}
