@@ -1,0 +1,7 @@
+# Built locally, and built again in the image, including build/musan
+build
+tmp
+
+# Not built, and not needed in the image
+_old
+.git

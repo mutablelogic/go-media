@@ -1,4 +1,4 @@
-package image
+package frame
 
 import (
 	"image"
@@ -43,7 +43,7 @@ func NewRGB24(r image.Rectangle) *RGB24 {
 
 // ColorModel returns the RGB color model.
 func (p *RGB24) ColorModel() color.Model {
-	return ColorModel
+	return RGB24Model
 }
 
 // Bounds returns the domain for which At can return non-zero color.
@@ -72,6 +72,12 @@ func (p *RGB24) Set(x, y int, c color.Color) {
 	p.Pix[i+2] = uint8(b >> 8)
 }
 
+// PixOffset returns the index of the first element of Pix that corresponds to
+// the pixel at (x, y).
+func (p *RGB24) PixOffset(x, y int) int {
+	return (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)*3
+}
+
 // RGBAt returns the RGB color of the pixel at (x, y).
 // If the point is outside the image bounds, RGBAt returns zero RGB.
 func (p *RGB24) RGBAt(x, y int) RGB {
@@ -82,9 +88,9 @@ func (p *RGB24) RGBAt(x, y int) RGB {
 	return RGB{p.Pix[i+0], p.Pix[i+1], p.Pix[i+2]}
 }
 
-// ColorModel is the color model for RGB24 images, converting any color
+// RGB24Model is the color model for RGB24 images, converting any color
 // to 24-bit RGB format.
-var ColorModel = color.ModelFunc(rgbModel)
+var RGB24Model = color.ModelFunc(rgbModel)
 
 func rgbModel(c color.Color) color.Color {
 	if _, ok := c.(RGB); ok {

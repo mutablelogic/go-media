@@ -1,43 +1,103 @@
-ARG OS
-ARG ARCH
+# go-media's Linux images, built with --target:
+#
+#   dev      The libraries go-media links with (FFmpeg, Chromaprint, libexif,
+#            LibRaw, libheif and libfvad), built as static libraries in
+#            /opt/go-media with their headers and pkg-config files, and the
+#            tools and headers to build with them. It has no Go, so a project
+#            uses its own version of Go to build on it.
+#   runtime  Debian, with only the packages which a program linked with the
+#            libraries needs to run.
+#   gomedia  The gomedia and segmenter commands, built on dev and run on
+#            runtime.
+#
+# LICENSE is the license FFmpeg is built under, gpl or lgpl, as the
+# Makefile's FFMPEG_LICENSE, and SPDX is the license of the images, which is
+# Apache-2.0 AND GPL-3.0-or-later for gpl, or Apache-2.0 AND LGPL-3.0-or-later
+# for lgpl (see NOTICE).
+ARG OS=linux
+ARG ARCH=amd64
+ARG LICENSE=gpl
+ARG SPDX="Apache-2.0 AND GPL-3.0-or-later"
+ARG GO_VERSION=1.27
 
-# Run makefile to build all the commands
-FROM --platform=${OS}/${ARCH} golang:1.27 AS builder
-ARG OS
-ARG ARCH
+###############################################################################
+# DEV
+
+FROM --platform=${OS}/${ARCH} debian:trixie AS dev
+ARG LICENSE
+ARG SPDX
+ARG SOURCE
+
+# Install the tools to build the libraries, and the headers of what they link
+# with, which go-media-packages lists
+COPY etc/docker/packages.sh /usr/local/bin/go-media-packages
+RUN set -x && apt-get update -y \
+    && apt-get install -y --no-install-recommends $(go-media-packages dev ${LICENSE}) \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build the libraries with the Makefile, which has their versions and how
+# they're built, so they're only built again when it changes, rather than for
+# each commit. Only the installed libraries are kept, with their stamps.
+# There's no Go, whose cache the Makefile clears after building libraw, so
+# it's "true"
+WORKDIR /usr/src/go-media
+COPY Makefile ./
+RUN set -x \
+    && make GO=true PREFIX=/opt/go-media FFMPEG_LICENSE=${LICENSE} ffmpeg chromaprint libexif libraw libheif libfvad \
+    && cd / && rm -rf /usr/src/go-media
+COPY LICENSE NOTICE etc/licenses/GPL-3.0.txt /opt/go-media/share/doc/go-media/
+
+# Build with the libraries
+ENV PKG_CONFIG_PATH=/opt/go-media/lib/pkgconfig
+ENV CGO_LDFLAGS_ALLOW="-(W|D).*"
+ENV CGO_LDFLAGS="-lstdc++"
+RUN pkg-config --exists libavcodec libavformat libswresample libswscale libchromaprint libexif libraw libheif libfvad
+
+WORKDIR /
+LABEL org.opencontainers.image.source=${SOURCE}
+LABEL org.opencontainers.image.licenses=${SPDX}
+LABEL org.opencontainers.image.description="go-media's libraries, built with FFmpeg's ${LICENSE} license, to build with"
+
+###############################################################################
+# RUNTIME
+
+FROM --platform=${OS}/${ARCH} debian:trixie-slim AS runtime
+ARG LICENSE
+ARG SPDX
+ARG SOURCE
+
+# Install the shared libraries which the static libraries link with
+COPY etc/docker/packages.sh /usr/local/bin/go-media-packages
+RUN set -x && apt-get update -y \
+    && apt-get install -y --no-install-recommends $(go-media-packages runtime ${LICENSE}) \
+    && rm -rf /var/lib/apt/lists/*
+
+# The licenses: go-media is Apache 2.0, and the libraries are linked with
+# FFmpeg under the GPL or LGPL version 3 (see NOTICE)
+COPY LICENSE NOTICE etc/licenses/GPL-3.0.txt /usr/share/doc/go-media/
+
+LABEL org.opencontainers.image.source=${SOURCE}
+LABEL org.opencontainers.image.licenses=${SPDX}
+LABEL org.opencontainers.image.description="To run programs built with go-media's libraries, with FFmpeg's ${LICENSE} license"
+
+###############################################################################
+# GOMEDIA
+
+# Build the commands on dev, with Go
+FROM --platform=${OS}/${ARCH} golang:${GO_VERSION}-trixie AS go
+FROM dev AS builder
+COPY --from=go /usr/local/go /usr/local/go
+ENV PATH=/usr/local/go/bin:${PATH}
 WORKDIR /usr/src/app
 COPY . .
+RUN set -x && make PREFIX=/opt/go-media cmd
 
-# Install dependencies
-RUN set -x && apt update -y \
-  && apt install -y ca-certificates lsb-release build-essential cmake nasm curl pkg-config \
-  && apt install -y libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev libnuma-dev libzvbi-dev \
-  && apt install -y libvulkan-dev \
-  && apt install -y libde265-dev libaom-dev libdav1d-dev
+# Copy the commands to /usr/local/bin, on runtime
+FROM runtime AS gomedia
+COPY --from=builder /usr/src/app/build/gomedia /usr/src/app/build/segmenter /usr/local/bin/
 
-# Build all the commands
-RUN set -x && OS=${OS} ARCH=${ARCH} make all
-
-# Copy commands to /usr/local/bin
-FROM --platform=${OS}/${ARCH} debian:trixie-slim
-ARG OS
-ARG ARCH
-ARG SOURCE
-RUN set -x && apt update -y \
-  && apt install -y ca-certificates lsb-release \
-  && apt install -y libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 libx264-164 libx265-215 libnuma1 libzvbi0 \
-  && apt install -y libvulkan1 vulkan-tools \
-  && apt install -y libde265-0 libaom3 libdav1d7 libgomp1
-
-COPY --from=builder /usr/src/app/build/* /usr/local/bin/
-
-# The licenses: go-media is Apache 2.0, and the FFmpeg it's built with is GPL
-# version 3 or later, so the image is too (see NOTICE)
-COPY --from=builder /usr/src/app/LICENSE /usr/src/app/NOTICE /usr/src/app/etc/licenses/GPL-3.0.txt /usr/share/doc/gomedia/
-
-# Label the image
-LABEL org.opencontainers.image.source=${SOURCE}
-LABEL org.opencontainers.image.licenses="Apache-2.0 AND GPL-3.0-or-later"
+# Check the libraries the commands are linked with are installed
+RUN /usr/local/bin/gomedia --version && /usr/local/bin/segmenter --version
 
 # Always run gomedia with any provided arguments
 WORKDIR /data

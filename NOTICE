@@ -24,6 +24,14 @@ License (GPL) version 3, and distributing it means providing its complete
 source code under the GPL version 3. The GPL version 3 is available at:
   <https://www.gnu.org/licenses/gpl-3.0.html>
 
+With FFMPEG_LICENSE=lgpl, the Makefile configures FFmpeg with --enable-version3
+but not --enable-gpl, and without the libraries FFmpeg only allows in a GPL
+build, such as x264 and x265, which FFmpeg's configure reports as "LGPL
+version 3 or later", so a binary built with it is licensed under the GNU
+Lesser General Public License (LGPL) version 3, as the go-media library
+images with the lgpl license are. The LGPL version 3 is available at:
+  <https://www.gnu.org/licenses/lgpl-3.0.html>
+
 With FFMPEG_NONFREE=1, the Makefile also configures FFmpeg with
 --enable-nonfree, and links fdk-aac and libtls when they're found, which
 FFmpeg reports as "nonfree and unredistributable", so a binary built with it
@@ -36,8 +44,8 @@ FFmpeg Copyright Notice:
 
 The complete FFmpeg source code used in this build is available at:
 
-- <https://ffmpeg.org/releases/ffmpeg-8.0.3.tar.xz>
-- Or in the build/ffmpeg-8.0.3/ directory after running `make`
+- <https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz>
+- Or in the build/ffmpeg-8.1.3/ directory after running `make`
 
 The LGPL license for FFmpeg is available at:
   <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
@@ -221,3 +229,48 @@ The complete Chromaprint source code is available at:
 
 The LGPL license for Chromaprint is available at:
   <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
+
+--------------------------------------------------------------------------------
+
+This software also links to libfvad (<https://github.com/dpirch/libfvad>), the
+WebRTC voice activity detector as a standalone library, which is licensed under
+the BSD 3-clause license, with an additional grant of patent rights from Google
+in its PATENTS file.
+
+libfvad Copyright Notice:
+  Copyright (c) 2011, The WebRTC project authors. All rights reserved.
+  Copyright (c) 2016 Daniel Pirch
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the
+      distribution.
+
+    * Neither the name of Google nor the names of its contributors may
+      be used to endorse or promote products derived from this software
+      without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The complete libfvad source code is available at:
+
+- <https://github.com/dpirch/libfvad/tree/532ab666c20d3cfda38bca63abbb0f152706c369>
+- Or in the build/libfvad-532ab666c20d3cfda38bca63abbb0f152706c369/ directory
+  after running `make`

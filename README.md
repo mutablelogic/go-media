@@ -3,9 +3,11 @@
 [![Test](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml/badge.svg)](https://github.com/mutablelogic/go-media/actions/workflows/test.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mutablelogic/go-media.svg)](https://pkg.go.dev/github.com/mutablelogic/go-media)
 
-Go bindings for FFmpeg, Chromaprint, libexif, libheif and LibRaw, with higher-level packages for
-reading, decoding, encoding, filtering and remultiplexing audio and video, and `gomedia`, a CLI,
-client and server for probing and encoding media files.
+Go bindings for FFmpeg, Chromaprint, libexif, libheif, LibRaw and libfvad, with higher-level
+packages for reading, decoding, encoding, filtering and remultiplexing audio and video, and
+for segmenting and classifying audio. It includes `gomedia`, a CLI, client and server for
+probing and encoding media files, and `segmenter`, a CLI for cutting audio and streams into
+segments, and classifying them as speech, music, silence or other sound.
 
 ## Motivation
 
@@ -13,7 +15,9 @@ The goal isn't to replace `ffmpeg`, but to provide a programmatic interface for 
 audio and video files from Go. `go-media` supports all the audio and video formats FFmpeg
 supports, and its bindings for libheif, LibRaw, libexif and Chromaprint are the basis for
 reading HEIF/AVIF and RAW camera images, EXIF metadata, and audio fingerprints in
-[go-metadata](https://github.com/mutablelogic/go-metadata).
+[go-metadata](https://github.com/mutablelogic/go-metadata). The segmenter prepares audio
+for speech recognition and analysis, such as splitting a podcast into parts at its pauses
+or near the times its topics change.
 
 ## Current Status
 
@@ -22,8 +26,9 @@ This module is **in development** - the API may still change. Implemented so far
 - FFmpeg-backed audio/video: codecs, formats, filters, pixel/sample formats, audio channel
   layouts, demuxing/muxing/remuxing, decoding/encoding, filtering and resampling, hardware
   acceleration (transcoding via the CLI is still TBC)
-- Low-level bindings for Chromaprint, libexif, libheif and LibRaw (`sys/`)
-- Segmenting decoded audio into fixed-size or silence-separated segments (`pkg/segmenter`)
+- Low-level bindings for Chromaprint, libexif, libheif, LibRaw and libfvad (`sys/`)
+- Segmenting audio at silence or near given times, and classifying segments as speech,
+  music, silence or other sound (`segmenter`, see [segmenter/README.md](segmenter/README.md))
 
 Metadata extraction, including EXIF, XMP, HEIF and RAW images, TMDB and AcoustID lookups,
 has moved to [go-metadata](https://github.com/mutablelogic/go-metadata), which uses these
@@ -32,7 +37,7 @@ bindings.
 ## Requirements
 
 Building from source compiles several C/C++ dependencies (FFmpeg, Chromaprint, libexif,
-LibRaw, libheif) as static libraries before the Go module itself. You'll need a C/C++
+LibRaw, libheif, libfvad) as static libraries before the Go module itself. You'll need a C/C++
 toolchain, `pkg-config`, `cmake` and `nasm`, plus the codec libraries you want support for -
 FFmpeg's own configure step and libheif's CMake step both auto-detect optional codecs via
 `pkg-config`, so anything not installed is simply compiled out rather than causing a build
@@ -87,14 +92,15 @@ dnf install vulkan-loader-devel
 ```bash
 git clone https://github.com/mutablelogic/go-media
 cd go-media
-make              # Builds ffmpeg, chromaprint, libexif, libraw, libheif, then all cmd/* binaries
+make              # Builds ffmpeg, chromaprint, libexif, libraw, libheif, libfvad, then all cmd/* binaries
 ```
 
 Static libraries and pkg-config files land in `build/install`. Once the C dependencies are
 built, you can rebuild just the Go side:
 
 ```bash
-make cmd/gomedia   # Rebuild the gomedia binary only, reusing the already-built C libraries
+make cmd/gomedia     # Rebuild the gomedia binary only, reusing the already-built C libraries
+make cmd/segmenter   # Rebuild the segmenter binary only
 ```
 
 ### Building Manually
@@ -114,11 +120,13 @@ go build -o build/gomedia ./cmd/gomedia
 ```bash
 make test           # Build all C deps and run the full Go test suite
 make test-sys        # sys/<ffmpeg version> bindings only
-make test-ffmpeg      # pkg/ffmpeg/...
-make test-chromaprint # pkg/segmenter, sys/chromaprint
+make test-ffmpeg      # sys/<ffmpeg version>, reader, writer, frame
+make test-chromaprint # sys/chromaprint
 make test-exif        # sys/libexif
 make test-raw         # sys/libraw
 make test-heif        # sys/libheif
+make test-libfvad     # sys/libfvad, segmenter
+make test-musan       # Classify the MUSAN corpus with the segmenter (downloads 11GB)
 make test-gomedia     # task/..., profile/..., gomedia/...
 ```
 
@@ -153,6 +161,30 @@ gomedia task-events
 
 Run `gomedia --help` (or `gomedia <command> --help`) for the full, current set of flags -
 this list reflects the commands defined in `gomedia/cmd` and may grow.
+
+### Segmenter
+
+`segmenter` cuts audio into segments at silence, at a fixed duration, or near times you give
+it, and classifies each segment as speech, music, silence or other sound. It runs locally,
+without a server:
+
+```bash
+# Print the segments of a file, and write each one to a folder as an mp3 file
+segmenter segment --format mp3 podcast.mp3 parts
+
+# Cut near the times topics change, preferring a pause within a second of each
+segmenter segment --segments 3m10s,7m45s,12m20s podcast.mp3 parts
+
+# List the microphones, then show the level and segments of one as you speak
+segmenter stream
+segmenter stream device://avfoundation/:0
+
+# Classify folders of labelled audio, and summarise how each label was classified
+segmenter classify --limit 50 build/musan/speech build/musan/music build/musan/noise
+```
+
+The [segmenter package](segmenter/README.md) describes the options, how segments are cut
+and classified, and how accurately, and how to use it from Go.
 
 ### Go API - Probing and Media Management
 
@@ -212,27 +244,68 @@ graph := ff.AVFilterGraph_alloc()
 ```text
 sys/ffmpeg80/                                # Low-level CGO FFmpeg bindings
 sys/libheif/, sys/libraw/, sys/libexif/      # Low-level CGO bindings for image metadata/codecs
-sys/chromaprint/, sys/dvb/                   # Other low-level bindings
+sys/chromaprint/, sys/dvb/, sys/libfvad/     # Other low-level bindings
 
-pkg/ffmpeg/          # High-level FFmpeg API (Reader, Decoder, Encoder, Resampler, Frame)
-pkg/segmenter/       # Segmenting decoded audio
-pkg/sdl/             # SDL2 video/audio player (library only; not wired into the gomedia CLI)
+reader/, writer/, frame/   # Reading and decoding, encoding and writing, and frames
+segmenter/           # Segmenting and classifying audio, using reader/ (see its README)
 
 gomedia/
-  schema/            # Request/response types for the CLI/API surface
-  manager/           # Orchestrates pkg/ffmpeg, profiles and tasks
+  manager/           # Orchestrates reader, writer, profiles and tasks
   cmd/                # kong-based CLI command definitions
 
 cmd/gomedia/          # main() entrypoint, wraps gomedia/cmd via go-server's cmd.Main
+cmd/segmenter/        # Segments and classifies audio and streams locally (segment, stream, classify)
 ```
 
 ## Docker
 
-Build a Docker image with all dependencies:
+Build a Docker image of `gomedia` and `segmenter` with all dependencies:
 
 ```bash
-make docker                              # tags ghcr.io/mutablelogic/gomedia:<version>-<os>-<arch>
+make docker                              # tags ghcr.io/mutablelogic/gomedia:<version>-linux-<arch>
 DOCKER_REPO=docker.io/user/gomedia make docker
+```
+
+### Library Images
+
+Each release also publishes images of the libraries go-media links with, for amd64 and arm64,
+so a project which uses go-media can build on them rather than building FFmpeg and the other
+libraries itself. There are two images for each FFmpeg license: `gpl` (with x264, x265 and the
+other encoders, as the Makefile builds by default) and `lgpl` (decoders, without the libraries
+FFmpeg only allows in a GPL build):
+
+| Image | Contents |
+| --- | --- |
+| `ghcr.io/mutablelogic/go-media:<version>-<license>-dev` | Debian with the libraries in `/opt/go-media`, their headers and pkg-config files, and the tools to build with them, but no Go |
+| `ghcr.io/mutablelogic/go-media:<version>-<license>-runtime` | Debian slim, with only the packages a program linked with the libraries needs to run |
+
+The runtime images are built again each week, for Debian's security updates. A project builds
+with its own version of Go on the dev image, and runs on the runtime image:
+
+```dockerfile
+ARG GO_MEDIA_VERSION=v1.12.0
+
+FROM golang:1.27-trixie AS go
+FROM ghcr.io/mutablelogic/go-media:${GO_MEDIA_VERSION}-lgpl-dev AS builder
+COPY --from=go /usr/local/go /usr/local/go
+ENV PATH=/usr/local/go/bin:${PATH}
+WORKDIR /usr/src/app
+COPY . .
+RUN go build -o /usr/local/bin/app ./cmd/app
+
+FROM ghcr.io/mutablelogic/go-media:${GO_MEDIA_VERSION}-lgpl-runtime
+COPY --from=builder /usr/local/bin/app /usr/local/bin/app
+ENTRYPOINT [ "/usr/local/bin/app" ]
+```
+
+The dev image sets `PKG_CONFIG_PATH` to `/opt/go-media/lib/pkgconfig`, and the cgo flags
+the libraries need. The Debian packages each image installs are listed by
+[etc/docker/packages.sh](etc/docker/packages.sh). To build the images locally, for this
+machine's architecture:
+
+```bash
+make docker-dev FFMPEG_LICENSE=lgpl       # tags ghcr.io/mutablelogic/go-media:<version>-lgpl-dev
+make docker-runtime FFMPEG_LICENSE=lgpl   # tags ghcr.io/mutablelogic/go-media:<version>-lgpl-runtime
 ```
 
 For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md)
@@ -257,6 +330,7 @@ Under the Apache License 2.0, you are free to use, modify, and distribute this s
 | [libheif](https://github.com/strukturag/libheif) | LGPL 3.0 |
 | [LibRaw](https://www.libraw.org/) | LGPL 2.1 or CDDL 1.0, with bundled code under BSD and MIT licenses |
 | [Chromaprint](https://acoustid.org/chromaprint) | LGPL 2.1, as it includes parts of FFmpeg; its own code is MIT |
+| [libfvad](https://github.com/dpirch/libfvad) | BSD 3-clause, with an additional grant of patent rights from Google |
 
 ### FFmpeg as built by the Makefile
 
@@ -267,11 +341,14 @@ under the [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), so distributi
 providing its complete source code under the GPL v3. go-media's own Apache 2.0 code is
 compatible with that.
 
+`make FFMPEG_LICENSE=lgpl` builds FFmpeg without `--enable-gpl`, and without the libraries
+FFmpeg only allows in a GPL build, such as x264 and x265, which FFmpeg reports as
+**"LGPL version 3 or later"**. A binary which includes it is licensed under the
+[GNU LGPL v3](https://www.gnu.org/licenses/lgpl-3.0.html), as the `lgpl` library images are.
+
 `make FFMPEG_NONFREE=1` also enables the nonfree components, fdk-aac and libtls, when they're
 found. FFmpeg reports such a build as **"nonfree and unredistributable"**, so a binary built
-with it is for your own use only. For an LGPL build of FFmpeg, configure it without
-`--enable-gpl`, or link to a build of FFmpeg whose license suits you, such as one from your
-Linux distribution.
+with it is for your own use only.
 
 ### LGPL Notice
 
@@ -290,7 +367,7 @@ libheif, which is [v3](https://www.gnu.org/licenses/lgpl-3.0.html) (LibRaw is al
 1. Include the [NOTICE](NOTICE) file, the LGPL licenses, and a copy of the
    [GNU GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), which LGPL v3 (libheif) requires
    alongside it
-2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.0.3/` - check the Makefile's `*_VERSION` variables for the exact versions), and, as FFmpeg is GPL, of the whole binary
+2. Provide access to the source code of the libraries used (available in `build/` after building, such as `build/ffmpeg-8.1.3/` - check the Makefile's `*_VERSION` variables for the exact versions), and, as FFmpeg is GPL, of the whole binary
 3. Allow users to relink the application with modified versions of the libraries
 
 The source code of the libraries is automatically downloaded during the build process. See `Makefile` for details.
@@ -305,5 +382,7 @@ Please file feature requests and bugs at [github.com/mutablelogic/go-media/issue
 - [libheif](https://github.com/strukturag/libheif)
 - [LibRaw](https://www.libraw.org/)
 - [libexif](https://libexif.github.io/)
+- [libfvad](https://github.com/dpirch/libfvad), the WebRTC voice activity detector
+- [MUSAN](https://www.openslr.org/17/), the corpus of speech, music and noise the segmenter is tuned with
 - [Go Package Documentation](https://pkg.go.dev/github.com/mutablelogic/go-media)
 - [AcoustID API](https://acoustid.org/webservice)
