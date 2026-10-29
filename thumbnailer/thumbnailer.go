@@ -25,7 +25,8 @@ type Thumbnailer struct {
 	reader        *reader.Reader
 	stream        int
 	timebase      ff.AVRational
-	width, height int // size of the video
+	width, height int  // size of the video as it's displayed, with square pixels
+	displayed     bool // whether width and height are from a frame, rather than as stored
 	analysis      *Analysis
 }
 
@@ -202,6 +203,14 @@ func (t *Thumbnailer) Frame(ctx context.Context, at time.Duration) (image.Image,
 	return t.frameAt(ctx, at)
 }
 
+// Size returns the size of the video as it's displayed, with square pixels,
+// which is the size it's stored at with its frames' sample aspect ratio
+// applied, once a frame has been decoded, such as by Analyse, or the size
+// it's stored at before then.
+func (t *Thumbnailer) Size() (int, int) {
+	return t.width, t.height
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -322,7 +331,7 @@ func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Imag
 		return nil, err
 	}
 	var result image.Image
-	if err := t.decode(ctx, t.width0(), t.height0(), "", func(ts time.Duration, img *image.YCbCr) error {
+	if err := t.decode(ctx, t.opts.width, t.opts.height, "", func(ts time.Duration, img *image.YCbCr) error {
 		if ts < at {
 			return nil
 		}
@@ -339,24 +348,40 @@ func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Imag
 
 // decode decodes the video stream from where the reader is, with codec
 // options, and calls fn with each frame's time and the frame as a 4:2:0
-// image of a size (keeping the aspect ratio when either is zero), until fn
-// returns io.EOF or the video ends. The image is only valid during the call
+// image of a size with square pixels (keeping the displayed aspect ratio
+// when either is zero, and the displayed size when both are), until fn
+// returns io.EOF or the video ends. The image is only valid during the
+// call. The displayed size is from the first frame's sample aspect ratio,
+// so the frames are scaled from then
 func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts string, fn func(time.Duration, *image.YCbCr) error) error {
-	width, height = t.size(width, height)
 	par := ff.AVCodec_parameters_alloc()
 	if par == nil {
 		return gomedia.ErrInternalError.With("failed to allocate codec parameters")
 	}
 	defer ff.AVCodec_parameters_free(par)
-	par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
-	par.SetPixelFormat(ff.AV_PIX_FMT_YUV420P)
-	par.SetWidth(width)
-	par.SetHeight(height)
-	resampler, err := writer.NewResampler(par, 0, ff.AVUtil_rational(1, 25))
-	if err != nil {
-		return err
+	var resampler *writer.Resampler
+	defer func() {
+		if resampler != nil {
+			resampler.Close()
+		}
+	}()
+	scaler := func(src *frame.VideoFrame) (*writer.Resampler, error) {
+		if resampler != nil {
+			return resampler, nil
+		}
+		if !t.displayed {
+			t.width, t.height = src.DisplaySize()
+			t.displayed = true
+		}
+		w, h := t.size(width, height)
+		par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
+		par.SetPixelFormat(ff.AV_PIX_FMT_YUV420P)
+		par.SetWidth(w)
+		par.SetHeight(h)
+		r, err := writer.NewResampler(par, 0, ff.AVUtil_rational(1, 25))
+		resampler = r
+		return r, err
 	}
-	defer resampler.Close()
 
 	var opts []string
 	if codecOpts != "" {
@@ -371,7 +396,11 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 		if ts < 0 {
 			ts = t.time(src.Pts())
 		}
-		return resampler.Process(src, func(f frame.Frame) error {
+		r, err := scaler(src)
+		if err != nil {
+			return err
+		}
+		return r.Process(src, func(f frame.Frame) error {
 			img, err := f.(*frame.VideoFrame).Image()
 			if err != nil {
 				return err
@@ -397,24 +426,9 @@ func (t *Thumbnailer) time(ts int64) time.Duration {
 	return time.Duration(ff.AVUtil_rational_rescale_q(ts, t.timebase, ff.AVUtil_rational(1, int(time.Second))))
 }
 
-// width0 and height0 return the thumbnail size, with zero for both being
-// the video's own size
-func (t *Thumbnailer) width0() int {
-	if t.opts.width == 0 && t.opts.height == 0 {
-		return t.width
-	}
-	return t.opts.width
-}
-
-func (t *Thumbnailer) height0() int {
-	if t.opts.width == 0 && t.opts.height == 0 {
-		return t.height
-	}
-	return t.opts.height
-}
-
-// size returns a size, keeping the video's aspect ratio when either is zero,
-// rounded to even numbers for 4:2:0, and no larger than the video
+// size returns a size, keeping the video's displayed aspect ratio when
+// either is zero, rounded to even numbers for 4:2:0, and no larger than the
+// video as it's displayed
 func (t *Thumbnailer) size(width, height int) (int, int) {
 	switch {
 	case width == 0 && height == 0:
