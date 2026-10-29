@@ -436,7 +436,9 @@ func TestWriter_Close_FlushesWithoutExplicitFlush(t *testing.T) {
 
 // Regression test: packets were muxed in the codec's timebase (1/25 for 25fps
 // video), but mp4 changes the stream's timebase to 1/12800 when it writes the
-// header, so two seconds of video came out as a few milliseconds
+// header, so two seconds of video came out as a few milliseconds. And frames
+// had no duration, so the last packet had none, and mp4 ended the stream
+// before it, so only 49 of 50 frames could be read
 func TestWriter_VideoTimestamps(t *testing.T) {
 	p, err := profile.NewVideoProfile("mpeg4")
 	if err != nil {
@@ -486,7 +488,7 @@ func TestWriter_VideoTimestamps(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer r.Close()
-	if d := r.Duration(); d < 1900*time.Millisecond || d > 2100*time.Millisecond {
+	if d := r.Duration(); d != 2*time.Second {
 		t.Errorf("Duration: got %v, want 2s", d)
 	}
 	tb := *r.Streams()[0].TimeBase()
@@ -497,8 +499,8 @@ func TestWriter_VideoTimestamps(t *testing.T) {
 	}, nil); err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if len(times) < 2 {
-		t.Fatalf("got %d packets", len(times))
+	if len(times) != 50 {
+		t.Fatalf("got %d packets, want 50", len(times))
 	}
 	for i, ts := range times {
 		if want := time.Duration(i) * 40 * time.Millisecond; ts != want {
