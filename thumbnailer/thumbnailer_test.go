@@ -388,3 +388,26 @@ func TestThumbnailer_SeekKeyframes(t *testing.T) {
 	require.Equal(t, 2, len(thumbs))
 	assert.NotEqual(t, thumbs[0].Scene, thumbs[1].Scene)
 }
+
+func TestThumbnailer_Rotation(t *testing.T) {
+	// A video of 320x240, red above and blue below, with a display matrix
+	// which turns it 90° counterclockwise, as a phone records upright video,
+	// is 240x320, red on the left and blue on the right, as FFmpeg displays
+	// it, and its thumbnails are too
+	th, err := thumbnailer.Open(testDataPath(t, "rotated.mp4"), thumbnailer.WithSize(120, 0))
+	require.NoError(t, err)
+	defer th.Close()
+
+	_, err = th.Analyse(context.Background())
+	require.NoError(t, err)
+	w, h := th.Size()
+	assert.Equal(t, [2]int{240, 320}, [2]int{w, h})
+
+	img, err := th.Frame(context.Background(), time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, image.Rect(0, 0, 120, 160), img.Bounds())
+	r, _, b, _ := img.At(30, 80).RGBA()
+	assert.Greater(t, r, b, "left is red")
+	r, _, b, _ = img.At(90, 80).RGBA()
+	assert.Greater(t, b, r, "right is blue")
+}

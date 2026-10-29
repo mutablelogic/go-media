@@ -30,6 +30,7 @@ type Thumbnailer struct {
 	displayed     bool          // whether width and height are from a frame, rather than as stored
 	start         time.Duration // time of the stream's first frame, which times are from
 	sar           ff.AVRational // sample aspect ratio the container or codec gives, or 0:1
+	rotation      int           // degrees clockwise the frames are rotated by to be upright
 	keyframeRate  float64       // keyframes each second at the start of the video, or zero if it's unknown
 	analysis      *Analysis
 }
@@ -132,6 +133,7 @@ func open(r *reader.Reader, o *opts) (*Thumbnailer, error) {
 	t.timebase = *s.TimeBase()
 	t.start = r.StartTime(t.stream)
 	t.sar = r.SampleAspectRatio(t.stream)
+	t.rotation = r.Rotation(t.stream)
 	t.width, t.height = s.Par().Width(), s.Par().Height()
 	if t.width <= 0 || t.height <= 0 {
 		return nil, errors.Join(gomedia.ErrBadParameter.With("video has no size"), r.Close())
@@ -235,11 +237,11 @@ func (t *Thumbnailer) Frame(ctx context.Context, at time.Duration) (image.Image,
 }
 
 // Size returns the size of the video as it's displayed, with square pixels,
-// which is the size it's stored at with its frames' sample aspect ratio
-// applied, once a frame has been decoded, such as by Analyse, or the size
-// it's stored at before then.
+// and upright, which is the size it's stored at with its frames' sample
+// aspect ratio and rotation applied, once a frame has been decoded, such as
+// by Analyse, or the size it's stored at, upright, before then.
 func (t *Thumbnailer) Size() (int, int) {
-	return t.width, t.height
+	return t.upright()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -423,7 +425,7 @@ func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Imag
 		if ok && ts < at {
 			return nil
 		}
-		result = copyYCbCr(img)
+		result = rotateYCbCr(img, t.rotation)
 		return io.EOF
 	}); err != nil {
 		return nil, err
@@ -468,7 +470,12 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 			t.width, t.height = src.DisplaySize()
 			t.displayed = true
 		}
+		// The size is of the frame upright, so it's turned to the size the
+		// frame is stored at, when it's rotated by a quarter turn
 		w, h := t.size(width, height)
+		if t.rotation == 90 || t.rotation == 270 {
+			w, h = h, w
+		}
 		par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
 		par.SetPixelFormat(ff.AV_PIX_FMT_YUV420P)
 		par.SetWidth(w)
@@ -531,25 +538,81 @@ func (t *Thumbnailer) seek(at time.Duration) error {
 	return t.reader.Seek(t.stream, t.start+at)
 }
 
-// size returns a size, keeping the video's displayed aspect ratio when
-// either is zero, rounded to even numbers for 4:2:0, and no larger than the
-// video as it's displayed
+// size returns a size, of the video upright, keeping its displayed aspect
+// ratio when either is zero, rounded to even numbers for 4:2:0, and no
+// larger than the video as it's displayed
 func (t *Thumbnailer) size(width, height int) (int, int) {
+	uw, uh := t.upright()
 	switch {
 	case width == 0 && height == 0:
-		width, height = t.width, t.height
+		width, height = uw, uh
 	case height == 0:
-		width = min(width, t.width)
-		height = (width*t.height + t.width/2) / t.width
+		width = min(width, uw)
+		height = (width*uh + uw/2) / uw
 	case width == 0:
-		height = min(height, t.height)
-		width = (height*t.width + t.height/2) / t.height
+		height = min(height, uh)
+		width = (height*uw + uh/2) / uh
 	}
 	return max(2, width&^1), max(2, height&^1)
 }
 
+// upright returns the size of the video as it's displayed, turned by its
+// rotation, so its width and height are swapped for a quarter turn
+func (t *Thumbnailer) upright() (int, int) {
+	if t.rotation == 90 || t.rotation == 270 {
+		return t.height, t.width
+	}
+	return t.width, t.height
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE FUNCTIONS
+
+// rotateYCbCr returns a copy of a 4:2:0 image, rotated clockwise by 0, 90,
+// 180 or 270 degrees, as its display matrix says it's displayed. Its width
+// and height are even, so its chroma rotates with it
+func rotateYCbCr(src *image.YCbCr, degrees int) *image.YCbCr {
+	if degrees != 90 && degrees != 180 && degrees != 270 {
+		return copyYCbCr(src)
+	}
+	w, h := src.Rect.Dx(), src.Rect.Dy()
+	dw, dh := w, h
+	if degrees != 180 {
+		dw, dh = h, w
+	}
+	dst := image.NewYCbCr(image.Rect(0, 0, dw, dh), src.SubsampleRatio)
+
+	// from returns the position in a plane of w by h which a position in the
+	// rotated plane is from
+	from := func(x, y, w, h int) (int, int) {
+		switch degrees {
+		case 90:
+			return y, h - 1 - x
+		case 180:
+			return w - 1 - x, h - 1 - y
+		default:
+			return w - 1 - y, x
+		}
+	}
+	origin := src.Rect.Min
+	for y := range dh {
+		for x := range dw {
+			sx, sy := from(x, y, w, h)
+			dst.Y[y*dst.YStride+x] = src.Y[src.YOffset(origin.X+sx, origin.Y+sy)]
+		}
+	}
+	cw, ch := (w+1)/2, (h+1)/2
+	dcw, dch := (dw+1)/2, (dh+1)/2
+	for y := range dch {
+		for x := range dcw {
+			sx, sy := from(x, y, cw, ch)
+			i := src.COffset(origin.X+2*sx, origin.Y+2*sy)
+			dst.Cb[y*dst.CStride+x] = src.Cb[i]
+			dst.Cr[y*dst.CStride+x] = src.Cr[i]
+		}
+	}
+	return dst
+}
 
 // copyYCbCr returns a copy of a 4:2:0 image
 func copyYCbCr(src *image.YCbCr) *image.YCbCr {

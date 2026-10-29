@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -202,6 +203,29 @@ func (r *Reader) SampleAspectRatio(stream int) ff.AVRational {
 		return sar
 	}
 	return ff.AVUtil_rational(0, 1)
+}
+
+// Rotation returns how a video stream is rotated to be displayed upright,
+// from its display matrix, in degrees clockwise: 0, 90, 180 or 270, or 0
+// when it has no display matrix, or one which isn't a quarter turn
+func (r *Reader) Rotation(stream int) int {
+	if r.input == nil {
+		return 0
+	}
+	ctx := r.input.Stream(stream)
+	if ctx == nil {
+		return 0
+	}
+	rotation, ok := ctx.CodecPar().DisplayRotation()
+	if !ok {
+		return 0
+	}
+	clockwise := math.Mod(math.Mod(-rotation, 360)+360, 360)
+	quarter := math.Round(clockwise/90) * 90
+	if math.Abs(clockwise-quarter) > 1 {
+		return 0
+	}
+	return int(quarter) % 360
 }
 
 // Seek to a specific time in the media stream, in the stream's own

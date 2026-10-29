@@ -684,3 +684,21 @@ func TestReader_Decode_ContextCancelled(t *testing.T) {
 		t.Fatalf("expected 0 packets read before cancellation was observed, got %d", packets)
 	}
 }
+
+func TestReader_Rotation(t *testing.T) {
+	// A video with a display matrix which turns it 90° counterclockwise is
+	// rotated 270° clockwise to be upright, and one without isn't rotated
+	for path, want := range map[string]int{
+		filepath.Join("..", "etc", "test", "rotated.mp4"): 270,
+		filepath.Join("..", "etc", "test", "sample.mp4"):  0,
+	} {
+		r, err := reader.Open(path)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		if got := r.Rotation(0); got != want {
+			t.Errorf("%s: expected %d, got %d", path, want, got)
+		}
+		r.Close()
+	}
+}
