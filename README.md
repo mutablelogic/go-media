@@ -192,7 +192,9 @@ and classified, and how accurately, and how to use it from Go.
 `thumbnailer` finds the scenes of a video, and representative thumbnails of it, from frames
 sampled at the video's keyframes, or by seeking. Each frame is scored on its brightness,
 contrast, sharpness and colourfulness, and thumbnails are the best frames of scenes which
-don't look alike. It writes them as JPEG files:
+don't look alike. Thumbnails are as the video is displayed: with square pixels, for anamorphic
+video, and upright, for video with a rotation, such as from a phone. It writes them as JPEG
+files:
 
 ```bash
 # Six thumbnails from different scenes, 640 pixels wide

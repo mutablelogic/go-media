@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"unsafe"
 )
 
@@ -12,7 +13,17 @@ import (
 /*
 #cgo pkg-config: libavcodec libavutil
 #include <libavcodec/avcodec.h>
+#include <libavutil/display.h>
 #include <libavutil/opt.h>
+
+// display_rotation returns the rotation of the display matrix in the side
+// data of codec parameters, in degrees counterclockwise, and sets ok when
+// there is one
+static double display_rotation(const AVCodecParameters *par, int *ok) {
+	const AVPacketSideData *sd = av_packet_side_data_get(par->coded_side_data, par->nb_coded_side_data, AV_PKT_DATA_DISPLAYMATRIX);
+	*ok = sd != NULL && sd->size >= 9 * sizeof(int32_t);
+	return *ok ? av_display_rotation_get((const int32_t *)sd->data) : 0;
+}
 */
 import "C"
 
@@ -276,6 +287,16 @@ func (ctx *AVCodecParameters) SetPixelFormat(format AVPixelFormat) {
 }
 
 // Video
+// DisplayRotation returns the rotation of the display matrix of the
+// parameters, such as of a video recorded by a phone held upright, in
+// degrees counterclockwise, from -180 to 180, as FFmpeg returns it, or false
+// when they have none
+func (ctx *AVCodecParameters) DisplayRotation() (float64, bool) {
+	var ok C.int
+	rotation := float64(C.display_rotation((*C.AVCodecParameters)(ctx), &ok))
+	return rotation, ok != 0 && !math.IsNaN(rotation)
+}
+
 func (ctx *AVCodecParameters) SampleAspectRatio() AVRational {
 	return AVRational(ctx.sample_aspect_ratio)
 }
