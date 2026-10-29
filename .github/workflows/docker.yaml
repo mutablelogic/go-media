@@ -218,6 +218,71 @@ jobs:
             exit $LASTEXITCODE
           }
 
+  # The Windows libraries, with their headers and pkg-config files, built
+  # with MSYS2's MinGW64, are attached to the release as
+  # go-media-<version>-<license>-windows-amd64.zip, to build with on Windows,
+  # where the images can't be used
+  windows-libraries:
+    name: Build Windows ${{ matrix.license }} libraries
+    if: github.event_name == 'release'
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        license: [gpl, lgpl]
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The gpl libraries have the same key as test.yaml's and the windows
+      # job's, so they reuse what those built, and the lgpl libraries have
+      # their own
+      - name: Cache libraries
+        uses: actions/cache@v6
+        with:
+          path: build/install
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}${{ matrix.license == 'lgpl' && '-lgpl' || '' }}
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            make
+            curl
+            diffutils
+            nasm
+            zip
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libde265
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
+
+      # The libraries don't need Go, whose cache the Makefile clears after
+      # building libraw, so it's "true"
+      - name: Build and package the libraries
+        shell: msys2 {0}
+        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-zip
+
+      - name: Attach the libraries to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-windows-*.zip --clobber
+
   manifest:
     name: Publish multi-platform tags
     needs: [linux, windows]

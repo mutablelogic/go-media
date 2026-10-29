@@ -507,6 +507,30 @@ test-gomedia: ffmpeg
 	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
 
 ###############################################################################
+# LIBRARIES ZIP
+
+# Package the libraries go-media links with, as installed in PREFIX with their
+# headers, pkg-config files and stamps, as a zip which can be unpacked
+# anywhere, as the pkg-config files are made relative to where they are, with
+# ${pcfiledir}. Unpacked into build/install, make doesn't build them again.
+# The install path is replaced in the form it's in and, under MSYS2, the form
+# Windows tools such as cmake write
+LIBRARIES_ZIP = ${BUILD_DIR}/go-media-${VERSION}-${FFMPEG_LICENSE}-${OS}-${ARCH}.zip
+
+.PHONY: libraries-zip
+libraries-zip: ffmpeg chromaprint libexif libraw libheif libfvad
+	@echo "Packaging ${PREFIX} => ${LIBRARIES_ZIP}"
+	@rm -rf "${BUILD_DIR}/zip" "${LIBRARIES_ZIP}" && install -d "${BUILD_DIR}/zip"
+	@cp -R "${PREFIX}/." "${BUILD_DIR}/zip/"
+	@prefix="$$(realpath "${PREFIX}")"; windows="$$(cygpath -m "$$prefix" 2>/dev/null || true)"; \
+	for f in "${BUILD_DIR}"/zip/lib/pkgconfig/*.pc; do \
+		sed -i.bak -e "s|$$prefix|\$${pcfiledir}/../..|g" $${windows:+-e "s|$$windows|\$${pcfiledir}/../..|g"} "$$f" && rm -f "$$f.bak"; \
+	done
+	@install -d "${BUILD_DIR}/zip/share/doc/go-media" && cp LICENSE NOTICE etc/licenses/GPL-3.0.txt "${BUILD_DIR}/zip/share/doc/go-media/"
+	@cd "${BUILD_DIR}/zip" && zip -qr "$(abspath ${LIBRARIES_ZIP})" .
+	@rm -rf "${BUILD_DIR}/zip"
+
+###############################################################################
 # DOCKER
 
 # Build Linux images for this machine's architecture with etc/docker/Dockerfile.linux:

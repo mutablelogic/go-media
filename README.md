@@ -308,6 +308,16 @@ make docker-dev FFMPEG_LICENSE=lgpl       # tags ghcr.io/mutablelogic/go-media:<
 make docker-runtime FFMPEG_LICENSE=lgpl   # tags ghcr.io/mutablelogic/go-media:<version>-lgpl-runtime
 ```
 
+### Windows Libraries
+
+The images are for Linux. For Windows, each release has the libraries, built with MSYS2's
+MinGW64, attached as `go-media-<version>-<license>-windows-amd64.zip`, with their headers,
+pkg-config files and stamps. Unpack one into `build/install`, so `make` doesn't build the
+libraries again, or anywhere else, and set `PKG_CONFIG_PATH` to its `lib/pkgconfig`, as the
+pkg-config files are relative to where they are. You'll still need MSYS2's MinGW64 toolchain,
+`libde265`, `aom` and `dav1d`, as the release workflow installs. `make libraries-zip` packages
+the libraries the same way on any platform.
+
 For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md)
 for instructions on passing through GPU devices from the host.
 
