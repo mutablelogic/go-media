@@ -16,6 +16,11 @@ permissions:
   contents: read
   packages: write
 
+# docker/build-push-action uploads a record of each build as an artifact,
+# which would be listed with the archives, so it doesn't
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: false
+
 jobs:
   # The libraries, built in the dev image, which is published to build with,
   # and packaged from it as go-media-<version>-<license>-linux-<arch>.tar.gz,
