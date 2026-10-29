@@ -507,28 +507,46 @@ test-gomedia: ffmpeg
 	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
 
 ###############################################################################
-# LIBRARIES ZIP
+# LIBRARIES ARCHIVE
 
 # Package the libraries go-media links with, as installed in PREFIX with their
-# headers, pkg-config files and stamps, as a zip which can be unpacked
+# headers, pkg-config files and stamps, as an archive which can be unpacked
 # anywhere, as the pkg-config files are made relative to where they are, with
 # ${pcfiledir}. Unpacked into build/install, make doesn't build them again.
-# The install path is replaced in the form it's in and, under MSYS2, the form
-# Windows tools such as cmake write
-LIBRARIES_ZIP = ${BUILD_DIR}/go-media-${VERSION}-${FFMPEG_LICENSE}-${OS}-${ARCH}.zip
+# It's a zip on Windows, and a tar.gz otherwise. The install path is replaced
+# in the form it's in and, under MSYS2, the form Windows tools such as cmake
+# write. What they link with is installed separately: on macOS, Homebrew's
+# paths are made the ones which don't change with a formula's version, and
+# the formulae are listed in a Brewfile, for brew bundle, and on Debian, the
+# packages are listed in debian-packages.txt, for apt
+LIBRARIES_ARCHIVE = ${BUILD_DIR}/go-media-${VERSION}-${FFMPEG_LICENSE}-${OS}-${ARCH}.$(if $(filter windows,${OS}),zip,tar.gz)
+LIBRARIES_DIR = ${BUILD_DIR}/archive
 
-.PHONY: libraries-zip
-libraries-zip: ffmpeg chromaprint libexif libraw libheif libfvad
-	@echo "Packaging ${PREFIX} => ${LIBRARIES_ZIP}"
-	@rm -rf "${BUILD_DIR}/zip" "${LIBRARIES_ZIP}" && install -d "${BUILD_DIR}/zip"
-	@cp -R "${PREFIX}/." "${BUILD_DIR}/zip/"
+.PHONY: libraries-archive
+libraries-archive: ffmpeg chromaprint libexif libraw libheif libfvad
+	@echo "Packaging ${PREFIX} => ${LIBRARIES_ARCHIVE}"
+	@rm -rf "${LIBRARIES_DIR}" "${LIBRARIES_ARCHIVE}" && install -d "${LIBRARIES_DIR}"
+	@cp -R "${PREFIX}/." "${LIBRARIES_DIR}/"
 	@prefix="$$(realpath "${PREFIX}")"; windows="$$(cygpath -m "$$prefix" 2>/dev/null || true)"; \
-	for f in "${BUILD_DIR}"/zip/lib/pkgconfig/*.pc; do \
+	for f in "${LIBRARIES_DIR}"/lib/pkgconfig/*.pc; do \
 		sed -i.bak -e "s|$$prefix|\$${pcfiledir}/../..|g" $${windows:+-e "s|$$windows|\$${pcfiledir}/../..|g"} "$$f" && rm -f "$$f.bak"; \
 	done
-	@install -d "${BUILD_DIR}/zip/share/doc/go-media" && cp LICENSE NOTICE etc/licenses/GPL-3.0.txt "${BUILD_DIR}/zip/share/doc/go-media/"
-	@cd "${BUILD_DIR}/zip" && zip -qr "$(abspath ${LIBRARIES_ZIP})" .
-	@rm -rf "${BUILD_DIR}/zip"
+	@brew="${BREW_PREFIX}"; if [ -n "$$brew" ]; then \
+		for f in "${LIBRARIES_DIR}"/lib/pkgconfig/*.pc; do \
+			sed -i.bak -E -e "s|$$brew/Cellar/([^/]+)/[^/]+|$$brew/opt/\1|g" "$$f" && rm -f "$$f.bak"; \
+		done; \
+		PKG_CONFIG="${PKG_CONFIG}" etc/scripts/brewfile.sh "${PREFIX}" > "${LIBRARIES_DIR}/Brewfile"; \
+	fi
+	@if [ "${OS}" = linux ] && [ -f /etc/debian_version ]; then \
+		etc/docker/packages.sh dev ${FFMPEG_LICENSE} | tr ' ' '\n' > "${LIBRARIES_DIR}/debian-packages.txt"; \
+	fi
+	@install -d "${LIBRARIES_DIR}/share/doc/go-media" && cp LICENSE NOTICE etc/licenses/GPL-3.0.txt "${LIBRARIES_DIR}/share/doc/go-media/"
+ifeq (${OS},windows)
+	@cd "${LIBRARIES_DIR}" && zip -qr "$(abspath ${LIBRARIES_ARCHIVE})" .
+else
+	@tar -czf "${LIBRARIES_ARCHIVE}" -C "${LIBRARIES_DIR}" .
+endif
+	@rm -rf "${LIBRARIES_DIR}"
 
 ###############################################################################
 # DOCKER
