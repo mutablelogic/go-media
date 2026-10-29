@@ -98,9 +98,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: go-media-${{ matrix.license }}-linux-${{ matrix.arch }}
           path: build/go-media-*-${{ matrix.license }}-linux-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
+          archive: false
 
   # The runtime images, and gomedia, built on the dev image linux-libraries
   # published, so the libraries aren't built again. Each week, when
@@ -216,11 +216,15 @@ jobs:
         with:
           go-version: "1.27.x"
 
+      # The zip is uploaded as it is, named by its file, which has the
+      # version, so it's found with a pattern, and isn't unzipped
       - name: Download the libraries
         uses: actions/download-artifact@v8
         with:
-          name: go-media-gpl-windows-amd64
-          path: build
+          pattern: go-media-*-gpl-windows-amd64.zip
+          path: build/download
+          merge-multiple: true
+          skip-decompress: true
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -258,7 +262,7 @@ jobs:
         # runtime isn't), so those three DLLs are copied alongside it for
         # Dockerfile.windows to package together.
         run: |
-          unzip -q build/go-media-*-gpl-windows-amd64.zip -d build/install
+          unzip -q "$(find build/download -name 'go-media-*-gpl-windows-amd64.zip' -type f | head -1)" -d build/install
           make ffmpeg chromaprint libexif libraw libheif libfvad
           make cmd
           cp "$MINGW_PREFIX"/bin/libstdc++-6.dll "$MINGW_PREFIX"/bin/libgcc_s_seh-1.dll "$MINGW_PREFIX"/bin/libwinpthread-1.dll build/
@@ -368,9 +372,9 @@ jobs:
       - name: Upload the libraries
         uses: actions/upload-artifact@v7
         with:
-          name: go-media-${{ matrix.license }}-windows-amd64
           path: build/go-media-*-${{ matrix.license }}-windows-*.zip
           if-no-files-found: error
+          archive: false
 
   # The macOS libraries, built with Homebrew's, are attached to the release as
   # go-media-<version>-<license>-darwin-arm64.tar.gz, with a Brewfile of the
@@ -423,9 +427,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: go-media-${{ matrix.license }}-darwin-arm64
           path: build/go-media-*-${{ matrix.license }}-darwin-*.tar.gz
           if-no-files-found: error
+          archive: false
 
   manifest:
     name: Publish multi-platform tags
