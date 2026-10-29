@@ -3,6 +3,7 @@ package reader
 import (
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -37,6 +38,7 @@ type Decoder struct {
 	sync.RWMutex
 	fn      FrameFn
 	include map[int]bool
+	options map[int][]string // codec options for each stream, as key=value
 	codecs  map[int]*ff.AVCodecContext
 }
 
@@ -50,13 +52,15 @@ func NewDecoder(fn FrameFn) (*Decoder, error) {
 	if fn == nil {
 		return nil, gomedia.ErrBadParameter.With("nil callback function")
 	}
-	return &Decoder{fn: fn, include: make(map[int]bool)}, nil
+	return &Decoder{fn: fn, include: make(map[int]bool), options: make(map[int][]string)}, nil
 }
 
 // Add registers stream for decoding. Streams which are never registered
 // are left alone by Reader.Decode - this is how you discard a stream from
-// frame decoding without affecting the PacketFn.
-func (d *Decoder) Add(stream int) error {
+// frame decoding without affecting the PacketFn. The options are codec
+// options as key=value pairs, such as "skip_frame=nokey" to only decode
+// keyframes.
+func (d *Decoder) Add(stream int, opts ...string) error {
 	d.Lock()
 	defer d.Unlock()
 
@@ -64,6 +68,7 @@ func (d *Decoder) Add(stream int) error {
 		return gomedia.ErrBadParameter.Withf("stream %d already registered", stream)
 	}
 	d.include[stream] = true
+	d.options[stream] = opts
 	return nil
 }
 
@@ -100,7 +105,7 @@ func (d *Decoder) open(input *ff.AVFormatContext) error {
 		}
 		ctx.SetTimeBase(stream.TimeBase())
 
-		if err := ff.AVCodec_open(ctx, codec, nil); err != nil {
+		if err := d.openCodec(ctx, codec, d.options[index]); err != nil {
 			ff.AVCodec_free_context(ctx)
 			return err
 		}
@@ -108,6 +113,19 @@ func (d *Decoder) open(input *ff.AVFormatContext) error {
 		d.codecs[index] = ctx
 	}
 	return nil
+}
+
+// openCodec opens a codec context with codec options as key=value pairs
+func (d *Decoder) openCodec(ctx *ff.AVCodecContext, codec *ff.AVCodec, opts []string) error {
+	if len(opts) == 0 {
+		return ff.AVCodec_open(ctx, codec, nil)
+	}
+	dict := ff.AVUtil_dict_alloc()
+	defer ff.AVUtil_dict_free(dict)
+	if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", ff.AV_DICT_NONE); err != nil {
+		return err
+	}
+	return ff.AVCodec_open(ctx, codec, dict)
 }
 
 // close releases every codec context opened by open.

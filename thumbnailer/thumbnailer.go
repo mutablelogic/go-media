@@ -1,0 +1,449 @@
+package thumbnailer
+
+import (
+	"context"
+	"errors"
+	"image"
+	"io"
+	"slices"
+	"time"
+
+	// Packages
+	gomedia "github.com/mutablelogic/go-media"
+	frame "github.com/mutablelogic/go-media/frame"
+	reader "github.com/mutablelogic/go-media/reader"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
+	writer "github.com/mutablelogic/go-media/writer"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// Thumbnailer finds the scenes and thumbnails of a video
+type Thumbnailer struct {
+	opts
+	reader        *reader.Reader
+	stream        int
+	timebase      ff.AVRational
+	width, height int // size of the video
+	analysis      *Analysis
+}
+
+// Analysis is the frames sampled from a video, and its scenes
+type Analysis struct {
+	Mode     Mode          // How frames were sampled, ModeKeyframes or ModeSeek
+	Duration time.Duration // Duration of the video, or zero if it's unknown
+	Samples  []Sample      // Frames sampled, in time order
+	Scenes   []Scene       // Scenes, in time order
+}
+
+// Thumbnail is a frame of a video, as an image
+type Thumbnail struct {
+	Time  time.Duration // Time of the frame
+	Scene int           // Index of the scene it's in
+	Stats Stats         // How good a thumbnail it makes
+	Image image.Image   // The frame, at the thumbnail size
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	// measureWidth is the width frames are measured at
+	measureWidth = 320
+
+	// probeDuration is how much of the video's packets are read to find how
+	// often it has keyframes
+	probeDuration = 30 * time.Second
+
+	// Keyframes are sampled when there are between these numbers each
+	// second, and at least minKeyframes in the video, and the video is
+	// seeked otherwise
+	minKeyframeRate = 0.1
+	maxKeyframeRate = 4
+	minKeyframes    = 8
+
+	// minSeekInterval is the minimum time between frames sampled by seeking
+	minSeekInterval = 500 * time.Millisecond
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+// Open opens a video from a file path or URL.
+func Open(path string, opt ...Opt) (*Thumbnailer, error) {
+	o, err := applyOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
+	r, err := reader.Open(path, o.readerOpts...)
+	if err != nil {
+		return nil, err
+	}
+	t := &Thumbnailer{opts: *o, reader: r}
+
+	// Choose the video stream
+	var video []int
+	for index, s := range r.Streams() {
+		if s.Par().CodecType() == ff.AVMEDIA_TYPE_VIDEO {
+			video = append(video, index)
+		}
+	}
+	slices.Sort(video)
+	switch {
+	case t.opts.stream >= 0 && !slices.Contains(video, t.opts.stream):
+		return nil, errors.Join(gomedia.ErrBadParameter.Withf("stream %d is not a video stream", t.opts.stream), r.Close())
+	case t.opts.stream >= 0:
+		t.stream = t.opts.stream
+	case len(video) == 0:
+		return nil, errors.Join(gomedia.ErrNotFound.With("no video stream"), r.Close())
+	default:
+		t.stream = video[0]
+	}
+	s := r.Streams()[t.stream]
+	t.timebase = *s.TimeBase()
+	t.width, t.height = s.Par().Width(), s.Par().Height()
+	if t.width <= 0 || t.height <= 0 {
+		return nil, errors.Join(gomedia.ErrBadParameter.With("video has no size"), r.Close())
+	}
+	return t, nil
+}
+
+// Close releases the video.
+func (t *Thumbnailer) Close() error {
+	var result error
+	if t.reader != nil {
+		result = t.reader.Close()
+		t.reader = nil
+	}
+	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Analyse samples frames from the video, measures them, and finds its
+// scenes. It's only done once, and Thumbnails and Poster call it.
+func (t *Thumbnailer) Analyse(ctx context.Context) (*Analysis, error) {
+	if t.analysis != nil {
+		return t.analysis, nil
+	}
+	if t.reader == nil {
+		return nil, gomedia.ErrInternalError.With("thumbnailer is closed")
+	}
+	result := &Analysis{Mode: t.mode, Duration: t.reader.Duration()}
+
+	// Choose how to sample frames, from how often the video has keyframes
+	if result.Mode == ModeAuto {
+		mode, err := t.chooseMode(ctx, result.Duration)
+		if err != nil {
+			return nil, err
+		}
+		result.Mode = mode
+	}
+
+	// Sample the frames
+	var err error
+	switch result.Mode {
+	case ModeKeyframes:
+		result.Samples, err = t.sampleKeyframes(ctx)
+	default:
+		result.Samples, err = t.sampleSeek(ctx, result.Duration)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Samples) == 0 {
+		return nil, gomedia.ErrNotFound.With("no frames in the video")
+	}
+
+	result.Scenes = detect(result.Samples, result.Duration)
+	t.analysis = result
+	return result, nil
+}
+
+// Thumbnails returns up to n thumbnails of the video, in time order, each
+// the best frame of a different scene, from the scenes which make the best
+// thumbnails and don't look alike.
+func (t *Thumbnailer) Thumbnails(ctx context.Context, n int) ([]Thumbnail, error) {
+	a, err := t.Analyse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []Thumbnail
+	for _, i := range choose(a.Samples, a.Scenes, n, a.Duration) {
+		img, err := t.frameAt(ctx, a.Samples[i].Time)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, Thumbnail{Time: a.Samples[i].Time, Scene: sceneOf(a.Scenes, i), Stats: a.Samples[i].Stats, Image: img})
+	}
+	return result, nil
+}
+
+// Poster returns the one thumbnail which best represents the video.
+func (t *Thumbnailer) Poster(ctx context.Context) (*Thumbnail, error) {
+	thumbnails, err := t.Thumbnails(ctx, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(thumbnails) == 0 {
+		return nil, gomedia.ErrNotFound.With("no thumbnail in the video")
+	}
+	return &thumbnails[0], nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// chooseMode returns ModeKeyframes when the start of the video has
+// keyframes at a useful rate, and ModeSeek otherwise, such as when every
+// frame is a keyframe, or they're too far apart
+func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (Mode, error) {
+	var keyframes []time.Duration
+	var last time.Duration
+	if err := t.reader.Decode(ctx, func(packet *ff.AVPacket) error {
+		if packet.StreamIndex() != t.stream {
+			return nil
+		}
+		ts := t.time(packet.Pts())
+		if ts < 0 {
+			ts = t.time(packet.Dts())
+		}
+		last = max(last, ts)
+		if packet.Flags()&ff.AV_PKT_FLAG_KEY != 0 {
+			keyframes = append(keyframes, ts)
+		}
+		if ts >= probeDuration {
+			return io.EOF
+		}
+		return nil
+	}, nil); err != nil {
+		return ModeAuto, err
+	}
+	if err := t.reader.Seek(t.stream, 0); err != nil {
+		return ModeAuto, err
+	}
+
+	// The rate of keyframes, and how many there are expected to be
+	span := last.Seconds()
+	if span <= 0 || len(keyframes) == 0 {
+		return ModeSeek, nil
+	}
+	rate := float64(len(keyframes)) / span
+	expected := float64(len(keyframes))
+	if duration > 0 {
+		expected = rate * duration.Seconds()
+	}
+	if rate >= minKeyframeRate && rate <= maxKeyframeRate && expected >= minKeyframes {
+		return ModeKeyframes, nil
+	}
+	return ModeSeek, nil
+}
+
+// sampleKeyframes measures every keyframe in the video, which is decoded on
+// its own, so it's fast
+func (t *Thumbnailer) sampleKeyframes(ctx context.Context) ([]Sample, error) {
+	var result []Sample
+	err := t.decode(ctx, measureWidth, 0, "skip_frame=nokey", func(ts time.Duration, img *image.YCbCr) error {
+		stats, hist := measure(img)
+		result = append(result, Sample{Time: ts, Keyframe: true, Stats: stats, hist: hist})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := t.reader.Seek(t.stream, 0); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(result, func(a, b Sample) int { return int(a.Time - b.Time) })
+	return result, nil
+}
+
+// sampleSeek measures frames at evenly spaced times, seeking to each, or
+// every frame at least minSeekInterval apart if the duration is unknown
+func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([]Sample, error) {
+	var result []Sample
+	add := func(ts time.Duration, img *image.YCbCr) {
+		stats, hist := measure(img)
+		result = append(result, Sample{Time: ts, Stats: stats, hist: hist})
+	}
+
+	// Without a duration, decode the whole video
+	if duration <= 0 {
+		next := time.Duration(0)
+		err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, img *image.YCbCr) error {
+			if ts >= next {
+				add(ts, img)
+				next = ts + minSeekInterval
+			}
+			return nil
+		})
+		return result, err
+	}
+
+	// Seek to the middle of each interval, and measure the first frame at
+	// or after it. A frame already sampled, as seeking goes back to the
+	// keyframe before, is skipped
+	interval := max(minSeekInterval, duration/time.Duration(t.maxSamples))
+	for at := interval / 2; at < duration; at += interval {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := t.reader.Seek(t.stream, at); err != nil {
+			return nil, err
+		}
+		if err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, img *image.YCbCr) error {
+			if ts < at || (len(result) > 0 && ts <= result[len(result)-1].Time) {
+				return nil
+			}
+			add(ts, img)
+			return io.EOF
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+// frameAt returns the frame at a time, at the thumbnail size, by seeking to
+// it and decoding from the keyframe before it
+func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Image, error) {
+	if err := t.reader.Seek(t.stream, at); err != nil {
+		return nil, err
+	}
+	var result image.Image
+	if err := t.decode(ctx, t.width0(), t.height0(), "", func(ts time.Duration, img *image.YCbCr) error {
+		if ts < at {
+			return nil
+		}
+		result = copyYCbCr(img)
+		return io.EOF
+	}); err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, gomedia.ErrNotFound.Withf("no frame at %v", at)
+	}
+	return result, nil
+}
+
+// decode decodes the video stream from where the reader is, with codec
+// options, and calls fn with each frame's time and the frame as a 4:2:0
+// image of a size (keeping the aspect ratio when either is zero), until fn
+// returns io.EOF or the video ends. The image is only valid during the call
+func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts string, fn func(time.Duration, *image.YCbCr) error) error {
+	width, height = t.size(width, height)
+	par := ff.AVCodec_parameters_alloc()
+	if par == nil {
+		return gomedia.ErrInternalError.With("failed to allocate codec parameters")
+	}
+	defer ff.AVCodec_parameters_free(par)
+	par.SetCodecType(ff.AVMEDIA_TYPE_VIDEO)
+	par.SetPixelFormat(ff.AV_PIX_FMT_YUV420P)
+	par.SetWidth(width)
+	par.SetHeight(height)
+	resampler, err := writer.NewResampler(par, 0, ff.AVUtil_rational(1, 25))
+	if err != nil {
+		return err
+	}
+	defer resampler.Close()
+
+	var opts []string
+	if codecOpts != "" {
+		opts = append(opts, codecOpts)
+	}
+	decoder, err := reader.NewDecoder(func(f frame.Frame) error {
+		src, ok := f.(*frame.VideoFrame)
+		if !ok {
+			return nil
+		}
+		ts := t.time(src.BestEffortTs())
+		if ts < 0 {
+			ts = t.time(src.Pts())
+		}
+		return resampler.Process(src, func(f frame.Frame) error {
+			img, err := f.(*frame.VideoFrame).Image()
+			if err != nil {
+				return err
+			}
+			return fn(ts, img.(*image.YCbCr))
+		})
+	})
+	if err != nil {
+		return err
+	}
+	if err := decoder.Add(t.stream, opts...); err != nil {
+		return err
+	}
+	return t.reader.Decode(ctx, nil, decoder)
+}
+
+// time returns a timestamp in the stream's timebase as a time, or -1 if it's
+// unknown
+func (t *Thumbnailer) time(ts int64) time.Duration {
+	if ts == int64(ff.AV_NOPTS_VALUE) {
+		return -1
+	}
+	return time.Duration(ff.AVUtil_rational_rescale_q(ts, t.timebase, ff.AVUtil_rational(1, int(time.Second))))
+}
+
+// width0 and height0 return the thumbnail size, with zero for both being
+// the video's own size
+func (t *Thumbnailer) width0() int {
+	if t.opts.width == 0 && t.opts.height == 0 {
+		return t.width
+	}
+	return t.opts.width
+}
+
+func (t *Thumbnailer) height0() int {
+	if t.opts.width == 0 && t.opts.height == 0 {
+		return t.height
+	}
+	return t.opts.height
+}
+
+// size returns a size, keeping the video's aspect ratio when either is zero,
+// rounded to even numbers for 4:2:0, and no larger than the video
+func (t *Thumbnailer) size(width, height int) (int, int) {
+	switch {
+	case width == 0 && height == 0:
+		width, height = t.width, t.height
+	case height == 0:
+		width = min(width, t.width)
+		height = width * t.height / t.width
+	case width == 0:
+		height = min(height, t.height)
+		width = height * t.width / t.height
+	}
+	return max(2, width&^1), max(2, height&^1)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE FUNCTIONS
+
+// copyYCbCr returns a copy of a 4:2:0 image
+func copyYCbCr(src *image.YCbCr) *image.YCbCr {
+	dst := image.NewYCbCr(image.Rect(0, 0, src.Rect.Dx(), src.Rect.Dy()), src.SubsampleRatio)
+	for y := range dst.Rect.Dy() {
+		copy(dst.Y[y*dst.YStride:y*dst.YStride+dst.Rect.Dx()], src.Y[src.YOffset(src.Rect.Min.X, src.Rect.Min.Y+y):])
+	}
+	cw, ch := (dst.Rect.Dx()+1)/2, (dst.Rect.Dy()+1)/2
+	for y := range ch {
+		i := src.COffset(src.Rect.Min.X, src.Rect.Min.Y+2*y)
+		copy(dst.Cb[y*dst.CStride:y*dst.CStride+cw], src.Cb[i:])
+		copy(dst.Cr[y*dst.CStride:y*dst.CStride+cw], src.Cr[i:])
+	}
+	return dst
+}
+
+// sceneOf returns the index of the scene a sample is in
+func sceneOf(scenes []Scene, sample int) int {
+	for i := len(scenes) - 1; i >= 0; i-- {
+		if scenes[i].First <= sample {
+			return i
+		}
+	}
+	return 0
+}

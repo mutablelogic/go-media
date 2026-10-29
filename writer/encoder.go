@@ -297,7 +297,10 @@ func (e *Encoder) drainPackets(ctx *ff.AVCodecContext, streamID int) error {
 			return err
 		}
 
+		// The packet's timestamps are in the codec's timebase, which a muxer
+		// rescales from, as its stream's timebase may differ
 		packet.SetStreamIndex(streamID)
+		packet.SetTimeBase(ctx.TimeBase())
 
 		err := e.fn(packet)
 		ff.AVCodec_packet_free(packet)

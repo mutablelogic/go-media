@@ -2,14 +2,20 @@ package writer_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"image"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	// Packages
+	frame "github.com/mutablelogic/go-media/frame"
 	profile "github.com/mutablelogic/go-media/profile/schema"
+	reader "github.com/mutablelogic/go-media/reader"
+	ff "github.com/mutablelogic/go-media/sys/ffmpeg80"
 	writer "github.com/mutablelogic/go-media/writer"
 )
 
@@ -425,5 +431,78 @@ func TestWriter_Close_FlushesWithoutExplicitFlush(t *testing.T) {
 
 	if buf.Len() == 0 {
 		t.Fatal("expected non-empty output buffer")
+	}
+}
+
+// Regression test: packets were muxed in the codec's timebase (1/25 for 25fps
+// video), but mp4 changes the stream's timebase to 1/12800 when it writes the
+// header, so two seconds of video came out as a few milliseconds
+func TestWriter_VideoTimestamps(t *testing.T) {
+	p, err := profile.NewVideoProfile("mpeg4")
+	if err != nil {
+		t.Fatalf("NewVideoProfile(mpeg4): %v", err)
+	}
+	for name, value := range map[string]any{
+		profile.OptionWidth:       uint64(64),
+		profile.OptionHeight:      uint64(48),
+		profile.OptionPixelFormat: "yuv420p",
+		profile.OptionFrameRate:   float64(25),
+	} {
+		if err := p.Set(name, value); err != nil {
+			t.Fatalf("Set(%s): %v", name, err)
+		}
+	}
+
+	// Write two seconds of 25fps video
+	path := tempFileURL(t, "out.mp4")
+	w, err := writer.Create(path, profile.OutputWithName("mp4"), writer.WithProfile(0, p))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	f, err := frame.NewVideoFrame(0)
+	if err != nil {
+		t.Fatalf("NewVideoFrame: %v", err)
+	}
+	defer f.Close()
+	img := image.NewGray(image.Rect(0, 0, 64, 48))
+	for i := range 50 {
+		for j := range img.Pix {
+			img.Pix[j] = uint8(i + j)
+		}
+		if err := f.FromImage(img); err != nil {
+			t.Fatalf("FromImage: %v", err)
+		}
+		if err := w.Encode(f); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// It's about two seconds long, with a frame every 40ms from the start
+	r, err := reader.Open(path.Path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+	if d := r.Duration(); d < 1900*time.Millisecond || d > 2100*time.Millisecond {
+		t.Errorf("Duration: got %v, want 2s", d)
+	}
+	tb := *r.Streams()[0].TimeBase()
+	var times []time.Duration
+	if err := r.Decode(context.Background(), func(packet *ff.AVPacket) error {
+		times = append(times, time.Duration(ff.AVUtil_rational_rescale_q(packet.Pts(), tb, ff.AVUtil_rational(1, int(time.Second)))))
+		return nil
+	}, nil); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(times) < 2 {
+		t.Fatalf("got %d packets", len(times))
+	}
+	for i, ts := range times {
+		if want := time.Duration(i) * 40 * time.Millisecond; ts != want {
+			t.Fatalf("packet %d: got %v, want %v", i, ts, want)
+		}
 	}
 }
