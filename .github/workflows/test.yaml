@@ -102,11 +102,22 @@ jobs:
       # libraries, as their versions or configuration may differ: a change to
       # the Makefile builds them once, and saves them. docker.yaml's Windows
       # build uses the same cache.
+      # On macOS, FFmpeg's pkg-config files name the versioned Homebrew
+      # paths of the libraries it was built with (such as
+      # /opt/homebrew/Cellar/libx11/1.8.14/lib), so libraries built with
+      # other versions of them don't link. The key includes the installed
+      # formulae and their versions, so they're built again when Homebrew's
+      # change, such as with a new runner image
+      - name: Fingerprint Homebrew (macOS)
+        id: homebrew
+        if: runner.os == 'macOS'
+        run: echo "hash=-$(brew list --formula --versions | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
       - name: Cache libraries
         uses: actions/cache@v6
         with:
           path: build/install
-          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}${{ steps.homebrew.outputs.hash }}
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'

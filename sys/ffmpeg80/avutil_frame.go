@@ -301,6 +301,12 @@ func (ctx *AVFrame) SetPts(pts int64) {
 	ctx.pts = C.int64_t(pts)
 }
 
+// IsKeyFrame returns true if the frame is a keyframe, which can be decoded
+// without the frames before it
+func (ctx *AVFrame) IsKeyFrame() bool {
+	return ctx.flags&C.AV_FRAME_FLAG_KEY != 0
+}
+
 // BestEffortTs returns the frame's timestamp as estimated by the decoder,
 // in the frame's timebase, which is set when the pts isn't, or
 // AV_NOPTS_VALUE if it's unknown

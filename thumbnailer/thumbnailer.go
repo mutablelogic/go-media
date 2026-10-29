@@ -1,6 +1,7 @@
 package thumbnailer
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"image"
@@ -25,8 +26,10 @@ type Thumbnailer struct {
 	reader        *reader.Reader
 	stream        int
 	timebase      ff.AVRational
-	width, height int  // size of the video as it's displayed, with square pixels
-	displayed     bool // whether width and height are from a frame, rather than as stored
+	width, height int           // size of the video as it's displayed, with square pixels
+	displayed     bool          // whether width and height are from a frame, rather than as stored
+	start         time.Duration // time of the stream's first frame, which times are from
+	sar           ff.AVRational // sample aspect ratio the container or codec gives, or 0:1
 	analysis      *Analysis
 }
 
@@ -103,6 +106,8 @@ func Open(path string, opt ...Opt) (*Thumbnailer, error) {
 	}
 	s := r.Streams()[t.stream]
 	t.timebase = *s.TimeBase()
+	t.start = r.StartTime(t.stream)
+	t.sar = r.SampleAspectRatio(t.stream)
 	t.width, t.height = s.Par().Width(), s.Par().Height()
 	if t.width <= 0 || t.height <= 0 {
 		return nil, errors.Join(gomedia.ErrBadParameter.With("video has no size"), r.Close())
@@ -224,9 +229,12 @@ func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (M
 		if packet.StreamIndex() != t.stream {
 			return nil
 		}
-		ts := t.time(packet.Pts())
-		if ts < 0 {
-			ts = t.time(packet.Dts())
+		ts, ok := t.time(packet.Pts())
+		if !ok {
+			ts, ok = t.time(packet.Dts())
+		}
+		if !ok {
+			return nil
 		}
 		last = max(last, ts)
 		if packet.Flags()&ff.AV_PKT_FLAG_KEY != 0 {
@@ -239,7 +247,7 @@ func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (M
 	}, nil); err != nil {
 		return ModeAuto, err
 	}
-	if err := t.reader.Seek(t.stream, 0); err != nil {
+	if err := t.seek(0); err != nil {
 		return ModeAuto, err
 	}
 
@@ -263,7 +271,10 @@ func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (M
 // its own, so it's fast
 func (t *Thumbnailer) sampleKeyframes(ctx context.Context) ([]Sample, error) {
 	var result []Sample
-	err := t.decode(ctx, measureWidth, 0, "skip_frame=nokey", func(ts time.Duration, img *image.YCbCr) error {
+	err := t.decode(ctx, measureWidth, 0, "skip_frame=nokey", func(ts time.Duration, ok bool, img *image.YCbCr) error {
+		if !ok {
+			return nil
+		}
 		stats, hist := measure(img)
 		result = append(result, Sample{Time: ts, Keyframe: true, Stats: stats, hist: hist})
 		return nil
@@ -271,10 +282,10 @@ func (t *Thumbnailer) sampleKeyframes(ctx context.Context) ([]Sample, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := t.reader.Seek(t.stream, 0); err != nil {
+	if err := t.seek(0); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(result, func(a, b Sample) int { return int(a.Time - b.Time) })
+	slices.SortFunc(result, func(a, b Sample) int { return cmp.Compare(a.Time, b.Time) })
 	return result, nil
 }
 
@@ -290,8 +301,8 @@ func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([
 	// Without a duration, decode the whole video
 	if duration <= 0 {
 		next := time.Duration(0)
-		err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, img *image.YCbCr) error {
-			if ts >= next {
+		err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, ok bool, img *image.YCbCr) error {
+			if ok && ts >= next {
 				add(ts, img)
 				next = ts + minSeekInterval
 			}
@@ -302,16 +313,20 @@ func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([
 
 	// Seek to the middle of each interval, and measure the first frame at
 	// or after it. A frame already sampled, as seeking goes back to the
-	// keyframe before, is skipped
+	// keyframe before, is skipped, and a frame without a time is taken to be
+	// at the time sought
 	interval := max(minSeekInterval, duration/time.Duration(t.maxSamples))
 	for at := interval / 2; at < duration; at += interval {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if err := t.reader.Seek(t.stream, at); err != nil {
+		if err := t.seek(at); err != nil {
 			return nil, err
 		}
-		if err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, img *image.YCbCr) error {
+		if err := t.decode(ctx, measureWidth, 0, "", func(ts time.Duration, ok bool, img *image.YCbCr) error {
+			if !ok {
+				ts = at
+			}
 			if ts < at || (len(result) > 0 && ts <= result[len(result)-1].Time) {
 				return nil
 			}
@@ -325,14 +340,15 @@ func (t *Thumbnailer) sampleSeek(ctx context.Context, duration time.Duration) ([
 }
 
 // frameAt returns the frame at a time, at the thumbnail size, by seeking to
-// it and decoding from the keyframe before it
+// it and decoding from the keyframe before it. A frame without a time is
+// taken to be at the time sought
 func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Image, error) {
-	if err := t.reader.Seek(t.stream, at); err != nil {
+	if err := t.seek(at); err != nil {
 		return nil, err
 	}
 	var result image.Image
-	if err := t.decode(ctx, t.opts.width, t.opts.height, "", func(ts time.Duration, img *image.YCbCr) error {
-		if ts < at {
+	if err := t.decode(ctx, t.opts.width, t.opts.height, "", func(ts time.Duration, ok bool, img *image.YCbCr) error {
+		if ok && ts < at {
 			return nil
 		}
 		result = copyYCbCr(img)
@@ -352,8 +368,10 @@ func (t *Thumbnailer) frameAt(ctx context.Context, at time.Duration) (image.Imag
 // when either is zero, and the displayed size when both are), until fn
 // returns io.EOF or the video ends. The image is only valid during the
 // call. The displayed size is from the first frame's sample aspect ratio,
-// so the frames are scaled from then
-func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts string, fn func(time.Duration, *image.YCbCr) error) error {
+// so the frames are scaled from then. Frames before the first keyframe are
+// skipped, as after seeking a format without an index, such as MPEG-TS, the
+// decoder can start between keyframes, and those frames are corrupt
+func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts string, fn func(time.Duration, bool, *image.YCbCr) error) error {
 	par := ff.AVCodec_parameters_alloc()
 	if par == nil {
 		return gomedia.ErrInternalError.With("failed to allocate codec parameters")
@@ -370,6 +388,11 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 			return resampler, nil
 		}
 		if !t.displayed {
+			// The container's or codec's sample aspect ratio is used over
+			// the frame's, as FFmpeg does
+			if t.sar.Num() > 0 && t.sar.Den() > 0 {
+				src.SetSampleAspectRatio(t.sar)
+			}
 			t.width, t.height = src.DisplaySize()
 			t.displayed = true
 		}
@@ -387,14 +410,18 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 	if codecOpts != "" {
 		opts = append(opts, codecOpts)
 	}
+	keyframe := false
 	decoder, err := reader.NewDecoder(func(f frame.Frame) error {
 		src, ok := f.(*frame.VideoFrame)
 		if !ok {
 			return nil
 		}
-		ts := t.time(src.BestEffortTs())
-		if ts < 0 {
-			ts = t.time(src.Pts())
+		if keyframe = keyframe || src.IsKeyFrame(); !keyframe {
+			return nil
+		}
+		ts, ok := t.time(src.BestEffortTs())
+		if !ok {
+			ts, ok = t.time(src.Pts())
 		}
 		r, err := scaler(src)
 		if err != nil {
@@ -405,7 +432,7 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 			if err != nil {
 				return err
 			}
-			return fn(ts, img.(*image.YCbCr))
+			return fn(ts, ok, img.(*image.YCbCr))
 		})
 	})
 	if err != nil {
@@ -417,13 +444,19 @@ func (t *Thumbnailer) decode(ctx context.Context, width, height int, codecOpts s
 	return t.reader.Decode(ctx, nil, decoder)
 }
 
-// time returns a timestamp in the stream's timebase as a time, or -1 if it's
-// unknown
-func (t *Thumbnailer) time(ts int64) time.Duration {
+// time returns a timestamp in the stream's timebase as a time from the
+// stream's first frame, which can be negative, such as for frames an edit
+// list skips, and false if it's unknown
+func (t *Thumbnailer) time(ts int64) (time.Duration, bool) {
 	if ts == int64(ff.AV_NOPTS_VALUE) {
-		return -1
+		return 0, false
 	}
-	return time.Duration(ff.AVUtil_rational_rescale_q(ts, t.timebase, ff.AVUtil_rational(1, int(time.Second))))
+	return time.Duration(ff.AVUtil_rational_rescale_q(ts, t.timebase, ff.AVUtil_rational(1, int(time.Second)))) - t.start, true
+}
+
+// seek seeks the reader to a time from the stream's first frame
+func (t *Thumbnailer) seek(at time.Duration) error {
+	return t.reader.Seek(t.stream, t.start+at)
 }
 
 // size returns a size, keeping the video's displayed aspect ratio when
@@ -435,10 +468,10 @@ func (t *Thumbnailer) size(width, height int) (int, int) {
 		width, height = t.width, t.height
 	case height == 0:
 		width = min(width, t.width)
-		height = width * t.height / t.width
+		height = (width*t.height + t.width/2) / t.width
 	case width == 0:
 		height = min(height, t.height)
-		width = height * t.width / t.height
+		width = (height*t.width + t.height/2) / t.height
 	}
 	return max(2, width&^1), max(2, height&^1)
 }

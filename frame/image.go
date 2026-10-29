@@ -100,8 +100,16 @@ func (f *VideoFrame) Image(opt ...ImageOpt) (image.Image, error) {
 		return img, err
 	}
 
-	// Scale to the size, keeping the displayed aspect ratio, rounded to
-	// whole chroma samples
+	// A frame with square pixels at its own size is copied as it is, even
+	// if it isn't whole chroma samples. Otherwise it's scaled to the size,
+	// keeping the displayed aspect ratio, rounded to whole chroma samples
+	dw, dh := f.DisplaySize()
+	if dw <= 0 || dh <= 0 {
+		return nil, gomedia.ErrBadParameter.Withf("frame has no size")
+	}
+	if o.width == 0 && o.height == 0 && dw == f.Width() && dh == f.Height() {
+		return cloneImage(img), nil
+	}
 	w, h := f.scaledSize(o.width, o.height)
 	if w == f.Width() && h == f.Height() {
 		return cloneImage(img), nil
@@ -173,7 +181,8 @@ func (f *VideoFrame) FromImage(src image.Image) error {
 
 // scaledSize returns the size of an image of the frame, with square pixels,
 // keeping the displayed aspect ratio when either is zero, rounded down to
-// whole chroma samples, and at least one of them
+// whole chroma samples, and at least one of them. The frame's displayed size
+// isn't zero
 func (f *VideoFrame) scaledSize(width, height int) (int, int) {
 	dw, dh := f.DisplaySize()
 	switch {

@@ -115,17 +115,31 @@ func (d *Decoder) open(input *ff.AVFormatContext) error {
 	return nil
 }
 
-// openCodec opens a codec context with codec options as key=value pairs
+// openCodec opens a codec context with codec options as key=value pairs,
+// each split at its first "=", so a value can contain spaces. An option the
+// codec doesn't recognise is an error, as FFmpeg leaves it in the dictionary
 func (d *Decoder) openCodec(ctx *ff.AVCodecContext, codec *ff.AVCodec, opts []string) error {
 	if len(opts) == 0 {
 		return ff.AVCodec_open(ctx, codec, nil)
 	}
 	dict := ff.AVUtil_dict_alloc()
 	defer ff.AVUtil_dict_free(dict)
-	if err := ff.AVUtil_dict_parse_string(dict, strings.Join(opts, " "), "=", " ", ff.AV_DICT_NONE); err != nil {
+	for _, opt := range opts {
+		key, value, found := strings.Cut(opt, "=")
+		if !found || key == "" {
+			return gomedia.ErrBadParameter.Withf("invalid codec option %q, expected key=value", opt)
+		}
+		if err := ff.AVUtil_dict_set(dict, key, value, ff.AV_DICT_NONE); err != nil {
+			return err
+		}
+	}
+	if err := ff.AVCodec_open(ctx, codec, dict); err != nil {
 		return err
 	}
-	return ff.AVCodec_open(ctx, codec, dict)
+	if keys := ff.AVUtil_dict_keys(dict); len(keys) > 0 {
+		return gomedia.ErrBadParameter.Withf("invalid codec options for %s: %v", codec.Name(), keys)
+	}
+	return nil
 }
 
 // close releases every codec context opened by open.

@@ -168,7 +168,44 @@ func (r *Reader) Duration() time.Duration {
 	return 0
 }
 
-// Seek to a specific time in the media stream
+// StartTime returns the time of the first frame of a stream, in the
+// stream's own timestamps, which isn't zero for some formats, such as
+// MPEG-TS. It's zero if it's unknown, or the stream isn't found.
+func (r *Reader) StartTime(stream int) time.Duration {
+	if r.input == nil {
+		return 0
+	}
+	ctx := r.input.Stream(stream)
+	if ctx == nil || ctx.StartTime() == int64(ff.AV_NOPTS_VALUE) {
+		return 0
+	}
+	return time.Duration(ff.AVUtil_rational_rescale_q(ctx.StartTime(), ctx.TimeBase(), ff.AVUtil_rational(1, int(time.Second))))
+}
+
+// SampleAspectRatio returns the sample aspect ratio of a video stream, the
+// width of a pixel divided by its height: the container's if it gives one,
+// such as from Matroska's display size, or the codec's, as
+// av_guess_sample_aspect_ratio does without a frame. It's 0:1 if neither
+// gives one, or the stream isn't found.
+func (r *Reader) SampleAspectRatio(stream int) ff.AVRational {
+	if r.input == nil {
+		return ff.AVUtil_rational(0, 1)
+	}
+	ctx := r.input.Stream(stream)
+	if ctx == nil {
+		return ff.AVUtil_rational(0, 1)
+	}
+	if sar := ctx.SampleAspectRatio(); sar.Num() > 0 && sar.Den() > 0 {
+		return sar
+	}
+	if sar := ctx.CodecPar().SampleAspectRatio(); sar.Num() > 0 && sar.Den() > 0 {
+		return sar
+	}
+	return ff.AVUtil_rational(0, 1)
+}
+
+// Seek to a specific time in the media stream, in the stream's own
+// timestamps (see StartTime)
 func (r *Reader) Seek(stream int, d time.Duration) error {
 	if r.input == nil {
 		return gomedia.ErrInternalError.With("reader is closed")

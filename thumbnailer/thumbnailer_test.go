@@ -86,10 +86,10 @@ func black(img *image.NRGBA, _ int) {
 }
 
 // writeVideo writes a video of scenes, with mpeg4's default of a keyframe
-// every 12 frames
-func writeVideo(t *testing.T, scenes ...scene) string {
+// every 12 frames, in a format such as mp4 or mpegts
+func writeVideo(t *testing.T, format string, scenes ...scene) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.mp4")
+	path := filepath.Join(t.TempDir(), "test."+format)
 	p, err := profile.NewVideoProfile("mpeg4")
 	require.NoError(t, err)
 	require.NoError(t, p.Set(profile.OptionWidth, uint64(testWidth)))
@@ -98,7 +98,7 @@ func writeVideo(t *testing.T, scenes ...scene) string {
 	require.NoError(t, p.Set(profile.OptionFrameRate, float64(testRate)))
 	require.NoError(t, p.Set(profile.OptionVideoBitrate, uint64(2000000)))
 
-	w, err := writer.Create(&url.URL{Path: path}, profile.OutputWithName("mp4"), writer.WithProfile(0, p))
+	w, err := writer.Create(&url.URL{Path: path}, profile.OutputWithName(format), writer.WithProfile(0, p))
 	require.NoError(t, err)
 	img := image.NewNRGBA(image.Rect(0, 0, testWidth, testHeight))
 	f, err := frame.NewVideoFrame(0)
@@ -118,10 +118,14 @@ func writeVideo(t *testing.T, scenes ...scene) string {
 	return path
 }
 
-// testVideo returns a video of three scenes, a cut between the first two,
-// and a fade through black before the third
+// testVideo returns an mp4 video of three scenes, a cut between the first
+// two, and a fade through black before the third
 func testVideo(t *testing.T) string {
-	return writeVideo(t,
+	return testVideoFormat(t, "mp4")
+}
+
+func testVideoFormat(t *testing.T, format string) string {
+	return writeVideo(t, format,
 		scene{3 * time.Second, textured(color.NRGBA{255, 80, 40, 255})},
 		scene{3 * time.Second, checks(color.NRGBA{30, 60, 220, 255}, color.NRGBA{250, 230, 60, 255})},
 		scene{time.Second, black},
@@ -183,6 +187,31 @@ func TestThumbnailer_Scenes(t *testing.T) {
 			assert.Greater(t, blank, 0)
 		})
 	}
+}
+
+func TestThumbnailer_StartTime(t *testing.T) {
+	// MPEG-TS starts its timestamps after a delay, but times are from the
+	// first frame, so the scenes are at the same times as in mp4
+	th, err := thumbnailer.Open(testVideoFormat(t, "mpegts"), thumbnailer.WithMode(thumbnailer.ModeSeek), thumbnailer.WithMaxSamples(40))
+	require.NoError(t, err)
+	defer th.Close()
+
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	for _, s := range a.Scenes {
+		t.Logf("  %v %v+%v", s.Transition, s.Start, s.Duration)
+	}
+	require.Equal(t, 3, len(a.Scenes))
+	assert.InDelta(t, 3, a.Scenes[1].Start.Seconds(), 0.6)
+	assert.InDelta(t, 7, a.Scenes[2].Start.Seconds(), 0.6)
+	assert.Less(t, a.Samples[0].Time, time.Second)
+
+	// A thumbnail is the frame at its time
+	thumbs, err := th.Thumbnails(context.Background(), 3)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(thumbs))
+	r, g, _, _ := thumbs[2].Image.At(80, 60).RGBA()
+	assert.Greater(t, g, r)
 }
 
 func TestThumbnailer_Thumbnails(t *testing.T) {

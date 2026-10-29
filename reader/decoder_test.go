@@ -222,3 +222,37 @@ func TestReader_Decode_Subtitle_RoundTrip(t *testing.T) {
 		t.Fatalf("decoded subtitle text = %q, want %q", gotText, dialogue)
 	}
 }
+
+// Codec options are passed to the codec, and one it doesn't recognise, or
+// which isn't key=value, is an error
+func TestDecoder_CodecOptions(t *testing.T) {
+	for opt, ok := range map[string]bool{
+		"skip_frame=nokey":   true,
+		"skip_frame=nokye":   false,
+		"not_an_option=true": false,
+		"skip_frame":         false,
+	} {
+		r, err := reader.Open(filepath.Join("..", "etc", "test", "sample.mp4"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var frames int
+		d, err := reader.NewDecoder(func(frame.Frame) error {
+			frames++
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Add(0, opt); err != nil {
+			t.Fatal(err)
+		}
+		err = r.Decode(context.Background(), nil, d)
+		r.Close()
+		if ok && (err != nil || frames == 0) {
+			t.Errorf("%q: got %v and %d frames, want frames", opt, err, frames)
+		} else if !ok && err == nil {
+			t.Errorf("%q: got no error", opt)
+		}
+	}
+}

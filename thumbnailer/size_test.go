@@ -23,7 +23,7 @@ func TestSize(t *testing.T) {
 		{0, 240, [2]int{320, 240}},   // from the height
 		{1920, 0, [2]int{768, 576}},  // no larger than displayed
 		{200, 100, [2]int{200, 100}}, // both given, as they are
-		{101, 0, [2]int{100, 74}},    // rounded down to even
+		{101, 0, [2]int{100, 76}},    // rounded, then down to even
 	} {
 		w, h := th.size(test.width, test.height)
 		assert.Equalf(t, test.want, [2]int{w, h}, "%dx%d", test.width, test.height)

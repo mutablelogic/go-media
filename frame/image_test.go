@@ -315,4 +315,24 @@ func TestImage_SquarePixels(t *testing.T) {
 
 	_, err = f.Image(frame.WithImageSize(-1, 0))
 	assert.Error(t, err)
+
+	// An odd size with square pixels is copied as it is, not scaled
+	odd := image.NewYCbCr(image.Rect(0, 0, 13, 7), image.YCbCrSubsampleRatio420)
+	for i := range odd.Y {
+		odd.Y[i] = uint8(i * 7)
+	}
+	h, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	defer h.Close()
+	require.NoError(t, h.FromImage(odd))
+	img, err = h.Image(frame.WithSquarePixels())
+	require.NoError(t, err)
+	assertSame(t, odd, img)
+
+	// A frame without a size is an error, not a panic
+	empty, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	defer empty.Close()
+	_, err = empty.Image(frame.WithImageSize(320, 0))
+	assert.Error(t, err)
 }

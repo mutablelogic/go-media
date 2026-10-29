@@ -124,8 +124,7 @@ func (cmd *ScenesCmd) Run(ctx server.Cmd) error {
 		return err
 	}
 
-	const sceneFormat = "%-6v  %-12v  %-12v  %-6v  %5v  %v\n"
-	fmt.Printf(sceneFormat, "SCENE", "START", "DURATION", "HOW", "SCORE", "FILE")
+	fmt.Printf(rowFormat, "SCENE", "START", "DURATION", "HOW", "SCORE", "FILE")
 	var n int
 	for i, scene := range analysis.Scenes {
 		var score, path string
@@ -136,7 +135,7 @@ func (cmd *ScenesCmd) Run(ctx server.Cmd) error {
 				n++
 			}
 		}
-		fmt.Printf(sceneFormat, i+1, round(scene.Start), round(scene.Duration), scene.Transition, score, path)
+		fmt.Printf(rowFormat, i+1, round(scene.Start), round(scene.Duration), scene.Transition, score, path)
 	}
 	return nil
 }
