@@ -386,7 +386,9 @@ jobs:
   # formulae they link with, to build with on a Mac
   darwin-libraries:
     name: Build macOS ${{ matrix.license }} libraries
-    if: github.event_name != 'schedule'
+    # Disabled for now, while the macOS runners are a problem; remove the
+    # false to build the macOS archives again
+    if: false && github.event_name != 'schedule'
     runs-on: macos-latest
     permissions:
       contents: write
