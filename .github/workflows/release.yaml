@@ -5,9 +5,11 @@ name: Release
 # branch's name, and the archives are uploaded as the run's artifacts, to try
 # them before a release. Each week, the runtime images of the latest release
 # are built again, for Debian's security updates, which compiles nothing.
+# Only a release being published runs it, as publishing a draft is also an
+# edit, which ran it twice.
 on:
   release:
-    types: [published, edited]
+    types: [published]
   workflow_dispatch:
   schedule:
     - cron: "0 5 * * 1"
