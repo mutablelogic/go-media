@@ -150,9 +150,12 @@ jobs:
             SPDX=${{ matrix.spdx }}
             SOURCE=${{ github.server_url }}/${{ github.repository }}
 
+  # gomedia, built with the gpl libraries from windows-libraries, so the
+  # image has the libraries which are published, and they're only built once
   windows:
     name: Build Windows image
     if: github.event_name != 'schedule'
+    needs: windows-libraries
     runs-on: windows-2022
     steps:
       - name: Configure git line endings
@@ -167,16 +170,11 @@ jobs:
         with:
           go-version: "1.27.x"
 
-      # The installed libraries, with their stamps, with the same key as
-      # test.yaml's Windows job, as both build the same libraries from the
-      # same Makefile, so this reuses what test.yaml built. There's no
-      # fallback to an older Makefile's libraries, whose versions or
-      # configuration may differ, so a release is never built with them.
-      - name: Cache libraries
-        uses: actions/cache@v6
+      - name: Download the libraries
+        uses: actions/download-artifact@v8
         with:
-          path: build/install
-          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}
+          name: go-media-gpl-windows-amd64
+          path: build
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -193,6 +191,7 @@ jobs:
             curl
             diffutils
             nasm
+            unzip
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-zlib
@@ -203,14 +202,17 @@ jobs:
 
       - name: Build gomedia.exe
         shell: msys2 {0}
-        # The cmd target doesn't itself depend on the library-build targets
-        # (it only checks for them via pkg-config to set feature tags), so
-        # they're built explicitly first - see the same note on test.yaml.
+        # The libraries are unpacked into build/install, with their stamps,
+        # so make doesn't build them again. The cmd target doesn't itself
+        # depend on the library-build targets (it only checks for them via
+        # pkg-config to set feature tags), so they're made explicitly first,
+        # which checks the stamps - see the same note on test.yaml.
         # gomedia.exe links libstdc++/libgcc/libwinpthread dynamically (this
         # project's own libraries are static, but MinGW's own C++/threading
         # runtime isn't), so those three DLLs are copied alongside it for
         # Dockerfile.windows to package together.
         run: |
+          unzip -q build/go-media-*-gpl-windows-amd64.zip -d build/install
           make ffmpeg chromaprint libexif libraw libheif libfvad
           make cmd
           cp "$MINGW_PREFIX"/bin/libstdc++-6.dll "$MINGW_PREFIX"/bin/libgcc_s_seh-1.dll "$MINGW_PREFIX"/bin/libwinpthread-1.dll build/
@@ -316,8 +318,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-windows-*.zip --clobber
 
+      # Also for a release, for the windows job to build with
       - name: Upload the libraries
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: go-media-${{ matrix.license }}-windows-amd64
