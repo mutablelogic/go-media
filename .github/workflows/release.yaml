@@ -362,11 +362,18 @@ jobs:
             mingw-w64-x86_64-aom
             mingw-w64-x86_64-dav1d
 
+      # The version is from git, as the Makefile's is, as MSYS2's shell has
+      # no git
+      - name: Choose the version
+        id: version
+        shell: bash
+        run: echo "version=$(git describe --tags --always | sed 's/^v//')" >> "$GITHUB_OUTPUT"
+
       # The libraries don't need Go, whose cache the Makefile clears after
       # building libraw, so it's "true"
       - name: Build and package the libraries
         shell: msys2 {0}
-        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-archive
+        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} VERSION=${{ steps.version.outputs.version }} libraries-archive
 
       - name: Attach the libraries to the release
         if: github.event_name == 'release'
