@@ -100,7 +100,7 @@ jobs:
       # need, so a restored cache isn't configured or built again (see STAMP
       # in the Makefile). There's no fallback to an older Makefile's
       # libraries, as their versions or configuration may differ: a change to
-      # the Makefile builds them once, and saves them. docker.yaml's Windows
+      # the Makefile builds them once, and saves them. release.yaml's Windows
       # build uses the same cache.
       # On macOS, FFmpeg's pkg-config files name the versioned Homebrew
       # paths of the libraries it was built with (such as

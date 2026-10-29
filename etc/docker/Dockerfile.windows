@@ -1,5 +1,5 @@
 # gomedia.exe and its MinGW runtime DLLs are built natively on the runner
-# (see docker.yaml's windows job) - this Dockerfile only packages the
+# (see release.yaml's windows job) - this Dockerfile only packages the
 # already-built output into a container image, the same split go-omodie's
 # Dockerfile.windows uses for its own (much simpler, CGO_ENABLED=0) binary.
 #

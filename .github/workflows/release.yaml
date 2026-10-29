@@ -1,8 +1,9 @@
-name: Docker
+name: Release
 
-# The images are published for each release. Each week, the runtime images of
-# the latest release are built again, for Debian's security updates, which
-# compiles nothing.
+# The images, and the libraries as archives attached to the release, are
+# published for each release. Each week, the runtime images of the latest
+# release are built again, for Debian's security updates, which compiles
+# nothing.
 on:
   release:
     types: [published, edited]
