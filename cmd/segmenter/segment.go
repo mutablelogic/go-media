@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	// Packages
@@ -20,7 +21,7 @@ type SegmentCmd struct {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd *SegmentCmd) Run(ctx server.Cmd) error {
+func (cmd *SegmentCmd) Run(ctx server.Cmd) (err error) {
 	opts, err := cmd.options()
 	if err != nil {
 		return err
@@ -29,7 +30,7 @@ func (cmd *SegmentCmd) Run(ctx server.Cmd) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { err = errors.Join(err, out.Close()) }()
 
 	seg, err := segmenter.Open(cmd.Path, cmd.Rate, opts...)
 	if err != nil {

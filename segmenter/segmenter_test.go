@@ -403,6 +403,10 @@ func TestSegmenter_Invalid(t *testing.T) {
 	assert.Error(t, err)
 	_, err = segmenter.Open(path, 16000, segmenter.WithSegments(0, time.Second))
 	assert.Error(t, err)
+	_, err = segmenter.Open(path, 16000, segmenter.WithSegments(1800*time.Millisecond, 2*time.Second))
+	assert.Error(t, err)
+	_, err = segmenter.Open(path, 16000, segmenter.WithSegments(2*time.Second, 4*time.Second))
+	assert.NoError(t, err)
 	_, err = segmenter.Open("/nonexistent/file.mp3", 16000)
 	assert.Error(t, err)
 

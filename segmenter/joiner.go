@@ -27,7 +27,8 @@ const (
 	// joined
 	pieceDuration = time.Second
 
-	// boundaryTolerance is how far from a boundary a cut at a silence can be
+	// boundaryTolerance is how far from a boundary a cut at a silence can be.
+	// Boundaries are at least twice this apart, so each has its own cut
 	boundaryTolerance = time.Second
 )
 

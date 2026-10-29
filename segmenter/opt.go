@@ -36,6 +36,7 @@ const (
 	DefaultSilenceThreshold = 0.01                   // Default silence threshold (RMS)
 	DefaultSilenceDuration  = time.Millisecond * 500 // Default silence duration
 	MinSegmentDuration      = time.Millisecond * 100 // Minimum segment/silence duration
+	MinBoundaryInterval     = 2 * boundaryTolerance  // Minimum time between the times to cut segments at
 )
 
 // Silence detection modes. The voice activity detection modes are in
@@ -91,8 +92,9 @@ func WithStream(stream int) Opt {
 // segment duration, so segments are output when they reach approximately
 // this duration (minimum 100ms). With more than one, they're the times from
 // the start to cut segments at, in increasing order, not including the start
-// or the end. Each cut is at a silence near the time if there is one, so one
-// segment is output for each part of the audio between the times.
+// or the end, at least MinBoundaryInterval apart. Each cut is at a silence
+// within a second of the time if there is one, so one segment is output for
+// each part of the audio between the times.
 func WithSegments(v ...time.Duration) Opt {
 	return func(o *opts) error {
 		switch {
@@ -107,6 +109,9 @@ func WithSegments(v ...time.Duration) Opt {
 			for i, b := range v {
 				if b <= 0 || (i > 0 && b <= v[i-1]) {
 					return gomedia.ErrBadParameter.With("segment boundaries must be positive and in increasing order")
+				}
+				if i > 0 && b-v[i-1] < MinBoundaryInterval {
+					return gomedia.ErrBadParameter.Withf("segment boundaries must be at least %v apart", MinBoundaryInterval)
 				}
 			}
 			o.SegmentSize, o.Boundaries = 0, v

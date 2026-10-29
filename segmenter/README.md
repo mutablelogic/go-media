@@ -63,7 +63,7 @@ In another module which uses the segmenter, set `PKG_CONFIG_PATH` to the
 | Option | Description |
 | --- | --- |
 | `WithSegments(d)` | Output a segment when it reaches the duration `d` (minimum 100ms) |
-| `WithSegments(t1, t2, ...)` | Cut segments near these times from the start, preferring a silence within a second of each, so there's one segment for each part between them |
+| `WithSegments(t1, t2, ...)` | Cut segments near these times from the start, at least two seconds apart, preferring a silence within a second of each, so there's one segment for each part between them |
 | `WithMode(mode, silence, threshold)` | How silence is detected, and whether segments are classified (see below) |
 | `WithStream(index)` | The audio stream to decode. Without it, the audio stream with the lowest index is decoded |
 | `WithReaderOpt(opt)` | An option for the reader, such as `reader.WithInput("s16le", "sample_rate=16000", "channels=1")` for raw audio, or `reader.WithInput("avfoundation")` for a device |

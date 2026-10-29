@@ -1,5 +1,8 @@
-# Built locally, and built again in the image, including build/musan
-build
+# Built locally, and built again in the Linux images, including build/musan.
+# gomedia.exe and its DLLs are kept, as the Windows image packages them
+build/*
+!build/*.exe
+!build/*.dll
 tmp
 
 # Not built, and not needed in the image

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -55,7 +56,7 @@ var extensions = []string{".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"}
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd *ClassifyCmd) Run(ctx server.Cmd) error {
+func (cmd *ClassifyCmd) Run(ctx server.Cmd) (err error) {
 	if len(cmd.Segments) == 0 {
 		cmd.Segments = []time.Duration{defaultClassifySegment}
 	}
@@ -86,16 +87,15 @@ func (cmd *ClassifyCmd) Run(ctx server.Cmd) error {
 		}
 	}
 
-	// Write the stats of each segment
+	// Write the stats of each segment, returning any error from writing them
 	var w *csv.Writer
 	if cmd.CSV != "" {
-		f, err := os.Create(cmd.CSV)
-		if err != nil {
-			return err
+		f, ferr := os.Create(cmd.CSV)
+		if ferr != nil {
+			return ferr
 		}
-		defer f.Close()
+		defer func() { err = errors.Join(err, f.Close()) }()
 		w = csv.NewWriter(f)
-		defer w.Flush()
 		if err := w.Write(header("label", "path")); err != nil {
 			return err
 		}
@@ -103,6 +103,10 @@ func (cmd *ClassifyCmd) Run(ctx server.Cmd) error {
 
 	// Segment the files, until interrupted
 	rows, err := cmd.segment(ctx, sources, opts, w)
+	if w != nil {
+		w.Flush()
+		err = errors.Join(err, w.Error())
+	}
 	if err != nil {
 		return err
 	}

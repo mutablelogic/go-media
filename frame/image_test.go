@@ -64,12 +64,13 @@ func TestImage_Packed(t *testing.T) {
 		fill(img)
 	}
 
+	// FFmpeg's RGBA isn't premultiplied, so it's an NRGBA image
 	got := roundTrip(t, rgba)
-	assert.IsType(t, &image.RGBA{}, got)
+	assert.IsType(t, &image.NRGBA{}, got)
 	assertSame(t, rgba, got)
 
 	got = roundTrip(t, nrgba)
-	assert.IsType(t, &image.RGBA{}, got)
+	assert.IsType(t, &image.NRGBA{}, got)
 	assertSame(t, nrgba, got)
 
 	got = roundTrip(t, gray)
@@ -103,6 +104,25 @@ func TestImage_YCbCr(t *testing.T) {
 	}
 }
 
+func TestImage_Alpha(t *testing.T) {
+	// A translucent pixel keeps its colour, whether its alpha is
+	// premultiplied or not
+	nrgba := image.NewNRGBA(image.Rect(0, 0, 2, 1))
+	nrgba.SetNRGBA(0, 0, color.NRGBA{255, 0, 0, 128})
+	nrgba.SetNRGBA(1, 0, color.NRGBA{10, 20, 30, 0})
+	got := roundTrip(t, nrgba)
+	require.IsType(t, &image.NRGBA{}, got)
+	assert.Equal(t, color.NRGBA{255, 0, 0, 128}, got.(*image.NRGBA).NRGBAAt(0, 0))
+
+	rgba := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	rgba.SetRGBA(0, 0, color.RGBA{128, 0, 0, 128})
+	rgba.SetRGBA(1, 0, color.RGBA{0, 0, 0, 0})
+	got = roundTrip(t, rgba)
+	require.IsType(t, &image.NRGBA{}, got)
+	assert.Equal(t, color.NRGBA{255, 0, 0, 128}, got.(*image.NRGBA).NRGBAAt(0, 0))
+	assert.Equal(t, color.NRGBA{0, 0, 0, 0}, got.(*image.NRGBA).NRGBAAt(1, 0))
+}
+
 func TestImage_SubImage(t *testing.T) {
 	// A sub-image is copied from its own top left, not the start of Pix
 	rgba := image.NewRGBA(image.Rect(0, 0, 20, 10))
@@ -119,6 +139,24 @@ func TestImage_SubImage(t *testing.T) {
 	}
 	subYUV := yuv.SubImage(image.Rect(4, 2, 14, 8))
 	assertSame(t, subYUV, roundTrip(t, subYUV))
+
+	// A sub-image which doesn't start on a chroma sample's boundary has the
+	// luma copied, and each chroma sample taken from the one at the top left
+	// of the pixels it covers
+	odd := yuv.SubImage(image.Rect(1, 1, 12, 8)).(*image.YCbCr)
+	got := roundTrip(t, odd).(*image.YCbCr)
+	for y := range odd.Rect.Dy() {
+		for x := range odd.Rect.Dx() {
+			require.Equalf(t, odd.Y[odd.YOffset(1+x, 1+y)], got.Y[got.YOffset(x, y)], "Y at (%d,%d)", x, y)
+		}
+	}
+	for cy := range (odd.Rect.Dy() + 1) / 2 {
+		for cx := range (odd.Rect.Dx() + 1) / 2 {
+			i, j := odd.COffset(1+2*cx, 1+2*cy), got.COffset(2*cx, 2*cy)
+			require.Equalf(t, odd.Cb[i], got.Cb[j], "Cb at (%d,%d)", cx, cy)
+			require.Equalf(t, odd.Cr[i], got.Cr[j], "Cr at (%d,%d)", cx, cy)
+		}
+	}
 }
 
 func TestImage_Reuse(t *testing.T) {
