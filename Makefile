@@ -518,7 +518,9 @@ test-gomedia: ffmpeg
 # write. What they link with is installed separately: on macOS, Homebrew's
 # paths are made the ones which don't change with a formula's version, and
 # the formulae are listed in a Brewfile, for brew bundle, and on Debian, the
-# packages are listed in debian-packages.txt, for apt
+# packages are listed in debian-packages.txt, for apt. The programs and
+# examples the libraries install, and libtool's files, which name the paths
+# they were built in, aren't needed to build with, so aren't included
 LIBRARIES_ARCHIVE = ${BUILD_DIR}/go-media-${VERSION}-${FFMPEG_LICENSE}-${OS}-${ARCH}.$(if $(filter windows,${OS}),zip,tar.gz)
 LIBRARIES_DIR = ${BUILD_DIR}/archive
 
@@ -527,6 +529,7 @@ libraries-archive: ffmpeg chromaprint libexif libraw libheif libfvad
 	@echo "Packaging ${PREFIX} => ${LIBRARIES_ARCHIVE}"
 	@rm -rf "${LIBRARIES_DIR}" "${LIBRARIES_ARCHIVE}" && install -d "${LIBRARIES_DIR}"
 	@cp -R "${PREFIX}/." "${LIBRARIES_DIR}/"
+	@rm -rf "${LIBRARIES_DIR}/bin" "${LIBRARIES_DIR}/share/ffmpeg" "${LIBRARIES_DIR}"/lib/*.la
 	@prefix="$$(realpath "${PREFIX}")"; windows="$$(cygpath -m "$$prefix" 2>/dev/null || true)"; \
 	for f in "${LIBRARIES_DIR}"/lib/pkgconfig/*.pc; do \
 		sed -i.bak -e "s|$$prefix|\$${pcfiledir}/../..|g" $${windows:+-e "s|$$windows|\$${pcfiledir}/../..|g"} "$$f" && rm -f "$$f.bak"; \
