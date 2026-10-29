@@ -1,9 +1,10 @@
 name: Release
 
 # The images, and the libraries as archives attached to the release, are
-# published for each release. Each week, the runtime images of the latest
-# release are built again, for Debian's security updates, which compiles
-# nothing.
+# published for each release. Run by hand, the images are published with the
+# branch's name, and the archives are uploaded as the run's artifacts, to try
+# them before a release. Each week, the runtime images of the latest release
+# are built again, for Debian's security updates, which compiles nothing.
 on:
   release:
     types: [published, edited]
@@ -86,22 +87,31 @@ jobs:
             SOURCE=${{ github.server_url }}/${{ github.repository }}
 
       # The libraries, from the dev image, which has their stamps, so they
-      # aren't built again, attached to the release as
-      # go-media-<version>-<license>-linux-<arch>.tar.gz, to build with
-      # outside a container
+      # aren't built again, as go-media-<version>-<license>-linux-<arch>.tar.gz,
+      # to build with outside a container. The version is from git, as the
+      # Makefile's is, as the image has no git
       - name: Package the libraries
-        if: github.event_name == 'release'
+        if: github.event_name != 'schedule'
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/go-media:${{ steps.version.outputs.tag }}-${{ matrix.license }}-dev-linux-${{ matrix.arch }}
         run: |
+          version=$(git describe --tags --always | sed 's/^v//')
           docker run --rm --platform linux/${{ matrix.arch }} --volume "$PWD:/src" --workdir /src "$IMAGE" \
-            make GO=true PREFIX=/opt/go-media OS=linux ARCH=${{ matrix.arch }} VERSION="${GITHUB_REF_NAME#v}" libraries-archive
+            make GO=true PREFIX=/opt/go-media OS=linux ARCH=${{ matrix.arch }} VERSION="$version" libraries-archive
 
       - name: Attach the libraries to the release
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-linux-${{ matrix.arch }}.tar.gz --clobber
+
+      - name: Upload the libraries
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-media-${{ matrix.license }}-linux-${{ matrix.arch }}
+          path: build/go-media-*-${{ matrix.license }}-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
 
       # The packages to run with, on the latest Debian image
       - name: Build and publish the runtime image
@@ -246,7 +256,7 @@ jobs:
   # where the images can't be used
   windows-libraries:
     name: Build Windows ${{ matrix.license }} libraries
-    if: github.event_name == 'release'
+    if: github.event_name != 'schedule'
     runs-on: windows-2022
     permissions:
       contents: write
@@ -300,17 +310,26 @@ jobs:
         run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-archive
 
       - name: Attach the libraries to the release
+        if: github.event_name == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-windows-*.zip --clobber
+
+      - name: Upload the libraries
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-media-${{ matrix.license }}-windows-amd64
+          path: build/go-media-*-${{ matrix.license }}-windows-*.zip
+          if-no-files-found: error
 
   # The macOS libraries, built with Homebrew's, are attached to the release as
   # go-media-<version>-<license>-darwin-arm64.tar.gz, with a Brewfile of the
   # formulae they link with, to build with on a Mac
   darwin-libraries:
     name: Build macOS ${{ matrix.license }} libraries
-    if: github.event_name == 'release'
+    if: github.event_name != 'schedule'
     runs-on: macos-latest
     permissions:
       contents: write
@@ -347,9 +366,18 @@ jobs:
         run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-archive
 
       - name: Attach the libraries to the release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-darwin-*.tar.gz --clobber
+
+      - name: Upload the libraries
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-media-${{ matrix.license }}-darwin-arm64
+          path: build/go-media-*-${{ matrix.license }}-darwin-*.tar.gz
+          if-no-files-found: error
 
   manifest:
     name: Publish multi-platform tags
@@ -369,8 +397,8 @@ jobs:
 
       # The libraries' images, as go-media:<version>-<license>-dev and
       # go-media:<version>-<license>-runtime, for amd64 and arm64, and the
-      # gomedia image, as gomedia:<version> and gomedia:latest, for Linux and
-      # Windows
+      # gomedia image, as gomedia:<version>, and gomedia:latest for a release,
+      # for Linux and Windows
       - name: Create the manifests
         shell: bash
         env:
@@ -399,11 +427,14 @@ jobs:
             done
           done
 
+          # latest is only moved by a release, not by a branch run by hand
           if [ "$EVENT_NAME" != schedule ]; then
             image="ghcr.io/${IMAGE_OWNER,,}/gomedia"
-            docker buildx imagetools create \
-              --tag "$image:latest" \
-              --tag "$image:$tag" \
+            tags=(--tag "$image:$tag")
+            if [ "$EVENT_NAME" = release ]; then
+              tags+=(--tag "$image:latest")
+            fi
+            docker buildx imagetools create "${tags[@]}" \
               "$image:$tag-linux-amd64" \
               "$image:$tag-linux-arm64" \
               "$image:$tag-windows-ltsc2022"
