@@ -360,3 +360,29 @@ func TestThumbnailer_NewReaderNoSeek(t *testing.T) {
 	_, err = thumbnailer.NewReader(struct{ io.Reader }{f})
 	assert.Error(t, err)
 }
+
+func TestThumbnailer_SeekKeyframes(t *testing.T) {
+	// A video with more keyframes than the maximum number of samples, such
+	// as a film, has its keyframes sampled at evenly spaced times
+	th, err := thumbnailer.Open(testVideo(t), thumbnailer.WithMode(thumbnailer.ModeAuto), thumbnailer.WithMaxSamples(8))
+	require.NoError(t, err)
+	defer th.Close()
+
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, thumbnailer.ModeKeyframes, a.Mode)
+	assert.LessOrEqual(t, len(a.Samples), 8)
+	assert.Greater(t, len(a.Samples), 4)
+	for i, s := range a.Samples {
+		assert.True(t, s.Keyframe)
+		if i > 0 {
+			assert.Greater(t, s.Time, a.Samples[i-1].Time)
+		}
+	}
+
+	// The thumbnails are still from different scenes
+	thumbs, err := th.Thumbnails(context.Background(), 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(thumbs))
+	assert.NotEqual(t, thumbs[0].Scene, thumbs[1].Scene)
+}

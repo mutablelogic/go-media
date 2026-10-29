@@ -47,6 +47,7 @@ const (
 // Thresholds for a scene change, between samples
 const (
 	minCut      = 0.2  // Minimum change for a cut
+	maxCut      = 0.5  // Change which is always a cut, as samples further apart than shots are each in a different one
 	cutRatio    = 4    // A cut is at least this many times the median change
 	flashReturn = 0.5  // A change is a flash when the sample after it is this close to the sample before
 	trimEnds    = 0.03 // Fraction of the video at each end where thumbnails are avoided
@@ -59,11 +60,12 @@ const (
 // detect sets how different each sample is from the one before, and returns
 // the scenes, which end at the duration of the video, or after the last
 // sample if it's unknown. A scene changes where a sample is much more
-// different from the one before than is usual for the video, unless the
-// sample after it is like the one before, which is a flash, and the change
-// back from a flash isn't a cut either. Blank samples,
-// such as a fade through black, end a scene, and the next sample which
-// isn't blank starts the next one
+// different from the one before than is usual for the video, or so different
+// it's from another scene however different samples usually are, such as
+// when they're further apart than its shots, unless the sample after it is
+// like the one before, which is a flash, and the change back from a flash
+// isn't a cut either. Blank samples, such as a fade through black, end a
+// scene, and the next sample which isn't blank starts the next one
 func detect(samples []Sample, duration time.Duration) []Scene {
 	if len(samples) == 0 {
 		return nil
@@ -79,7 +81,7 @@ func detect(samples []Sample, duration time.Duration) []Scene {
 	}
 	threshold := minCut
 	if len(changes) > 0 {
-		threshold = max(minCut, cutRatio*median(changes))
+		threshold = min(maxCut, max(minCut, cutRatio*median(changes)))
 	}
 
 	var scenes []Scene
