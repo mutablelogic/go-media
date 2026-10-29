@@ -89,9 +89,12 @@ func Open(path string, opt ...Opt) (*Thumbnailer, error) {
 }
 
 // NewReader opens a video from r, which needs to be an io.Seeker, such as a
-// file, as frames are sampled by seeking it, and many formats, such as MP4,
-// can't be read without seeking.
+// file, as frames are sampled by seeking it, so a reader which isn't one is
+// an error.
 func NewReader(r io.Reader, opt ...Opt) (*Thumbnailer, error) {
+	if _, ok := r.(io.Seeker); !ok {
+		return nil, gomedia.ErrBadParameter.With("reader can't be seeked")
+	}
 	o, err := applyOpts(opt...)
 	if err != nil {
 		return nil, err

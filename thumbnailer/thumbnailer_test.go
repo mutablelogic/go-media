@@ -352,13 +352,15 @@ func TestThumbnailer_NewReader(t *testing.T) {
 }
 
 func TestThumbnailer_NewReaderNoSeek(t *testing.T) {
-	// An MP4 video which can't be seeked can't be read, as its index is at
-	// its end
-	f, err := os.Open(testVideo(t))
-	require.NoError(t, err)
-	defer f.Close()
-	_, err = thumbnailer.NewReader(struct{ io.Reader }{f})
-	assert.Error(t, err)
+	// A reader which can't be seeked is an error, for a format which can be
+	// read without seeking, such as MPEG-TS, as well as one which can't
+	for _, format := range []string{"mp4", "mpegts"} {
+		f, err := os.Open(testVideoFormat(t, format))
+		require.NoError(t, err)
+		_, err = thumbnailer.NewReader(struct{ io.Reader }{f})
+		assert.Error(t, err, format)
+		require.NoError(t, f.Close())
+	}
 }
 
 func TestThumbnailer_SeekKeyframes(t *testing.T) {
