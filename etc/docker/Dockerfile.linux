@@ -13,12 +13,15 @@
 # LICENSE is the license FFmpeg is built under, gpl or lgpl, as the
 # Makefile's FFMPEG_LICENSE, and SPDX is the license of the images, which is
 # Apache-2.0 AND GPL-3.0-or-later for gpl, or Apache-2.0 AND LGPL-3.0-or-later
-# for lgpl (see NOTICE).
+# for lgpl (see NOTICE). DEV is what gomedia is built on: the dev stage, or a
+# dev image which has been built already, such as one which is published, so
+# the libraries aren't built again.
 ARG OS=linux
 ARG ARCH=amd64
 ARG LICENSE=gpl
 ARG SPDX="Apache-2.0 AND GPL-3.0-or-later"
 ARG GO_VERSION=1.27
+ARG DEV=dev
 
 ###############################################################################
 # DEV
@@ -87,7 +90,7 @@ LABEL org.opencontainers.image.description="To run programs built with go-media'
 
 # Build the commands on dev, with Go
 FROM --platform=${OS}/${ARCH} golang:${GO_VERSION}-trixie AS go
-FROM dev AS builder
+FROM ${DEV} AS builder
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:${PATH}
 WORKDIR /usr/src/app
