@@ -526,6 +526,7 @@ LIBRARIES_DIR = ${BUILD_DIR}/archive
 
 .PHONY: libraries-archive
 libraries-archive: ffmpeg chromaprint libexif libraw libheif libfvad
+	$(if $(VERSION),,$(error The version is empty, as there's no git: set VERSION))
 	@echo "Packaging ${PREFIX} => ${LIBRARIES_ARCHIVE}"
 	@rm -rf "${LIBRARIES_DIR}" "${LIBRARIES_ARCHIVE}" && install -d "${LIBRARIES_DIR}"
 	@cp -R "${PREFIX}/." "${LIBRARIES_DIR}/"
