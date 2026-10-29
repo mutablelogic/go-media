@@ -47,7 +47,9 @@ RUN set -x \
     && cd / && rm -rf /usr/src/go-media
 COPY LICENSE NOTICE etc/licenses/GPL-3.0.txt /opt/go-media/share/doc/go-media/
 
-# Build with the libraries
+# Build with the libraries. FFMPEG_LICENSE is set, so the Makefile doesn't
+# build them again with another license
+ENV FFMPEG_LICENSE=${LICENSE}
 ENV PKG_CONFIG_PATH=/opt/go-media/lib/pkgconfig
 ENV CGO_LDFLAGS_ALLOW="-(W|D).*"
 ENV CGO_LDFLAGS="-lstdc++"
