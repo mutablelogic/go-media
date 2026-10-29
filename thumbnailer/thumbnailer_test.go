@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -317,5 +318,45 @@ func TestThumbnailer_Invalid(t *testing.T) {
 	_, err = thumbnailer.Open(testDataPath(t, "sample.mp4"), thumbnailer.WithMode(thumbnailer.ModeSeek+1))
 	assert.Error(t, err)
 	_, err = thumbnailer.Open(testDataPath(t, "sample.mp4"), thumbnailer.WithStream(1))
+	assert.Error(t, err)
+}
+
+func TestThumbnailer_NewReader(t *testing.T) {
+	// A video read from a file, which is seeked, has the same scenes and
+	// thumbnails as when it's opened
+	path := testVideo(t)
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+	th, err := thumbnailer.NewReader(f, thumbnailer.WithSize(160, 0))
+	require.NoError(t, err)
+	defer th.Close()
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 3, len(a.Scenes))
+
+	opened, err := thumbnailer.Open(path, thumbnailer.WithSize(160, 0))
+	require.NoError(t, err)
+	defer opened.Close()
+	b, err := opened.Analyse(context.Background())
+	require.NoError(t, err)
+	for i := range a.Scenes {
+		assert.Equal(t, b.Scenes[i].Start, a.Scenes[i].Start)
+	}
+
+	thumbs, err := th.Thumbnails(context.Background(), 3)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(thumbs))
+	r, g, _, _ := thumbs[2].Image.At(80, 60).RGBA()
+	assert.Greater(t, g, r)
+}
+
+func TestThumbnailer_NewReaderNoSeek(t *testing.T) {
+	// An MP4 video which can't be seeked can't be read, as its index is at
+	// its end
+	f, err := os.Open(testVideo(t))
+	require.NoError(t, err)
+	defer f.Close()
+	_, err = thumbnailer.NewReader(struct{ io.Reader }{f})
 	assert.Error(t, err)
 }

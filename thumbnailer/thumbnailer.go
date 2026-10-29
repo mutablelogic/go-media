@@ -84,6 +84,26 @@ func Open(path string, opt ...Opt) (*Thumbnailer, error) {
 	if err != nil {
 		return nil, err
 	}
+	return open(r, o)
+}
+
+// NewReader opens a video from r, which needs to be an io.Seeker, such as a
+// file, as frames are sampled by seeking it, and many formats, such as MP4,
+// can't be read without seeking.
+func NewReader(r io.Reader, opt ...Opt) (*Thumbnailer, error) {
+	o, err := applyOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
+	rr, err := reader.NewReader(r, o.readerOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return open(rr, o)
+}
+
+// open chooses the video stream of r, and closes r on error
+func open(r *reader.Reader, o *opts) (*Thumbnailer, error) {
 	t := &Thumbnailer{opts: *o, reader: r}
 
 	// Choose the video stream
