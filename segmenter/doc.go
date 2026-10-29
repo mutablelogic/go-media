@@ -1,7 +1,8 @@
 // Package segmenter provides audio segmentation functionality.
 //
-// The segmenter reads audio from any supported format (using FFmpeg) and
-// outputs fixed-duration chunks of raw PCM samples. It supports:
+// The segmenter reads audio from any supported format (using the reader
+// package) and outputs segments of mono float32 samples at a chosen sample
+// rate. It supports:
 //
 //   - Fixed segment sizes (e.g., 30 seconds)
 //   - Silence-based segmentation (break on silence boundaries)

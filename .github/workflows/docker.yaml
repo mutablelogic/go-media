@@ -1,9 +1,14 @@
 name: Docker
 
+# The images are published for each release. Each week, the runtime images of
+# the latest release are built again, for Debian's security updates, which
+# compiles nothing.
 on:
   release:
     types: [published, edited]
   workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
 
 permissions:
   contents: read
@@ -11,19 +16,42 @@ permissions:
 
 jobs:
   linux:
-    name: Build Linux ${{ matrix.arch }} image
+    name: Build Linux ${{ matrix.license }} ${{ matrix.arch }} images
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        arch: [amd64, arm64]
+        license: [gpl, lgpl]
         include:
           - arch: amd64
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
+          - license: gpl
+            spdx: Apache-2.0 AND GPL-3.0-or-later
+          - license: lgpl
+            spdx: Apache-2.0 AND LGPL-3.0-or-later
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The release, or the branch, or for the weekly build, the latest
+      # release, which is checked out
+      - name: Choose the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            ref=$(gh release view --json tagName --jq .tagName)
+            git checkout "$ref"
+          else
+            ref="$GITHUB_REF_NAME"
+          fi
+          echo "tag=${ref//[^A-Za-z0-9_.-]/-}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -35,31 +63,64 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate image tags and labels
-        id: metadata
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/gomedia
-          tags: |
-            type=ref,event=branch,suffix=-linux-${{ matrix.arch }}
-            type=ref,event=tag,suffix=-linux-${{ matrix.arch }}
-
-      - name: Build and publish Linux image
+      # The libraries, to build with, which isn't built again each week
+      - name: Build and publish the dev image
+        if: github.event_name != 'schedule'
         uses: docker/build-push-action@v7
         with:
           context: .
           file: etc/docker/Dockerfile.linux
+          target: dev
           platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ghcr.io/${{ github.repository_owner }}/go-media:${{ steps.version.outputs.tag }}-${{ matrix.license }}-dev-linux-${{ matrix.arch }}
           build-args: |
             OS=linux
             ARCH=${{ matrix.arch }}
+            LICENSE=${{ matrix.license }}
+            SPDX=${{ matrix.spdx }}
+            SOURCE=${{ github.server_url }}/${{ github.repository }}
+
+      # The packages to run with, on the latest Debian image
+      - name: Build and publish the runtime image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: etc/docker/Dockerfile.linux
+          target: runtime
+          platforms: linux/${{ matrix.arch }}
+          pull: true
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/go-media:${{ steps.version.outputs.tag }}-${{ matrix.license }}-runtime-linux-${{ matrix.arch }}
+          build-args: |
+            OS=linux
+            ARCH=${{ matrix.arch }}
+            LICENSE=${{ matrix.license }}
+            SPDX=${{ matrix.spdx }}
+            SOURCE=${{ github.server_url }}/${{ github.repository }}
+
+      # gomedia, built on the dev image and run on the runtime image, with
+      # FFmpeg's GPL license, so its encoders are included
+      - name: Build and publish the gomedia image
+        if: github.event_name != 'schedule' && matrix.license == 'gpl'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: etc/docker/Dockerfile.linux
+          target: gomedia
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/gomedia:${{ steps.version.outputs.tag }}-linux-${{ matrix.arch }}
+          build-args: |
+            OS=linux
+            ARCH=${{ matrix.arch }}
+            LICENSE=${{ matrix.license }}
+            SPDX=${{ matrix.spdx }}
             SOURCE=${{ github.server_url }}/${{ github.repository }}
 
   windows:
     name: Build Windows image
+    if: github.event_name != 'schedule'
     runs-on: windows-2022
     steps:
       - name: Configure git line endings
@@ -118,7 +179,7 @@ jobs:
         # runtime isn't), so those three DLLs are copied alongside it for
         # Dockerfile.windows to package together.
         run: |
-          make ffmpeg chromaprint libexif libraw libheif
+          make ffmpeg chromaprint libexif libraw libheif libfvad
           make cmd
           cp "$MINGW_PREFIX"/bin/libstdc++-6.dll "$MINGW_PREFIX"/bin/libgcc_s_seh-1.dll "$MINGW_PREFIX"/bin/libwinpthread-1.dll build/
 
@@ -157,9 +218,75 @@ jobs:
             exit $LASTEXITCODE
           }
 
+  # The Windows libraries, with their headers and pkg-config files, built
+  # with MSYS2's MinGW64, are attached to the release as
+  # go-media-<version>-<license>-windows-amd64.zip, to build with on Windows,
+  # where the images can't be used
+  windows-libraries:
+    name: Build Windows ${{ matrix.license }} libraries
+    if: github.event_name == 'release'
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        license: [gpl, lgpl]
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The gpl libraries have the same key as test.yaml's and the windows
+      # job's, so they reuse what those built, and the lgpl libraries have
+      # their own
+      - name: Cache libraries
+        uses: actions/cache@v6
+        with:
+          path: build/install
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}${{ matrix.license == 'lgpl' && '-lgpl' || '' }}
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            make
+            curl
+            diffutils
+            nasm
+            zip
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-libde265
+            mingw-w64-x86_64-aom
+            mingw-w64-x86_64-dav1d
+
+      # The libraries don't need Go, whose cache the Makefile clears after
+      # building libraw, so it's "true"
+      - name: Build and package the libraries
+        shell: msys2 {0}
+        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-zip
+
+      - name: Attach the libraries to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-windows-*.zip --clobber
+
   manifest:
-    name: Publish multi-platform latest tag
+    name: Publish multi-platform tags
     needs: [linux, windows]
+    if: ${{ !cancelled() && needs.linux.result == 'success' && needs.windows.result != 'failure' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Set up Docker Buildx
@@ -172,17 +299,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create release and latest manifests
+      # The libraries' images, as go-media:<version>-<license>-dev and
+      # go-media:<version>-<license>-runtime, for amd64 and arm64, and the
+      # gomedia image, as gomedia:<version> and gomedia:latest, for Linux and
+      # Windows
+      - name: Create the manifests
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           IMAGE_OWNER: ${{ github.repository_owner }}
           REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          image="ghcr.io/${IMAGE_OWNER,,}/gomedia"
-          ref_tag="${REF_NAME//[^A-Za-z0-9_.-]/-}"
-          docker buildx imagetools create \
-            --tag "$image:latest" \
-            --tag "$image:$ref_tag" \
-            "$image:$ref_tag-linux-amd64" \
-            "$image:$ref_tag-linux-arm64" \
-            "$image:$ref_tag-windows-ltsc2022"
+          set -e
+          if [ "$EVENT_NAME" = schedule ]; then
+            ref=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+            kinds="runtime"
+          else
+            ref="$REF_NAME"
+            kinds="dev runtime"
+          fi
+          tag="${ref//[^A-Za-z0-9_.-]/-}"
+
+          libraries="ghcr.io/${IMAGE_OWNER,,}/go-media"
+          for license in gpl lgpl; do
+            for kind in $kinds; do
+              docker buildx imagetools create \
+                --tag "$libraries:$tag-$license-$kind" \
+                "$libraries:$tag-$license-$kind-linux-amd64" \
+                "$libraries:$tag-$license-$kind-linux-arm64"
+            done
+          done
+
+          if [ "$EVENT_NAME" != schedule ]; then
+            image="ghcr.io/${IMAGE_OWNER,,}/gomedia"
+            docker buildx imagetools create \
+              --tag "$image:latest" \
+              --tag "$image:$tag" \
+              "$image:$tag-linux-amd64" \
+              "$image:$tag-linux-arm64" \
+              "$image:$tag-windows-ltsc2022"
+          fi

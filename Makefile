@@ -21,12 +21,14 @@ CMD_DIR := $(wildcard cmd/*)
 PREFIX ?= ${BUILD_DIR}/install
 
 # Source version
-FFMPEG_VERSION ?= ffmpeg-8.0.3
+# libfvad's only release, v1.0, predates its CMake build, so use a commit
+FFMPEG_VERSION ?= ffmpeg-8.1.3
 SYS_VERSION ?= ffmpeg80
 CHROMAPRINT_VERSION ?= chromaprint-1.5.1
 LIBEXIF_VERSION ?= 0.6.26
 LIBRAW_VERSION ?= 0.22.1
 LIBHEIF_VERSION ?= 1.23.1
+LIBFVAD_VERSION ?= 532ab666c20d3cfda38bca63abbb0f152706c369
 
 # A library is built once for each version: installing it writes its stamp
 # in the installation, and removes the stamps of its other versions, so it
@@ -34,11 +36,12 @@ LIBHEIF_VERSION ?= 1.23.1
 # installation is restored from a cache. Remove the stamp, or the
 # installation, to build it again.
 STAMP = ${PREFIX}/.stamp
-FFMPEG_STAMP = ${STAMP}-ffmpeg-$(FFMPEG_VERSION:ffmpeg-%=%)
+FFMPEG_STAMP = ${STAMP}-ffmpeg-$(FFMPEG_VERSION:ffmpeg-%=%)$(if $(filter lgpl,$(FFMPEG_LICENSE)),-lgpl)
 CHROMAPRINT_STAMP = ${STAMP}-chromaprint-$(CHROMAPRINT_VERSION:chromaprint-%=%)
 LIBRAW_STAMP = ${STAMP}-libraw-${LIBRAW_VERSION}
 LIBEXIF_STAMP = ${STAMP}-libexif-${LIBEXIF_VERSION}
 LIBHEIF_STAMP = ${STAMP}-libheif-${LIBHEIF_VERSION}
+LIBFVAD_STAMP = ${STAMP}-libfvad-${LIBFVAD_VERSION}
 
 # stamp writes the stamp of the library which is installed, and removes the
 # stamps of its other versions
@@ -83,13 +86,28 @@ ifeq ($(OS),windows)
 FFMPEG_PLATFORM_CONFIG=--disable-indev=vfwcap
 endif
 
-# FFmpeg is a GPL version 3 build, which can be redistributed under the GPL:
-# GPL, for x264 and x265, and version 3, for OpenSSL 3 and the codecs which
-# are version 3. FFMPEG_NONFREE=1 adds the nonfree components, fdk-aac and
-# libtls, which makes a build which FFmpeg reports as "nonfree and
-# unredistributable", so is only for your own use.
+# FFMPEG_LICENSE is the license FFmpeg is built under. With gpl (the
+# default), it's a GPL version 3 build, which can be redistributed under the
+# GPL: GPL, for x264 and x265, and version 3, for OpenSSL 3 and the codecs
+# which are version 3. With lgpl, it's an LGPL version 3 build, without the
+# libraries which FFmpeg only allows in a GPL build (FFMPEG_GPL_LIBRARIES),
+# so x264 and x265 aren't built, and nor is any other encoder they'd provide.
+# FFMPEG_NONFREE=1 adds the nonfree components, fdk-aac and libtls, which
+# makes a build which FFmpeg reports as "nonfree and unredistributable", so
+# is only for your own use.
+FFMPEG_LICENSE ?= gpl
 FFMPEG_NONFREE ?=
+ifeq ($(FFMPEG_LICENSE),gpl)
 FFMPEG_LICENSE_CONFIG := --enable-gpl --enable-version3 $(if $(FFMPEG_NONFREE),--enable-nonfree)
+else ifeq ($(FFMPEG_LICENSE),lgpl)
+FFMPEG_LICENSE_CONFIG := --enable-version3 $(if $(FFMPEG_NONFREE),--enable-nonfree)
+else
+$(error FFMPEG_LICENSE must be gpl or lgpl, not "$(FFMPEG_LICENSE)")
+endif
+
+# gpl_library returns an FFmpeg option, only for a GPL build, for a library
+# FFmpeg only allows in one (its EXTERNAL_LIBRARY_GPL_LIST)
+gpl_library = $(if $(filter gpl,$(FFMPEG_LICENSE)),$(1))
 
 
 # Set build flags
@@ -105,9 +123,9 @@ BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
 all: clean cmd
 
 .PHONY: cmd
-cmd: ffmpeg chromaprint libexif libraw libheif $(CMD_DIR)
+cmd: ffmpeg chromaprint libexif libraw libheif libfvad $(CMD_DIR)
 
-$(CMD_DIR): go-dep go-tidy sdl-dep chromaprint-dep mkdir
+$(CMD_DIR): go-dep go-tidy chromaprint-dep mkdir
 	@echo Build cmd $(notdir $@)
 	@${CGO_ENV} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@)$(if $(filter windows,$(OS)),.exe) ./$@
 
@@ -355,17 +373,108 @@ ${LIBHEIF_STAMP}: ${FFMPEG_STAMP}
 	$(call stamp,libheif)
 
 ###############################################################################
+# LIBFVAD
+
+# Download libfvad sources
+${BUILD_DIR}/libfvad-${LIBFVAD_VERSION}:
+	@if [ ! -d "$(BUILD_DIR)/libfvad-$(LIBFVAD_VERSION)" ]; then \
+		echo "Downloading libfvad-$(LIBFVAD_VERSION)"; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/libfvad.tar.gz https://github.com/dpirch/libfvad/archive/$(LIBFVAD_VERSION).tar.gz; \
+		tar -xzf $(BUILD_DIR)/libfvad.tar.gz -C $(BUILD_DIR); \
+		rm -f $(BUILD_DIR)/libfvad.tar.gz; \
+	fi
+
+.PHONY: libfvad-configure
+libfvad-configure: mkdir ${BUILD_DIR}/libfvad-${LIBFVAD_VERSION}
+	@echo "Configuring libfvad-${LIBFVAD_VERSION} => ${PREFIX}"
+	@cmake \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX="$(shell realpath ${PREFIX})" \
+		-S ${BUILD_DIR}/libfvad-${LIBFVAD_VERSION} \
+		-B ${BUILD_DIR}/libfvad-${LIBFVAD_VERSION}/build
+
+# Build libfvad
+.PHONY: libfvad-build
+libfvad-build: libfvad-configure
+	@echo "Building libfvad-${LIBFVAD_VERSION} with ${JOBS} jobs"
+	@cmake --build ${BUILD_DIR}/libfvad-${LIBFVAD_VERSION}/build -j$(JOBS)
+
+# Install libfvad, and write its pkg-config file, which only its autotools
+# build installs
+.PHONY: libfvad-install
+libfvad-install: libfvad-build
+	@echo "Installing libfvad-${LIBFVAD_VERSION} => ${PREFIX}"
+	@cmake --install ${BUILD_DIR}/libfvad-${LIBFVAD_VERSION}/build
+	@install -d "${PREFIX}/lib/pkgconfig"
+	@printf '%s\n' \
+		'prefix=$(shell realpath ${PREFIX})' \
+		'libdir=$${prefix}/lib' \
+		'includedir=$${prefix}/include' \
+		'' \
+		'Name: libfvad' \
+		'Description: Voice activity detection (VAD) library' \
+		'URL: https://github.com/dpirch/libfvad' \
+		'Version: 1.0.1' \
+		'Libs: -L$${libdir} -lfvad' \
+		'Cflags: -I$${includedir}' \
+		> "${PREFIX}/lib/pkgconfig/libfvad.pc"
+
+# Install libfvad, unless it's installed already
+.PHONY: libfvad
+libfvad: ${LIBFVAD_STAMP}
+${LIBFVAD_STAMP}:
+	@$(MAKE) --no-print-directory libfvad-install
+	$(call stamp,libfvad)
+
+###############################################################################
+# MUSAN
+
+# MUSAN is a corpus of speech, music and noise (https://www.openslr.org/17/),
+# which test-musan uses to show how well the segmenter classifies audio. It's
+# an 11GB download, which make clean removes along with the rest of the build.
+# MUSAN_LIMIT is the number of files for each label, or zero for all of them
+MUSAN_DIR ?= ${BUILD_DIR}/musan
+MUSAN_LIMIT ?= 50
+MUSAN_STAMP = ${MUSAN_DIR}/.stamp
+
+# Download and extract MUSAN, resuming a download which was interrupted
+${MUSAN_STAMP}:
+	@echo "Downloading MUSAN => ${MUSAN_DIR}"
+	@install -d ${MUSAN_DIR}
+	@${CURL} ${CURL_RETRY_FLAGS} -C - -o ${MUSAN_DIR}.tar.gz https://www.openslr.org/resources/17/musan.tar.gz
+	@echo "Extracting MUSAN => ${MUSAN_DIR}"
+	@tar -xzf ${MUSAN_DIR}.tar.gz -C ${MUSAN_DIR} --strip-components=1
+	@rm -f ${MUSAN_DIR}.tar.gz
+	@touch $@
+
+.PHONY: musan
+musan: ${MUSAN_STAMP}
+
+###############################################################################
 # TESTS
 
 .PHONY: test
-test: ffmpeg chromaprint libexif libraw libheif test-ffmpeg test-chromaprint test-exif test-raw test-heif test-gomedia
+test: ffmpeg chromaprint libexif libraw libheif libfvad test-ffmpeg test-chromaprint test-exif test-raw test-heif test-libfvad test-gomedia
 
 .PHONY: test-chromaprint
-# chromaprint depends on ffmpeg, so covers both
 test-chromaprint: chromaprint
-	@echo ... test pkg/segmenter sys/chromaprint
-	@${CGO_ENV} ${GO} test ${ARGS} ./pkg/segmenter
+	@echo ... test sys/chromaprint
 	@${CGO_ENV} ${GO} test ${ARGS} ./sys/chromaprint
+
+.PHONY: test-libfvad
+# segmenter depends on ffmpeg and libfvad, so is tested here
+test-libfvad: ffmpeg libfvad
+	@echo ... test sys/libfvad segmenter
+	@${CGO_ENV} ${GO} test ${ARGS} ./sys/libfvad
+	@${CGO_ENV} ${GO} test ${ARGS} ./segmenter/...
+
+.PHONY: test-musan
+# Classify the MUSAN corpus, writing the stats of each segment to a CSV file
+test-musan: ffmpeg libfvad musan
+	@echo ... classify ${MUSAN_DIR}
+	@${CGO_ENV} ${GO} run ./cmd/segmenter classify --limit ${MUSAN_LIMIT} --csv ${MUSAN_DIR}.csv \
+		${MUSAN_DIR}/speech ${MUSAN_DIR}/music ${MUSAN_DIR}/noise
 
 .PHONY: test-exif
 test-exif: libexif
@@ -398,7 +507,65 @@ test-gomedia: ffmpeg
 	@${CGO_ENV} ${GO} test ${ARGS} ./gomedia/...
 
 ###############################################################################
+# LIBRARIES ZIP
+
+# Package the libraries go-media links with, as installed in PREFIX with their
+# headers, pkg-config files and stamps, as a zip which can be unpacked
+# anywhere, as the pkg-config files are made relative to where they are, with
+# ${pcfiledir}. Unpacked into build/install, make doesn't build them again.
+# The install path is replaced in the form it's in and, under MSYS2, the form
+# Windows tools such as cmake write
+LIBRARIES_ZIP = ${BUILD_DIR}/go-media-${VERSION}-${FFMPEG_LICENSE}-${OS}-${ARCH}.zip
+
+.PHONY: libraries-zip
+libraries-zip: ffmpeg chromaprint libexif libraw libheif libfvad
+	@echo "Packaging ${PREFIX} => ${LIBRARIES_ZIP}"
+	@rm -rf "${BUILD_DIR}/zip" "${LIBRARIES_ZIP}" && install -d "${BUILD_DIR}/zip"
+	@cp -R "${PREFIX}/." "${BUILD_DIR}/zip/"
+	@prefix="$$(realpath "${PREFIX}")"; windows="$$(cygpath -m "$$prefix" 2>/dev/null || true)"; \
+	for f in "${BUILD_DIR}"/zip/lib/pkgconfig/*.pc; do \
+		sed -i.bak -e "s|$$prefix|\$${pcfiledir}/../..|g" $${windows:+-e "s|$$windows|\$${pcfiledir}/../..|g"} "$$f" && rm -f "$$f.bak"; \
+	done
+	@install -d "${BUILD_DIR}/zip/share/doc/go-media" && cp LICENSE NOTICE etc/licenses/GPL-3.0.txt "${BUILD_DIR}/zip/share/doc/go-media/"
+	@cd "${BUILD_DIR}/zip" && zip -qr "$(abspath ${LIBRARIES_ZIP})" .
+	@rm -rf "${BUILD_DIR}/zip"
+
+###############################################################################
+# DOCKER
+
+# Build Linux images for this machine's architecture with etc/docker/Dockerfile.linux:
+# the gomedia image (make docker), and the images of the libraries go-media
+# links with, built under FFMPEG_LICENSE, to build with (make docker-dev) and
+# to run with (make docker-runtime)
+DOCKER ?= $(shell which docker)
+DOCKER_REPO ?= ghcr.io/mutablelogic/gomedia
+DOCKER_LIBRARIES_REPO ?= ghcr.io/mutablelogic/go-media
+DOCKER_SPDX = Apache-2.0 AND $(if $(filter lgpl,$(FFMPEG_LICENSE)),LGPL,GPL)-3.0-or-later
+docker_build = ${DOCKER} build --file etc/docker/Dockerfile.linux --platform linux/${ARCH} \
+	--build-arg ARCH=${ARCH} --build-arg LICENSE=${FFMPEG_LICENSE} --build-arg "SPDX=${DOCKER_SPDX}" \
+	--target $(1) --tag $(2) .
+
+.PHONY: docker
+docker: docker-dep
+	@echo "Building ${DOCKER_REPO}:${VERSION}-linux-${ARCH}"
+	@$(call docker_build,gomedia,${DOCKER_REPO}:${VERSION}-linux-${ARCH})
+
+.PHONY: docker-dev
+docker-dev: docker-dep
+	@echo "Building ${DOCKER_LIBRARIES_REPO}:${VERSION}-${FFMPEG_LICENSE}-dev"
+	@$(call docker_build,dev,${DOCKER_LIBRARIES_REPO}:${VERSION}-${FFMPEG_LICENSE}-dev)
+
+.PHONY: docker-runtime
+docker-runtime: docker-dep
+	@echo "Building ${DOCKER_LIBRARIES_REPO}:${VERSION}-${FFMPEG_LICENSE}-runtime"
+	@$(call docker_build,runtime,${DOCKER_LIBRARIES_REPO}:${VERSION}-${FFMPEG_LICENSE}-runtime)
+
+###############################################################################
 # DEPENDENCIES, ETC
+
+.PHONY: docker-dep
+docker-dep:
+	@test -f "$(DOCKER)" && test -x "$(DOCKER)" || (echo "Missing docker binary" && exit 1)
 
 .PHONY: go-dep
 go-dep:
@@ -436,9 +603,9 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists freetype2 && echo "--enable-libfreetype"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vorbis && echo "--enable-libvorbis"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opus && echo "--enable-libopus"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists x264 && echo "--enable-libx264"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists x265 && echo "--enable-libx265"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xvid && echo "--enable-libxvid"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists x264 && echo "--enable-libx264")))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists x265 && echo "--enable-libx265")))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists xvid && echo "--enable-libxvid")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vpx && echo "--enable-libvpx"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libgcrypt && echo "--enable-gcrypt"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists aom && echo "--enable-libaom"))
@@ -454,7 +621,7 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists srt && echo "--enable-libsrt"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libwebp && echo "--enable-libwebp"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists zimg && echo "--enable-libzimg"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vidstab && echo "--enable-libvidstab"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists vidstab && echo "--enable-libvidstab")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libvmaf && echo "--enable-libvmaf"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openh264 && echo "--enable-libopenh264"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists gsm && echo "--enable-libgsm"))
@@ -472,12 +639,12 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opencore-amrnb && echo "--enable-libopencore-amrnb"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists opencore-amrwb && echo "--enable-libopencore-amrwb"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vo-amrwbenc && echo "--enable-libvo-amrwbenc"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists rubberband && echo "--enable-librubberband"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists rubberband && echo "--enable-librubberband")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libbs2b && echo "--enable-libbs2b"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists kvazaar && echo "--enable-libkvazaar"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists davs2 && echo "--enable-libdavs2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists davs2 && echo "--enable-libdavs2")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists uavs3d && echo "--enable-libuavs3d"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xavs2 && echo "--enable-libxavs2"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(call gpl_library,$(shell ${PKG_CONFIG} --exists xavs2 && echo "--enable-libxavs2")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vvenc && echo "--enable-libvvenc"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xeve && echo "--enable-libxeve"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists xevd && echo "--enable-libxevd"))
@@ -541,11 +708,6 @@ libheif-dep:
 	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_DECODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
 	$(eval LIBHEIF_CONFIG := $(LIBHEIF_CONFIG) -DWITH_JPEG_ENCODER=$(shell ${PKG_CONFIG} --exists libjpeg && echo ON || echo OFF))
 	@echo "libheif configuration: $(LIBHEIF_CONFIG)"
-
-# Check for SDL dependencies
-.PHONY: sdl-dep
-sdl-dep:
-	$(eval BUILD_FLAGS := $(BUILD_FLAGS) $(shell $(PKG_CONFIG) --exists sdl2 && echo "--tags sdl2"))
 
 # Check for Chromaprint dependencies
 .PHONY: chromaprint-dep

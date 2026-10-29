@@ -8,7 +8,6 @@ require (
 	github.com/mutablelogic/go-pg v1.4.4
 	github.com/mutablelogic/go-server v1.7.16
 	github.com/stretchr/testify v1.12.1
-	github.com/veandco/go-sdl2 v0.4.40
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0

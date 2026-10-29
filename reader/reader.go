@@ -30,6 +30,13 @@ type Reader struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+// retryDelay is how long Decode waits to read again when no data is
+// available yet, such as from a capture device
+const retryDelay = 5 * time.Millisecond
+
+////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Open media from a url, file path or device
@@ -327,7 +334,14 @@ func (r *Reader) Decode(ctx context.Context, packetfn PacketFn, decoder *Decoder
 				break
 			}
 			if errors.Is(err, syscall.EAGAIN) {
-				// No data available right now - retry
+				// No data available right now, such as from a device which
+				// is still capturing - wait a little before retrying, rather
+				// than spinning
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(retryDelay):
+				}
 				continue
 			}
 			return err

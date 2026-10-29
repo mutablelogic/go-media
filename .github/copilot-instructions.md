@@ -6,24 +6,25 @@ This Go module provides CGO bindings to several media C libraries, layered consi
 
 1. **sys/\*** - low-level CGO bindings, mirroring each C library's API 1:1
    - `sys/ffmpeg80/` - FFmpeg bindings, selected via `SYS_VERSION` in the Makefile
-   - `sys/libheif/`, `sys/libraw/`, `sys/libexif/`, `sys/chromaprint/`, `sys/dvb/`
-2. **pkg/\*** - high-level, idiomatic Go APIs per library
-   - `pkg/ffmpeg/` - Reader, Decoder, Encoder, Resampler, Frame abstractions
-   - `pkg/segmenter/` - segments decoded audio into fixed-size or silence-separated segments
-   - `pkg/sdl/` - SDL2 video/audio player (Context, FrameLoop, Player). **Not currently wired into the `gomedia` CLI** - it's an independent, tested library; treat it as such rather than assuming there's a `play` command.
+   - `sys/libheif/`, `sys/libraw/`, `sys/libexif/`, `sys/libfvad/`, `sys/chromaprint/`, `sys/dvb/`
+2. **High-level packages** - idiomatic Go APIs over `sys/ffmpeg80`
+   - `reader/` - demuxing and decoding from a file, URL, device or `io.Reader` (`Reader`, `Decoder`)
+   - `writer/` - encoding and muxing (`Writer`, `Encoder`), and `Resampler`, which converts audio and video frames to a target format
+   - `frame/` - `AudioFrame`, `VideoFrame` and `SubtitleFrame`, wrapping `AVFrame`/`AVSubtitle`
+   - `profile/` and `task/` - encoding profiles, and asynchronous tasks such as encoding, each with `schema/`, `manager/`, `httphandler/` and `httpclient/` packages
+   - `segmenter/` - segments audio at silence, a fixed duration or given times, and classifies segments as speech, music, silence or other sound, using `reader/`; see its README
 3. **gomedia/** - the application layer that the CLI/server binary is built from
-   - `gomedia/schema/` - request/response types with `kong` CLI tags (the public-facing API surface; distinct from the lower-level `pkg/ffmpeg/schema/` types used internally)
-   - `gomedia/manager/` - `manager.Media` orchestrates `pkg/ffmpeg`, profiles and tasks behind the `gomedia/schema` types (probing, encoding, capabilities)
-   - `gomedia/cmd/` - `kong`-based CLI command definitions (`CLICommands` embeds `MetadataCLICommands`, `CapabilitiesCLICommands`, `EncodingCLICommands`); each `Run` method calls `c.WithManager(ctx, func(m *manager.Media) error {...})`
-4. **cmd/gomedia/** - thin `main()` that wraps `gomedia/cmd.CLI{}` via `go-server`'s `cmd.Main(...)`. There is no bespoke input-format-sniffing or SDL-wiring logic here anymore - look in `gomedia/manager` and `gomedia/cmd` instead.
+   - `gomedia/manager/` - orchestrates `reader/`, `writer/`, profiles and tasks (probing, encoding, capabilities)
+   - `gomedia/cmd/` - `kong`-based CLI command definitions, wrapped by `cmd/gomedia`
+4. **cmd/** - thin `main()`s built with `go-server`'s `cmd.Main(...)`: `cmd/gomedia` (CLI, client and server) and `cmd/segmenter` (local `segment`, `stream` and `classify` commands)
 
-An older Task Manager pattern under `pkg/ffmpeg/task/` and an SDL-playback `main.go` are referenced by some stale docs/README content but no longer exist on this branch (that code now lives archived under `_old/`, if present). Don't assume `pkg/ffmpeg/task` exists - the equivalent responsibility now lives in `gomedia/manager`.
+Older code, including the previous high-level FFmpeg API (`pkg/ffmpeg`) and the SDL2 player (`pkg/sdl`), is archived under `_old/`, which Go ignores. Don't assume any of it is built or tested.
 
 ## Critical Build Workflow
 
 **First build ALWAYS requires the full `make`** - it builds several C dependencies as static libraries before compiling Go:
 ```bash
-make              # Builds ffmpeg, chromaprint, libexif, libraw, libheif, then all cmd/* binaries
+make              # Builds ffmpeg, chromaprint, libexif, libraw, libheif, libfvad, then all cmd/* binaries
 ```
 
 Source versions are pinned in the Makefile (check there for current values - they change):
@@ -33,7 +34,7 @@ FFMPEG_VERSION, CHROMAPRINT_VERSION, LIBEXIF_VERSION, LIBRAW_VERSION, LIBHEIF_VE
 
 **Subsequent builds** can target a single command once the C deps are already installed under `build/install`:
 ```bash
-make cmd/gomedia  # Rebuilds Go only, IF ffmpeg/chromaprint/libexif/libraw/libheif are already built
+make cmd/gomedia  # Rebuilds Go only, IF ffmpeg/chromaprint/libexif/libraw/libheif/libfvad are already built
 ```
 
 The Makefile sets CGO env vars for every build/test target (`CGO_ENV`), and **these differ by OS**:
@@ -52,67 +53,25 @@ Never run `go build`/`go test` directly without these vars (see Makefile's `CGO_
 ## FFmpeg Integration Patterns
 
 ### Frame Buffer Management
-**Critical**: FFmpeg reuses frame buffers across decode operations. When queueing frames for another goroutine (e.g. SDL playback), ALWAYS copy first:
-
-```go
-// pkg/sdl/playback.go, FrameWriter.WriteFrame
-copy, err := frame.Copy()  // pkg/ffmpeg/frame.go - allocates a new buffer
-if err != nil {
-    return err
-}
-frameCh <- copy  // Safe to pass to another goroutine
-```
+**Critical**: FFmpeg reuses frame buffers across decode operations. A `reader.Decoder` closes each frame after its `FrameFn` returns, and `writer.Resampler` reuses its output frame, so copy any samples or pixels you need to keep before the callback returns.
 
 ### Stream Decoder Initialization
-Handle unsupported codecs gracefully rather than failing the whole decode (`pkg/ffmpeg/decoder.go`):
-
-```go
-codec := ff.AVCodec_find_decoder(codecID)
-if codec == nil {
-    return nil, errors.Join(ErrCodecNotFound, errors.New("codec: "+codecID.Name()))
-}
-
-// mapStreams() skips streams whose decoder init failed with ErrCodecNotFound
-// rather than aborting the whole file
-if errors.Is(err, ErrCodecNotFound) {
-    continue
-}
-```
+`reader.Decoder` only decodes the streams registered with `Add`, and fails to open if a registered stream has no decoder (`reader/decoder.go`), so check a stream's codec parameters before adding it.
 
 ### Reader Input Options
-Per-format demuxer tuning flows from the CLI/manager layer down into `pkg/ffmpeg`:
+Per-format demuxer tuning, and devices, are set with `reader.WithInput`:
 
 ```go
-// gomedia/schema/probe.go (CLI-facing) - InputFormat/InputOpts also exist on
-// pkg/ffmpeg/schema.Request for internal callers
-InputFormat string   `kong:"name='input-format',help='Force input format'"`
-InputOpts   []string `kong:"name='input-opt',help='Input format options (key=value)'"`
-
-// pkg/ffmpeg/opts.go
-reader, err := ffmpeg.NewReader(r, ffmpeg.WithInput(req.InputFormat, req.InputOpts...))
+r, err := reader.Open(url, reader.WithInput("s16le", "sample_rate=16000", "channels=1"))
+r, err := reader.Open(":0", reader.WithInput("avfoundation"))  // the first audio device on macOS
 ```
 
-There is currently no automatic per-extension heuristic (e.g. auto-tuning MPEG-TS probing) in `cmd/gomedia` - callers must pass `InputFormat`/`InputOpts` explicitly if a demuxer needs help.
-
-## SDL Player Architecture (library-only; not wired into the CLI)
-
-1. **Context** - initializes SDL, manages the event loop via goroutine registration
-2. **FrameLoop** - runs on the main thread, dispatches frames from a channel via user events: `sdl.NewFrameLoop(ctx, handlerFunc, bufferSize, opts...)`
-3. **Player** - created via `ctx.NewPlayer()` (a method on `*Context`, not a package-level constructor); manages Window and Audio, handles format conversion
-
-**SDL MUST run on the main thread on macOS.**
-
-### Video Timing
-`pkg/sdl/player.go`'s `VideoDelay` is PTS-based, not a fixed interval - it tracks `lastPTS`/a frame timer and compares against `frame.Ts()` (skipping non-video frames via `frame.Type() != media.VIDEO`). Don't reintroduce a fixed 33ms sleep.
-
-### Format Conversion
-Player auto-converts video formats via a cached resampler: YUV420P/RGB24 go straight to a native SDL texture update; everything else goes through swscale to YUV420P first.
+There is currently no automatic per-extension heuristic (e.g. auto-tuning MPEG-TS probing) - callers must pass the input format and options explicitly if a demuxer needs help.
 
 ## Testing Patterns
 
 ### Debugging
-- `GOMEDIA_SDL_DEBUG=1` enables detailed SDL operation logging (`pkg/sdl/player.go`).
-- `pkg/ffmpeg/logging.go` exposes `SetLogging(verbose bool, fn LogFn)` - use that instead of calling `AVUtil_log_set_callback`/`AVUtil_log_set_level` directly.
+- FFmpeg's own logging is controlled with `AVUtil_log_set_level` and `AVUtil_log_set_callback` in `sys/ffmpeg80`.
 
 ### Test Fixtures
 - `etc/test/sample.mp4` - h264/aac, 1280x720, ~5.3s
@@ -122,16 +81,15 @@ Player auto-converts video formats via a cached resampler: YUV420P/RGB24 go stra
 
 ## Common Gotchas
 
-1. **Stream JSON Marshaling**: `AVStream.MarshalJSON` delegates to the C struct and produces garbage. Use manual field extraction via `Id()`, `CodecPar()`, `TimeBase()`, etc. (see `pkg/ffmpeg/schema/stream.go`).
+1. **Stream JSON Marshaling**: `AVStream.MarshalJSON` delegates to the C struct and produces garbage. Use manual field extraction via `Id()`, `CodecPar()`, `TimeBase()`, etc. (see `profile/schema/stream.go`).
 2. **AVStream API naming**: methods are `Id()` not `ID()`; use `AVCodecID.Name()`, not `AVCodec_get_name()`.
 3. **AV_NOPTS_VALUE**: cast to `int64` for comparisons: `pts != int64(ff.AV_NOPTS_VALUE)`.
-4. **Texture Recreation**: SDL textures must be recreated when format/dimensions change - see `pkg/sdl/window.go`'s `ensureTexture()`.
-5. **Audio Channel Layouts**: modern FFmpeg uses the `AVChannelLayout` struct, not legacy channel-mask integers.
-6. **libraw timestamps are host-timezone-poisoned**: libraw computes `imgother.timestamp` via C's `mktime()` on the EXIF wall-clock string, which has no real offset - `mktime()` interprets it *as local time on whatever machine parsed the file*. `time.Unix(ts, 0)` (in `time.Local`) is the correct inverse and recovers the original wall-clock digits on any host, but converting to another zone (e.g. calling `.UTC()` on it) shifts those digits by the parsing host's own UTC offset - which varies by machine/CI runner and is not the photo's real capture offset. Recover the wall-clock fields via `time.Local` and *relabel* them as UTC (no arithmetic conversion), so results are deterministic across hosts, as go-metadata's RAW handler does.
-7. **HEIF "Decoder plugin generated an error: Unspecified"**: almost always means libheif was built with a codec (e.g. `libde265` for HEVC/HEIC) compiled out because its `-dev` package wasn't present when `make libheif` ran pkg-config detection - see "libheif codec selection" above. It's not a runtime plugin-path or shared-library-resolution issue; libheif is built statically and plugin loading is disabled.
+4. **Audio Channel Layouts**: modern FFmpeg uses the `AVChannelLayout` struct, not legacy channel-mask integers.
+5. **libraw timestamps are host-timezone-poisoned**: libraw computes `imgother.timestamp` via C's `mktime()` on the EXIF wall-clock string, which has no real offset - `mktime()` interprets it *as local time on whatever machine parsed the file*. `time.Unix(ts, 0)` (in `time.Local`) is the correct inverse and recovers the original wall-clock digits on any host, but converting to another zone (e.g. calling `.UTC()` on it) shifts those digits by the parsing host's own UTC offset - which varies by machine/CI runner and is not the photo's real capture offset. Recover the wall-clock fields via `time.Local` and *relabel* them as UTC (no arithmetic conversion), so results are deterministic across hosts, as go-metadata's RAW handler does.
+6. **HEIF "Decoder plugin generated an error: Unspecified"**: almost always means libheif was built with a codec (e.g. `libde265` for HEVC/HEIC) compiled out because its `-dev` package wasn't present when `make libheif` ran pkg-config detection - see "libheif codec selection" above. It's not a runtime plugin-path or shared-library-resolution issue; libheif is built statically and plugin loading is disabled.
 
 ## File Conventions
 
-- `schema/` packages (both `gomedia/schema/` and `pkg/ffmpeg/schema/`) define request/response types with `kong` CLI tags
-- FFmpeg C types are prefixed with `AV` (`AVCodec`, `AVFormatContext`, `AVFrame`); Go wrappers omit the prefix (`Reader`, `Decoder`, `Frame` wraps `AVFrame`)
+- `schema/` packages (such as `profile/schema/` and `task/schema/`) define request/response types
+- FFmpeg C types are prefixed with `AV` (`AVCodec`, `AVFormatContext`, `AVFrame`); Go wrappers omit the prefix (`reader.Reader`, `reader.Decoder`, `frame.AudioFrame` wraps `AVFrame`)
 - Metadata keys use a `namespace:name` convention (e.g. `exif:DateTimeOriginal`, `tiff:Make`, `artwork:thumbnail`) - see `gomedia.Metadata.Key()`
