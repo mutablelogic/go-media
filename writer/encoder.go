@@ -297,7 +297,22 @@ func (e *Encoder) drainPackets(ctx *ff.AVCodecContext, streamID int) error {
 			return err
 		}
 
+		// The packet's timestamps are in the codec's timebase, which a muxer
+		// rescales from, as its stream's timebase may differ
 		packet.SetStreamIndex(streamID)
+		packet.SetTimeBase(ctx.TimeBase())
+
+		// A video encoder may not set a packet's duration, but a muxer such
+		// as mp4 needs one for the last packet, or the stream ends before
+		// it, so it's one frame: at the codec's frame rate if it's set, or
+		// one tick of its timebase, which a video profile sets to one frame
+		if packet.Duration() == 0 && ctx.CodecType() == ff.AVMEDIA_TYPE_VIDEO {
+			if rate := ctx.Framerate(); rate.Num() > 0 && rate.Den() > 0 {
+				packet.SetDuration(ff.AVUtil_rational_rescale_q(1, ff.AVUtil_rational_invert(rate), ctx.TimeBase()))
+			} else {
+				packet.SetDuration(1)
+			}
+		}
 
 		err := e.fn(packet)
 		ff.AVCodec_packet_free(packet)

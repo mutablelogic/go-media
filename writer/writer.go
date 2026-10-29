@@ -469,8 +469,10 @@ func (writer *Writer) open(output *profile.Output) (*Writer, error) {
 }
 
 // writePacket is the embedded Encoder's packet callback: it muxes every
-// packet the encoder produces straight into the output. A nil packet (the
-// encoder's end-of-batch signal) is a no-op.
+// packet the encoder produces into the output, rescaling its timestamps from
+// the codec's timebase to its stream's, which the muxer may have changed when
+// it wrote the header (such as mp4, which uses 1/12800 for 25fps video). A
+// nil packet (the encoder's end-of-batch signal) is a no-op.
 func (w *Writer) writePacket(packet *ff.AVPacket) error {
 	w.Lock()
 	defer w.Unlock()
@@ -517,9 +519,14 @@ func (w *Writer) writePacket(packet *ff.AVPacket) error {
 		return nil
 	} else if w.output == nil {
 		return gomedia.ErrInternalError.With("writer is closed")
-	} else {
-		return ff.AVFormat_interleaved_write_frame(w.output, packet)
 	}
+	if stream := w.output.Stream(packet.StreamIndex()); stream != nil {
+		if src, dst := packet.TimeBase(), stream.TimeBase(); src.Num() > 0 && src.Den() > 0 && src != dst {
+			ff.AVCodec_packet_rescale_ts(packet, src, dst)
+			packet.SetTimeBase(dst)
+		}
+	}
+	return ff.AVFormat_interleaved_write_frame(w.output, packet)
 }
 
 // dictFromOpts unmarshals a JSON object of output options into an AVDictionary

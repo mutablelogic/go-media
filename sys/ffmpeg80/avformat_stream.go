@@ -101,6 +101,13 @@ func (ctx *AVStream) StartTime() int64 {
 	return int64(ctx.start_time)
 }
 
+// SampleAspectRatio returns the sample aspect ratio the container gives the
+// stream, such as from Matroska's display size or MP4's pasp box, or 0:1 if
+// it doesn't give one
+func (ctx *AVStream) SampleAspectRatio() AVRational {
+	return AVRational(ctx.sample_aspect_ratio)
+}
+
 func (ctx *AVStream) Duration() int64 {
 	return int64(ctx.duration)
 }

@@ -216,3 +216,123 @@ func TestRGB24(t *testing.T) {
 	_, _, _, a := frame.RGB{}.RGBA()
 	assert.Equal(t, uint32(0xFFFF), a)
 }
+
+// anamorphic returns a 540x576 4:2:0 frame displayed at 768x576, red on the
+// left half and blue on the right
+func anamorphic(t *testing.T) *frame.VideoFrame {
+	t.Helper()
+	src := image.NewYCbCr(image.Rect(0, 0, 540, 576), image.YCbCrSubsampleRatio420)
+	for y := range 576 {
+		for x := range 540 {
+			c := color.RGBA{255, 0, 0, 255}
+			if x >= 270 {
+				c = color.RGBA{0, 0, 255, 255}
+			}
+			yy, cb, cr := color.RGBToYCbCr(c.R, c.G, c.B)
+			src.Y[src.YOffset(x, y)] = yy
+			src.Cb[src.COffset(x, y)], src.Cr[src.COffset(x, y)] = cb, cr
+		}
+	}
+	f, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	require.NoError(t, f.FromImage(src))
+	f.SetSampleAspectRatio(ff.AVUtil_rational(64, 45))
+	return f
+}
+
+func TestImage_DisplaySize(t *testing.T) {
+	f := anamorphic(t)
+	for _, test := range []struct {
+		sar  ff.AVRational
+		want [2]int
+	}{
+		{ff.AVUtil_rational(64, 45), [2]int{768, 576}},
+		{ff.AVUtil_rational(16, 15), [2]int{576, 576}},
+		{ff.AVUtil_rational(1, 1), [2]int{540, 576}},
+		{ff.AVUtil_rational(0, 1), [2]int{540, 576}}, // unknown
+		{ff.AVUtil_rational(1, 0), [2]int{540, 576}}, // invalid
+	} {
+		f.SetSampleAspectRatio(test.sar)
+		w, h := f.DisplaySize()
+		assert.Equalf(t, test.want, [2]int{w, h}, "%v", test.sar)
+	}
+}
+
+func TestImage_SquarePixels(t *testing.T) {
+	f := anamorphic(t)
+
+	// Without options, the image is the frame's pixels as they're stored
+	view, err := f.Image()
+	require.NoError(t, err)
+	assert.Equal(t, image.Rect(0, 0, 540, 576), view.Bounds())
+
+	// With square pixels, it's the size it's displayed at, and a copy
+	img, err := f.Image(frame.WithSquarePixels())
+	require.NoError(t, err)
+	require.IsType(t, &image.YCbCr{}, img)
+	assert.Equal(t, image.Rect(0, 0, 768, 576), img.Bounds())
+	r, _, b, _ := img.At(100, 288).RGBA()
+	assert.Greater(t, r, b, "left is red")
+	r, _, b, _ = img.At(668, 288).RGBA()
+	assert.Greater(t, b, r, "right is blue")
+	view.(*image.YCbCr).Y[0] = 0
+	assert.NotEqual(t, uint8(0), img.(*image.YCbCr).Y[0], "a copy")
+
+	// A size keeps the displayed aspect ratio, in whole chroma samples
+	for _, test := range []struct {
+		width, height int
+		want          image.Rectangle
+	}{
+		{320, 0, image.Rect(0, 0, 320, 240)},
+		{0, 240, image.Rect(0, 0, 320, 240)},
+		{0, 0, image.Rect(0, 0, 768, 576)},
+		{101, 0, image.Rect(0, 0, 100, 76)},
+		{200, 100, image.Rect(0, 0, 200, 100)},
+	} {
+		img, err := f.Image(frame.WithImageSize(test.width, test.height))
+		require.NoError(t, err)
+		assert.Equalf(t, test.want, img.Bounds(), "%dx%d", test.width, test.height)
+	}
+
+	// The size the frame is already, with square pixels, is a copy
+	f.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+	img, err = f.Image(frame.WithSquarePixels())
+	require.NoError(t, err)
+	assert.Equal(t, image.Rect(0, 0, 540, 576), img.Bounds())
+
+	// An RGBA frame scales too
+	rgba := image.NewNRGBA(image.Rect(0, 0, 64, 32))
+	fill(rgba)
+	g, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	defer g.Close()
+	require.NoError(t, g.FromImage(rgba))
+	img, err = g.Image(frame.WithImageSize(32, 0))
+	require.NoError(t, err)
+	assert.IsType(t, &image.NRGBA{}, img)
+	assert.Equal(t, image.Rect(0, 0, 32, 16), img.Bounds())
+
+	_, err = f.Image(frame.WithImageSize(-1, 0))
+	assert.Error(t, err)
+
+	// An odd size with square pixels is copied as it is, not scaled
+	odd := image.NewYCbCr(image.Rect(0, 0, 13, 7), image.YCbCrSubsampleRatio420)
+	for i := range odd.Y {
+		odd.Y[i] = uint8(i * 7)
+	}
+	h, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	defer h.Close()
+	require.NoError(t, h.FromImage(odd))
+	img, err = h.Image(frame.WithSquarePixels())
+	require.NoError(t, err)
+	assertSame(t, odd, img)
+
+	// A frame without a size is an error, not a panic
+	empty, err := frame.NewVideoFrame(0)
+	require.NoError(t, err)
+	defer empty.Close()
+	_, err = empty.Image(frame.WithImageSize(320, 0))
+	assert.Error(t, err)
+}

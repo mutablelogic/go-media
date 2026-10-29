@@ -138,6 +138,55 @@ func TestReader_Decode_FrameFn_EOF(t *testing.T) {
 	}
 }
 
+// A FrameFn returning io.EOF for a frame which the decoder only returns
+// once it's flushed, at the end of the stream, also stops Decode without
+// an error.
+func TestReader_Decode_FrameFn_EOF_Flush(t *testing.T) {
+	r, err := reader.Open(filepath.Join("..", "etc", "test", "sample.mp4"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	// Count the frames, then stop at the last. Frame threading holds frames
+	// back, so the last ones are only returned once the decoder is flushed
+	var frames, n int
+	d, err := reader.NewDecoder(func(frame.Frame) error {
+		frames++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewDecoder: %v", err)
+	}
+	if err := d.Add(0, "threads=4", "thread_type=frame"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := r.Decode(context.Background(), nil, d); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if err := r.Seek(0, 0); err != nil {
+		t.Fatalf("Seek: %v", err)
+	}
+	d, err = reader.NewDecoder(func(frame.Frame) error {
+		if n++; n == frames {
+			return io.EOF
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewDecoder: %v", err)
+	}
+	if err := d.Add(0, "threads=4", "thread_type=frame"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := r.Decode(context.Background(), nil, d); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if n != frames {
+		t.Fatalf("expected %d frames, got %d", frames, n)
+	}
+}
+
 // End-to-end: encode a subtitle with writer.Encoder into a real container,
 // then decode it back with reader.Decoder. FFmpeg handles subtitles via a
 // completely separate legacy API on both the encode and decode sides, so
@@ -220,5 +269,39 @@ func TestReader_Decode_Subtitle_RoundTrip(t *testing.T) {
 	}
 	if gotText != dialogue {
 		t.Fatalf("decoded subtitle text = %q, want %q", gotText, dialogue)
+	}
+}
+
+// Codec options are passed to the codec, and one it doesn't recognise, or
+// which isn't key=value, is an error
+func TestDecoder_CodecOptions(t *testing.T) {
+	for opt, ok := range map[string]bool{
+		"skip_frame=nokey":   true,
+		"skip_frame=nokye":   false,
+		"not_an_option=true": false,
+		"skip_frame":         false,
+	} {
+		r, err := reader.Open(filepath.Join("..", "etc", "test", "sample.mp4"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var frames int
+		d, err := reader.NewDecoder(func(frame.Frame) error {
+			frames++
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Add(0, opt); err != nil {
+			t.Fatal(err)
+		}
+		err = r.Decode(context.Background(), nil, d)
+		r.Close()
+		if ok && (err != nil || frames == 0) {
+			t.Errorf("%q: got %v and %d frames, want frames", opt, err, frames)
+		} else if !ok && err == nil {
+			t.Errorf("%q: got no error", opt)
+		}
 	}
 }

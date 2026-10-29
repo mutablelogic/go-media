@@ -9,6 +9,17 @@ import (
 )
 
 //////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// ImageOpt is an option for VideoFrame.Image
+type ImageOpt func(*imageOpts) error
+
+type imageOpts struct {
+	scale         bool // whether the image is scaled, with square pixels
+	width, height int  // size, either of which can be zero to keep the aspect ratio
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 // Planar YUV pixel formats and the image subsample ratios which match them.
@@ -34,13 +45,92 @@ var (
 //////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Image returns an image of the frame, which shares the frame's pixels, so
-// it's only valid until the frame is closed or reused. The pixel format is
-// one of RGBA, GRAY8, RGB24, or a planar YUV format (YUV411P, YUV420P,
-// YUV422P, YUV440P or YUV444P); convert other formats first, such as with a
-// writer.Resampler. An RGBA frame is an *image.NRGBA, as FFmpeg's alpha isn't
-// premultiplied.
-func (f *VideoFrame) Image() (image.Image, error) {
+// WithSquarePixels returns an image of the frame at the size it's
+// displayed, with its sample aspect ratio applied, so its pixels are square,
+// as an anamorphic video's, such as a DVD's, aren't.
+func WithSquarePixels() ImageOpt {
+	return func(o *imageOpts) error {
+		o.scale = true
+		return nil
+	}
+}
+
+// WithImageSize returns an image of the frame scaled to a size, with square
+// pixels. Either can be zero, to keep the aspect ratio the frame is
+// displayed with, and both zero is the size it's displayed at.
+func WithImageSize(width, height int) ImageOpt {
+	return func(o *imageOpts) error {
+		if width < 0 || height < 0 {
+			return gomedia.ErrBadParameter.Withf("invalid size %dx%d", width, height)
+		}
+		o.scale, o.width, o.height = true, width, height
+		return nil
+	}
+}
+
+// DisplaySize returns the size the frame is displayed at, with square
+// pixels: its size with its sample aspect ratio (the width of a pixel
+// divided by its height) applied to its width. An unknown or invalid ratio
+// is square.
+func (f *VideoFrame) DisplaySize() (int, int) {
+	w, h := f.Width(), f.Height()
+	sar := f.SampleAspectRatio()
+	if sar.Num() <= 0 || sar.Den() <= 0 || sar.Num() == sar.Den() {
+		return w, h
+	}
+	return int((int64(w)*int64(sar.Num()) + int64(sar.Den())/2) / int64(sar.Den())), h
+}
+
+// Image returns an image of the frame. Without options, it shares the
+// frame's pixels, so it's only valid until the frame is closed or reused.
+// With WithSquarePixels or WithImageSize, it's a copy, scaled so its pixels
+// are square. The pixel format is one of RGBA, GRAY8, RGB24, or a planar YUV
+// format (YUV411P, YUV420P, YUV422P, YUV440P or YUV444P); convert other
+// formats first, such as with a writer.Resampler. An RGBA frame is an
+// *image.NRGBA, as FFmpeg's alpha isn't premultiplied.
+func (f *VideoFrame) Image(opt ...ImageOpt) (image.Image, error) {
+	var o imageOpts
+	for _, fn := range opt {
+		if err := fn(&o); err != nil {
+			return nil, err
+		}
+	}
+	img, err := f.view()
+	if err != nil || !o.scale {
+		return img, err
+	}
+
+	// A frame with square pixels at its own size is copied as it is, even
+	// if it isn't whole chroma samples. Otherwise it's scaled to the size,
+	// keeping the displayed aspect ratio, rounded to whole chroma samples
+	dw, dh := f.DisplaySize()
+	if dw <= 0 || dh <= 0 {
+		return nil, gomedia.ErrBadParameter.Withf("frame has no size")
+	}
+	if o.width == 0 && o.height == 0 && dw == f.Width() && dh == f.Height() {
+		return cloneImage(img), nil
+	}
+	w, h := f.scaledSize(o.width, o.height)
+	if w == f.Width() && h == f.Height() {
+		return cloneImage(img), nil
+	}
+	scaled, err := f.scale(w, h)
+	if err != nil {
+		return nil, err
+	}
+	defer scaled.Close()
+	img, err = scaled.view()
+	if err != nil {
+		return nil, err
+	}
+	return cloneImage(img), nil
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - IMAGE
+
+// view returns an image which shares the frame's pixels
+func (f *VideoFrame) view() (image.Image, error) {
 	rect := image.Rect(0, 0, f.Width(), f.Height())
 	switch f.PixFmt() {
 	case ff.AV_PIX_FMT_RGBA:
@@ -87,6 +177,55 @@ func (f *VideoFrame) FromImage(src image.Image) error {
 		}
 	}
 	return gomedia.ErrNotImplemented.Withf("unsupported image: %T", src)
+}
+
+// scaledSize returns the size of an image of the frame, with square pixels,
+// keeping the displayed aspect ratio when either is zero, rounded down to
+// whole chroma samples, and at least one of them. The frame's displayed size
+// isn't zero
+func (f *VideoFrame) scaledSize(width, height int) (int, int) {
+	dw, dh := f.DisplaySize()
+	switch {
+	case width == 0 && height == 0:
+		width, height = dw, dh
+	case height == 0:
+		height = (width*dh + dw/2) / dw
+	case width == 0:
+		width = (height*dw + dh/2) / dh
+	}
+	sx, sy := 1, 1
+	if ratio, exists := yuvSubsampleRatio[f.PixFmt()]; exists {
+		sx, sy = chromaSubsample(ratio)
+	}
+	return max(sx, width/sx*sx), max(sy, height/sy*sy)
+}
+
+// scale returns a new frame of the frame's pixel format, scaled to a size
+// with square pixels
+func (f *VideoFrame) scale(width, height int) (*VideoFrame, error) {
+	ctx := ff.SWScale_get_context(f.Width(), f.Height(), f.PixFmt(), width, height, f.PixFmt(), ff.SWS_BICUBIC, nil, nil, nil)
+	if ctx == nil {
+		return nil, gomedia.ErrInternalError.Withf("can't scale %v from %dx%d to %dx%d", f.PixFmt(), f.Width(), f.Height(), width, height)
+	}
+	defer ff.SWScale_free_context(ctx)
+
+	dst, err := NewVideoFrame(f.Stream())
+	if err != nil {
+		return nil, err
+	}
+	dst.SetPixFmt(f.PixFmt())
+	dst.SetWidth(width)
+	dst.SetHeight(height)
+	if err := dst.AllocateBuffers(); err != nil {
+		dst.Close()
+		return nil, err
+	}
+	if err := ff.SWScale_scale_frame(ctx, dst.AVFrame, f.AVFrame, false); err != nil {
+		dst.Close()
+		return nil, err
+	}
+	dst.SetSampleAspectRatio(ff.AVUtil_rational(1, 1))
+	return dst, nil
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -173,6 +312,36 @@ func (f *VideoFrame) fromYCbCr(pixfmt ff.AVPixelFormat, src *image.YCbCr) error 
 
 //////////////////////////////////////////////////////////////////////////////
 // PRIVATE FUNCTIONS
+
+// cloneImage returns a copy of an image which shares a frame's pixels, which
+// is one of those view returns
+func cloneImage(img image.Image) image.Image {
+	switch img := img.(type) {
+	case *image.NRGBA:
+		dst := image.NewNRGBA(img.Rect)
+		copyPlane(dst.Pix, dst.Stride, img.Pix, img.Stride, 4*img.Rect.Dx(), img.Rect.Dy())
+		return dst
+	case *image.Gray:
+		dst := image.NewGray(img.Rect)
+		copyPlane(dst.Pix, dst.Stride, img.Pix, img.Stride, img.Rect.Dx(), img.Rect.Dy())
+		return dst
+	case *RGB24:
+		dst := NewRGB24(img.Rect)
+		copyPlane(dst.Pix, dst.Stride, img.Pix, img.Stride, 3*img.Rect.Dx(), img.Rect.Dy())
+		return dst
+	case *image.YCbCr:
+		dst := image.NewYCbCr(img.Rect, img.SubsampleRatio)
+		sx, sy := chromaSubsample(img.SubsampleRatio)
+		w, h := img.Rect.Dx(), img.Rect.Dy()
+		cw, ch := (w+sx-1)/sx, (h+sy-1)/sy
+		copyPlane(dst.Y, dst.YStride, img.Y, img.YStride, w, h)
+		copyPlane(dst.Cb, dst.CStride, img.Cb, img.CStride, cw, ch)
+		copyPlane(dst.Cr, dst.CStride, img.Cr, img.CStride, cw, ch)
+		return dst
+	default:
+		return img
+	}
+}
 
 // copyPlane copies rows of rowBytes bytes from src to dst, which have their
 // own strides
