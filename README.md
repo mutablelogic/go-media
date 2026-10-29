@@ -308,15 +308,34 @@ make docker-dev FFMPEG_LICENSE=lgpl       # tags ghcr.io/mutablelogic/go-media:<
 make docker-runtime FFMPEG_LICENSE=lgpl   # tags ghcr.io/mutablelogic/go-media:<version>-lgpl-runtime
 ```
 
-### Windows Libraries
+### Library Archives
 
-The images are for Linux. For Windows, each release has the libraries, built with MSYS2's
-MinGW64, attached as `go-media-<version>-<license>-windows-amd64.zip`, with their headers,
-pkg-config files and stamps. Unpack one into `build/install`, so `make` doesn't build the
-libraries again, or anywhere else, and set `PKG_CONFIG_PATH` to its `lib/pkgconfig`, as the
-pkg-config files are relative to where they are. You'll still need MSYS2's MinGW64 toolchain,
-`libde265`, `aom` and `dav1d`, as the release workflow installs. `make libraries-zip` packages
-the libraries the same way on any platform.
+To build outside a container, such as in CI, each release also has the libraries as archives,
+with their headers, pkg-config files and stamps:
+
+| Archive | Built on | What they link with |
+| --- | --- | --- |
+| `go-media-<version>-<license>-linux-amd64.tar.gz`, `...-linux-arm64.tar.gz` | Debian trixie, from the dev image | The Debian packages in `debian-packages.txt` |
+| `go-media-<version>-<license>-darwin-arm64.tar.gz` | macOS with Homebrew | The Homebrew formulae in `Brewfile` |
+| `go-media-<version>-<license>-windows-amd64.zip` | MSYS2's MinGW64 | MinGW64's toolchain, `libde265`, `aom` and `dav1d` |
+
+Unpack one into `build/install`, so `make` doesn't build the libraries again, or anywhere else,
+as the pkg-config files are relative to where they are. Then install what they link with, and
+build with them:
+
+```bash
+mkdir -p build/install
+tar -xzf go-media-1.12.0-lgpl-darwin-arm64.tar.gz -C build/install
+brew bundle --file build/install/Brewfile    # or on Debian: apt install $(cat build/install/debian-packages.txt)
+
+export PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig"
+export CGO_LDFLAGS_ALLOW="-(W|D).*" CGO_LDFLAGS="-lstdc++"
+go build ./...
+```
+
+On Linux, the libraries need a glibc as new as Debian trixie's; on another distribution, the
+dev image is the better choice. `make libraries-archive` packages the libraries the same way, on
+any platform.
 
 For GPU-accelerated encoding/decoding with Vulkan, see [Docker GPU Setup](docs/docker-gpu.md)
 for instructions on passing through GPU devices from the host.

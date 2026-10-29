@@ -18,6 +18,9 @@ jobs:
   linux:
     name: Build Linux ${{ matrix.license }} ${{ matrix.arch }} images
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +83,24 @@ jobs:
             LICENSE=${{ matrix.license }}
             SPDX=${{ matrix.spdx }}
             SOURCE=${{ github.server_url }}/${{ github.repository }}
+
+      # The libraries, from the dev image, which has their stamps, so they
+      # aren't built again, attached to the release as
+      # go-media-<version>-<license>-linux-<arch>.tar.gz, to build with
+      # outside a container
+      - name: Package the libraries
+        if: github.event_name == 'release'
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/go-media:${{ steps.version.outputs.tag }}-${{ matrix.license }}-dev-linux-${{ matrix.arch }}
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} --volume "$PWD:/src" --workdir /src "$IMAGE" \
+            make GO=true PREFIX=/opt/go-media OS=linux ARCH=${{ matrix.arch }} VERSION="${GITHUB_REF_NAME#v}" libraries-archive
+
+      - name: Attach the libraries to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-linux-${{ matrix.arch }}.tar.gz --clobber
 
       # The packages to run with, on the latest Debian image
       - name: Build and publish the runtime image
@@ -275,13 +296,59 @@ jobs:
       # building libraw, so it's "true"
       - name: Build and package the libraries
         shell: msys2 {0}
-        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-zip
+        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-archive
 
       - name: Attach the libraries to the release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-windows-*.zip --clobber
+
+  # The macOS libraries, built with Homebrew's, are attached to the release as
+  # go-media-<version>-<license>-darwin-arm64.tar.gz, with a Brewfile of the
+  # formulae they link with, to build with on a Mac
+  darwin-libraries:
+    name: Build macOS ${{ matrix.license }} libraries
+    if: github.event_name == 'release'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        license: [gpl, lgpl]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: brew install pkg-config nasm cmake libde265 aom dav1d
+
+      # The libraries' pkg-config files name the Homebrew formulae they were
+      # built with, so libraries built with other versions aren't reused
+      - name: Fingerprint Homebrew
+        id: homebrew
+        run: echo "hash=-$(brew list --formula --versions | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # The gpl libraries have the same key as test.yaml's, so they reuse
+      # what it built, and the lgpl libraries have their own
+      - name: Cache libraries
+        uses: actions/cache@v6
+        with:
+          path: build/install
+          key: ${{ runner.os }}-libraries-${{ hashFiles('Makefile') }}${{ steps.homebrew.outputs.hash }}${{ matrix.license == 'lgpl' && '-lgpl' || '' }}
+
+      # The libraries don't need Go, whose cache the Makefile clears after
+      # building libraw, so it's "true"
+      - name: Build and package the libraries
+        run: make GO=true FFMPEG_LICENSE=${{ matrix.license }} libraries-archive
+
+      - name: Attach the libraries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/go-media-*-${{ matrix.license }}-darwin-*.tar.gz --clobber
 
   manifest:
     name: Publish multi-platform tags
