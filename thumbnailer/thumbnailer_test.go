@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -318,4 +319,72 @@ func TestThumbnailer_Invalid(t *testing.T) {
 	assert.Error(t, err)
 	_, err = thumbnailer.Open(testDataPath(t, "sample.mp4"), thumbnailer.WithStream(1))
 	assert.Error(t, err)
+}
+
+func TestThumbnailer_NewReader(t *testing.T) {
+	// A video read from a file, which is seeked, has the same scenes and
+	// thumbnails as when it's opened
+	path := testVideo(t)
+	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+	th, err := thumbnailer.NewReader(f, thumbnailer.WithSize(160, 0))
+	require.NoError(t, err)
+	defer th.Close()
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 3, len(a.Scenes))
+
+	opened, err := thumbnailer.Open(path, thumbnailer.WithSize(160, 0))
+	require.NoError(t, err)
+	defer opened.Close()
+	b, err := opened.Analyse(context.Background())
+	require.NoError(t, err)
+	for i := range a.Scenes {
+		assert.Equal(t, b.Scenes[i].Start, a.Scenes[i].Start)
+	}
+
+	thumbs, err := th.Thumbnails(context.Background(), 3)
+	require.NoError(t, err)
+	require.Equal(t, 3, len(thumbs))
+	r, g, _, _ := thumbs[2].Image.At(80, 60).RGBA()
+	assert.Greater(t, g, r)
+}
+
+func TestThumbnailer_NewReaderNoSeek(t *testing.T) {
+	// A reader which can't be seeked is an error, for a format which can be
+	// read without seeking, such as MPEG-TS, as well as one which can't
+	for _, format := range []string{"mp4", "mpegts"} {
+		f, err := os.Open(testVideoFormat(t, format))
+		require.NoError(t, err)
+		_, err = thumbnailer.NewReader(struct{ io.Reader }{f})
+		assert.Error(t, err, format)
+		require.NoError(t, f.Close())
+	}
+}
+
+func TestThumbnailer_SeekKeyframes(t *testing.T) {
+	// A video with more keyframes than the maximum number of samples, such
+	// as a film, has its keyframes sampled at evenly spaced times
+	th, err := thumbnailer.Open(testVideo(t), thumbnailer.WithMode(thumbnailer.ModeAuto), thumbnailer.WithMaxSamples(8))
+	require.NoError(t, err)
+	defer th.Close()
+
+	a, err := th.Analyse(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, thumbnailer.ModeKeyframes, a.Mode)
+	assert.LessOrEqual(t, len(a.Samples), 8)
+	assert.Greater(t, len(a.Samples), 4)
+	for i, s := range a.Samples {
+		assert.True(t, s.Keyframe)
+		if i > 0 {
+			assert.Greater(t, s.Time, a.Samples[i-1].Time)
+		}
+	}
+
+	// The thumbnails are still from different scenes
+	thumbs, err := th.Thumbnails(context.Background(), 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(thumbs))
+	assert.NotEqual(t, thumbs[0].Scene, thumbs[1].Scene)
 }

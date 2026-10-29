@@ -205,8 +205,9 @@ thumbnailer poster --width 320 video.mp4 poster.jpg
 thumbnailer scenes video.mp4 scenes
 ```
 
-From Go, `thumbnailer.Open(path)` returns a `Thumbnailer`, whose `Analyse`, `Thumbnails`,
-`Poster` and `Frame` methods return the scenes and frames.
+From Go, `thumbnailer.Open(path)`, or `thumbnailer.NewReader(r)` for a reader which can be
+seeked, such as a file, returns a `Thumbnailer`, whose `Analyse`, `Thumbnails`, `Poster` and
+`Frame` methods return the scenes and frames.
 
 ### Go API - Probing and Media Management
 

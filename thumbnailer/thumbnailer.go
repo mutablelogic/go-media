@@ -30,6 +30,7 @@ type Thumbnailer struct {
 	displayed     bool          // whether width and height are from a frame, rather than as stored
 	start         time.Duration // time of the stream's first frame, which times are from
 	sar           ff.AVRational // sample aspect ratio the container or codec gives, or 0:1
+	keyframeRate  float64       // keyframes each second at the start of the video, or zero if it's unknown
 	analysis      *Analysis
 }
 
@@ -84,6 +85,29 @@ func Open(path string, opt ...Opt) (*Thumbnailer, error) {
 	if err != nil {
 		return nil, err
 	}
+	return open(r, o)
+}
+
+// NewReader opens a video from r, which needs to be an io.Seeker, such as a
+// file, as frames are sampled by seeking it, so a reader which isn't one is
+// an error.
+func NewReader(r io.Reader, opt ...Opt) (*Thumbnailer, error) {
+	if _, ok := r.(io.Seeker); !ok {
+		return nil, gomedia.ErrBadParameter.With("reader can't be seeked")
+	}
+	o, err := applyOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
+	rr, err := reader.NewReader(r, o.readerOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return open(rr, o)
+}
+
+// open chooses the video stream of r, and closes r on error
+func open(r *reader.Reader, o *opts) (*Thumbnailer, error) {
 	t := &Thumbnailer{opts: *o, reader: r}
 
 	// Choose the video stream
@@ -157,7 +181,7 @@ func (t *Thumbnailer) Analyse(ctx context.Context) (*Analysis, error) {
 	var err error
 	switch result.Mode {
 	case ModeKeyframes:
-		result.Samples, err = t.sampleKeyframes(ctx)
+		result.Samples, err = t.sampleKeyframes(ctx, result.Duration)
 	default:
 		result.Samples, err = t.sampleSeek(ctx, result.Duration)
 	}
@@ -259,6 +283,7 @@ func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (M
 		return ModeSeek, nil
 	}
 	rate := float64(len(keyframes)) / span
+	t.keyframeRate = rate
 	expected := float64(len(keyframes))
 	if duration > 0 {
 		expected = rate * duration.Seconds()
@@ -270,8 +295,12 @@ func (t *Thumbnailer) chooseMode(ctx context.Context, duration time.Duration) (M
 }
 
 // sampleKeyframes measures every keyframe in the video, which is decoded on
-// its own, so it's fast
-func (t *Thumbnailer) sampleKeyframes(ctx context.Context) ([]Sample, error) {
+// its own, so it's fast, or, when it has more than the maximum number of
+// samples, such as a film, the keyframes at evenly spaced times
+func (t *Thumbnailer) sampleKeyframes(ctx context.Context, duration time.Duration) ([]Sample, error) {
+	if duration > 0 && t.keyframeRate*duration.Seconds() > float64(t.maxSamples) {
+		return t.seekKeyframes(ctx, duration)
+	}
 	var result []Sample
 	err := t.decode(ctx, measureWidth, 0, "skip_frame=nokey", func(ts time.Duration, ok bool, img *image.YCbCr) error {
 		if !ok {
@@ -288,6 +317,39 @@ func (t *Thumbnailer) sampleKeyframes(ctx context.Context) ([]Sample, error) {
 		return nil, err
 	}
 	slices.SortFunc(result, func(a, b Sample) int { return cmp.Compare(a.Time, b.Time) })
+	return result, nil
+}
+
+// seekKeyframes measures the keyframe at or before each of evenly spaced
+// times, the middle of each of the maximum number of intervals, seeking to
+// each, so only that keyframe is decoded. A keyframe already sampled, when
+// they're further apart than the intervals, is skipped
+func (t *Thumbnailer) seekKeyframes(ctx context.Context, duration time.Duration) ([]Sample, error) {
+	var result []Sample
+	interval := duration / time.Duration(t.maxSamples)
+	for at := interval / 2; at < duration; at += interval {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := t.seek(at); err != nil {
+			return nil, err
+		}
+		if err := t.decode(ctx, measureWidth, 0, "skip_frame=nokey", func(ts time.Duration, ok bool, img *image.YCbCr) error {
+			if !ok {
+				ts = at
+			}
+			if len(result) == 0 || ts > result[len(result)-1].Time {
+				stats, hist := measure(img)
+				result = append(result, Sample{Time: ts, Keyframe: true, Stats: stats, hist: hist})
+			}
+			return io.EOF
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := t.seek(0); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
