@@ -21,16 +21,18 @@ usage() {
 [ $# -eq 2 ] || usage
 case "$1" in
 dev)
-	# The tools to build the libraries, and the headers of what they link with
+	# The tools to build the libraries, and the headers of what they link
+	# with. OpenSSL links statically with zstd, so FFmpeg only finds it with
+	# libzstd-dev
 	common="ca-certificates build-essential cmake nasm curl pkg-config \
-		libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev zlib1g-dev libssl-dev"
+		libde265-dev libaom-dev libdav1d-dev libxml2-dev liblzma-dev zlib1g-dev libssl-dev libzstd-dev"
 	gpl="libfreetype-dev libmp3lame-dev libopus-dev libvorbis-dev libvpx-dev \
 		libx264-dev libx265-dev libnuma-dev libzvbi-dev libvulkan-dev"
 	;;
 runtime)
 	# The shared libraries which the static libraries link with
 	common="ca-certificates libde265-0 libaom3 libdav1d7 libxml2 liblzma5 zlib1g \
-		libssl3t64 libstdc++6 libgomp1"
+		libssl3t64 libzstd1 libstdc++6 libgomp1"
 	gpl="libfreetype6 libmp3lame0 libopus0 libvorbis0a libvorbisenc2 libvpx9 \
 		libx264-164 libx265-215 libnuma1 libzvbi0 libvulkan1"
 	;;
