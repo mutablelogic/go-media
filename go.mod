@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/mutablelogic/go-client v1.4.10
+	github.com/mutablelogic/go-client v1.4.12
 	github.com/mutablelogic/go-pg v1.4.4
 	github.com/mutablelogic/go-server v1.7.16
 	github.com/stretchr/testify v1.12.1
