@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mutablelogic/go-client v1.4.10
 	github.com/mutablelogic/go-pg v1.4.4
-	github.com/mutablelogic/go-server v1.7.16
+	github.com/mutablelogic/go-server v1.7.18
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
