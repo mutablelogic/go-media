@@ -46,9 +46,9 @@ type Decoder struct {
 //////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-// maxInvalidPackets is how many packets in a row a stream's codec can reject
-// as invalid data, which are skipped, before decoding fails, as the stream
-// isn't one the codec can decode
+// maxInvalidPackets is how many packets in a row a stream's codec rejects as
+// invalid data before decoding fails, as the stream isn't one the codec can
+// decode. The packets before it are skipped.
 const maxInvalidPackets = 100
 
 //////////////////////////////////////////////////////////////////////////////
@@ -182,13 +182,13 @@ func (d *Decoder) decode(stream int, packet *ff.AVPacket) error {
 }
 
 // skipInvalid counts a packet of the stream which its codec rejected as
-// invalid data, and returns whether it's skipped, which it is until too
-// many in a row are
+// invalid data, and returns whether it's skipped, which it is unless it's
+// the maxInvalidPackets'th in a row
 func (d *Decoder) skipInvalid(stream int) bool {
 	d.Lock()
 	defer d.Unlock()
 	d.invalid[stream]++
-	return d.invalid[stream] <= maxInvalidPackets
+	return d.invalid[stream] < maxInvalidPackets
 }
 
 // validPacket resets the count of packets in a row of the stream which its
