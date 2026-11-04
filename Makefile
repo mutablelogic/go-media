@@ -105,6 +105,12 @@ else
 $(error FFMPEG_LICENSE must be gpl or lgpl, not "$(FFMPEG_LICENSE)")
 endif
 
+# FFMPEG_LIBPLACEBO=1 enables libplacebo, FFmpeg's GPU video rendering
+# filter, when it's found. It isn't enabled otherwise, as the libplacebo
+# which Debian trixie and Ubuntu 25.10 have doesn't build with FFmpeg 8,
+# which removed av_stream_get_side_data, which its headers fall back to
+FFMPEG_LIBPLACEBO ?=
+
 # gpl_library returns an FFmpeg option, only for a GPL build, for a library
 # FFmpeg only allows in one (its EXTERNAL_LIBRARY_GPL_LIST)
 gpl_library = $(if $(filter gpl,$(FFMPEG_LICENSE)),$(1))
@@ -641,7 +647,7 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libgcrypt && echo "--enable-gcrypt"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists aom && echo "--enable-libaom"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libbluray && echo "--enable-libbluray"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists dav1d && echo "--enable-libdav1d"))
+	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --atleast-version=1.0.0 dav1d && echo "--enable-libdav1d"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists vulkan && echo "--enable-vulkan"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists zvbi-0.2 && echo "--enable-libzvbi"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists soxr && echo "--enable-libsoxr"))
@@ -692,7 +698,7 @@ ffmpeg-dep:
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists lensfun && echo "--enable-liblensfun"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists tesseract && echo "--enable-libtesseract"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libqrencode && echo "--enable-libqrencode"))
-	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libplacebo && echo "--enable-libplacebo"))
+	$(if $(FFMPEG_LIBPLACEBO),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libplacebo && echo "--enable-libplacebo")))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists openssl && echo "--enable-openssl"))
 	$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists mbedtls && echo "--enable-mbedtls"))
 	$(if $(FFMPEG_NONFREE),$(eval FFMPEG_CONFIG := $(FFMPEG_CONFIG) $(shell ${PKG_CONFIG} --exists libtls && echo "--enable-libtls")))
