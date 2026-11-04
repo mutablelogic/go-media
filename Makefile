@@ -132,12 +132,21 @@ $(CMD_DIR): go-dep go-tidy chromaprint-dep mkdir
 ###############################################################################
 # FFMPEG
 
-# Download ffmpeg sources
+# Download ffmpeg sources, from ffmpeg.org, or when it can't be reached,
+# from FFmpeg's mirror on GitHub, whose release tag is the version with an
+# "n", such as n8.1.3, and which is unpacked into FFmpeg-<tag>
+FFMPEG_TAG = $(patsubst ffmpeg-%,n%,$(FFMPEG_VERSION))
 ${BUILD_DIR}/${FFMPEG_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
 		echo "Downloading $(FFMPEG_VERSION)"; \
-		$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz && \
-		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)" && \
+		if $(CURL) --fail --location --connect-timeout 20 -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; then \
+			tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)"; \
+		else \
+			echo "Downloading $(FFMPEG_VERSION) from GitHub, as ffmpeg.org can't be reached" && \
+			$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$(FFMPEG_TAG).tar.gz && \
+			tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)" && \
+			mv "$(BUILD_DIR)/FFmpeg-$(FFMPEG_TAG)" "$(BUILD_DIR)/$(FFMPEG_VERSION)"; \
+		fi && \
 		rm -f "$(BUILD_DIR)/ffmpeg.tar.gz"; \
 	fi
 
