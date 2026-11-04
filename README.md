@@ -42,7 +42,9 @@ LibRaw, libheif, libfvad) as static libraries before the Go module itself. You'l
 toolchain, `pkg-config`, `cmake` and `nasm`, plus the codec libraries you want support for -
 FFmpeg's own configure step and libheif's CMake step both auto-detect optional codecs via
 `pkg-config`, so anything not installed is simply compiled out rather than causing a build
-failure.
+failure. The exception is libplacebo, FFmpeg's GPU video rendering filter, which is only
+enabled with `make FFMPEG_LIBPLACEBO=1`, as the libplacebo which Debian trixie and Ubuntu 25.10
+have doesn't build with FFmpeg 8.
 
 **macOS (Homebrew):**
 
