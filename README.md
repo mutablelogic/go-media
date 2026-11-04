@@ -44,7 +44,8 @@ FFmpeg's own configure step and libheif's CMake step both auto-detect optional c
 `pkg-config`, so anything not installed is simply compiled out rather than causing a build
 failure. The exception is libplacebo, FFmpeg's GPU video rendering filter, which is only
 enabled with `make FFMPEG_LIBPLACEBO=1`, as the libplacebo which Debian trixie and Ubuntu 25.10
-have doesn't build with FFmpeg 8.
+have doesn't build with FFmpeg 8. dav1d, the AV1 decoder, is only enabled from version 1.0.0,
+which FFmpeg 8 needs, so an older one, such as Ubuntu 22.04's, is compiled out.
 
 **macOS (Homebrew):**
 
