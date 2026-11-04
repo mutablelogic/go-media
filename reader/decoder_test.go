@@ -1,9 +1,11 @@
 package reader_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -303,5 +305,52 @@ func TestDecoder_CodecOptions(t *testing.T) {
 		} else if !ok && err == nil {
 			t.Errorf("%q: got no error", opt)
 		}
+	}
+}
+
+// A packet which the decoder rejects as invalid data, such as padding after
+// the last frame of an mp3, which some podcast hosts add, is skipped, as the
+// ffmpeg command does, rather than failing the decode, so every frame is
+// still decoded
+func TestReader_Decode_InvalidPacket(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "etc", "test", "sample.mp3"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	decode := func(t *testing.T, data []byte) int {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "sample.mp3")
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		r, err := reader.Open(path)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer r.Close()
+		var samples int
+		d, err := reader.NewDecoder(func(f frame.Frame) error {
+			samples += f.(*frame.AudioFrame).NumSamples()
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("NewDecoder: %v", err)
+		}
+		if err := d.Add(0); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		if err := r.Decode(context.Background(), nil, d); err != nil {
+			t.Fatalf("Decode: %v", err)
+		}
+		return samples
+	}
+
+	want := decode(t, data)
+	if want == 0 {
+		t.Fatal("expected samples from the sample")
+	}
+	padded := append(bytes.Clone(data), bytes.Repeat([]byte("0"), 703)...)
+	if got := decode(t, padded); got < want {
+		t.Fatalf("decoded %d samples with padding, want at least %d", got, want)
 	}
 }

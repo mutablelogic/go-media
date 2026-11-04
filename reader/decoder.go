@@ -40,7 +40,16 @@ type Decoder struct {
 	include map[int]bool
 	options map[int][]string // codec options for each stream, as key=value
 	codecs  map[int]*ff.AVCodecContext
+	invalid map[int]int // packets in a row which each stream's codec rejected as invalid data
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+// maxInvalidPackets is how many packets in a row a stream's codec can reject
+// as invalid data, which are skipped, before decoding fails, as the stream
+// isn't one the codec can decode
+const maxInvalidPackets = 100
 
 //////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -82,6 +91,7 @@ func (d *Decoder) open(input *ff.AVFormatContext) error {
 	defer d.Unlock()
 
 	d.codecs = make(map[int]*ff.AVCodecContext, len(d.include))
+	d.invalid = make(map[int]int, len(d.include))
 	for _, stream := range input.Streams() {
 		index := stream.Index()
 		if !d.include[index] {
@@ -150,7 +160,7 @@ func (d *Decoder) close() error {
 	for _, ctx := range d.codecs {
 		ff.AVCodec_free_context(ctx)
 	}
-	d.codecs = nil
+	d.codecs, d.invalid = nil, nil
 	return nil
 }
 
@@ -171,11 +181,40 @@ func (d *Decoder) decode(stream int, packet *ff.AVPacket) error {
 	return d.decodeFrame(ctx, stream, packet)
 }
 
-// decodeFrame handles the audio/video path: send_packet/receive_frame.
+// skipInvalid counts a packet of the stream which its codec rejected as
+// invalid data, and returns whether it's skipped, which it is until too
+// many in a row are
+func (d *Decoder) skipInvalid(stream int) bool {
+	d.Lock()
+	defer d.Unlock()
+	d.invalid[stream]++
+	return d.invalid[stream] <= maxInvalidPackets
+}
+
+// validPacket resets the count of packets in a row of the stream which its
+// codec rejected as invalid data
+func (d *Decoder) validPacket(stream int) {
+	d.Lock()
+	defer d.Unlock()
+	if d.invalid[stream] > 0 {
+		d.invalid[stream] = 0
+	}
+}
+
+// decodeFrame handles the audio/video path: send_packet/receive_frame. A
+// packet the codec rejects as invalid data, such as padding after the last
+// frame of an mp3, is skipped, as the ffmpeg command does, unless too many
+// in a row are, when the stream can't be decoded.
 func (d *Decoder) decodeFrame(ctx *ff.AVCodecContext, stream int, packet *ff.AVPacket) error {
-	if err := ff.AVCodec_send_packet(ctx, packet); err != nil {
+	if err := ff.AVCodec_send_packet(ctx, packet); errors.Is(err, ff.AVError(ff.AVERROR_INVALIDDATA)) && packet != nil {
+		if d.skipInvalid(stream) {
+			return nil
+		}
+		return err
+	} else if err != nil {
 		return err
 	}
+	d.validPacket(stream)
 
 	isVideo := ctx.CodecType() == ff.AVMEDIA_TYPE_VIDEO
 
