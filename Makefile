@@ -24,10 +24,10 @@ PREFIX ?= ${BUILD_DIR}/install
 # libfvad's only release, v1.0, predates its CMake build, so use a commit
 FFMPEG_VERSION ?= ffmpeg-8.1.3
 SYS_VERSION ?= ffmpeg80
-CHROMAPRINT_VERSION ?= chromaprint-1.5.1
+CHROMAPRINT_VERSION ?= chromaprint-1.6.2
 LIBEXIF_VERSION ?= 0.6.26
-LIBRAW_VERSION ?= 0.22.1
-LIBHEIF_VERSION ?= 1.23.1
+LIBRAW_VERSION ?= 0.22.3
+LIBHEIF_VERSION ?= 1.23.7
 LIBFVAD_VERSION ?= 532ab666c20d3cfda38bca63abbb0f152706c369
 
 # A library is built once for each version: installing it writes its stamp
@@ -132,12 +132,21 @@ $(CMD_DIR): go-dep go-tidy chromaprint-dep mkdir
 ###############################################################################
 # FFMPEG
 
-# Download ffmpeg sources
+# Download ffmpeg sources, from ffmpeg.org, or when it can't be reached,
+# from FFmpeg's mirror on GitHub, whose release tag is the version with an
+# "n", such as n8.1.3, and which is unpacked into FFmpeg-<tag>
+FFMPEG_TAG = $(patsubst ffmpeg-%,n%,$(FFMPEG_VERSION))
 ${BUILD_DIR}/${FFMPEG_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(FFMPEG_VERSION)" ]; then \
 		echo "Downloading $(FFMPEG_VERSION)"; \
-		$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz && \
-		tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)" && \
+		if $(CURL) --fail --location --connect-timeout 20 -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://ffmpeg.org/releases/$(FFMPEG_VERSION).tar.gz; then \
+			tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)"; \
+		else \
+			echo "Downloading $(FFMPEG_VERSION) from GitHub, as ffmpeg.org can't be reached" && \
+			$(CURL) $(CURL_RETRY_FLAGS) -o "$(BUILD_DIR)/ffmpeg.tar.gz" https://github.com/FFmpeg/FFmpeg/archive/refs/tags/$(FFMPEG_TAG).tar.gz && \
+			tar -xzf "$(BUILD_DIR)/ffmpeg.tar.gz" -C "$(BUILD_DIR)" && \
+			mv "$(BUILD_DIR)/FFmpeg-$(FFMPEG_TAG)" "$(BUILD_DIR)/$(FFMPEG_VERSION)"; \
+		fi && \
 		rm -f "$(BUILD_DIR)/ffmpeg.tar.gz"; \
 	fi
 
@@ -178,7 +187,7 @@ ${BUILD_DIR}/${CHROMAPRINT_VERSION}:
 	@if [ ! -d "$(BUILD_DIR)/$(CHROMAPRINT_VERSION)" ]; then \
 		echo "Downloading $(CHROMAPRINT_VERSION)"; \
 		mkdir -p $(BUILD_DIR)/${CHROMAPRINT_VERSION}; \
-		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v1.5.1/$(CHROMAPRINT_VERSION).tar.gz; \
+		$(CURL) $(CURL_RETRY_FLAGS) -o $(BUILD_DIR)/chromaprint.tar.gz https://github.com/acoustid/chromaprint/releases/download/v$(patsubst chromaprint-%,%,$(CHROMAPRINT_VERSION))/$(CHROMAPRINT_VERSION).tar.gz; \
 		tar -xzf $(BUILD_DIR)/chromaprint.tar.gz -C $(BUILD_DIR); \
 		rm -f $(BUILD_DIR)/chromaprint.tar.gz; \
 	fi
@@ -207,20 +216,20 @@ chromaprint-configure: mkdir ${BUILD_DIR}/${CHROMAPRINT_VERSION} ffmpeg
 		-DCMAKE_INCLUDE_PATH="$(shell realpath ${PREFIX})/include" \
 		--install-prefix "$(shell realpath ${PREFIX})" \
 		-S ${BUILD_DIR}/${CHROMAPRINT_VERSION} \
-		-B ${BUILD_DIR}
+		-B ${BUILD_DIR}/${CHROMAPRINT_VERSION}/build
 
 # Build chromaprint, with cmake --build as cmake may generate Ninja files
 # rather than a Makefile (eg. MSYS2)
 .PHONY: chromaprint-build
 chromaprint-build: chromaprint-configure
 	@echo "Building ${CHROMAPRINT_VERSION} with ${JOBS} jobs"
-	@cmake --build ${BUILD_DIR} -j$(JOBS)
+	@cmake --build ${BUILD_DIR}/${CHROMAPRINT_VERSION}/build -j$(JOBS)
 
 # Install chromaprint, adding C++ and libavutil to its pkg-config libs
 .PHONY: chromaprint-install
 chromaprint-install: chromaprint-build
 	@echo "Installing ${CHROMAPRINT_VERSION} => ${PREFIX}"
-	@cmake --install ${BUILD_DIR}
+	@cmake --install ${BUILD_DIR}/${CHROMAPRINT_VERSION}/build
 	@sed -i.bak 's/Libs: -L\${libdir} -lchromaprint/Libs: -L\${libdir} -lchromaprint -lstdc++ -lavutil/g' "${PREFIX}/lib/pkgconfig/libchromaprint.pc"
 	@rm -f "${PREFIX}/lib/pkgconfig/libchromaprint.pc.bak"
 
